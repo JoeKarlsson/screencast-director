@@ -175,6 +175,8 @@ struct FlowLayout: Layout {
 /// there; shift-click to select a run, then Cut (or ⌫) removes it from the edit.
 struct TranscriptView: View {
   @ObservedObject var project: ProjectModel
+  /// Only the current word follows playback, so the view redraws per word, not per frame.
+  @ObservedObject var playhead: Playhead
 
   /// Sentences: break after end punctuation or a pause over 1.5 s.
   static func sentences(_ words: [Word]) -> [[Int]] {
@@ -225,7 +227,7 @@ struct TranscriptView: View {
   private func word(_ i: Int, _ w: Word) -> some View {
     let speed = project.plan?.speed(at: (w.start + w.end) / 2)
     let selected = project.transcriptSel?.contains(i) ?? false
-    let playing = project.playheadSrc >= w.start && project.playheadSrc < w.end
+    let playing = playhead.word == i
     return Text(w.text)
       .strikethrough(speed == nil)
       .foregroundStyle(speed == nil ? Color.secondary.opacity(0.6) : (speed ?? 1) > 1.01 ? Color.orange : Color.primary)

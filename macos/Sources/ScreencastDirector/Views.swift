@@ -310,6 +310,23 @@ struct EditorView: View {
   }
 }
 
+/// The clock and scrubber: the only part of the transport that follows the playhead.
+struct TransportScrubber: View {
+  let project: ProjectModel
+  @ObservedObject var playhead: Playhead
+  let total: Double
+  let fps: Double
+
+  var body: some View {
+    Text(fmtTime(playhead.frame / fps)).monospacedDigit()
+      .frame(width: 56, alignment: .trailing)
+    Slider(value: Binding(get: { min(playhead.frame, total) }, set: { project.seek(outFrame: $0) }), in: 0...total)
+      .controlSize(.small)
+      .disabled(!project.hasPlan)
+      .accessibilityLabel("Playhead")
+  }
+}
+
 /// Play, step and scrub, under the preview.
 struct TransportBar: View {
   @ObservedObject var project: ProjectModel
@@ -331,11 +348,7 @@ struct TransportBar: View {
         .accessibilityLabel(project.isPlaying ? "Pause" : "Play")
         icon("forward.end.fill", "Go to end (⌘→)", action: project.goToEnd)
       }
-      Text(fmtTime(project.outFrame / fps)).monospacedDigit()
-        .frame(width: 56, alignment: .trailing)
-      Slider(value: Binding(get: { min(project.outFrame, total) }, set: { project.seek(outFrame: $0) }), in: 0...total)
-        .controlSize(.small)
-        .disabled(!project.hasPlan)
+      TransportScrubber(project: project, playhead: project.playhead, total: total, fps: fps)
       Text(fmtTime(Double(project.totalOutFrames) / fps)).monospacedDigit().foregroundStyle(.secondary)
         .frame(width: 56, alignment: .leading)
     }

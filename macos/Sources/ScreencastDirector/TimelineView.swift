@@ -97,6 +97,18 @@ private struct Hatch: Shape {
   }
 }
 
+/// Moves the playhead line. Only this modifier observes the playhead, so playback redraws one line
+/// instead of every track.
+private struct PlayheadOffset: ViewModifier {
+  let project: ProjectModel
+  @ObservedObject var playhead: Playhead
+  let pxPerSec: Double
+
+  func body(content: Content) -> some View {
+    content.offset(x: project.playheadSrc * pxPerSec - 6)
+  }
+}
+
 /// The playhead's grip in the ruler: a rounded tab that tapers to a point.
 private struct PlayheadCap: Shape {
   func path(in r: CGRect) -> Path {
@@ -205,8 +217,11 @@ struct TimelineView: View {
     HStack(spacing: 10) {
       toolGroup {
         iconButton("Split", "scissors", help: "Split the clip at the playhead (C)", action: project.splitAtPlayhead)
-        iconButton("Delete", "trash", help: "Cut the selected clip, or remove the selected zoom, layout or title (⌫)", action: project.deleteSelection)
-          .disabled(project.selection == nil || isGap)
+        iconButton(
+          isGap ? "Restore" : "Delete", isGap ? "arrow.uturn.backward" : "trash",
+          help: isGap ? "Restore the selected cut (⌫)" : "Cut the selected clip, or remove the selected zoom, layout or title (⌫)",
+          action: project.deleteSelection)
+          .disabled(project.selection == nil)
       }
       toolGroup {
         iconButton("Zoom", "plus.magnifyingglass", help: "Add a zoom at the playhead, aimed at the last click (Z)", action: project.addZoom)
@@ -404,7 +419,7 @@ struct TimelineView: View {
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
     .frame(width: 12, height: Track.total, alignment: .top)
-    .offset(x: x(project.playheadSrc) - 6)
+    .modifier(PlayheadOffset(project: project, playhead: project.playhead, pxPerSec: ui.pxPerSec))
     .allowsHitTesting(false)
   }
 

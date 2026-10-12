@@ -20,15 +20,37 @@ struct Ask: Identifiable {
   var running = true
 }
 
+/// The playhead, apart from ProjectModel: it ticks 30 times a second while playing, and only the
+/// views that draw it (the playhead line, the clock, the current word) should redraw that often.
+final class Playhead: ObservableObject {
+  /// Output frames.
+  @Published var frame = 0.0
+  /// The transcript word under the playhead (an index into project.words).
+  @Published var word: Int?
+}
+
 /// One open project: the plan (with undo), a live preview, a playhead, and the pipeline actions.
 /// Every edit, from the timeline, the inspector or Claude, ends up in plan.json.
 final class ProjectModel: ObservableObject {
   let dir: URL
-  @Published private(set) var plan: Plan?
+  @Published private(set) var plan: Plan? {
+    didSet {
+      mapped = plan.map(mapPlan) ?? []
+      totalOutFrames = plan.map(planFrames) ?? 1
+    }
+  }
   @Published private(set) var project: Project?
   @Published private(set) var player = AVPlayer()
-  /// Playhead in output frames.
-  @Published private(set) var outFrame = 0.0
+  let playhead = Playhead()
+  /// Playhead in output frames. Not published: observe `playhead` to follow it.
+  private(set) var outFrame: Double {
+    get { playhead.frame }
+    set {
+      playhead.frame = newValue
+      let w = wordIndex(at: playheadSrc)
+      if w != playhead.word { playhead.word = w }
+    }
+  }
   @Published private(set) var isPlaying = false
   @Published var selection: Selection?
   @Published var status = ""
@@ -42,6 +64,8 @@ final class ProjectModel: ObservableObject {
   /// id each time, so the same ranges flash again.
   @Published private(set) var aiChange: (id: UUID, ranges: [(Double, Double)])?
   private var planBeforeAsk: Plan?
+  /// Claude Code is writing plan.json. Edits here would race its writes, so they wait.
+  @Published private(set) var aiEditing = false
   @Published private(set) var canUndo = false
   @Published private(set) var canRedo = false
   @Published var showPublish = false
@@ -83,12 +107,14 @@ final class ProjectModel: ObservableObject {
   var outURL: URL { dir.appendingPathComponent("out.mp4") }
   var hasPlan: Bool { plan != nil }
   var fps: Int { plan?.output.fps ?? 30 }
-  var mapped: [MappedSegment] { plan.map(mapPlan) ?? [] }
-  var totalOutFrames: Int { plan.map(planFrames) ?? 1 }
+  /// The plan's segments in output frames, kept in step with the plan.
+  private(set) var mapped: [MappedSegment] = []
+  private(set) var totalOutFrames = 1
   /// Playhead in source seconds (what the timeline shows).
   var playheadSrc: Double { outToSrc(mapped, min(outFrame, Double(totalOutFrames - 1)), fps: fps) ?? 0 }
 
   func close() {
+    flushWrite()
     watcher?.invalidate()
     if let timeObserver { player.removeTimeObserver(timeObserver) }
     player.pause()
@@ -127,7 +153,8 @@ final class ProjectModel: ObservableObject {
       // An outside edit (Claude Code's Edit tool, a text editor) bypasses Plan.write, so keep the
       // version it replaced in .history here.
       if let previous = self.lastPlanData { PlanHistory.snapshot(previous, planURL: self.planURL) }
-      if let old = self.plan {
+      // While Claude Code edits, its writes become one undo step when it finishes (finishAsk).
+      if let old = self.plan, !self.aiEditing {
         self.undoStack.append(old)
         self.redoStack.removeAll()
       }
@@ -155,7 +182,10 @@ final class ProjectModel: ObservableObject {
         itemObserver = item.observe(\.status) { [weak self] item, _ in
           Task { @MainActor in
             switch item.status {
-            case .failed: self?.status = "Preview failed: \(item.error?.localizedDescription ?? "unknown error")"
+            case .failed:
+              let msg = "Preview failed: \(item.error?.localizedDescription ?? "unknown error")"
+              self?.status = msg
+              Notices.shared.show(msg, error: true, action: "Retry") { self?.rebuild(now: true) }
             case .readyToPlay: self?.previewReady = true
             default: break
             }
@@ -169,6 +199,7 @@ final class ProjectModel: ObservableObject {
         status = "\(fmtTime(plan.source.duration)) recorded → \(fmtTime(out)) edited"
       } catch {
         status = "Couldn't load the plan: \(error.localizedDescription)"
+        Notices.shared.show(error, "Couldn't load the plan")
       }
     }
   }
@@ -181,11 +212,19 @@ final class ProjectModel: ObservableObject {
   /// Applies an edit, saves plan.json and refreshes the preview. Edits with the same `coalesce`
   /// key in quick succession (a slider drag) share one undo step.
   func apply(coalesce key: String? = nil, _ change: (inout Plan) -> Void) {
+    guard !aiEditing else {
+      Notices.shared.show("Claude is still editing. Wait for it to finish, or press Stop.")
+      return
+    }
     // An edit made outside the app (Claude, the CLI, a text editor) may not have been picked up
     // yet. Apply this change on top of the file, not over it.
-    if let disk = try? Data(contentsOf: planURL), disk != lastPlanData, let fresh = try? JSONDecoder().decode(Plan.self, from: disk) {
+    // Checking the modification date first keeps a slider drag from reading the file every tick.
+    if planMtime() != lastPlanMtime, pendingWrite == nil, let disk = try? Data(contentsOf: planURL), disk != lastPlanData,
+      let fresh = try? JSONDecoder().decode(Plan.self, from: disk)
+    {
       if let old = plan { undoStack.append(old) }
       lastPlanData = disk
+      lastPlanMtime = planMtime()
       plan = fresh
     }
     guard var p = plan else { return }
@@ -196,10 +235,37 @@ final class ProjectModel: ObservableObject {
     redoStack.removeAll()
     change(&p)
     p.normalize()
-    commit(p)
+    commit(p, deferWrite: key != nil)
   }
 
-  private func commit(_ p: Plan) {
+  private var pendingWrite: DispatchWorkItem?
+
+  private func planMtime() -> Date? {
+    (try? FileManager.default.attributesOfItem(atPath: planURL.path))?[.modificationDate] as? Date
+  }
+
+  /// Writes plan.json now if a coalesced edit (a slider drag) is still waiting to be saved.
+  func flushWrite() {
+    guard let work = pendingWrite else { return }
+    work.cancel()
+    pendingWrite = nil
+    if let plan { save(plan) }
+  }
+
+  private func save(_ p: Plan) {
+    do {
+      try p.write(to: planURL)
+      lastPlanData = try Data(contentsOf: planURL)
+      lastPlanMtime = planMtime()
+    } catch {
+      status = "Couldn't save: \(error.localizedDescription)"
+      Notices.shared.show(error, "Couldn't save the edit")
+    }
+  }
+
+  /// Publishes a plan and saves it. `deferWrite` (slider drags) saves once the drag pauses, so
+  /// dragging doesn't write the file and its history snapshot on every tick.
+  private func commit(_ p: Plan, deferWrite: Bool = false) {
     // Drop a selection the new plan doesn't have before publishing it, so views never see both.
     switch selection {
     case .segment(let i) where i >= p.segments.count: selection = nil
@@ -209,12 +275,17 @@ final class ProjectModel: ObservableObject {
     default: break
     }
     plan = p
-    do {
-      try p.write(to: planURL)
-      lastPlanData = try Data(contentsOf: planURL)
-      lastPlanMtime = (try? FileManager.default.attributesOfItem(atPath: planURL.path))?[.modificationDate] as? Date
-    } catch {
-      status = "Couldn't save: \(error.localizedDescription)"
+    pendingWrite?.cancel()
+    pendingWrite = nil
+    if deferWrite {
+      let work = DispatchWorkItem { [weak self] in
+        self?.pendingWrite = nil
+        self?.save(p)
+      }
+      pendingWrite = work
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    } else {
+      save(p)
     }
     rebuild()
   }
@@ -248,6 +319,7 @@ final class ProjectModel: ObservableObject {
       case .zoom(let i) where p.zooms.indices.contains(i): p.zooms.remove(at: i)
       case .layout(let i) where p.layouts.indices.contains(i): p.layouts.remove(at: i)
       case .callout(let i) where p.callouts.indices.contains(i): p.callouts.remove(at: i)
+      case .gap(let g): p.restore(g)
       default: break
       }
     }
@@ -287,6 +359,17 @@ final class ProjectModel: ObservableObject {
   // MARK: Transcript editing
 
   var words: [Word] { project?.words ?? [] }
+
+  /// The word being said at source time `t`, if any (binary search; words are in order).
+  func wordIndex(at t: Double) -> Int? {
+    let ws = words
+    var lo = 0, hi = ws.count - 1
+    while lo <= hi {
+      let mid = (lo + hi) / 2
+      if t < ws[mid].start { hi = mid - 1 } else if t >= ws[mid].end { lo = mid + 1 } else { return mid }
+    }
+    return nil
+  }
 
   /// The source time range the selected words cover, from the first word's start to the last's end.
   var transcriptRange: Range<Double>? {
@@ -574,6 +657,7 @@ final class ProjectModel: ObservableObject {
         try await work()
       } catch {
         status = "\(label.replacingOccurrences(of: "…", with: "")) failed: \(error.localizedDescription)"
+        Notices.shared.show(status, error: true)
       }
       busy = false
     }
@@ -611,6 +695,7 @@ final class ProjectModel: ObservableObject {
   /// Queues the current format, or presets, for export (one file each). Exports run in the
   /// background on the plan as it is right now, so you can keep editing.
   func export(_ presets: [ExportPreset?] = [nil]) {
+    flushWrite()
     guard let plan else { return }
     // Menus, buttons and key shortcuts all call this on the main thread.
     MainActor.assumeIsolated {
@@ -647,6 +732,7 @@ final class ProjectModel: ObservableObject {
   func askClaude() {
     let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty, !busy else { return }
+    flushWrite()
     claudeLog = ""
     asks.append(Ask(instruction: text))
     planBeforeAsk = plan
@@ -664,6 +750,7 @@ final class ProjectModel: ObservableObject {
       }
       return
     }
+    aiEditing = true
     run("Claude is editing…") { [self] in
       defer { finishAsk() }
       let code = try await Claude.edit(project: dir, instruction: text) { chunk in
@@ -682,8 +769,14 @@ final class ProjectModel: ObservableObject {
     asks[asks.count - 1].running = false
     // Claude Code writes plan.json itself and the watcher picks it up within a second.
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+      let wasEditing = aiEditing
+      aiEditing = false
       guard let old = planBeforeAsk, let new = plan else { return }
       planBeforeAsk = nil
+      if wasEditing, old != new {
+        undoStack.append(old)
+        redoStack.removeAll()
+      }
       let ranges = changedRanges(from: old, to: new)
       if !ranges.isEmpty { aiChange = (UUID(), ranges) }
     }

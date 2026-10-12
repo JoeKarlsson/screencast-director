@@ -304,6 +304,39 @@ struct Checks {
     expect(Set(reverted) == ["source.video", "camera.video", "music.file", "look.fontFiles"], "reverted fields (\(reverted))")
     expect(cleaned.zooms == [] && PathSafety.sanitize(prior, previous: prior, project: proj).1.isEmpty, "other edits kept; unchanged plan untouched")
 
+    // Motion: easing curves, eased steps and the camera's zoom path.
+    for name in Ease.names {
+      let e = Ease.named(name)!
+      expect(e.at(0) == 0 && e.at(1) == 1, "\(name) runs 0 to 1")
+    }
+    let smoothEase = Ease.named("smooth")!
+    expect((1...99).allSatisfy { smoothEase.at(Double($0) / 100) >= smoothEase.at(Double($0 - 1) / 100) }, "smooth never moves backward")
+    expect(smoothEase.at(0.5) > 0.6, "smooth is front-loaded (\(smoothEase.at(0.5)))")
+    expect((1...99).map { Ease.named("bouncy")!.at(Double($0) / 100) }.max()! > 1.05, "bouncy overshoots")
+    expect(Ease.named("cubic-bezier(0.42, 0, 0.58, 1)") == Ease.named("ease-in-out"), "parses cubic-bezier")
+    expect(Ease.named("spring(0.7)") == .spring(0.7) && Ease.named("wobble") == nil, "parses spring, rejects unknown names")
+    // A zoom toward a point keeps that point at the same place on screen all the way in.
+    let from = [1.0, 0.5, 0.5], to = [2.0, 0.75, 0.25]
+    let fixed = (x: (to[1] * to[0] - from[1] * from[0]) / (to[0] - from[0]), y: (to[2] * to[0] - from[2] * from[0]) / (to[0] - from[0]))
+    for u in [0.25, 0.5, 0.75] {
+      let c = EasedSteps.camera(from, to, u)
+      let screenX = (fixed.x - c[1]) * c[0], startX = (fixed.x - from[1]) * from[0]
+      expect(abs(screenX - startX) < 1e-9, "zoom's fixed point holds still at \(u)")
+      expect(abs(c[0] - pow(2, u)) < 1e-9, "scale moves evenly in log space at \(u)")
+    }
+    let camZ = zoomsToOut([Zoom(start: 2, end: 6, x: 0.6, y: 0.4, scale: 2), Zoom(start: 6, end: 9, x: 0.2, y: 0.7, scale: 1.6)], one, fps: fps)
+    let path = cameraSteps(zooms: camZ, fps: fps, transition: 0.8, style: MotionStyle.named("smooth"), lead: 0.3, restClicks: nil)
+    expect(path.at(0) == [1, 0.5, 0.5], "camera rests before the first zoom")
+    expect(path.at(150) == [2, 0.6, 0.4], "camera holds the first zoom")
+    expect(path.at(240) == [1.6, 0.2, 0.7], "touching zooms hand off without going out")
+    let jumps = (1..<300).map { f in zip(path.at(Double(f)), path.at(Double(f - 1))).map { abs($0 - $1) }.max()! }
+    expect(jumps.max()! < 0.12, "the camera never jumps (largest step \(jumps.max()!))")
+    let pose = { (f: Double) in Motion.pose(frame: f, start: 30, end: 90, fps: fps, enter: nil, exit: nil, style: MotionStyle.named("smooth")) }
+    expect(!pose(29).visible && pose(30).opacity < 0.05 && pose(60) == .full && pose(89).opacity < 0.3, "overlays fade in and out")
+    expect(OverlayPose.of("slide-up", 0).dy > 1 && OverlayPose.of("wipe", 0.5).reveal == 0.5, "presets pose")
+    let short = Motion.pose(frame: 33, start: 30, end: 36, fps: fps, enter: Motion(preset: "fade", seconds: 1), exit: nil, style: MotionStyle.named("smooth"))
+    expect(short.opacity > 0.2 && short.opacity < 1, "a short overlay squeezes its moves to fit")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

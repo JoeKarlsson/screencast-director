@@ -64,6 +64,7 @@ public enum PlanHistory {
     var parts = [
       plural(count(a.segments, b.segments), "clip"), plural(count(a.zooms, b.zooms), "zoom"),
       plural(count(a.layouts, b.layouts), "layout"), plural(count(a.callouts, b.callouts), "title"),
+      plural(count(a.annotations ?? [], b.annotations ?? []), "annotation"),
     ].compactMap { $0 }
     if a.style != b.style || a.look != b.look { parts.append("style") }
     if a.output != b.output { parts.append("format") }

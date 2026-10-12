@@ -64,6 +64,20 @@ extension Plan {
     }.filter { $0.end - $0.start >= 0.2 }.sorted { $0.start < $1.start }
     layouts = layouts.filter { $0.end - $0.start >= 0.2 }.sorted { $0.start < $1.start }
     callouts = callouts.filter { $0.end - $0.start >= 0.2 }.sorted { $0.start < $1.start }
+    if let marks = annotations {
+      let kinds = Set(Annotation.kinds.map(\.name))
+      let kept: [Annotation] = marks.map { a in
+        var a = a
+        a.start = max(0, a.start)
+        a.end = min(dur, a.end)
+        a.x = min(max(a.x, 0), 1)
+        a.y = min(max(a.y, 0), 1)
+        a.w = min(max(a.w, 0.005), 1 - a.x)
+        a.h = min(max(a.h, 0.005), 1 - a.y)
+        return a
+      }.filter { $0.end - $0.start >= 0.2 && kinds.contains($0.kind) }.sorted { $0.start < $1.start }
+      annotations = kept.isEmpty ? nil : kept
+    }
   }
 
   /// Moves one edge of segment `i`, keeping it inside its neighbors.
@@ -240,6 +254,7 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
   let all =
     diff(old.segments, new.segments) { ($0.start, $0.end) } + diff(old.zooms, new.zooms) { ($0.start, $0.end) }
     + diff(old.layouts, new.layouts) { ($0.start, $0.end) } + diff(old.callouts, new.callouts) { ($0.start, $0.end) }
+    + diff(old.annotations ?? [], new.annotations ?? []) { ($0.start, $0.end) }
   var merged: [(Double, Double)] = []
   for r in all.sorted(by: { $0.0 < $1.0 }) {
     if let last = merged.last, r.0 <= last.1 {

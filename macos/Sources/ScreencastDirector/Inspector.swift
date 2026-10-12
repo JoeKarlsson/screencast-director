@@ -104,7 +104,7 @@ struct InspectorView: View {
     case .format: formatPane(plan)
     case .transcript:
       PaneTitle(title: "Transcript", detail: "Cut words are struck through; sped-up words are orange.")
-      TranscriptView(project: project).card()
+      TranscriptView(project: project, playhead: project.playhead).card()
     }
   }
 

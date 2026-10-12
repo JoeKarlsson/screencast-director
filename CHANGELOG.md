@@ -30,9 +30,23 @@ Each release lists what changed for people using the app or the CLI. The version
 - Ask Claude: a new prompt box with starter ideas and a history of what you asked and what it changed.
 
 ### Editing
+- Playback no longer redraws the whole editor 30 times a second; only the playhead, clock and current transcript word follow it.
+- A Claude Code edit is one undo step, however many times it saved the plan, and timeline edits wait until it finishes.
+- Dragging a slider saves the plan once you pause instead of on every tick.
+- Errors (a failed analysis, preview or save) show as banners, with Retry for the preview.
+- ⌫ on a selected cut restores it, as its tooltip says (the toolbar button becomes Restore).
 - Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
+
+### Motion
+- Motion styles (Smooth, Snappy, Cinematic, Bouncy) set how every move in the video eases: zooms, layout changes, and how titles and other overlays come and go. Classic keeps the old look.
+- Zooms ease along real curves (or springs), change scale evenly and keep the point they zoom toward still on screen, so a zoom into a corner no longer swings out and back. Each zoom can pick its own ease and speed.
+- Titles, shortcut chips and captions animate in and out: fade, fade up, slide, pop, zoom, blur, wipe, word by word or typewriter.
+- New title styles: lower third, full-screen slate and chapter card, each with an optional second line.
+- Annotations on the screen that follow zooms: spotlight, box with a label, arrow, highlighter and privacy blur.
+- Caption styles: karaoke (a box slides behind the word being said), word pop, and bold outlined captions.
+- Styled cuts: blur, dip, flash, punch in and whip pan.
 
 ### Security
 - Claude Code edits can only read the recording's folder, edit plan.json and run the director's describe, still and review. A project folder's own `.claude/` settings and hooks are ignored, and check frames go in the project's `.checks/` folder instead of /tmp.

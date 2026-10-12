@@ -26,6 +26,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
 
   var out: [String] = []
   out.append("# \(project.dir.path)")
+  out.append("motion style: \(MotionStyle.named(plan.style.motion).name), moves \(plan.style.transition.formatted()) s")
   out.append(
     "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(Double(planFrames(plan)) / Double(fps))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
   )
@@ -41,6 +42,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
       out.append(line("  CUT  src \(fmtTime(cursor))-\(fmtTime(s.start))", said(cursor, s.start), activity(cursor, s.start)))
     }
     let speed = s.speed == 1 ? "1x " : "\(s.speed.formatted())x"
+    if let t = s.transition, s.outStart > cards.intro { out.append("  ~\(t) cut~") }
     out.append(
       line(
         "  \(speed)  src \(fmtTime(s.start))-\(fmtTime(s.end))  out \(fmtTime(Double(s.outStart) / Double(fps)))  (\(s.note ?? ""))",
@@ -70,7 +72,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append(
       line(
         "  #\(i) src \(fmtTime(z.start))-\(fmtTime(z.end)) at (\(z.x.formatted()), \(z.y.formatted())) x\(z.scale.formatted())",
-        z.note ?? "", said(z.start, z.end)))
+        z.ease.map { "ease \($0)" } ?? "", z.seconds.map { "move \($0.formatted()) s" } ?? "", z.note ?? "", said(z.start, z.end)))
   }
   out.append("")
   out.append("## Layout: default \"\(plan.defaultLayout.rawValue)\"\(plan.camera == nil ? " (no camera recorded)" : "")")
@@ -78,7 +80,23 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   if !plan.callouts.isEmpty {
     out.append("")
     out.append("## Callouts")
-    for c in plan.callouts { out.append("  src \(fmtTime(c.start))-\(fmtTime(c.end)) \"\(c.text)\"") }
+    for c in plan.callouts {
+      out.append(
+        line(
+          "  src \(fmtTime(c.start))-\(fmtTime(c.end)) \(c.style ?? "title") \"\(c.text)\"", c.subtitle.map { "/ \"\($0)\"" } ?? "",
+          c.enter.map { "in:\($0.preset)" } ?? "", c.exit.map { "out:\($0.preset)" } ?? ""))
+    }
   }
+  if let marks = plan.annotations, !marks.isEmpty {
+    out.append("")
+    out.append("## Annotations (rect x,y,w,h in screen fractions)")
+    for a in marks {
+      out.append(
+        line(
+          "  src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.kind) (\(a.x.formatted()), \(a.y.formatted()), \(a.w.formatted()), \(a.h.formatted()))",
+          a.text.map { "\"\($0)\"" } ?? "", a.note ?? ""))
+    }
+  }
+  if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
   return out.joined(separator: "\n")
 }

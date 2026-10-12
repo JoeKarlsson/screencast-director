@@ -9,13 +9,20 @@ public struct Segment: Codable, Equatable {
   /// 1 = real time. Segments faster than 1 are muted.
   public var speed: Double
   public var note: String?
+  /// How the cut into this segment looks: one of `Segment.transitions` (nil is a plain cut).
+  public var transition: String?
 
-  public init(start: Double, end: Double, speed: Double, note: String? = nil) {
+  public init(start: Double, end: Double, speed: Double, note: String? = nil, transition: String? = nil) {
     self.start = start
     self.end = end
     self.speed = speed
     self.note = note
+    self.transition = transition
   }
+
+  public static let transitions: [(name: String, label: String)] = [
+    ("blur", "Blur"), ("dip", "Dip"), ("flash", "Flash"), ("punch", "Punch In"), ("whip", "Whip"),
+  ]
 }
 
 public struct Zoom: Codable, Equatable {
@@ -26,14 +33,22 @@ public struct Zoom: Codable, Equatable {
   public var y: Double
   public var scale: Double
   public var note: String?
+  /// An `Ease` name for this zoom's moves (nil: the motion style's).
+  public var ease: String?
+  /// Length of this zoom's moves in seconds (nil: style.transition).
+  public var seconds: Double?
 
-  public init(start: Double, end: Double, x: Double, y: Double, scale: Double, note: String? = nil) {
+  public init(
+    start: Double, end: Double, x: Double, y: Double, scale: Double, note: String? = nil, ease: String? = nil, seconds: Double? = nil
+  ) {
     self.start = start
     self.end = end
     self.x = x
     self.y = y
     self.scale = scale
     self.note = note
+    self.ease = ease
+    self.seconds = seconds
   }
 }
 
@@ -54,15 +69,69 @@ public struct LayoutRange: Codable, Equatable {
   }
 }
 
+/// Text on screen: a title, lower third, full-screen slate or chapter card.
 public struct Callout: Codable, Equatable {
   public var start: Double
   public var end: Double
   public var text: String
-  public init(start: Double, end: Double, text: String) {
+  /// One of `Callout.styles` (nil is "title").
+  public var style: String?
+  /// A second line (lower thirds, slates and chapters).
+  public var subtitle: String?
+  /// How it comes and goes (nil: the motion style's).
+  public var enter: Motion?
+  public var exit: Motion?
+  public init(start: Double, end: Double, text: String, style: String? = nil, subtitle: String? = nil, enter: Motion? = nil, exit: Motion? = nil) {
     self.start = start
     self.end = end
     self.text = text
+    self.style = style
+    self.subtitle = subtitle
+    self.enter = enter
+    self.exit = exit
   }
+
+  public static let styles: [(name: String, label: String)] = [
+    ("title", "Title"), ("lower-third", "Lower Third"), ("slate", "Slate"), ("chapter", "Chapter"),
+  ]
+}
+
+/// A mark on the recorded screen that moves with zooms: a spotlight, box, arrow, highlight or
+/// privacy blur. The rectangle is in 0...1 fractions of the recording, top-left origin.
+public struct Annotation: Codable, Equatable {
+  public var start: Double
+  public var end: Double
+  /// One of `Annotation.kinds`.
+  public var kind: String
+  public var x: Double
+  public var y: Double
+  public var w: Double
+  public var h: Double
+  /// A label next to boxes and arrows.
+  public var text: String?
+  public var enter: Motion?
+  public var exit: Motion?
+  public var note: String?
+  public init(
+    start: Double, end: Double, kind: String, x: Double, y: Double, w: Double, h: Double, text: String? = nil, enter: Motion? = nil,
+    exit: Motion? = nil, note: String? = nil
+  ) {
+    self.start = start
+    self.end = end
+    self.kind = kind
+    self.x = x
+    self.y = y
+    self.w = w
+    self.h = h
+    self.text = text
+    self.enter = enter
+    self.exit = exit
+    self.note = note
+  }
+
+  public static let kinds: [(name: String, label: String)] = [
+    ("spotlight", "Spotlight"), ("box", "Box"), ("arrow", "Arrow"), ("highlight", "Highlight"), ("blur", "Blur"),
+  ]
 }
 
 public struct Plan: Codable, Equatable {
@@ -98,6 +167,8 @@ public struct Plan: Codable, Equatable {
     public var padding: Double
     public var radius: Double
     public var transition: Double
+    /// The house motion style: one of `MotionStyle.all` (nil is "smooth").
+    public var motion: String?
     /// Width/height of the screen card. nil shows the whole screen; vertical and square formats
     /// crop (e.g. 0.8 is 4:5) and pan to follow zooms and clicks.
     public var screenAspect: Double?
@@ -105,6 +176,12 @@ public struct Plan: Codable, Equatable {
   public struct Captions: Codable, Equatable {
     public var enabled: Bool
     public var maxWords: Int
+    /// One of `Plan.Captions.styles` (nil is "pill").
+    public var style: String?
+
+    public static let styles: [(name: String, label: String)] = [
+      ("pill", "Pill"), ("karaoke", "Karaoke"), ("pop", "Word Pop"), ("bold", "Bold"),
+    ]
   }
 
   public var version: Int = 1
@@ -120,6 +197,8 @@ public struct Plan: Codable, Equatable {
   public var clickRipples: Bool
   public var shortcutChips: Bool
   public var callouts: [Callout]
+  /// Spotlights, boxes, arrows, highlights and blurs on the screen.
+  public var annotations: [Annotation]?
   /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
   public var look: Look?
   /// How hard silences were cut (nil: the planner's normal level).

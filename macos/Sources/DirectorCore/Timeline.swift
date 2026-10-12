@@ -7,6 +7,7 @@ public struct MappedSegment: Equatable {
   public var end: Double
   public var speed: Double
   public var note: String?
+  public var transition: String? = nil
   /// First output frame of this segment.
   public var outStart: Int
   public var frames: Int
@@ -18,7 +19,8 @@ public func mapSegments(_ segments: [Segment], fps: Int) -> [MappedSegment] {
   for s in segments.sorted(by: { $0.start < $1.start }) {
     let frames = Int(((s.end - s.start) / s.speed * Double(fps)).rounded())
     if frames < 1 { continue }
-    out.append(MappedSegment(start: s.start, end: s.end, speed: s.speed, note: s.note, outStart: outStart, frames: frames))
+    out.append(
+      MappedSegment(start: s.start, end: s.end, speed: s.speed, note: s.note, transition: s.transition, outStart: outStart, frames: frames))
     outStart += frames
   }
   return out
@@ -104,6 +106,8 @@ public struct OutZoom: Equatable {
   public var x: Double
   public var y: Double
   public var scale: Double
+  public var ease: String? = nil
+  public var seconds: Double? = nil
 }
 
 public func zoomsToOut(_ zooms: [Zoom], _ mapped: [MappedSegment], fps: Int) -> [OutZoom] {
@@ -112,7 +116,7 @@ public func zoomsToOut(_ zooms: [Zoom], _ mapped: [MappedSegment], fps: Int) -> 
       OutZoom(
         startF: srcToOutClamped(mapped, $0.start, fps: fps),
         endF: srcToOutClamped(mapped, $0.end, fps: fps, before: true),
-        x: $0.x, y: $0.y, scale: $0.scale)
+        x: $0.x, y: $0.y, scale: $0.scale, ease: $0.ease, seconds: $0.seconds)
     }
     .filter { $0.endF > $0.startF }
     .sorted { $0.startF < $1.startF }

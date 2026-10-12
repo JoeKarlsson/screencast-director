@@ -112,10 +112,14 @@ public struct Profile: Codable, Equatable {
     plan.style.padding = style.padding
     plan.style.radius = style.radius
     plan.style.transition = style.transition
+    if let motion = style.motion { plan.style.motion = motion }
     var look = self.look
     look.name = name
     plan.look = look
-    if let captions { plan.captions.maxWords = captions.maxWords }
+    if let captions {
+      plan.captions.maxWords = captions.maxWords
+      if let style = captions.style { plan.captions.style = style }
+    }
     if let music { plan.music = music }
     // Cards the profile switches on. Text already in the plan (typed by hand) is kept.
     func card(_ c: Card?, _ old: Card?) -> Card? {
