@@ -6,6 +6,7 @@ final class InspectorUI: ObservableObject {
   enum Tab: String, CaseIterable { case selection = "Selection", style = "Style" }
   @Published var tab: Tab = .selection
   @Published var thumbnail: NSImage?
+  @Published var cameraThumbnail: NSImage?
   var thumbnailFor: Double = -1
 }
 
@@ -197,6 +198,38 @@ struct InspectorView: View {
     .onAppear { ProfileStore.shared.refresh() }
 
     Divider()
+    header("Sound", "Normalize brings your voice to a steady level; a limiter keeps peaks from clipping.")
+    Toggle("Normalize voice", isOn: Binding(get: { plan.audio?.normalize ?? false }, set: { v in
+      project.apply { p in
+        var a = p.audio ?? AudioSettings()
+        a.normalize = v
+        p.audio = a
+      }
+    }))
+    LabeledContent("Volume") {
+      Slider(value: Binding(get: { project.plan?.audio?.gainDB ?? 0 }, set: { v in
+        project.apply(coalesce: "gain") { p in
+          var a = p.audio ?? AudioSettings()
+          a.gainDB = (v * 2).rounded() / 2
+          p.audio = a
+        }
+      }), in: -12...12)
+      Text(String(format: "%+.1f dB", plan.audio?.gainDB ?? 0)).monospacedDigit().frame(width: 60, alignment: .trailing)
+    }
+    if (plan.audio?.normalize ?? false), !project.levels.isEmpty {
+      Text(String(format: "Normalize adds %+.1f dB.", AudioGain.normalizeGain(project.levels)))
+        .font(.caption).foregroundStyle(.secondary)
+    }
+
+    Divider()
+    header("Pauses", "How hard to cut silence. Cuts that removed words always stay cut.")
+    Picker("Pauses", selection: Binding(get: { plan.pauses ?? .normal }, set: { project.setPauses($0) })) {
+      ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
+    }
+    .pickerStyle(.segmented)
+    .labelsHidden()
+
+    Divider()
     header("Format")
     Picker("Shape", selection: Binding(get: { Aspect.of(plan.output) }, set: { project.setFormat(aspect: $0) })) {
       ForEach(Aspect.allCases, id: \.self) { Text($0.label).tag($0) }
@@ -213,6 +246,32 @@ struct InspectorView: View {
     }
     Text("\(plan.output.width)×\(plan.output.height). Cropped screens pan to follow zooms and clicks. The Export menu also renders other formats without changing this one.")
       .font(.caption).foregroundStyle(.secondary)
+
+    if plan.camera != nil {
+      Divider()
+      header("Camera framing", "Drag to pick what stays centered; zoom in to reframe.")
+      CameraFramer(project: project, ui: ui)
+      LabeledContent("Zoom") {
+        Slider(value: Binding(get: { project.plan?.camera?.zoom ?? 1 }, set: { v in
+          project.apply(coalesce: "camZoom") { $0.camera?.zoom = (v * 20).rounded() / 20 }
+        }), in: 1...2.5)
+        Text("\((plan.camera?.zoom ?? 1).formatted())×").monospacedDigit().frame(width: 40)
+      }
+      Button("Center on My Face", action: project.centerCameraOnFace)
+
+      Divider()
+      header("Camera color")
+      HStack {
+        ForEach(Grade.presets, id: \.name) { preset in
+          Button(preset.name) { project.apply { $0.camera?.grade = preset.grade } }
+            .controlSize(.small)
+        }
+      }
+      gradeSlider("Exposure", \.exposure, 0, -1...1, "%+.2f")
+      gradeSlider("Contrast", \.contrast, 1, 0.7...1.4, "%.2f")
+      gradeSlider("Saturation", \.saturation, 1, 0...1.6, "%.2f")
+      gradeSlider("Warmth", \.warmth, 0, -1...1, "%+.2f")
+    }
 
     Divider()
     header("Split screen")
@@ -262,6 +321,22 @@ struct InspectorView: View {
     Picker("Frame rate", selection: bind("fps", { $0.output.fps }, { $0.output.fps = $1 })) {
       Text("30 fps").tag(30)
       Text("60 fps").tag(60)
+    }
+  }
+
+  private func gradeSlider(
+    _ title: String, _ kp: WritableKeyPath<Grade, Double?>, _ neutral: Double, _ range: ClosedRange<Double>, _ fmt: String
+  ) -> some View {
+    let value = project.plan?.camera?.grade?[keyPath: kp] ?? neutral
+    return LabeledContent(title) {
+      Slider(value: Binding(get: { project.plan?.camera?.grade?[keyPath: kp] ?? neutral }, set: { v in
+        project.apply(coalesce: "grade\(title)") { p in
+          var g = p.camera?.grade ?? Grade()
+          g[keyPath: kp] = (v * 100).rounded() / 100
+          p.camera?.grade = g
+        }
+      }), in: range)
+      Text(String(format: fmt, value)).monospacedDigit().frame(width: 44, alignment: .trailing)
     }
   }
 
@@ -324,5 +399,40 @@ struct FocusPicker: View {
     guard abs(ui.thumbnailFor - t) > 0.01 else { return }
     ui.thumbnailFor = t
     project.thumbnail(at: t) { img in ui.thumbnail = img }
+  }
+}
+
+/// A frame of the camera video with the framing point; drag to move it.
+struct CameraFramer: View {
+  @ObservedObject var project: ProjectModel
+  @ObservedObject var ui: InspectorUI
+
+  var body: some View {
+    GeometryReader { geo in
+      let w = geo.size.width, h = geo.size.height
+      let x = project.plan?.camera?.x ?? 0.5, y = project.plan?.camera?.y ?? 0.5
+      ZStack(alignment: .topLeading) {
+        if let img = ui.cameraThumbnail {
+          Image(nsImage: img).resizable().frame(width: w, height: h)
+        } else {
+          Rectangle().fill(Color.black)
+        }
+        Circle().strokeBorder(Color.white, lineWidth: 2).frame(width: 18, height: 18).position(x: x * w, y: y * h)
+        Circle().fill(Color.white).frame(width: 4, height: 4).position(x: x * w, y: y * h)
+      }
+      .contentShape(Rectangle())
+      .gesture(
+        DragGesture(minimumDistance: 0).onChanged { v in
+          let nx = (min(max(v.location.x / w, 0), 1) * 1000).rounded() / 1000
+          let ny = (min(max(v.location.y / h, 0), 1) * 1000).rounded() / 1000
+          project.apply(coalesce: "camFocus") {
+            $0.camera?.x = nx
+            $0.camera?.y = ny
+          }
+        })
+    }
+    .aspectRatio(16 / 9, contentMode: .fit)
+    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .onAppear { if ui.cameraThumbnail == nil { project.cameraThumbnail { ui.cameraThumbnail = $0 } } }
   }
 }

@@ -22,6 +22,8 @@ let usage = """
     director render   <dir> [out.mp4]
     director still    <dir> <frame> <out.png> [--preset id]
     director profile  <dir> <profileDir>
+    director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
+    director frame-camera <dir>                      center the camera on the speaker's face
     director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
@@ -96,6 +98,27 @@ do {
     let title = args.firstIndex(of: "--title").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? dir.lastPathComponent
     let files = try await Publish.run(project: project, plan: try planFor(project), title: title) { print($0) }
     files.forEach { print("wrote \($0.path)") }
+  case "pauses":
+    guard positional.count == 3, let level = PauseLevel(rawValue: positional[2]) else { fail(usage) }
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    let before = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    let levels = try await Analyzer.loudness(project, video: plan.source.video)
+    plan.retrimPauses(words: project.words, level: level, silences: Analyzer.silences(levels, minLength: 0.2))
+    plan.pauses = level
+    try plan.write(to: project.planURL)
+    let after = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    print("pauses \(level.rawValue): \(fmtTime(before)) -> \(fmtTime(after))")
+  case "frame-camera":
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    guard let face = try await Publish.faceCenter(project: project, plan: plan) else { fail("no face found in the camera video") }
+    plan.camera?.x = face.x
+    plan.camera?.y = face.y
+    let zoom = Publish.centeringZoom(x: face.x, y: face.y)
+    plan.camera?.zoom = zoom
+    try plan.write(to: project.planURL)
+    print(String(format: "camera centered on face at (%.2f, %.2f), zoom %.2f", face.x, face.y, plan.camera?.zoom ?? 1))
   case "profile":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)

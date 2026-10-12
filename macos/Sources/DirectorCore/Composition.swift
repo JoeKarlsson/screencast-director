@@ -73,6 +73,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   }
   let audioParams = aTrack.map { AVMutableAudioMixInputParameters(track: $0) }
   audioParams?.audioTimePitchAlgorithm = .spectral
+  // Voice level: normalize (from measured loudness) plus the manual trim.
+  var gainDB = plan.audio?.gainDB ?? 0
+  if plan.audio?.normalize == true, let levels = try? await Analyzer.loudness(project, video: plan.source.video) {
+    gainDB += AudioGain.normalizeGain(levels)
+  }
+  if abs(gainDB) > 0.05 { audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB) }
 
   for s in scene.mapped {
     let at = CMTime(value: CMTimeValue(s.outStart), timescale: fps)

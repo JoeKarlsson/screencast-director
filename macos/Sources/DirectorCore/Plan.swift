@@ -76,6 +76,13 @@ public struct Plan: Codable, Equatable {
     public var video: String
     /// Seconds to add to a screen time to get the same moment in the camera file.
     public var offset: Double
+    /// Framing: the point of the camera image to keep centered (0..1, y down) and how far to zoom
+    /// in (1 = fill the box). Set by "Center on my face" or by hand; nil centers the image.
+    public var x: Double?
+    public var y: Double?
+    public var zoom: Double?
+    /// Color grading for the camera.
+    public var grade: Grade?
     public init(video: String, offset: Double) {
       self.video = video
       self.offset = offset
@@ -115,6 +122,10 @@ public struct Plan: Codable, Equatable {
   public var callouts: [Callout]
   /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
   public var look: Look?
+  /// How hard silences were cut (nil: the planner's normal level).
+  public var pauses: PauseLevel?
+  /// Voice level: normalize to a standard loudness, plus a manual trim.
+  public var audio: AudioSettings?
 
   public static func load(_ url: URL) throws -> Plan {
     try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url))
@@ -156,5 +167,40 @@ public struct InputEvent: Equatable {
     self.x = x
     self.y = y
     self.label = label
+  }
+}
+
+public struct Grade: Codable, Equatable {
+  /// Stops of exposure, -1...1.
+  public var exposure: Double?
+  /// 1 = unchanged.
+  public var contrast: Double?
+  /// 1 = unchanged, 0 = black and white.
+  public var saturation: Double?
+  /// -1 (cool) ... 1 (warm).
+  public var warmth: Double?
+  public init(exposure: Double? = nil, contrast: Double? = nil, saturation: Double? = nil, warmth: Double? = nil) {
+    self.exposure = exposure
+    self.contrast = contrast
+    self.saturation = saturation
+    self.warmth = warmth
+  }
+  public static let presets: [(name: String, grade: Grade)] = [
+    ("Natural", Grade()),
+    ("Warm", Grade(exposure: 0.05, contrast: 1.05, saturation: 1.05, warmth: 0.35)),
+    ("Punchy", Grade(exposure: 0.1, contrast: 1.15, saturation: 1.2, warmth: 0.1)),
+    ("Cool", Grade(contrast: 1.05, saturation: 0.95, warmth: -0.3)),
+    ("Bright", Grade(exposure: 0.35, contrast: 0.95, saturation: 1.05)),
+  ]
+}
+
+public struct AudioSettings: Codable, Equatable {
+  /// Bring the voice to a standard level (about -20 dBFS RMS while speaking).
+  public var normalize: Bool?
+  /// Extra gain in dB, -12...12.
+  public var gainDB: Double?
+  public init(normalize: Bool? = nil, gainDB: Double? = nil) {
+    self.normalize = normalize
+    self.gainDB = gainDB
   }
 }

@@ -191,13 +191,37 @@ public final class Scene: @unchecked Sendable {
     return masked(placed, ciRect(b), radius: b.r, opacity: b.opacity)
   }
 
-  func cameraCard(_ src: CIImage, box b: Box) -> CIImage {
+  static func graded(_ img: CIImage, _ g: Grade?) -> CIImage {
+    guard let g else { return img }
+    var out = img
+    if let e = g.exposure, e != 0 { out = out.applyingFilter("CIExposureAdjust", parameters: ["inputEV": e]) }
+    if g.contrast != nil || g.saturation != nil {
+      out = out.applyingFilter(
+        "CIColorControls", parameters: ["inputContrast": g.contrast ?? 1, "inputSaturation": g.saturation ?? 1, "inputBrightness": 0])
+    }
+    if let w = g.warmth, w != 0 {
+      // Telling Core Image the light was cooler than it was warms the picture, and the reverse.
+      out = out.applyingFilter(
+        "CITemperatureAndTint",
+        parameters: ["inputNeutral": CIVector(x: 6500, y: 0), "inputTargetNeutral": CIVector(x: 6500 + w * 2500, y: 0)])
+    }
+    return out.cropped(to: img.extent)
+  }
+
+  func cameraCard(_ src0: CIImage, box b: Box) -> CIImage {
+    let src = Scene.graded(src0, plan.camera?.grade)
     let cw = src.extent.width, ch = src.extent.height
-    let k = max(b.w / cw, b.h / ch)
+    let cam = plan.camera
+    let k = max(b.w / cw, b.h / ch) * max(1, cam?.zoom ?? 1)
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
     let r = ciRect(b)
-    let placed = moved.transformed(
-      by: CGAffineTransform(translationX: r.midX - cw * k / 2, y: r.midY - ch * k / 2))
+    // Keep the framing point centered, clamped so the camera image always covers the box.
+    let fx = cam?.x ?? 0.5, fy = cam?.y ?? 0.5
+    var tx = r.midX - fx * cw * k
+    var ty = r.midY - (1 - fy) * ch * k
+    tx = min(r.minX, max(tx, r.maxX - cw * k))
+    ty = min(r.minY, max(ty, r.maxY - ch * k))
+    let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
     return masked(placed, r, radius: b.r, opacity: b.opacity)
   }
 
@@ -210,7 +234,8 @@ public final class Scene: @unchecked Sendable {
     let callout = callouts.first { f >= $0.s && f < $0.e }
     let ripples = clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
     let border = camBox.map { $0.opacity > 0.01 } ?? false
-    let brackets = look.frame == "brackets" && b.opacity > 0.01
+    let ins = insets(plan)
+    let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
     if page == nil && chip == nil && callout == nil && ripples.isEmpty && !border && !brackets && watermark == nil { return nil }
 
     guard
@@ -261,7 +286,7 @@ public final class Scene: @unchecked Sendable {
         Scene.text(
           callout.text, size: (look.titleFont == nil ? 40 : 46) * u, weight: .bold, font: look.titleFont,
           color: look.titleText ?? "#ffffff"),
-        centerX: W / 2, top: H * 0.06, padX: 28 * u, padY: 14 * u,
+        centerX: W / 2, top: ins.fullBleed ? ins.safe : H * 0.06, padX: 28 * u, padY: 14 * u,
         radius: 14 * u, fill: Scene.color(look.titleBackground ?? "#0f0f14").copy(alpha: look.titleBackground == nil ? 0.85 : 1)!)
     }
     if let chip {
@@ -284,11 +309,20 @@ public final class Scene: @unchecked Sendable {
       }
       let size = Scene.measure(s, maxWidth: W * 0.8 - 52 * u)
       pill(
-        ctx, s, centerX: W / 2, top: H - H * 0.07 - size.height - 24 * u, padX: 26 * u, padY: 12 * u, radius: 14 * u,
+        ctx, s, centerX: W / 2, top: H - (ins.fullBleed ? ins.safe : H * 0.07) - size.height - 24 * u, padX: 26 * u, padY: 12 * u,
+        radius: 14 * u,
         fill: Scene.color(look.captionBackground ?? "#0a0a0e").copy(alpha: look.captionBackgroundOpacity ?? 0.78)!,
         maxWidth: W * 0.8 - 52 * u)
     }
-    if brackets { drawBrackets(ctx, b) }
+    if brackets {
+      // Full bleed: the brackets frame the whole picture at the margin. Padded: they hug the screen card.
+      if ins.fullBleed {
+        let m = ins.margin, t = ins.bracket
+        drawBrackets(ctx, Box(x: m + t + 10 * u, y: m + t + 10 * u, w: W - 2 * (m + t + 10 * u), h: H - 2 * (m + t + 10 * u), r: 24 * u, opacity: 1))
+      } else {
+        drawBrackets(ctx, b)
+      }
+    }
     if let watermark, let w = look.watermark { drawWatermark(ctx, watermark, w) }
 
     guard let cg = ctx.makeImage() else { return nil }
@@ -378,6 +412,20 @@ public final class Scene: @unchecked Sendable {
   func drawWatermark(_ ctx: CGContext, _ img: CGImage, _ w: Look.Watermark) {
     let h = (w.height ?? 0.035) * min(W, H)
     let width = h * Double(img.width) / Double(img.height)
+    let ins = insets(plan)
+    if ins.fullBleed {
+      // Same inset as every other overlay, in the chosen corner.
+      let corner = w.corner ?? "topLeft"
+      let x = corner.hasSuffix("Left") ? ins.safe : W - ins.safe - width
+      let y = corner.hasPrefix("top") ? ins.safe : H - ins.safe - h
+      ctx.saveGState()
+      ctx.setAlpha(w.opacity ?? 0.9)
+      ctx.translateBy(x: x, y: y + h)
+      ctx.scaleBy(x: 1, y: -1)
+      ctx.draw(img, in: CGRect(x: 0, y: 0, width: width, height: h))
+      ctx.restoreGState()
+      return
+    }
     // Sit in the margin outside the screen (and its brackets), lined up with the screen's edge.
     let pad = plan.style.padding * min(W, H)
     let inset = look.frame == "brackets" ? 22 * u : 0

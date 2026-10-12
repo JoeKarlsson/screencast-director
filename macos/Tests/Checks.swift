@@ -70,6 +70,18 @@ struct Checks {
     let clicks = [InputEvent(t: 1, type: .click, x: 0.3, y: 0.7)]
     expect(zoomFocus(at: 5, clicks: clicks) == (0.3, 0.7) && zoomFocus(at: 20, clicks: clicks) == (0.5, 0.5), "zoom focus from last click")
 
+    // Pause trimming: tight cuts a 1 s pause, gentle keeps it, and a cut with words stays cut.
+    var pp = buildPlan(p)
+    let w2 = [Word(text: "one", start: 0, end: 0.5), Word(text: "two", start: 1.5, end: 2), Word(text: "oops", start: 3, end: 3.4),
+      Word(text: "three", start: 4, end: 4.5)]
+    pp.segments = [Segment(start: 0, end: 2.9, speed: 1), Segment(start: 3.6, end: 5, speed: 1)]
+    pp.retrimPauses(words: w2, level: .tight)
+    expect(pp.segments.count >= 3 && !pp.segments.contains { $0.start < 1.0 && $0.end > 1.0 }, "tight cuts the 1 s pause")
+    expect(!pp.segments.contains { $0.start < 3.2 && $0.end > 3.2 }, "the cut word stays cut")
+    pp.retrimPauses(words: w2, level: .gentle)
+    expect(pp.segments.contains { $0.start <= 0.5 && $0.end >= 1.5 }, "gentle gives the pause back")
+    expect(!pp.segments.contains { $0.start < 3.2 && $0.end > 3.2 }, "and still keeps the word cut")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

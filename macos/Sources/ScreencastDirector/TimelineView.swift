@@ -16,12 +16,13 @@ final class TimelineUI: ObservableObject {
 }
 
 private enum Track: CaseIterable {
-  case ruler, clips, words, zooms, layouts, titles
+  case ruler, clips, audio, words, zooms, layouts, titles
 
   var height: CGFloat {
     switch self {
     case .ruler: return 22
     case .clips: return 34
+    case .audio: return 30
     case .words: return 18
     default: return 24
     }
@@ -30,6 +31,7 @@ private enum Track: CaseIterable {
     switch self {
     case .ruler: return ""
     case .clips: return "Clips"
+    case .audio: return "Audio"
     case .words: return "Words"
     case .zooms: return "Zoom"
     case .layouts: return "Layout"
@@ -167,6 +169,7 @@ struct TimelineView: View {
           project.apply { $0.trimSegment(i, start: newStart, end: newEnd) }
         }
       }
+      audio(plan)
       words(plan)
       ForEach(Array(plan.zooms.enumerated()), id: \.offset) { i, z in
         let sel = Selection.zoom(i)
@@ -242,6 +245,36 @@ struct TimelineView: View {
       }
     )
     .help("Drag to scrub")
+  }
+
+  /// The voice waveform from measured loudness; cut ranges are dimmed.
+  private func audio(_ plan: Plan) -> some View {
+    let pps = ui.pxPerSec
+    let levels = project.levels
+    let mapped = project.mapped
+    let fps = project.fps
+    let h = Track.audio.height
+    return Canvas { ctx, size in
+      guard !levels.isEmpty else { return }
+      // One bar per 2 px column, from the loudest 50 ms sample in it.
+      let step = max(1, Int((2 / pps) / 0.05))
+      var i = 0
+      while i < levels.count {
+        let chunk = levels[i..<min(i + step, levels.count)]
+        let t = chunk.first!.0
+        let db = chunk.map(\.1).max() ?? -90
+        let v = max(0, min(1, (db + 55) / 50))
+        let barH = max(1, v * (h - 4))
+        let kept = srcToOut(mapped, t, fps: fps) != nil
+        let rect = CGRect(x: t * pps, y: (h - barH) / 2, width: max(1, Double(step) * 0.05 * pps - 0.5), height: barH)
+        ctx.fill(Path(rect), with: .color(kept ? Color.green.opacity(0.75) : Color.gray.opacity(0.3)))
+        i += step
+      }
+    }
+    .frame(height: h)
+    .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.04)))
+    .offset(y: Track.audio.y)
+    .allowsHitTesting(false)
   }
 
   private func words(_ plan: Plan) -> some View {

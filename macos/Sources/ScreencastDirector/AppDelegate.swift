@@ -1,9 +1,10 @@
+import AVKit
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  let settings = AppSettings()
+  let settings = AppSettings.shared
   lazy var library = Library(settings: settings)
   let recorder = Recorder()
   let hotKeys = HotKeys()
@@ -19,7 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let view = MainView(
       library: library, recorder: recorder, setup: setup, editor: editor,
       toggleRecording: { [weak self] in self?.toggleRecording() },
-      importVideo: { [weak self] in self?.importVideo() })
+      importVideo: { [weak self] in self?.importVideo() },
+      watchTour: { [weak self] in self?.watchTour() })
     window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1440, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
@@ -81,7 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           library.selection = dir
           window.makeKeyAndOrderFront(nil)
           NSApp.activate()
-          library.current?.analyzeAndPlan()
+          library.current?.analyzeAndPlan { [weak self] in
+            guard let self, self.settings.autoName, dir.lastPathComponent.hasPrefix("Recording ") else { return }
+            self.library.suggestName(dir, autoApply: true)
+          }
         } else {
           try await recorder.start(in: settings.projectsURL, settings: settings)
           statusItem.button?.image = NSImage(systemSymbolName: "stop.circle.fill", accessibilityDescription: "Stop")
@@ -148,6 +153,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       shortcut.action(project, self.editor)
       return nil
     }
+  }
+
+  var tourWindow: NSWindow?
+
+  /// The bundled tour video, in its own window.
+  @objc func watchTour() {
+    guard let url = Bundle.main.url(forResource: "tour", withExtension: "mp4") else { return }
+    let w = tourWindow ?? NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720), styleMask: [.titled, .closable, .resizable],
+      backing: .buffered, defer: false)
+    w.title = "Screencast Director Tour"
+    let view = AVPlayerView()
+    view.player = AVPlayer(url: url)
+    view.controlsStyle = .floating
+    w.contentView = view
+    w.isReleasedWhenClosed = false
+    w.contentAspectRatio = NSSize(width: 16, height: 9)
+    tourWindow = w
+    w.center()
+    w.makeKeyAndOrderFront(nil)
+    view.player?.play()
   }
 
   @objc func showShortcuts() {
@@ -224,6 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let helpItem = NSMenuItem()
     let helpMenu = NSMenu(title: "Help")
     helpMenu.addItem(withTitle: "Getting Started", action: #selector(showSetup), keyEquivalent: "").target = self
+    helpMenu.addItem(withTitle: "Watch the Tour", action: #selector(watchTour), keyEquivalent: "").target = self
     helpMenu.addItem(withTitle: "Keyboard Shortcuts", action: #selector(showShortcuts), keyEquivalent: "/").target = self
     helpItem.submenu = helpMenu
     main.addItem(helpItem)

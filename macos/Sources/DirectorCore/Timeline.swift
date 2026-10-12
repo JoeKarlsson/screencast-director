@@ -141,11 +141,35 @@ func fit(_ area: (x: Double, y: Double, w: Double, h: Double), aspect: Double) -
   return (area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h)
 }
 
+/// One margin for everything that sits near the frame's edge, so every corner matches.
+public struct Insets {
+  /// Distance from the frame edge (4% of the short side).
+  public let margin: Double
+  /// Bracket stroke width.
+  public let bracket: Double
+  /// Where overlays sit: the margin, or just inside the brackets when there are brackets.
+  public let safe: Double
+  /// Padding 0: screen and camera fill the frame edge to edge.
+  public let fullBleed: Bool
+}
+
+public func insets(_ plan: Plan) -> Insets {
+  let short = Double(min(plan.output.width, plan.output.height))
+  let m = (0.04 * short).rounded()
+  let t = 12 * short / 1080
+  let full = plan.style.padding * short < 1
+  let brackets = plan.look?.frame == "brackets"
+  return Insets(margin: m, bracket: t, safe: full && brackets ? m + t + m * 0.6 : m, fullBleed: full)
+}
+
 public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let W = Double(plan.output.width), H = Double(plan.output.height)
   let pad = plan.style.padding * min(W, H)
   let aspect = plan.style.screenAspect ?? plan.source.width / plan.source.height
-  let r = plan.style.radius * min(W, H) / 1080
+  let ins = insets(plan)
+  // Full bleed has square edges; the radius only applies to padded cards.
+  let r = ins.fullBleed ? 0 : plan.style.radius * min(W, H) / 1080
+  let edge = ins.fullBleed ? ins.safe : pad
   let full = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad)
   func box(_ f: (x: Double, y: Double, w: Double, h: Double), r: Double, opacity: Double = 1) -> Box {
     Box(x: f.x, y: f.y, w: f.w, h: f.h, r: r, opacity: opacity)
@@ -183,7 +207,7 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let s = fit(full, aspect: aspect)
   let screenFull = Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1)
   let bubble = (min(W, H) * 0.24).rounded()
-  let pipCam = Box(x: W - pad - bubble, y: H - pad - bubble, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
+  let pipCam = Box(x: W - edge - bubble, y: H - edge - bubble, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
 
   switch mode {
   case .screen:
@@ -193,6 +217,14 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   case .pip:
     return LayoutBoxes(screen: screenFull, cam: pipCam)
   case .side:
+    if ins.fullBleed {
+      // Screen on the left, camera filling a full-height column on the right.
+      let camW = (W * 0.3).rounded()
+      let s = fit((0, 0, W - camW, H), aspect: aspect)
+      return LayoutBoxes(
+        screen: Box(x: s.x, y: s.y, w: s.w, h: s.h, r: 0, opacity: 1),
+        cam: Box(x: W - camW, y: 0, w: camW, h: H, r: 0, opacity: 1))
+    }
     let camW = (W - 3 * pad) * 0.3
     let s = fit((pad, pad, W - 3 * pad - camW, H - 2 * pad), aspect: aspect)
     let camH = min(s.h, camW * 16 / 9)

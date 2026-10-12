@@ -90,6 +90,7 @@ struct SetupView: View {
   @ObservedObject var setup: SetupModel
   let record: () -> Void
   let importVideo: () -> Void
+  let watchTour: () -> Void
 
   var body: some View {
     ScrollView {
@@ -100,6 +101,12 @@ struct SetupView: View {
             Text("Screencast Director").font(.largeTitle.bold())
             Text("Record your screen, then edit it by hand or by telling Claude what you want.").foregroundStyle(.secondary)
           }
+        }
+
+        if Bundle.main.url(forResource: "tour", withExtension: "mp4") != nil {
+          Button(action: watchTour) { Label("Watch the Tour (3 min)", systemImage: "play.rectangle.fill") }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
         }
 
         VStack(alignment: .leading, spacing: 10) {

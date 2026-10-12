@@ -31,6 +31,8 @@ final class ProjectModel: ObservableObject {
   @Published private(set) var canUndo = false
   @Published private(set) var canRedo = false
   @Published var showPublish = false
+  /// Loudness every 50 ms (source time), for the timeline's audio track and normalizing.
+  @Published private(set) var levels: [(Double, Double)] = []
   @Published var publishTitle = ""
   @Published private(set) var publishFiles: [URL] = []
   @Published private(set) var descriptionText = ""
@@ -90,6 +92,9 @@ final class ProjectModel: ObservableObject {
     lastPlanData = data
     plan = p
     rebuild(now: true)
+    if levels.isEmpty, let project {
+      Task { @MainActor in self.levels = (try? await Analyzer.loudness(project, video: p.source.video)) ?? [] }
+    }
   }
 
   /// Picks up changes made outside the app (Claude, a text editor). Edits made here are written
@@ -156,6 +161,13 @@ final class ProjectModel: ObservableObject {
   /// Applies an edit, saves plan.json and refreshes the preview. Edits with the same `coalesce`
   /// key in quick succession (a slider drag) share one undo step.
   func apply(coalesce key: String? = nil, _ change: (inout Plan) -> Void) {
+    // An edit made outside the app (Claude, the CLI, a text editor) may not have been picked up
+    // yet. Apply this change on top of the file, not over it.
+    if let disk = try? Data(contentsOf: planURL), disk != lastPlanData, let fresh = try? JSONDecoder().decode(Plan.self, from: disk) {
+      if let old = plan { undoStack.append(old) }
+      lastPlanData = disk
+      plan = fresh
+    }
     guard var p = plan else { return }
     let merge = key != nil && key == lastEditKey && Date().timeIntervalSince(lastEditAt) < 1.5
     lastEditKey = key
@@ -369,6 +381,52 @@ final class ProjectModel: ObservableObject {
     }
   }
 
+  /// Re-cuts silences at a level; cuts that removed words stay cut.
+  func setPauses(_ level: PauseLevel) {
+    guard let project, let video = plan?.source.video else { return }
+    run("Finding pauses…") { [self] in
+      let silences = Analyzer.silences(try await Analyzer.loudness(project, video: video), minLength: 0.2)
+      apply {
+        $0.retrimPauses(words: project.words, level: level, silences: silences)
+        $0.pauses = level
+      }
+      status = "Pauses: \(level.label)"
+    }
+  }
+
+  // MARK: Camera framing
+
+  /// Finds where the speaker's face usually is and centers the camera on it.
+  func centerCameraOnFace() {
+    run("Finding your face…") { [self] in
+      guard let plan, let project, plan.camera != nil else { return }
+      guard let face = try await Publish.faceCenter(project: project, plan: plan) else {
+        status = "No face found in the camera footage."
+        return
+      }
+      apply {
+        $0.camera?.x = face.x
+        $0.camera?.y = face.y
+        $0.camera?.zoom = Publish.centeringZoom(x: face.x, y: face.y)
+      }
+      status = "Camera centered on your face."
+    }
+  }
+
+  /// A frame of the camera video, for the framing picker.
+  func cameraThumbnail(done: @escaping (NSImage?) -> Void) {
+    guard let cam = plan?.camera else { return done(nil) }
+    let gen = AVAssetImageGenerator(asset: AVURLAsset(url: dir.appendingPathComponent(cam.video)))
+    gen.maximumSize = CGSize(width: 640, height: 640)
+    gen.appliesPreferredTrackTransform = true
+    Task { @MainActor in
+      let img = (try? await gen.image(at: CMTime(seconds: 5, preferredTimescale: 600)).image).map {
+        NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height))
+      }
+      done(img)
+    }
+  }
+
   // MARK: Publishing
 
   var publishDir: URL { dir.appendingPathComponent("publish") }
@@ -426,11 +484,22 @@ final class ProjectModel: ObservableObject {
   }
 
   /// Transcribe, measure motion, and write a first-draft plan (keeps an existing plan unless `force`).
-  func analyzeAndPlan(force: Bool = false) {
+  func analyzeAndPlan(force: Bool = false, then done: (() -> Void)? = nil) {
     run("Analyzing…") { [self] in
+      defer { done?() }
       try await analyze(dir) { msg in Task { @MainActor in self.status = msg } }
       var draft = buildPlan(try Project.load(dir))
       ProfileStore.shared.defaultProfile?.apply(to: &draft)
+      let level = AppSettings.shared.pauseLevel
+      let fresh = try Project.load(dir)
+      let silences = Analyzer.silences(try await Analyzer.loudness(fresh, video: draft.source.video), minLength: 0.2)
+      draft.retrimPauses(words: fresh.words, level: level, silences: silences)
+      draft.pauses = level
+      if draft.camera != nil, let face = try await Publish.faceCenter(project: try Project.load(dir), plan: draft) {
+        draft.camera?.x = face.x
+        draft.camera?.y = face.y
+        draft.camera?.zoom = Publish.centeringZoom(x: face.x, y: face.y)
+      }
       if let current = plan, force {
         undoStack.append(current)
         commit(draft)

@@ -1,4 +1,5 @@
 import AVFoundation
+import DirectorCore
 import Foundation
 
 /// Recording preferences, stored in UserDefaults.
@@ -12,6 +13,9 @@ final class AppSettings: ObservableObject {
   @Published var projectsFolder: String { didSet { d.set(projectsFolder, forKey: "projectsFolder") } }
   /// Off by default: this app's windows stay out of recordings. Turn on to record a tour of the app itself.
   @Published var showSelfInRecordings: Bool { didSet { d.set(showSelfInRecordings, forKey: "showSelfInRecordings") } }
+  @Published var pauseLevel: PauseLevel { didSet { d.set(pauseLevel.rawValue, forKey: "pauseLevel") } }
+  @Published var autoName: Bool { didSet { d.set(autoName, forKey: "autoName") } }
+  static let shared = AppSettings()
 
   init() {
     micID = d.string(forKey: "micID") ?? ""
@@ -21,6 +25,8 @@ final class AppSettings: ObservableObject {
     useCamera = d.bool(forKey: "useCamera")
     fps = d.object(forKey: "fps") as? Int ?? 30
     showSelfInRecordings = d.bool(forKey: "showSelfInRecordings")
+    pauseLevel = PauseLevel(rawValue: d.string(forKey: "pauseLevel") ?? "") ?? .normal
+    autoName = d.object(forKey: "autoName") as? Bool ?? true
     projectsFolder =
       d.string(forKey: "projectsFolder")
       ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies/Screencast Director").path

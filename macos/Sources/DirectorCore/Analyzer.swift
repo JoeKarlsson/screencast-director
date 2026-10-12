@@ -144,3 +144,56 @@ public enum Analyzer {
     try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted]).write(to: out)
   }
 }
+
+extension Analyzer {
+  /// Loudness in dBFS every 50 ms of the recording's audio, for finding real silences
+  /// (Whisper's word timings run straight through short pauses). Cached in loudness.json.
+  public static func loudness(_ project: Project, video: String) async throws -> [(Double, Double)] {
+    let cache = project.dir.appendingPathComponent("loudness.json")
+    if let data = try? Data(contentsOf: cache), let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]] {
+      return arr.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+    }
+    let wav = project.dir.appendingPathComponent(".render/loudness.wav")
+    try FileManager.default.createDirectory(at: wav.deletingLastPathComponent(), withIntermediateDirectories: true)
+    guard try await extractAudio(project.dir.appendingPathComponent(video), to: wav) else { return [] }
+    let data = try Data(contentsOf: wav)
+    try? FileManager.default.removeItem(at: wav)
+    // 16 kHz mono 16-bit PCM after a 44-byte header; 800 samples = 50 ms.
+    let samples = data.dropFirst(44).withUnsafeBytes { Array($0.bindMemory(to: Int16.self)) }
+    var out: [(Double, Double)] = []
+    var i = 0
+    while i + 800 <= samples.count {
+      var sum = 0.0
+      for s in samples[i..<(i + 800)] {
+        let v = Double(s) / 32768
+        sum += v * v
+      }
+      let rms = (sum / 800).squareRoot()
+      out.append((Double(i) / 16000, 20 * log10(max(rms, 1e-6))))
+      i += 800
+    }
+    let body = out.map { String(format: "[%.2f, %.1f]", $0.0, $0.1) }.joined(separator: ", ")
+    try "[\(body)]\n".write(to: cache, atomically: true, encoding: .utf8)
+    return out
+  }
+
+  /// Silent stretches: quieter than the room's noise floor plus 12 dB.
+  public static func silences(_ levels: [(Double, Double)], minLength: Double) -> [(Double, Double)] {
+    guard !levels.isEmpty else { return [] }
+    let sorted = levels.map(\.1).sorted()
+    let floor = sorted[sorted.count / 10]
+    let threshold = min(floor + 12, -30)
+    var out: [(Double, Double)] = []
+    var start: Double?
+    for (t, db) in levels {
+      if db < threshold {
+        if start == nil { start = t }
+      } else if let s = start {
+        if t - s >= minLength { out.append((s, t)) }
+        start = nil
+      }
+    }
+    if let s = start, let last = levels.last, last.0 + 0.05 - s >= minLength { out.append((s, last.0 + 0.05)) }
+    return out
+  }
+}

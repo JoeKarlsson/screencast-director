@@ -258,3 +258,40 @@ public enum Publish {
     return files
   }
 }
+
+extension Publish {
+  /// The zoom that lets the face sit dead center (the crop needs room to pan), from 1.15x up to 1.8x.
+  public static func centeringZoom(x: Double, y: Double) -> Double {
+    let need = max(0.5 / max(min(x, 1 - x), 0.05), 0.5 / max(min(y, 1 - y), 0.05))
+    return min(1.8, max(1.15, (need * 20).rounded(.up) / 20))
+  }
+
+  /// Where the speaker's face usually is in the camera footage (median of face centers sampled
+  /// every few seconds), for auto-framing. nil when no face is found.
+  public static func faceCenter(project: Project, plan: Plan) async throws -> (x: Double, y: Double)? {
+    guard let camera = plan.camera else { return nil }
+    let asset = AVURLAsset(url: project.dir.appendingPathComponent(camera.video))
+    let gen = AVAssetImageGenerator(asset: asset)
+    gen.appliesPreferredTrackTransform = true
+    gen.maximumSize = CGSize(width: 960, height: 960)
+    gen.requestedTimeToleranceBefore = CMTime(value: 1, timescale: 2)
+    gen.requestedTimeToleranceAfter = CMTime(value: 1, timescale: 2)
+    let duration = try await asset.load(.duration).seconds
+    var xs: [Double] = [], ys: [Double] = []
+    var t = 1.0
+    while t < duration {
+      defer { t += max(2, duration / 40) }
+      guard let img = try? await gen.image(at: CMTime(seconds: t, preferredTimescale: 600)).image else { continue }
+      let req = VNDetectFaceRectanglesRequest()
+      try? VNImageRequestHandler(cgImage: img).perform([req])
+      // The biggest face is the speaker; Vision's boxes are normalized with y up.
+      guard let face = req.results?.max(by: { $0.boundingBox.width < $1.boundingBox.width }) else { continue }
+      xs.append(face.boundingBox.midX)
+      ys.append(1 - face.boundingBox.midY)
+    }
+    guard !xs.isEmpty else { return nil }
+    xs.sort()
+    ys.sort()
+    return (xs[xs.count / 2], ys[ys.count / 2])
+  }
+}

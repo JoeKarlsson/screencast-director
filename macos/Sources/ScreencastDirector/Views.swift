@@ -18,17 +18,28 @@ struct MainView: View {
   let editor: EditorUI
   let toggleRecording: () -> Void
   let importVideo: () -> Void
+  let watchTour: () -> Void
 
   var body: some View {
     NavigationSplitView {
       List(selection: $library.selection) {
         Section("Recordings") {
-          ForEach(library.projects, id: \.self) { url in
+          ForEach(library.filtered, id: \.self) { url in
             Label(url.lastPathComponent, systemImage: "film").tag(url as URL?)
+              .contextMenu {
+                Button("Rename…") { library.promptRename(url) }
+                Button("Suggest a Name with \(AISettings.shared.provider.shortName)") { library.suggestName(url) }
+                Divider()
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+              }
           }
         }
       }
+      .searchable(text: $library.search, placement: .sidebar, prompt: "Search names and what you said")
       .safeAreaInset(edge: .bottom) {
+        if !library.status.isEmpty {
+          Text(library.status).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10)
+        }
         Button {
           library.selection = nil
         } label: {
@@ -44,7 +55,7 @@ struct MainView: View {
       if let project = library.current {
         EditorView(project: project, editor: editor)
       } else {
-        SetupView(setup: setup, record: toggleRecording, importVideo: importVideo)
+        SetupView(setup: setup, record: toggleRecording, importVideo: importVideo, watchTour: watchTour)
       }
     }
     .toolbar {
@@ -217,6 +228,10 @@ struct SettingsView: View {
       Picker("Frame rate", selection: $settings.fps) {
         Text("30 fps").tag(30)
         Text("60 fps").tag(60)
+      }
+      Toggle("Name new recordings from what you said", isOn: $settings.autoName)
+      Picker("Pause trimming for new recordings", selection: $settings.pauseLevel) {
+        ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
       }
       Toggle("Show this app in recordings (for recording a tour of it)", isOn: $settings.showSelfInRecordings)
       LabeledContent("Recordings folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }

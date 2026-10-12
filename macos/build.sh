@@ -22,6 +22,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 cp "$BIN/ScreencastDirector" "$BIN/director" "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/edit-prompt.md Resources/ScreencastDirector.icns "$APP/Contents/Resources/"
+[[ -f Resources/tour.mp4 ]] && cp Resources/tour.mp4 "$APP/Contents/Resources/"
 # Without a bundled whisper-cli the app falls back to Homebrew's (brew install whisper-cpp).
 [[ -x .whisper/whisper-cli ]] && cp .whisper/whisper-cli "$APP/Contents/Helpers/"
 
