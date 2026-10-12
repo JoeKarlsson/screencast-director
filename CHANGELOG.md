@@ -46,6 +46,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - A Marks track for annotations, a title button that holds lower thirds, slates and chapters, and an Annotate menu (A adds a box).
 - Pinch or ⌥-scroll to zoom the timeline around the pointer; the zoom slider and ⌘= / ⌘- keep the playhead in place. The timeline follows the playhead while playing, clicking an empty spot moves the playhead, and ⌥← / ⌥→ nudge the selected item a frame.
 - The trim cursor no longer gets stuck after deselecting a bar.
+- Fixed a hang at the end of an AI edit: pipeline steps now run on the main thread, so they never update the window from the background.
 - Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
@@ -60,6 +61,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Styled cuts: blur, dip, flash, punch in and whip pan.
 
 ### Security
+- Headless Claude edits no longer load your personal Claude Code settings either, so your own allow rules can't let an edit run commands beyond the three `director` checks.
 - Claude Code edits can only read the recording's folder, edit plan.json and run the director's describe, still and review. A project folder's own `.claude/` settings and hooks are ignored, and check frames go in the project's `.checks/` folder instead of /tmp.
 - YouTube descriptions and recording names from Claude Code run with no tools, from an empty folder.
 - What was said and typed in a recording is treated as data, never as instructions. An AI edit that points the recording, camera, music, logos or fonts at a file outside the project is undone, and the reply says so.

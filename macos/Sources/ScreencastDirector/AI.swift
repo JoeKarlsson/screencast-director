@@ -284,7 +284,7 @@ enum AIText {
       p.executableURL = claude
       // Text only: no tools, no MCP servers, no project settings, run from an empty folder.
       p.arguments = [
-        "-p", user, "--append-system-prompt", system, "--tools", "", "--strict-mcp-config", "--setting-sources", "user",
+        "-p", user, "--append-system-prompt", system, "--tools", "", "--strict-mcp-config", "--setting-sources", "",
       ]
       let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("sd-claude-\(UUID().uuidString)")
       try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

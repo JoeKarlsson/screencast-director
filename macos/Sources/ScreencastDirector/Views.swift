@@ -555,7 +555,10 @@ struct ClaudeBar: View {
         }
         .padding(10)
       }
-      .frame(maxHeight: project.asks.last?.changes.isEmpty == false ? 220 : 120)
+      // A floor, or the preview's layout priority squeezes it to a line.
+      .frame(
+        minHeight: project.asks.last?.changes.isEmpty == false ? 150 : 84,
+        maxHeight: project.asks.last?.changes.isEmpty == false ? 220 : 120)
       .card(padding: 0)
       .onChange(of: project.asks.last?.reply) { _, _ in
         if let id = project.asks.last?.id { scroll.scrollTo(id, anchor: .bottom) }

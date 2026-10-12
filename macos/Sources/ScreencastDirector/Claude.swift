@@ -60,7 +60,8 @@ enum Claude {
             let frame = cmd.split(separator: " ").dropFirst(3).first.map(String.init) ?? ""
             return .step("Checking frame \(frame)")
           }
-          return .step("Running \(cmd.prefix(40))")
+          let first = cmd.split(separator: "\n").first.map(String.init) ?? cmd
+          return .step("Running \(first.prefix(48))")
         case let name?: return .step(name)
         case nil: return nil
         }
@@ -84,14 +85,15 @@ enum Claude {
     p.executableURL = claude
     p.currentDirectoryURL = project
     // Read the project, edit only plan.json and run the three director commands. A recording
-    // folder isn't trusted: its .claude/ settings and hooks are skipped (only user settings load),
-    // and Write and edits to .claude/ are denied outright.
+    // folder isn't trusted: no settings files load at all (a project's .claude/ hooks, and also the
+    // user's own allow rules, which would let it run any command they allow), and Write and edits
+    // to .claude/ are denied outright.
     p.arguments = [
       "-p", instruction,
       "--append-system-prompt", system,
       "--output-format", "stream-json", "--verbose",
       "--permission-mode", "acceptEdits",
-      "--setting-sources", "user",
+      "--setting-sources", "",
       "--strict-mcp-config",
       "--tools", "Read,Edit,Bash",
       "--allowedTools", "Read(./**)", "Edit(./plan.json)",

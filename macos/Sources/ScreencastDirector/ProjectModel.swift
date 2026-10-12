@@ -754,7 +754,7 @@ final class ProjectModel: ObservableObject {
   /// The running pipeline step, so Stop can cancel it.
   private var task: Task<Void, Never>?
 
-  func run(_ label: String, _ work: @escaping () async throws -> Void) {
+  func run(_ label: String, _ work: @escaping @MainActor () async throws -> Void) {
     guard !busy else { return }
     busy = true
     status = label
