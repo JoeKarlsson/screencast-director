@@ -19,7 +19,7 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 ## Use it
 
 1. **Record:** press ⌃⌥⌘R in any app, talk through your demo, then press it again.
-2. **Draft:** it transcribes on your Mac and drafts the edit. Talking plays in real time, typing without talking is sped up, and silence is cut.
+2. **Draft:** it transcribes on your Mac and drafts the edit. Talking plays in real time, typing without talking plays fast, and silence disappears.
 3. **Adjust:** use the timeline and inspector. The shortcuts match Screen Studio's, and ⌘/ lists them.
 4. **Or ask:** "cut my retakes and zoom in when I mention the config." ⌘Z undoes it.
 5. **Export or publish:** 16:9, 9:16, square or 4:5, up to 4K, plus captions, chapters, a description draft and thumbnails.
@@ -27,7 +27,7 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 ## Features
 
 - **Timeline:** clips, an audio waveform, words, zooms, layouts and titles.
-- **Pauses:** Gentle, Normal or Tight, measured from the audio. Cuts that removed words stay cut.
+- **Pauses:** pick Gentle, Normal or Tight, measured from the audio. Changing the level never brings back words you cut.
 - **Camera:** bubble, side by side or full frame, auto-centered on your face, with reframing and color grading.
 - **Sound:** voice normalizing, volume and a limiter.
 - **Profiles:** your look (background, fonts, colors, logo, frame), full bleed or padded.
@@ -38,4 +38,4 @@ Details: [docs/app.md](docs/app.md). The older scriptable CLI, which renders wit
 
 ## Contributing and license
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). [MIT](LICENSE). The CLI's Remotion renderer needs a [company license](https://www.remotion.dev/license) for teams of more than three people; the app doesn't use Remotion.
+See [CONTRIBUTING.md](CONTRIBUTING.md). [MIT](LICENSE). The CLI's Remotion renderer needs a [company license](https://www.remotion.dev/license) for teams of more than three people. The app doesn't use Remotion.
