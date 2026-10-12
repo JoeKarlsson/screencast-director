@@ -16,7 +16,8 @@ die() { echo "release: $*" >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || die "uncommitted changes"
 git fetch -q origin
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || die "main doesn't match origin/main; pull or push first"
-git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "$TAG already exists; bump VERSION"
+# A tag that exists only locally is left over from a run that failed to push; reuse it.
+gh release view "$TAG" >/dev/null 2>&1 && die "$TAG is already released; bump VERSION"
 
 # The lines under "## <version>" up to the next "## " heading.
 NOTES="$(awk -v v="$VERSION" '/^## / { if (found) exit; if (index($0, "## " v) == 1) { found = 1; next } } found' CHANGELOG.md)"
@@ -27,7 +28,7 @@ ZIP="dist/Screencast-Director-$VERSION.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "dist/Screencast Director.app" "$ZIP"
 
-git tag -a "$TAG" -m "Screencast Director $VERSION"
+git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || git tag -a "$TAG" -m "Screencast Director $VERSION"
 git push -q origin "$TAG"
 gh release create "$TAG" "$ZIP" --title "Screencast Director $VERSION" --notes "$NOTES"
 echo "Released $TAG with $ZIP"
