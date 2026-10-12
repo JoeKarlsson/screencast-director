@@ -40,6 +40,11 @@ Each release lists what changed for people using the app or the CLI. The version
 - Dragging a slider saves the plan once you pause instead of on every tick.
 - Errors (a failed analysis, preview or save) show as banners, with Retry for the preview.
 - ⌫ on a selected cut restores it, as its tooltip says (the toolbar button becomes Restore).
+- Edit by text: the Transcript button (⌥⌘T) opens the transcript beside the preview. Drag across words (or shift-click, then ⇧←/⇧→) to select them, then Cut, Zoom, add a Title (or lower third, slate, chapter), Annotate, or Ask AI about them. Find in transcript with match counts, filler words in italics, and the spoken word stays in view while playing.
+- The inspector has controls for every motion feature: motion style tiles with live easing curves, a zoom's ease and length, a title's style, second line and in/out animations, an annotation's kind, area (drag on the frame), label and animations, a clip's styled cut, and caption styles. Preview plays from just before the item.
+- A Marks track for annotations, a title button that holds lower thirds, slates and chapters, and an Annotate menu (A adds a box).
+- Pinch or ⌥-scroll to zoom the timeline around the pointer; the zoom slider and ⌘= / ⌘- keep the playhead in place. The timeline follows the playhead while playing, clicking an empty spot moves the playhead, and ⌥← / ⌥→ nudge the selected item a frame.
+- The trim cursor no longer gets stuck after deselecting a bar.
 - Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.

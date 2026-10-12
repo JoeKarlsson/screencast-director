@@ -9,7 +9,12 @@ import SwiftUI
 final class EditorUI: ObservableObject {
   let timeline = TimelineUI()
   let inspector = InspectorUI()
+  let transcript = TranscriptUI()
   @Published var showInspector = true
+  /// The transcript beside the preview, for editing by text.
+  @Published var showTranscript = false
+  /// Bumped to focus the AI box (the transcript's Ask AI fills it first).
+  @Published var focusAsk = 0
   /// The project whose preview has loaded. Only the first load gets the loading cover;
   /// the rebuild after each edit keeps showing the previous frame.
   @Published var frameShownFor: URL?
@@ -225,14 +230,29 @@ struct EditorView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      stage
+      HStack(spacing: 0) {
+        if editor.showTranscript {
+          ScrollView {
+            TranscriptView(project: project, playhead: project.playhead, ui: editor.transcript) { prompt in
+              project.instruction = prompt
+              editor.focusAsk += 1
+            }
+            .padding(14)
+          }
+          .frame(width: 360)
+          .background(Color.primary.opacity(0.02))
+          .transition(.move(edge: .leading).combined(with: .opacity))
+          Divider()
+        }
+        stage
+      }
       TransportBar(project: project)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
       Divider()
       VStack(spacing: 10) {
         TimelineView(project: project, ui: editor.timeline)
-        ClaudeBar(project: project)
+        ClaudeBar(project: project, editor: editor)
       }
       .padding(12)
     }
@@ -240,7 +260,7 @@ struct EditorView: View {
     .navigationTitle(project.name)
     .navigationSubtitle(project.status)
     .inspector(isPresented: $editor.showInspector) {
-      InspectorView(project: project, ui: editor.inspector)
+      InspectorView(project: project, ui: editor.inspector, transcriptUI: editor.transcript)
     }
     .toolbar { EditorToolbar(project: project, editor: editor) }
     .sheet(isPresented: $project.showPublish) { PublishView(project: project) }
@@ -409,6 +429,8 @@ struct EditorToolbar: ToolbarContent {
         Button { project.analyzeAndPlan() } label: { Label("Analyze", systemImage: "wand.and.stars") }
           .disabled(project.busy)
       }
+      Button { withAnimation(.snappy) { editor.showTranscript.toggle() } } label: { Label("Transcript", systemImage: "text.quote") }
+        .help("Edit by text: select words to cut them or add a zoom, title or annotation (⌥⌘T)")
       Button { withAnimation(.snappy) { editor.showInspector.toggle() } } label: { Label("Inspector", systemImage: "sidebar.right") }
         .help("Show or hide the inspector (⌥⌘I)")
     }
@@ -420,7 +442,9 @@ struct EditorToolbar: ToolbarContent {
 /// Ask the AI for an edit: a glass prompt box, starter ideas, and what you asked and what it did.
 struct ClaudeBar: View {
   @ObservedObject var project: ProjectModel
+  @ObservedObject var editor: EditorUI
   @ObservedObject var ai = AISettings.shared
+  @FocusState private var focused: Bool
 
   static let ideas = [
     "Cut my retakes", "Tighten the pauses", "Zoom in when I click", "Side by side for the intro", "Add a title at the start",
@@ -434,7 +458,9 @@ struct ClaudeBar: View {
         TextField("Ask \(ai.provider.shortName) to edit…", text: $project.instruction, axis: .vertical)
           .textFieldStyle(.plain)
           .lineLimit(1...4)
+          .focused($focused)
           .onSubmit(project.askClaude)
+          .onChange(of: editor.focusAsk) { _, _ in focused = true }
         if project.busy && project.asks.last?.running == true {
           ProgressView().controlSize(.small)
           Button(action: project.stopAsk) {

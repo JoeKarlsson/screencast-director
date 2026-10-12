@@ -26,7 +26,7 @@ public enum Rules {
   static let zoomHold = 1.5
   static let minZoom = 1.5
 
-  static func isFiller(_ text: String) -> Bool {
+  public static func isFiller(_ text: String) -> Bool {
     text.range(of: #"^(um+|uh+|erm+|uhm+|ah+|hmm+)[.,!?]*$"#, options: [.regularExpression, .caseInsensitive]) != nil
   }
 }

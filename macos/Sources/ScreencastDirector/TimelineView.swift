@@ -23,10 +23,47 @@ final class TimelineUI: ObservableObject {
   /// The ranges of the last AI edit, flashed over every track, and the flash's fading opacity.
   @Published var flashRanges: [(Double, Double)] = []
   @Published var flashOpacity: Double = 0
+  /// Where the track area is scrolled; set to zoom around a point or follow the playhead.
+  @Published var scroll = ScrollPosition(edge: .leading)
+  /// The pointer is over the tracks (for ⌥-scroll zooming) at this source time.
+  var pointerTime: Double?
+  /// The timeline zoom when a pinch began.
+  var pinchBase: Double?
+  private var scrollMonitor: Any?
+
+  init() {
+    // ⌥-scroll over the tracks zooms the timeline around the pointer.
+    scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] e in
+      guard let self, e.modifierFlags.contains(.option), let t = self.pointerTime else { return e }
+      self.zoom(by: exp(Double(e.scrollingDeltaY) * (e.hasPreciseScrollingDeltas ? 0.01 : 0.08)), around: t)
+      return nil
+    }
+  }
+
+  deinit {
+    if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
+  }
+
+  /// Zooms the timeline, keeping source time `t` where it is on screen.
+  func zoom(by factor: Double, around t: Double) {
+    let old = pxPerSec
+    let new = min(400, max(4, old * factor))
+    guard abs(new - old) > 0.01 else { return }
+    let onScreen = t * old - viewport.visible.minX
+    pxPerSec = new
+    // After the wider content lays out.
+    DispatchQueue.main.async { self.scroll.scrollTo(x: max(0, t * new - onScreen)) }
+  }
+
+  /// Scrolls a page when the playhead runs off the right edge while playing.
+  func follow(_ t: Double) {
+    let x = t * pxPerSec, v = viewport.visible
+    if x > v.maxX - 24 || x < v.minX { scroll.scrollTo(x: max(0, x - 40)) }
+  }
 }
 
 private enum Track: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles
+  case ruler, clips, audio, words, zooms, layouts, titles, marks
 
   var height: CGFloat {
     switch self {
@@ -46,6 +83,7 @@ private enum Track: CaseIterable {
     case .zooms: return "Zoom"
     case .layouts: return "Layout"
     case .titles: return "Titles"
+    case .marks: return "Marks"
     }
   }
   var icon: String {
@@ -57,6 +95,7 @@ private enum Track: CaseIterable {
     case .zooms: return "plus.magnifyingglass"
     case .layouts: return "rectangle.split.2x1"
     case .titles: return "textformat"
+    case .marks: return "scribble"
     }
   }
   var color: Color {
@@ -68,6 +107,7 @@ private enum Track: CaseIterable {
     case .zooms: return Theme.zoom
     case .layouts: return Theme.layout
     case .titles: return Theme.title
+    case .marks: return Theme.mark
     }
   }
   var y: CGFloat {
@@ -102,10 +142,13 @@ private struct Hatch: Shape {
 private struct PlayheadOffset: ViewModifier {
   let project: ProjectModel
   @ObservedObject var playhead: Playhead
-  let pxPerSec: Double
+  let ui: TimelineUI
 
   func body(content: Content) -> some View {
-    content.offset(x: project.playheadSrc * pxPerSec - 6)
+    content.offset(x: project.playheadSrc * ui.pxPerSec - 6)
+      .onChange(of: playhead.frame) { _, _ in
+        if project.isPlaying { ui.follow(project.playheadSrc) }
+      }
   }
 }
 
@@ -147,7 +190,19 @@ struct TimelineView: View {
             ScrollViewReader { proxy in
               ScrollView(.horizontal) {
                 tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, plan.source.duration * ui.pxPerSec), height: Track.total)
+                  .onContinuousHover { phase in
+                    if case .active(let p) = phase { ui.pointerTime = p.x / ui.pxPerSec } else { ui.pointerTime = nil }
+                  }
               }
+              .scrollPosition($ui.scroll)
+              .gesture(
+                MagnifyGesture()
+                  .onChanged { v in
+                    let base = ui.pinchBase ?? ui.pxPerSec
+                    ui.pinchBase = base
+                    ui.zoom(by: base * v.magnification / ui.pxPerSec, around: ui.pointerTime ?? project.playheadSrc)
+                  }
+                  .onEnded { _ in ui.pinchBase = nil })
               .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }) { _, r in ui.viewport.update(r) }
               .onChange(of: project.aiChange?.id) { _, id in
                 guard id != nil, let ranges = project.aiChange?.ranges else { return }
@@ -236,12 +291,41 @@ struct TimelineView: View {
         .frame(width: 28, height: 22)
         .accessibilityLabel("Layout")
         .help("Change the camera layout from the playhead (⌃L, or 1-4)")
-        iconButton("Title", "textformat", help: "Add a title at the playhead (T)", action: project.addCallout)
+        Menu {
+          ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
+            Button { project.addCallout(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
+          }
+        } label: {
+          Image(systemName: "textformat")
+        } primaryAction: {
+          project.addCallout()
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 28, height: 22)
+        .accessibilityLabel("Title")
+        .help("Add a title at the playhead (T); hold for lower thirds, slates and chapters")
+        Menu {
+          ForEach(ChoiceTiles.annotationKinds, id: \.name) { k in
+            Button { project.addAnnotation(k.name) } label: { Label(k.label, systemImage: k.icon) }
+          }
+        } label: {
+          Image(systemName: "scribble")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 28, height: 22)
+        .accessibilityLabel("Annotate")
+        .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
       }
       Spacer(minLength: 4)
       HStack(spacing: 6) {
         Image(systemName: "minus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
-        Slider(value: $ui.pxPerSec, in: 4...400)
+        Slider(
+          value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: project.playheadSrc) }), in: 4...400)
+          .accessibilityLabel("Timeline zoom")
           .controlSize(.small)
           .frame(minWidth: 60, maxWidth: 120)
           .help("Timeline zoom")
@@ -383,6 +467,21 @@ struct TimelineView: View {
           }
         }
       }
+      ForEach(Array(plan.annotationList.enumerated()), id: \.offset) { i, m in
+        let sel = Selection.annotation(i)
+        let (a, b) = range(sel, m.start, m.end)
+        let label = Annotation.kinds.first { $0.name == m.kind }?.label ?? m.kind
+        bar(sel: sel, start: a, end: b, track: .marks, color: Theme.mark, label: m.text.map { "\(label): \($0)" } ?? label, movable: true) { s, e in
+          project.apply {
+            guard $0.annotationList.indices.contains(i) else { return }
+            $0.annotationList[i].start = s
+            $0.annotationList[i].end = e
+          }
+          if let j = project.plan?.annotationList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
+            project.selection = .annotation(j)
+          }
+        }
+      }
       if let s = ui.snap {
         Rectangle().fill(Color.primary.opacity(0.8))
           .frame(width: 1, height: Track.total - Track.ruler.height)
@@ -394,7 +493,7 @@ struct TimelineView: View {
     }
   }
 
-  /// A faint band behind each track.
+  /// A faint band behind each track. Clicking an empty spot moves the playhead there and deselects.
   private var lanes: some View {
     ZStack(alignment: .topLeading) {
       ForEach(Track.allCases.filter { $0 != .ruler }, id: \.self) { t in
@@ -404,7 +503,14 @@ struct TimelineView: View {
           .offset(y: t.y)
       }
     }
-    .allowsHitTesting(false)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .contentShape(Rectangle())
+    .onTapGesture(coordinateSpace: .local) { loc in
+      project.selection = nil
+      project.player.pause()
+      project.seek(src: min(max(0, loc.x / ui.pxPerSec), project.plan?.source.duration ?? 0))
+    }
+    .accessibilityHidden(true)
   }
 
   /// The playhead: a grip in the ruler and a line through the tracks. The ruler handles dragging it.
@@ -419,7 +525,7 @@ struct TimelineView: View {
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
     .frame(width: 12, height: Track.total, alignment: .top)
-    .modifier(PlayheadOffset(project: project, playhead: project.playhead, pxPerSec: ui.pxPerSec))
+    .modifier(PlayheadOffset(project: project, playhead: project.playhead, ui: ui))
     .allowsHitTesting(false)
   }
 
@@ -654,7 +760,8 @@ struct TimelineView: View {
       .padding(.horizontal, 2)
       .shadow(color: .black.opacity(0.3), radius: 1)
       .contentShape(Rectangle().inset(by: -3))
-      .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+      // A pointer style, not push/pop: a handle that vanishes under the pointer can't leave it stuck.
+      .pointerStyle(.columnResize)
       .gesture(
         DragGesture(minimumDistance: 1)
           .onChanged { v in
@@ -685,6 +792,7 @@ struct TimelineView: View {
     for z in p.zooms { ts += [z.start, z.end] }
     for l in p.layouts { ts += [l.start, l.end] }
     for c in p.callouts { ts += [c.start, c.end] }
+    for m in p.annotationList { ts += [m.start, m.end] }
     return ts.filter { abs($0 - start) > 1e-9 && abs($0 - end) > 1e-9 || $0 == project.playheadSrc }
   }
 

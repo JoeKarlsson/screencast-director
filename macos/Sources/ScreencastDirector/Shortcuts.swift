@@ -27,30 +27,36 @@ struct Shortcut {
     .init(group: "Playback", keys: "K", title: "Stop", key: .char("k"), modifiers: []) { p, _ in p.stop() },
     .init(group: "Playback", keys: "←", title: "Back one frame", key: .code(123), modifiers: []) { p, _ in p.step(frames: -1) },
     .init(group: "Playback", keys: "→", title: "Forward one frame", key: .code(124), modifiers: []) { p, _ in p.step(frames: 1) },
-    .init(group: "Playback", keys: "⇧←", title: "Back one second", key: .code(123), modifiers: .shift) { p, _ in
-      p.step(frames: -Double(p.fps))
+    .init(group: "Playback", keys: "⇧←", title: "Back one second (shrink a transcript selection)", key: .code(123), modifiers: .shift) { p, _ in
+      if p.transcriptSel != nil { p.extendTranscriptSelection(-1) } else { p.step(frames: -Double(p.fps)) }
     },
-    .init(group: "Playback", keys: "⇧→", title: "Forward one second", key: .code(124), modifiers: .shift) { p, _ in
-      p.step(frames: Double(p.fps))
+    .init(group: "Playback", keys: "⇧→", title: "Forward one second (grow a transcript selection)", key: .code(124), modifiers: .shift) { p, _ in
+      if p.transcriptSel != nil { p.extendTranscriptSelection(1) } else { p.step(frames: Double(p.fps)) }
     },
     .init(group: "Playback", keys: "⌘←", title: "Go to start", key: .code(123), modifiers: .command) { p, _ in p.goToStart() },
     .init(group: "Playback", keys: "⌘→", title: "Go to end", key: .code(124), modifiers: .command) { p, _ in p.goToEnd() },
-    .init(group: "Timeline", keys: "⌘=", title: "Zoom timeline in", key: .char("="), modifiers: .command) { _, e in
-      e.timeline.pxPerSec = min(400, e.timeline.pxPerSec * 1.4)
+    .init(group: "Timeline", keys: "⌘=", title: "Zoom timeline in", key: .char("="), modifiers: .command) { p, e in
+      e.timeline.zoom(by: 1.4, around: p.playheadSrc)
     },
-    .init(group: "Timeline", keys: "⌘-", title: "Zoom timeline out", key: .char("-"), modifiers: .command) { _, e in
-      e.timeline.pxPerSec = max(4, e.timeline.pxPerSec / 1.4)
+    .init(group: "Timeline", keys: "⌘-", title: "Zoom timeline out", key: .char("-"), modifiers: .command) { p, e in
+      e.timeline.zoom(by: 1 / 1.4, around: p.playheadSrc)
     },
     // Clips
     .init(group: "Clips", keys: "C", title: "Split at playhead", key: .char("c"), modifiers: []) { p, _ in p.splitAtPlayhead() },
-    .init(group: "Clips", keys: "⌫", title: "Remove selected clip, zoom, layout or title", key: .code(51), modifiers: []) { p, _ in
+    .init(group: "Clips", keys: "⌫", title: "Remove the selection, or restore a cut", key: .code(51), modifiers: []) { p, _ in
       p.deleteSelection()
     },
     .init(group: "Clips", keys: "X", title: "Remove from previous cut to playhead", key: .char("x"), modifiers: []) { p, _ in
       p.removeToPreviousCut()
     },
     .init(group: "Clips", keys: "S", title: "Change clip speed", key: .char("s"), modifiers: []) { p, _ in p.cycleSpeed() },
-    .init(group: "Clips", keys: "Esc", title: "Deselect", key: .code(53), modifiers: []) { p, _ in p.selection = nil },
+    .init(group: "Clips", keys: "Esc", title: "Deselect", key: .code(53), modifiers: []) { p, _ in
+      p.selection = nil
+      p.transcriptSel = nil
+    },
+    .init(group: "Project", keys: "⌥⌘T", title: "Show or hide the transcript", key: .char("t"), modifiers: [.command, .option]) { _, e in
+      withAnimation(.snappy) { e.showTranscript.toggle() }
+    },
     // Zooms
     .init(group: "Zoom", keys: "Z", title: "Add zoom at playhead", key: .char("z"), modifiers: []) { p, _ in p.addZoom() },
     .init(group: "Zoom", keys: "=", title: "Increase zoom level", key: .char("="), modifiers: []) { p, _ in p.nudgeZoom(0.2) },
@@ -66,6 +72,13 @@ struct Shortcut {
     .init(group: "Camera layout", keys: "4", title: "Side by side", key: .char("4"), modifiers: []) { p, _ in p.setLayoutMode(.side) },
     // Other
     .init(group: "Titles", keys: "T", title: "Add title at playhead", key: .char("t"), modifiers: []) { p, _ in p.addCallout() },
+    .init(group: "Titles", keys: "A", title: "Add a box at playhead", key: .char("a"), modifiers: []) { p, _ in p.addAnnotation("box") },
+    .init(group: "Timeline", keys: "⌥←", title: "Nudge selection back a frame", key: .code(123), modifiers: .option) { p, _ in
+      p.nudgeSelection(frames: -1)
+    },
+    .init(group: "Timeline", keys: "⌥→", title: "Nudge selection forward a frame", key: .code(124), modifiers: .option) { p, _ in
+      p.nudgeSelection(frames: 1)
+    },
     .init(group: "Project", keys: "⌘⇧E", title: "Export", key: .char("e"), modifiers: [.command, .shift]) { p, _ in p.export() },
     .init(group: "Project", keys: "⌘⇧O", title: "Show in Finder", key: .char("o"), modifiers: [.command, .shift]) { p, _ in
       NSWorkspace.shared.activateFileViewerSelecting([p.planURL])

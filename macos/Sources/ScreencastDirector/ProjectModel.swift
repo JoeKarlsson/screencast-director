@@ -362,25 +362,59 @@ final class ProjectModel: ObservableObject {
     if let i = self.plan?.layouts.firstIndex(of: l) { selection = .layout(i) }
   }
 
-  func addCallout() {
+  func addCallout(style: String = "title") {
     guard let plan else { return }
     let t = playheadSrc
-    let c = Callout(start: t, end: min(plan.source.duration, t + 2.5), text: "Title")
+    let text = style == "lower-third" ? "Your Name" : style == "chapter" ? "Section" : "Title"
+    let c = Callout(
+      start: t, end: min(plan.source.duration, t + (style == "slate" || style == "chapter" ? 2.5 : 3)), text: text,
+      style: style == "title" ? nil : style, subtitle: style == "lower-third" ? "Your role" : style == "chapter" ? "Part 1" : nil)
     apply { $0.callouts.append(c) }
     if let i = self.plan?.callouts.firstIndex(of: c) { selection = .callout(i) }
   }
 
   /// Adds a spotlight, box, arrow, highlight or blur at the playhead, around the last click.
-  func addAnnotation(_ kind: String) {
+  func addAnnotation(_ kind: String, from start: Double? = nil, to end: Double? = nil) {
     guard let plan else { return }
-    let t = playheadSrc
-    let f = zoomFocus(at: t, clicks: project?.clicks ?? [])
+    let t = start ?? playheadSrc
+    let f = zoomFocus(at: end ?? t, clicks: project?.clicks ?? [])
     let w = kind == "highlight" ? 0.2 : 0.16, h = kind == "highlight" ? 0.04 : 0.1
     let a = Annotation(
-      start: t, end: min(plan.source.duration, t + 2.5), kind: kind, x: min(max(f.x - w / 2, 0), 1 - w), y: min(max(f.y - h / 2, 0), 1 - h),
+      start: t, end: min(plan.source.duration, end ?? t + 2.5), kind: kind, x: min(max(f.x - w / 2, 0), 1 - w), y: min(max(f.y - h / 2, 0), 1 - h),
       w: w, h: h)
     apply { $0.annotationList.append(a) }
     if let i = self.plan?.annotationList.firstIndex(of: a) { selection = .annotation(i) }
+  }
+
+  /// ⌥← and ⌥→: moves the selected zoom, layout, title or annotation by whole frames.
+  func nudgeSelection(frames n: Double) {
+    guard let selection, let plan else { return }
+    let d = n / Double(fps)
+    /// How far a range can move by d without leaving the recording.
+    func delta(_ s: Double, _ e: Double) -> Double { min(max(d, -s), plan.source.duration - e) }
+    apply(coalesce: "nudge") { p in
+      switch selection {
+      case .zoom(let i) where p.zooms.indices.contains(i):
+        let k = delta(p.zooms[i].start, p.zooms[i].end)
+        p.zooms[i].start += k
+        p.zooms[i].end += k
+      case .layout(let i) where p.layouts.indices.contains(i):
+        let k = delta(p.layouts[i].start, p.layouts[i].end)
+        p.layouts[i].start += k
+        p.layouts[i].end += k
+      case .callout(let i) where p.callouts.indices.contains(i):
+        let k = delta(p.callouts[i].start, p.callouts[i].end)
+        p.callouts[i].start += k
+        p.callouts[i].end += k
+      case .annotation(let i) where p.annotationList.indices.contains(i):
+        var marks = p.annotationList
+        let k = delta(marks[i].start, marks[i].end)
+        marks[i].start += k
+        marks[i].end += k
+        p.annotationList = marks
+      default: break
+      }
+    }
   }
 
   // MARK: Transcript editing
@@ -427,6 +461,48 @@ final class ProjectModel: ObservableObject {
     guard let r = transcriptRange else { return }
     apply { $0.cut(range: r) }
     status = "Cut \(fmtTime(r.upperBound - r.lowerBound)) of speech. ⌘Z puts it back."
+    transcriptSel = nil
+  }
+
+  /// ⇧← and ⇧→ with words selected: grow or shrink the selection by a word at its end.
+  func extendTranscriptSelection(_ step: Int) {
+    guard let sel = transcriptSel else { return }
+    let end = min(max(sel.upperBound + step, sel.lowerBound), words.count - 1)
+    transcriptSel = sel.lowerBound...end
+    seek(src: words[end].start)
+  }
+
+  /// Zooms in while the selected words are said, toward a click in that stretch (else the last one).
+  func zoomOnTranscriptSelection() {
+    guard let r = transcriptRange, let plan else { return }
+    let clicks = project?.clicks ?? []
+    let inside = clicks.last { $0.t >= r.lowerBound - 1 && $0.t <= r.upperBound && (0...1).contains($0.x) && (0...1).contains($0.y) }
+    let f = inside.map { (x: $0.x, y: $0.y) } ?? zoomFocus(at: r.upperBound, clicks: clicks)
+    let z = Zoom(
+      start: r.lowerBound, end: min(plan.source.duration, max(r.upperBound, r.lowerBound + 1.5)), x: f.x, y: f.y, scale: 1.8,
+      note: "from transcript")
+    apply { $0.zooms.append(z) }
+    if let i = self.plan?.zooms.firstIndex(of: z) { selection = .zoom(i) }
+    transcriptSel = nil
+  }
+
+  /// Shows the selected words as a title (or lower third, slate, chapter) while they're said.
+  func titleFromTranscriptSelection(style: String) {
+    guard let r = transcriptRange, let sel = transcriptSel, let plan else { return }
+    var text = words[sel].prefix(8).map(\.text).joined(separator: " ").trimmingCharacters(in: .punctuationCharacters)
+    if let first = text.first { text = first.uppercased() + text.dropFirst() }
+    let c = Callout(
+      start: r.lowerBound, end: min(plan.source.duration, max(r.upperBound, r.lowerBound + 2)), text: text,
+      style: style == "title" ? nil : style, subtitle: style == "chapter" ? "Part 1" : nil)
+    apply { $0.callouts.append(c) }
+    if let i = self.plan?.callouts.firstIndex(of: c) { selection = .callout(i) }
+    transcriptSel = nil
+  }
+
+  /// Adds an annotation over the selected words' stretch, around a click in it (else the last one).
+  func annotateTranscriptSelection(_ kind: String) {
+    guard let r = transcriptRange else { return }
+    addAnnotation(kind, from: r.lowerBound, to: max(r.upperBound, r.lowerBound + 1.5))
     transcriptSel = nil
   }
 

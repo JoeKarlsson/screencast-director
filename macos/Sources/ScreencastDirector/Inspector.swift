@@ -69,6 +69,7 @@ func hexString(_ color: Color) -> String {
 struct InspectorView: View {
   @ObservedObject var project: ProjectModel
   @ObservedObject var ui: InspectorUI
+  let transcriptUI: TranscriptUI
 
   var body: some View {
     VStack(spacing: 0) {
@@ -103,8 +104,8 @@ struct InspectorView: View {
     case .overlays: overlaysPane(plan)
     case .format: formatPane(plan)
     case .transcript:
-      PaneTitle(title: "Transcript", detail: "Cut words are struck through; sped-up words are orange.")
-      TranscriptView(project: project, playhead: project.playhead).card()
+      PaneTitle(title: "Transcript", detail: "Cut words are struck through; sped-up words are orange. ⌥⌘T opens it beside the preview.")
+      TranscriptView(project: project, playhead: project.playhead, ui: transcriptUI).card()
     }
   }
 
@@ -210,6 +211,16 @@ struct InspectorView: View {
         .pickerStyle(.segmented)
         .labelsHidden()
       }
+      if i > 0 {
+        InspectorSection("Cut into this clip", detail: "A styled cut for a new section. Plain cuts suit trimmed pauses.") {
+          Picker("Transition", selection: bindItem("transition\(i)", \.segments, i, \.transition)) {
+            Text("Plain cut").tag(String?.none)
+            ForEach(Segment.transitions, id: \.name) { Text($0.label).tag(String?.some($0.name)) }
+          }
+          .labelsHidden()
+          previewButton(s.start)
+        }
+      }
       HStack(spacing: 8) {
         Button(action: project.splitAtPlayhead) { Label("Split at Playhead", systemImage: "scissors").frame(maxWidth: .infinity) }
         removeButton("Cut Clip")
@@ -238,6 +249,27 @@ struct InspectorView: View {
           Label("Aim at Last Click", systemImage: "cursorarrow.click").frame(maxWidth: .infinity)
         }
       }
+      InspectorSection("Motion", detail: "How this zoom moves in and out. Default follows the motion style.") {
+        LabeledContent("Ease") {
+          Picker("Ease", selection: bindItem("zoomEase\(i)", \.zooms, i, \.ease)) {
+            Text("Style (\(MotionStyle.named(plan.style.motion).label))").tag(String?.none)
+            ForEach(Ease.names, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
+          }
+          .labelsHidden()
+          EaseCurve(ease: Ease.named(z.ease) ?? MotionStyle.named(plan.style.motion).ease, active: true).frame(width: 44, height: 24)
+        }
+        slider(
+          "Length",
+          Binding(
+            get: { project.plan.flatMap { $0.zooms.indices.contains(i) ? $0.zooms[i].seconds : nil } ?? plan.style.transition },
+            set: { v in
+              project.apply(coalesce: "zoomSeconds\(i)") {
+                guard $0.zooms.indices.contains(i) else { return }
+                $0.zooms[i].seconds = (v * 10).rounded() / 10
+              }
+            }), 0.2...2, "\((z.seconds ?? plan.style.transition).formatted()) s")
+        previewButton(z.start)
+      }
       removeButton()
     case .layout(let i) where plan.layouts.indices.contains(i):
       let l = plan.layouts[i]
@@ -247,9 +279,75 @@ struct InspectorView: View {
       }
       removeButton()
     case .callout(let i) where plan.callouts.indices.contains(i):
-      itemHeader("Title", "textformat", Theme.title, range(plan.callouts[i].start, plan.callouts[i].end))
+      let c = plan.callouts[i]
+      let motion = MotionStyle.named(plan.style.motion)
+      itemHeader("Title", "textformat", Theme.title, range(c.start, c.end))
+      InspectorSection("Style") {
+        ChoiceTiles(choices: ChoiceTiles.calloutStyles, selected: c.style ?? "title") { style in
+          project.apply {
+            guard $0.callouts.indices.contains(i) else { return }
+            $0.callouts[i].style = style == "title" ? nil : style
+          }
+        }
+      }
       InspectorSection("Text") {
         TextField("Title", text: bindItem("callout\(i)", \.callouts, i, \.text)).textFieldStyle(.roundedBorder)
+        if (c.style ?? "title") != "title" {
+          TextField(
+            c.style == "chapter" ? "Label above, e.g. Part 2" : c.style == "lower-third" ? "Second line, e.g. a role" : "Second line",
+            text: Binding(
+              get: { project.plan.flatMap { $0.callouts.indices.contains(i) ? $0.callouts[i].subtitle : nil } ?? "" },
+              set: { v in
+                project.apply(coalesce: "calloutSub\(i)") {
+                  guard $0.callouts.indices.contains(i) else { return }
+                  $0.callouts[i].subtitle = v.isEmpty ? nil : v
+                }
+              })
+          )
+          .textFieldStyle(.roundedBorder)
+        }
+      }
+      InspectorSection("Animation") {
+        MotionPicker(title: "In", motion: bindItem("calloutIn\(i)", \.callouts, i, \.enter), fallback: motion.enter)
+        MotionPicker(title: "Out", motion: bindItem("calloutOut\(i)", \.callouts, i, \.exit), fallback: motion.exit)
+        previewButton(c.start)
+      }
+      removeButton()
+    case .annotation(let i) where plan.annotationList.indices.contains(i):
+      let a = plan.annotationList[i]
+      let motion = MotionStyle.named(plan.style.motion)
+      itemHeader("Annotation", "scribble", Theme.mark, range(a.start, a.end))
+      InspectorSection("Kind") {
+        ChoiceTiles(choices: ChoiceTiles.annotationKinds, selected: a.kind, pick: { kind in
+          project.apply {
+            guard $0.annotationList.indices.contains(i) else { return }
+            $0.annotationList[i].kind = kind
+          }
+        }, columns: 5)
+      }
+      InspectorSection("Where", detail: "Drag across the frame to draw the area. It follows zooms.") {
+        RectPicker(project: project, ui: ui, index: i, mark: a)
+      }
+      if a.kind == "box" || a.kind == "arrow" {
+        InspectorSection("Label") {
+          TextField(
+            "Optional label",
+            text: Binding(
+              get: { project.plan.flatMap { $0.annotationList.indices.contains(i) ? $0.annotationList[i].text : nil } ?? "" },
+              set: { v in
+                project.apply(coalesce: "markText\(i)") {
+                  guard $0.annotationList.indices.contains(i) else { return }
+                  $0.annotationList[i].text = v.isEmpty ? nil : v
+                }
+              })
+          )
+          .textFieldStyle(.roundedBorder)
+        }
+      }
+      InspectorSection("Animation") {
+        MotionPicker(title: "In", motion: bindItem("markIn\(i)", \.annotationList, i, \.enter), fallback: motion.enter)
+        MotionPicker(title: "Out", motion: bindItem("markOut\(i)", \.annotationList, i, \.exit), fallback: motion.exit)
+        previewButton(a.start)
       }
       removeButton()
     default:
@@ -257,9 +355,19 @@ struct InspectorView: View {
     }
   }
 
+  /// Plays from just before `t`, to see an animation or cut.
+  private func previewButton(_ t: Double) -> some View {
+    Button {
+      project.seek(src: max(0, t - 0.7))
+      project.player.play()
+    } label: {
+      Label("Preview", systemImage: "play.circle").frame(maxWidth: .infinity)
+    }
+  }
+
   private var nothingSelected: some View {
     VStack(alignment: .leading, spacing: 14) {
-      emptyState("cursorarrow.click.2", "Nothing selected", "Click a clip, zoom, layout or title on the timeline to edit it.")
+      emptyState("cursorarrow.click.2", "Nothing selected", "Click a clip, zoom, layout, title or annotation on the timeline to edit it.")
       InspectorSection("On the timeline") {
         tip("arrow.left.and.right", "Drag a selected bar's handles to trim it; drag zooms, layouts and titles to move them.")
         tip("scissors", "Click a dashed cut to restore it.")
@@ -383,7 +491,10 @@ struct InspectorView: View {
       slider("Padding", bind("padding", { $0.style.padding }, { $0.style.padding = ($1 * 200).rounded() / 200 }), 0...0.15, "\(Int(plan.style.padding * 100))%")
       slider("Corners", bind("radius", { $0.style.radius }, { $0.style.radius = $1.rounded() }), 0...40, "\(Int(plan.style.radius)) pt")
     }
-    InspectorSection("Motion", detail: "How long the camera takes to zoom and pan.") {
+    InspectorSection("Motion", detail: "One style for every move: how zooms ease and how titles come and go.") {
+      MotionStyleGrid(selected: MotionStyle.named(plan.style.motion).name) { name in
+        project.apply { $0.style.motion = name == "smooth" ? nil : name }
+      }
       slider("Zoom speed", bind("transition", { $0.style.transition }, { $0.style.transition = ($1 * 10).rounded() / 10 }), 0.3...1.6,
         "\(plan.style.transition.formatted()) s")
     }
@@ -535,6 +646,11 @@ struct InspectorView: View {
     }
     InspectorSection("Captions", detail: "Burned in from the transcript, in the profile's fonts.") {
       toggle("Captions", bind("captions", { $0.captions.enabled }, { $0.captions.enabled = $1 }))
+      Picker("Style", selection: bind("captionStyle", { $0.captions.style ?? "pill" }, { $0.captions.style = $1 == "pill" ? nil : $1 })) {
+        ForEach(Plan.Captions.styles, id: \.name) { Text($0.label).tag($0.name) }
+      }
+      .pickerStyle(.segmented)
+      .disabled(!plan.captions.enabled)
       LabeledContent("Words") {
         Text("\(plan.captions.maxWords) per caption").monospacedDigit()
         Spacer(minLength: 0)
