@@ -8,3 +8,4 @@ sd.env
 macos/.build/
 macos/.whisper/
 dist/
+.claude/worktrees/
