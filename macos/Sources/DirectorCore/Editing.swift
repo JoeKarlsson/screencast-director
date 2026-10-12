@@ -202,7 +202,7 @@ extension Plan {
 public func editReview(_ project: Project, _ plan: Plan) -> String {
   var lines: [String] = []
   let fps = plan.output.fps
-  let mapped = mapSegments(plan.segments, fps: fps)
+  let mapped = mapPlan(plan)
   for (i, z) in plan.zooms.enumerated() {
     let said = project.words.filter { $0.end > z.start && $0.start < z.end }.map(\.text).joined(separator: " ")
     let clicks = project.events.filter { $0.type == .click && $0.t >= z.start && $0.t < z.end }

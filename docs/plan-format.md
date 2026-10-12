@@ -16,6 +16,7 @@ Each project folder holds the recording and a `plan.json` that describes the edi
 
 - `segments` must be ascending and non-overlapping. Anything not covered is cut.
 - Segments with `speed > 1` render muted.
+- `intro` / `outro` (macOS app only): `{ "enabled": true, "title": "...", "subtitle": "...", "duration": 2.5 }` adds a full-frame card before or after the video. Source times don't change; the output starts after the intro.
 
 The full schema is in [src/types.ts](../src/types.ts) (TypeScript) and `macos/Sources/DirectorCore/Plan.swift` (Swift).
 

@@ -48,6 +48,10 @@ final class ProfileStore: ObservableObject {
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     var look = plan.look ?? Look()
     look.name = nil
+    // The video's cards become the profile's: the intro's title turns back into the
+    // recording-name template, so each new video gets its own.
+    look.intro = plan.intro.map { var c = $0; c.title = "{title}"; return c } ?? look.intro
+    look.outro = plan.outro ?? look.outro
     let profile = Profile(name: name, style: plan.style, look: look, captions: plan.captions)
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

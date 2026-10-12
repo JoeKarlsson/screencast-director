@@ -69,8 +69,8 @@ final class ProjectModel: ObservableObject {
   var outURL: URL { dir.appendingPathComponent("out.mp4") }
   var hasPlan: Bool { plan != nil }
   var fps: Int { plan?.output.fps ?? 30 }
-  var mapped: [MappedSegment] { plan.map { mapSegments($0.segments, fps: $0.output.fps) } ?? [] }
-  var totalOutFrames: Int { totalFrames(mapped) }
+  var mapped: [MappedSegment] { plan.map(mapPlan) ?? [] }
+  var totalOutFrames: Int { plan.map(planFrames) ?? 1 }
   /// Playhead in source seconds (what the timeline shows).
   var playheadSrc: Double { outToSrc(mapped, min(outFrame, Double(totalOutFrames - 1)), fps: fps) ?? 0 }
 
@@ -326,7 +326,7 @@ final class ProjectModel: ObservableObject {
   func versions() -> [Version] {
     PlanHistory.list(planURL: planURL).map { e in
       let old = try? Plan.load(e.url)
-      let length = old.map { Double(totalFrames(mapSegments($0.segments, fps: $0.output.fps))) / Double($0.output.fps) }
+      let length = old.map { Double(planFrames($0)) / Double($0.output.fps) }
       let summary = old.flatMap { o in plan.map { PlanHistory.summary(from: $0, to: o) } } ?? "unreadable"
       return Version(id: e.url, date: e.date, length: length, summary: summary)
     }
@@ -571,7 +571,7 @@ final class ProjectModel: ObservableObject {
       defer { done?() }
       try await analyze(dir) { msg in Task { @MainActor in self.status = msg } }
       var draft = buildPlan(try Project.load(dir))
-      ProfileStore.shared.defaultProfile?.apply(to: &draft)
+      ProfileStore.shared.defaultProfile?.apply(to: &draft, name: name)
       let level = AppSettings.shared.pauseLevel
       let fresh = try Project.load(dir)
       let silences = Analyzer.silences(try await Analyzer.loudness(fresh, video: draft.source.video), minLength: 0.2)
@@ -611,7 +611,8 @@ final class ProjectModel: ObservableObject {
 
   func applyProfile(_ name: String) {
     guard let profile = ProfileStore.shared.load(name) else { return }
-    apply { profile.apply(to: &$0) }
+    let title = self.name
+    apply { profile.apply(to: &$0, name: title) }
     status = "Applied profile \(name)"
   }
 

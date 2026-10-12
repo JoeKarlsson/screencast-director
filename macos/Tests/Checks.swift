@@ -203,6 +203,33 @@ struct Checks {
       expect(abs(spans[0].0 - 1) < 0.01 && abs(spans[0].1 - 4) < 0.01, "first span is 1-4 s")
       expect(abs(spans[1].0 - 7) < 0.01 && abs(spans[1].1 - 8) < 0.01, "source 11-12 s lands at 7-8 s of output")
     }
+    // Intro and outro cards: everything placed in output time moves by the intro's length.
+    var cp = buildPlan(p)
+    cp.segments = segs
+    cp.zooms = [Zoom(start: 1, end: 1.8, x: 0.5, y: 0.5, scale: 2)]
+    cp.callouts = []
+    expect(cardFrames(cp) == (0, 0) && planFrames(cp) == 150, "no cards: plan length is the segments")
+    cp.intro = Card(title: "Hello")
+    cp.outro = Card(duration: 2, title: "Bye")
+    let cm = mapPlan(cp)
+    expect(cardFrames(cp) == (75, 60), "2.5 s intro and 2 s outro at 30 fps")
+    expect(cm.map(\.outStart) == [75, 135, 195], "segments start after the intro")
+    expect(planFrames(cp) == 285, "intro + segments + outro")
+    expect(srcToOut(cm, 8, fps: fps) == 165 && outToSrc(cm, 165, fps: fps) == 8, "round trip shifts by the intro")
+    expect(outToSrc(cm, 10, fps: fps) == nil, "intro frames have no source")
+    expect(srcToOutClamped(cm, 0, fps: fps, before: true) == 75, "clamping before the first segment lands after the intro")
+    let cs = Scene(plan: cp, words: [Word(text: "hi", start: 0.5, end: 1.0)], clicks: [], shortcuts: [])
+    expect(cs.frameCount == 285 && cs.introFrames == 75 && cs.outroStart == 225, "scene knows the card frames")
+    expect(cs.pages.first?.startF == 90, "captions shift by the intro")
+    expect(cs.zooms.first?.startF == 105, "zooms shift by the intro")
+    expect(Publish.srt(cs).hasPrefix("1\n00:00:03,000 -->"), "SRT shifts by the intro")
+    cp.intro?.enabled = false
+    expect(cardFrames(cp).intro == 0 && mapPlan(cp)[0].outStart == 0, "a switched-off intro takes no time")
+    var look = Look()
+    look.intro = Card(title: "{title}", subtitle: "Joe Karlsson")
+    var prof = buildPlan(p)
+    Profile(name: "T", style: prof.style, look: look).apply(to: &prof, name: "Tour")
+    expect(prof.intro?.title == "Tour" && prof.intro?.subtitle == "Joe Karlsson" && prof.outro == nil, "profile fills the intro title")
 
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)

@@ -382,6 +382,11 @@ struct InspectorView: View {
     Toggle("Shortcut labels (⌘K)", isOn: bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
 
     Divider()
+    header("Intro and outro", "Full-frame title cards in the profile's fonts and colors. A profile can switch them on for every video.")
+    cardControls(plan, \.intro, "Intro card")
+    cardControls(plan, \.outro, "Outro card")
+
+    Divider()
     header("Frame rate")
     Picker("Frame rate", selection: bind("fps", { $0.output.fps }, { $0.output.fps = $1 })) {
       Text("30 fps").tag(30)
@@ -403,6 +408,34 @@ struct InspectorView: View {
       }), in: range)
       Text(String(format: fmt, value)).monospacedDigit().frame(width: 44, alignment: .trailing)
     }
+  }
+
+  @ViewBuilder
+  private func cardControls(_ plan: Plan, _ kp: WritableKeyPath<Plan, Card?>, _ title: String) -> some View {
+    let intro = kp == \Plan.intro
+    Toggle(title, isOn: Binding(get: { project.plan?[keyPath: kp]?.isOn ?? false }, set: { v in
+      let name = project.name
+      project.apply { p in
+        // First switch-on: the profile's card, else the recording's name over your name.
+        let fromLook = (intro ? p.look?.intro : p.look?.outro)?.resolved(name: name)
+        var c = p[keyPath: kp] ?? fromLook ?? (intro ? Card(title: name, subtitle: NSFullUserName()) : Card(title: "Thanks for watching"))
+        c.enabled = v
+        p[keyPath: kp] = c
+      }
+    }))
+    if plan[keyPath: kp]?.isOn == true {
+      TextField("Title", text: cardText(kp, \.title))
+      TextField("Subtitle", text: cardText(kp, \.subtitle))
+      slider("Length", Binding(get: { project.plan?[keyPath: kp]?.seconds ?? Card.defaultDuration }, set: { v in
+        project.apply(coalesce: "\(title)Length") { $0[keyPath: kp]?.duration = (v * 10).rounded() / 10 }
+      }), 1...6, String(format: "%.1f s", plan[keyPath: kp]?.seconds ?? Card.defaultDuration))
+    }
+  }
+
+  private func cardText(_ kp: WritableKeyPath<Plan, Card?>, _ field: WritableKeyPath<Card, String?>) -> Binding<String> {
+    Binding(
+      get: { project.plan?[keyPath: kp]?[keyPath: field] ?? "" },
+      set: { v in project.apply(coalesce: "card\(kp.hashValue)\(field.hashValue)") { $0[keyPath: kp]?[keyPath: field] = v } })
   }
 
   private func slider(_ title: String, _ value: Binding<Double>, _ range: ClosedRange<Double>, _ label: String) -> some View {

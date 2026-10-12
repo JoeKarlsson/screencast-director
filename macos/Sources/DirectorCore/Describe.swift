@@ -3,7 +3,7 @@ import Foundation
 /// The plan as a readable timeline (port of scripts/describe.ts). Claude reads this before editing plan.json.
 public func describe(_ project: Project, _ plan: Plan) -> String {
   let fps = plan.output.fps
-  let mapped = mapSegments(plan.segments, fps: fps)
+  let mapped = mapPlan(plan)
 
   func said(_ a: Double, _ b: Double) -> String {
     let text = project.words.filter { $0.start < b && $0.end > a }.map(\.text).joined(separator: " ")
@@ -27,10 +27,14 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   var out: [String] = []
   out.append("# \(project.dir.path)")
   out.append(
-    "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(Double(totalFrames(mapped)) / Double(fps))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
+    "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(Double(planFrames(plan)) / Double(fps))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
   )
   out.append("")
   out.append("## Timeline (source times; out = position in the final video)")
+  let cards = cardFrames(plan)
+  if cards.intro > 0 {
+    out.append("  INTRO card out \(fmtTime(0)) for \(fmtTime(Double(cards.intro) / Double(fps))) \"\(plan.intro?.title ?? "")\"")
+  }
   var cursor = 0.0
   for s in mapped {
     if s.start - cursor > 0.05 {
@@ -44,6 +48,10 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     cursor = s.end
   }
   if plan.source.duration - cursor > 0.05 { out.append("  CUT  src \(fmtTime(cursor))-\(fmtTime(plan.source.duration))") }
+  if cards.outro > 0 {
+    let at = Double(planFrames(plan) - cards.outro) / Double(fps)
+    out.append("  OUTRO card out \(fmtTime(at)) for \(fmtTime(Double(cards.outro) / Double(fps))) \"\(plan.outro?.title ?? "")\"")
+  }
 
   if !project.retakes.isEmpty {
     out.append("")

@@ -159,6 +159,24 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   if comp.duration > total {
     comp.removeTimeRange(CMTimeRange(start: total, end: comp.duration))
   }
+  // The same rule the other way: an outro card (or a camera that stops early) leaves tracks short
+  // of the end, and a trailing empty edit doesn't count toward a track's length. Fill the gap with
+  // a stretched sliver of the source; the compositor draws the card over it and the audio is
+  // muted there. (Segments start after the intro, which leaves an empty edit at the front.)
+  var fills: [(AVMutableCompositionTrack, AVAssetTrack)] = [(vTrack, srcVideo)]
+  if let aTrack, let srcAudio { fills.append((aTrack, srcAudio)) }
+  if let camTrack, let (track, _, _) = camSource { fills.append((camTrack, track)) }
+  for (track, src) in fills where track.timeRange.end < total {
+    let at = track.timeRange.end
+    let sliver = CMTimeRange(start: src.timeRange.start, duration: CMTimeMinimum(src.timeRange.duration, t(0.5)))
+    try insert(track, sliver, of: src, at: at, "padding")
+    track.scaleTimeRange(CMTimeRange(start: at, duration: sliver.duration), toDuration: CMTimeSubtract(total, at))
+  }
+  // The padding inserts from these assets too.
+  withExtendedLifetime((camAsset, screenAsset, cleanAsset)) {}
+  if scene.outroStart < scene.frameCount {
+    audioParams?.setVolume(0, at: CMTime(value: CMTimeValue(scene.outroStart), timescale: fps))
+  }
   let instruction = DirectorInstruction(
     timeRange: CMTimeRange(start: .zero, duration: total), scene: scene, screenTrack: vTrack.trackID, cameraTrack: camTrack?.trackID)
   let vc = AVMutableVideoComposition()

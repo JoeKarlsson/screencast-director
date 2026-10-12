@@ -22,6 +22,8 @@ public final class Scene: @unchecked Sendable {
   let u: Double
   let look: Look
   let watermark: CGImage?
+  let introLogo: CGImage?
+  let outroLogo: CGImage?
   /// Clicks in output frames, for cropped formats whose camera rests on the last click.
   let focusClicks: [(f: Double, x: Double, y: Double)]
 
@@ -32,7 +34,10 @@ public final class Scene: @unchecked Sendable {
   }
 
   public var fps: Int { plan.output.fps }
-  public var frameCount: Int { totalFrames(mapped) }
+  public let frameCount: Int
+  /// Output frames of the intro card, and the first frame of the outro card.
+  public let introFrames: Int
+  public let outroStart: Int
 
   /// Transcript words (source times), for captions and SRT export.
   public let words: [Word]
@@ -49,7 +54,10 @@ public final class Scene: @unchecked Sendable {
       ? [] : cursorPath.filter { (-0.05...1.05).contains($0.x) && (-0.05...1.05).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
     clickTimes = clicks.map(\.t).sorted()
     let fps = plan.output.fps
-    mapped = mapSegments(plan.segments, fps: fps)
+    mapped = mapPlan(plan)
+    frameCount = planFrames(plan)
+    introFrames = cardFrames(plan).intro
+    outroStart = frameCount - cardFrames(plan).outro
     zooms = zoomsToOut(plan.zooms, mapped, fps: fps)
     layouts = layoutsToOut(plan, mapped)
     half = max(1, Int((plan.style.transition * Double(fps) / 2).rounded()))
@@ -58,9 +66,10 @@ public final class Scene: @unchecked Sendable {
     u = min(W, H) / 1080
     look = plan.look ?? Look()
     Fonts.register(look.fontFiles)
-    watermark = look.watermark.flatMap { w in
-      CGImageSourceCreateWithURL(URL(fileURLWithPath: w.image) as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
-    }
+    watermark = look.watermark.flatMap { w in Scene.loadImage(w.image) }
+    let lk = look
+    introLogo = (plan.intro?.logo ?? lk.intro?.logo).flatMap(Scene.loadImage) ?? watermark
+    outroLogo = (plan.outro?.logo ?? lk.outro?.logo).flatMap(Scene.loadImage) ?? watermark
     let m = mapped
     focusClicks = clicks.compactMap { c in
       guard (0...1).contains(c.x), (0...1).contains(c.y) else { return nil }
@@ -101,6 +110,12 @@ public final class Scene: @unchecked Sendable {
 
   /// Composes one output frame. `screen`/`camera` are the decoded source frames (camera may be absent).
   public func render(frame f: Int, screen: CIImage?, camera: CIImage?) -> CIImage {
+    if f < introFrames, let c = plan.intro {
+      return card(c, look.intro, logo: introLogo, frame: f, length: introFrames, intro: true)
+    }
+    if f >= outroStart, outroStart < frameCount, let c = plan.outro {
+      return card(c, look.outro, logo: outroLogo, frame: f - outroStart, length: frameCount - outroStart, intro: false)
+    }
     // A cropped screen (vertical, square) rests on the last click instead of the center.
     let clicks = focusClicks
     let base: ((Int) -> (Double, Double))? =
@@ -385,6 +400,87 @@ public final class Scene: @unchecked Sendable {
 
     guard let cg = ctx.makeImage() else { return nil }
     return CIImage(cgImage: cg)
+  }
+
+  // MARK: Intro and outro cards
+
+  static func loadImage(_ path: String) -> CGImage? {
+    CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+  }
+
+  /// True when the background is dark enough for light text.
+  var darkBackground: Bool {
+    let lum = plan.style.background.map { hex -> Double in
+      let c = Scene.color(hex).components ?? [0, 0, 0]
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    }
+    return (lum.reduce(0, +) / Double(max(1, lum.count))) < 0.55
+  }
+
+  /// A full-frame title card on the video's background: logo, title in the title font, an accent
+  /// bar, subtitle, and the look's brackets. The intro's text fades out at its end, the outro's
+  /// fades in at its start; frame 0 shows the title at full strength (it's the first thing seen).
+  func card(_ c: Card, _ fallback: Card?, logo: CGImage?, frame f: Int, length: Int, intro: Bool) -> CIImage {
+    let image = background()
+    guard
+      let ctx = CGContext(
+        data: nil, width: Int(W), height: Int(H), bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
+        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return image }
+    ctx.translateBy(x: 0, y: H)
+    ctx.scaleBy(x: 1, y: -1)
+
+    let fade = max(1, Double(fps) * 0.3)
+    let alpha = intro ? min(1, Double(length - f) / fade) : min(1, Double(f + 1) / fade)
+    let dark = darkBackground
+    let textColor = dark ? (look.captionText ?? "#ffffff") : (look.titleText ?? "#15151C")
+    let accent = look.accent ?? "#78a0ff"
+    let title = c.title ?? fallback?.title ?? ""
+    let subtitle = c.subtitle ?? fallback?.subtitle ?? ""
+    let maxW = W * 0.78
+
+    let titleStr = Scene.text(title, size: 96 * u, weight: .bold, alpha: alpha, font: look.titleFont, color: textColor)
+    let subStr = Scene.text(
+      subtitle, size: 38 * u, weight: .semibold, alpha: alpha * (dark ? 1 : 0.75), font: look.captionFont,
+      color: dark ? accent : textColor)
+    let titleSize = title.isEmpty ? .zero : Scene.measure(titleStr, maxWidth: maxW)
+    let subSize = subtitle.isEmpty ? .zero : Scene.measure(subStr, maxWidth: maxW)
+    let logoH = logo == nil ? 0 : 0.075 * min(W, H)
+    let bar = (w: 96 * u, h: 8 * u)
+    let gap = 34 * u
+    var total = titleSize.height + bar.h + gap
+    if logoH > 0 { total += logoH + gap * 1.4 }
+    if subSize.height > 0 { total += gap + subSize.height }
+    var y = (H - total) / 2
+
+    if let logo, logoH > 0 {
+      let w = logoH * Double(logo.width) / Double(logo.height)
+      ctx.saveGState()
+      ctx.setAlpha(alpha)
+      ctx.translateBy(x: (W - w) / 2, y: y + logoH)
+      ctx.scaleBy(x: 1, y: -1)
+      ctx.draw(logo, in: CGRect(x: 0, y: 0, width: w, height: logoH))
+      ctx.restoreGState()
+      y += logoH + gap * 1.4
+    }
+    let clear = CGColor(gray: 0, alpha: 0)
+    if titleSize.height > 0 {
+      pill(ctx, titleStr, centerX: W / 2, top: y, padX: 0, padY: 0, radius: 0, fill: clear, maxWidth: maxW)
+      y += titleSize.height + gap
+    }
+    ctx.setFillColor(Scene.color(accent).copy(alpha: alpha)!)
+    ctx.fill(CGRect(x: (W - bar.w) / 2, y: y, width: bar.w, height: bar.h))
+    y += bar.h + gap
+    if subSize.height > 0 {
+      pill(ctx, subStr, centerX: W / 2, top: y, padX: 0, padY: 0, radius: 0, fill: clear, maxWidth: maxW)
+    }
+    if look.frame == "brackets" {
+      let ins = insets(plan)
+      let m = ins.margin + ins.bracket + 10 * u
+      drawBrackets(ctx, Box(x: m, y: m, w: W - 2 * m, h: H - 2 * m, r: 24 * u, opacity: 1))
+    }
+    guard let cg = ctx.makeImage() else { return image }
+    return CIImage(cgImage: cg).composited(over: image).cropped(to: CGRect(x: 0, y: 0, width: W, height: H))
   }
 
   enum Weight { case semibold, bold }

@@ -108,12 +108,12 @@ do {
     guard positional.count == 3, let level = PauseLevel(rawValue: positional[2]) else { fail(usage) }
     let project = try Project.load(dir)
     var plan = try Plan.load(project.planURL)
-    let before = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    let before = Double(planFrames(plan)) / Double(plan.output.fps)
     let levels = try await Analyzer.loudness(project, video: plan.source.video)
     plan.retrimPauses(words: project.words, level: level, silences: Analyzer.silences(levels, minLength: 0.2))
     plan.pauses = level
     try plan.write(to: project.planURL)
-    let after = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    let after = Double(planFrames(plan)) / Double(plan.output.fps)
     print("pauses \(level.rawValue): \(fmtTime(before)) -> \(fmtTime(after))")
   case "frame-camera":
     let project = try Project.load(dir)
@@ -129,17 +129,17 @@ do {
     guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
     let project = try Project.load(dir)
     var plan = try Plan.load(project.planURL)
-    let before = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    let before = Double(planFrames(plan)) / Double(plan.output.fps)
     if args[0] == "cut" { plan.cut(range: a..<b) } else { plan.restore(range: a..<b) }
     try plan.write(to: project.planURL)
-    let after = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    let after = Double(planFrames(plan)) / Double(plan.output.fps)
     print("\(args[0]) \(fmtTime(a))-\(fmtTime(b)): \(fmtTime(before)) -> \(fmtTime(after))")
   case "profile":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)
     var plan = try Plan.load(project.planURL)
     let profile = try Profile.load(URL(fileURLWithPath: positional[2]))
-    profile.apply(to: &plan)
+    profile.apply(to: &plan, name: dir.lastPathComponent)
     try plan.write(to: project.planURL)
     print("applied profile \(profile.name)")
   default:

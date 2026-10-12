@@ -40,6 +40,7 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 - **Camera:** bubble, side by side or full frame, auto-centered on your face, with reframing and color grading.
 - **Sound:** voice normalizing, volume and a limiter.
 - **Profiles:** your look (background, fonts, colors, logo, frame), full bleed or padded.
+- **Intro and outro cards** in your profile's fonts, colors and logo.
 - **AI:** Claude Code (your Claude login, no key), the Anthropic API, or any OpenAI-compatible endpoint.
 - **Library:** search by name or by what you said, and let Claude name recordings.
 

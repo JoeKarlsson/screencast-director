@@ -130,6 +130,10 @@ public struct Plan: Codable, Equatable {
   public var music: Music?
   /// The drawn cursor (only for recordings made with the real cursor hidden).
   public var cursor: CursorSettings?
+  /// Full-frame cards before and after the video (shown when enabled is true). A nil logo falls
+  /// back to the look's card, then the look's watermark.
+  public var intro: Card?
+  public var outro: Card?
 
   public static func load(_ url: URL) throws -> Plan {
     try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url))

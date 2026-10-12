@@ -29,6 +29,33 @@ public func totalFrames(_ mapped: [MappedSegment]) -> Int {
   return last.outStart + last.frames
 }
 
+/// Output frames held by the intro and outro cards (0 when a card is off).
+public func cardFrames(_ plan: Plan) -> (intro: Int, outro: Int) {
+  func frames(_ c: Card?) -> Int {
+    guard let c, c.isOn else { return 0 }
+    return Int((c.seconds * Double(plan.output.fps)).rounded())
+  }
+  return (frames(plan.intro), frames(plan.outro))
+}
+
+/// The plan's segments in output frames, after the intro card. Use this (not mapSegments) for
+/// anything placed in the final video, so captions, zooms and chapters move with the intro.
+public func mapPlan(_ plan: Plan) -> [MappedSegment] {
+  let intro = cardFrames(plan).intro
+  return mapSegments(plan.segments, fps: plan.output.fps).map {
+    var s = $0
+    s.outStart += intro
+    return s
+  }
+}
+
+/// Length of the final video in frames: intro, kept segments, outro.
+public func planFrames(_ plan: Plan) -> Int {
+  let cards = cardFrames(plan)
+  let mapped = mapPlan(plan)
+  return (mapped.last.map { $0.outStart + $0.frames } ?? max(1, cards.intro)) + cards.outro
+}
+
 /// Output frame (fractional) for a source time, or nil if that moment is cut.
 public func srcToOut(_ mapped: [MappedSegment], _ t: Double, fps: Int) -> Double? {
   for s in mapped where t >= s.start && t < s.end {
@@ -42,7 +69,7 @@ public func srcToOutClamped(_ mapped: [MappedSegment], _ t: Double, fps: Int, be
   if let exact = srcToOut(mapped, t, fps: fps) { return exact }
   if before {
     for s in mapped.reversed() where s.end <= t { return Double(s.outStart + s.frames) }
-    return 0
+    return Double(mapped.first?.outStart ?? 0)
   }
   for s in mapped where s.start >= t { return Double(s.outStart) }
   return Double(totalFrames(mapped))
