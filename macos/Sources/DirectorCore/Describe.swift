@@ -1,6 +1,6 @@
 import Foundation
 
-/// The plan as a readable timeline (port of scripts/describe.ts). Claude reads this before editing plan.json.
+/// The plan as a readable timeline. Claude reads this before editing plan.json.
 public func describe(_ project: Project, _ plan: Plan) -> String {
   let fps = plan.output.fps
   let mapped = mapPlan(plan)

@@ -1,6 +1,6 @@
 import Foundation
 
-// The edit plan, same JSON as src/types.ts. All times are SOURCE seconds
+// The edit plan (plan.json). All times are SOURCE seconds
 // (positions in the raw screen recording).
 
 public struct Segment: Codable, Equatable {

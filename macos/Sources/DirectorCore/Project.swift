@@ -1,7 +1,6 @@
 import Foundation
 
 /// A recording folder: screen.mp4, source.json, events.jsonl, transcript.json, motion.json, plan.json.
-/// Same files as the Node CLI (scripts/project.ts), so either tool can work on either's projects.
 public struct Project {
   public struct Source: Codable {
     public var video: String

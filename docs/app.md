@@ -1,6 +1,6 @@
 # macOS app
 
-`macos/` is a native app (Apple silicon, macOS 15+) with the same pipeline as the CLI and no Node.
+`macos/` is a native app (Apple silicon, macOS 15+) with the same engine as the CLI.
 
 ## Install
 

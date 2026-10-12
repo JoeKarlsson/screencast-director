@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # sd: record a screencast, plan the edit, render it.
 #
-# When the Swift `director` is built (macos/build.sh or `swift build -c release --package-path macos`),
-# analyze, plan, describe and render use it, so the CLI matches the macOS app (easing, cursor, word
-# timing, profiles, retakes, script takes). The Node planner and Remotion renderer remain as the
-# legacy path: `sd render <name> --remotion` for custom motion graphics, or SD_NODE=1 for everything.
+# analyze, plan, describe and render run the Swift `director` (the macOS app's engine), building it
+# on first use with `swift build -c release --package-path macos --product director`.
 #
 #   sd devices                    list cameras, screens and microphones
 #   sd record <name> [--camera]   record screen + mic (+ camera) with input logging; Ctrl-C stops
@@ -12,8 +10,7 @@
 #   sd analyze <name>             transcribe (Whisper) and measure screen motion
 #   sd plan <name> [--force]      write a first-draft plan.json
 #   sd describe <name>            print the plan as a readable timeline
-#   sd preview <name>             open the Remotion studio on the project
-#   sd render <name> [out.mp4] [--remotion]   render the final video
+#   sd render <name> [out.mp4]    render the final video
 #   sd auto <name>                analyze + plan + render
 #
 # Devices and defaults can be overridden in sd.env at the repo root (see sd.env.example).
@@ -29,13 +26,14 @@ SD_CAMERA="${SD_CAMERA:-}"
 SD_CAMERA_SIZE="${SD_CAMERA_SIZE:-1920x1080}"
 SD_CAMERA_FPS="${SD_CAMERA_FPS:-30}"
 SD_FPS="${SD_FPS:-30}"
-SD_WHISPER_MODEL="${SD_WHISPER_MODEL:-mlx-community/whisper-large-v3-turbo}"
 
 DIRECTOR="${SD_DIRECTOR:-$ROOT/macos/.build/release/director}"
 
 die() { echo "sd: $*" >&2; exit 1; }
-# True when the Swift director should handle a command.
-use_director() { [ "${SD_NODE:-0}" != 1 ] && [ -x "$DIRECTOR" ]; }
+director() {
+  [ -x "$DIRECTOR" ] || swift build -c release --package-path "$ROOT/macos" --product director >&2
+  "$DIRECTOR" "$@"
+}
 project_dir() { [ -n "${1:-}" ] || die "missing project name"; echo "$PROJECTS/$1"; }
 need_project() { [ -f "$1/source.json" ] || die "no project at $1 (run sd record or sd import)"; }
 
@@ -137,63 +135,22 @@ cmd_import() {
 
 cmd_analyze() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  if use_director; then "$DIRECTOR" analyze "$dir"; return; fi
-  local video; video=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).video)' "$dir/source.json")
-  mkdir -p "$dir/.render"
-
-  if ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$dir/$video" | grep -q .; then
-    echo "Transcribing with $SD_WHISPER_MODEL..."
-    ffmpeg -hide_banner -loglevel error -y -i "$dir/$video" -vn -ac 1 -ar 16000 "$dir/.render/audio.wav"
-    mlx_whisper "$dir/.render/audio.wav" --model "$SD_WHISPER_MODEL" --word-timestamps True \
-      --output-format json --output-dir "$dir" --output-name transcript --verbose False
-  else
-    echo "No audio track; skipping transcription."
-    echo '{"segments": []}' > "$dir/transcript.json"
-  fi
-
-  # Mean frame-to-frame luma difference at 10 fps: how much the screen is changing.
-  echo "Measuring screen motion..."
-  ffmpeg -hide_banner -nostdin -loglevel error -i "$dir/$video" -an \
-    -vf "fps=10,scale=480:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" \
-    -f null - | paste - - |
-    awk '{ split($3, a, ":"); split($4, b, "="); out = out sep sprintf("[%s, %.3f]", a[2], b[2]); sep = ", " }
-         END { print "[" out "]" }' > "$dir/motion.json"
-  echo "Analysis done: transcript.json, motion.json"
+  director analyze "$dir"
 }
 
 cmd_plan() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  if use_director; then "$DIRECTOR" plan "$dir" ${2:+"$2"}; return; fi
-  node "$ROOT/scripts/plan.ts" "$dir" ${2:+"$2"}
+  director plan "$dir" ${2:+"$2"}
 }
 
 cmd_describe() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  if use_director; then "$DIRECTOR" describe "$dir"; return; fi
-  node "$ROOT/scripts/describe.ts" "$dir"
-}
-
-cmd_preview() {
-  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  local props; props=$(node "$ROOT/scripts/props.ts" "$dir")
-  cd "$ROOT" && npx remotion studio --props="$props" --public-dir="$dir"
+  director describe "$dir"
 }
 
 cmd_render() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  shift
-  local remotion=0 out=""
-  for a in "$@"; do
-    case $a in
-      --remotion) remotion=1 ;;
-      *) out=$a ;;
-    esac
-  done
-  out=${out:-$dir/out.mp4}
-  if [ $remotion = 0 ] && use_director; then "$DIRECTOR" render "$dir" "$out"; return; fi
-  local props; props=$(node "$ROOT/scripts/props.ts" "$dir")
-  cd "$ROOT" && npx remotion render Screencast "$out" --props="$props" --public-dir="$dir"
-  echo "Rendered $out"
+  director render "$dir" "${2:-$dir/out.mp4}"
 }
 
 cmd_auto() {
@@ -205,6 +162,6 @@ cmd_auto() {
 
 cmd=${1:-help}; shift || true
 case $cmd in
-  devices|record|import|analyze|plan|describe|preview|render|auto) "cmd_$cmd" "$@" ;;
-  *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
+  devices|record|import|analyze|plan|describe|render|auto) "cmd_$cmd" "$@" ;;
+  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

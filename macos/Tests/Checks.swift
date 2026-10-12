@@ -1,7 +1,6 @@
 import Foundation
 
 // Plain-swiftc checks for DirectorCore (Swift Testing and XCTest need Xcode). Run: macos/test.sh
-// Mirrors test/timeline.test.ts so the Swift and TypeScript ports stay in step.
 
 var failures = 0
 func expect(_ ok: Bool, _ what: String, line: Int = #line) {

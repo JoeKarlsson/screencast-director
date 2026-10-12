@@ -1,6 +1,6 @@
 import Foundation
 
-// Port of src/timeline.ts: segment mapping and Hann-window smoothing. Keep the two in step.
+// Segment mapping and Hann-window smoothing.
 
 public struct MappedSegment: Equatable {
   public var start: Double
@@ -146,8 +146,7 @@ public func smooth(_ f: Int, ahead: Int, behind: Int, _ sample: (Int) -> [Double
 
 /// The smoothed camera at output frame `f`. `lead` pulls each zoom's start that many frames
 /// earlier (the camera is already moving when the click lands) and `tail` stretches the ease-out
-/// side of the window. With the defaults the move is symmetric around the zoom's start, like
-/// `cameraAt` in src/timeline.ts.
+/// side of the window. With the defaults the move is symmetric around the zoom's start.
 public func cameraAt(
   _ f: Int, zooms: [OutZoom], halfWidth: Int, base: ((Int) -> (Double, Double))? = nil, lead: Int = 0, tail: Double = 1
 ) -> CameraState {

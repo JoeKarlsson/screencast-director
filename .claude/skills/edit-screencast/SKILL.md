@@ -32,5 +32,5 @@ Apply the user's instructions first. Then make a quality pass unless they asked 
 
 ## 4. Render and report
 
-- `bin/sd render <name>` writes `projects/<name>/out.mp4`. For a quick look, the user can run `bin/sd preview <name>` (Remotion studio).
+- `bin/sd render <name>` writes `projects/<name>/out.mp4`. For a quick look, open the project in the Screencast Director app.
 - Report the source and output length, and list what you changed in a few lines, with output timestamps so the user can jump to them.

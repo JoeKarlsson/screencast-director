@@ -6,24 +6,11 @@ on:
   pull_request:
 
 jobs:
-  node:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.18
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
-
   swift:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - run: command -v swiftlint || brew install swiftlint
+      - run: brew install swiftlint shellcheck
       - run: macos/lint.sh
       - run: macos/test.sh
       - run: macos/playback-test.sh   # plays a built composition headlessly and fails on black or missing frames

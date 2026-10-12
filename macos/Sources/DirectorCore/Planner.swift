@@ -1,6 +1,6 @@
 import Foundation
 
-// Port of scripts/plan.ts: the first-draft edit. Keep RULES and behavior in step with it.
+// The first-draft edit.
 //   speech            -> 1x (filler words cut)
 //   typing, no speech -> 3x
 //   mouse, no speech  -> 1.5x
