@@ -1,5 +1,12 @@
 # Screencast Director
 
+[![Test](https://github.com/JoeKarlsson/screencast-director/actions/workflows/test.yml/badge.svg)](https://github.com/JoeKarlsson/screencast-director/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black?logo=apple)
+![Apple silicon](https://img.shields.io/badge/Apple%20silicon-required-black)
+![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 A macOS app that records your screen and does the boring part of the edit. Talk through your demo once: it cuts the dead air, speeds up typing, zooms to your clicks and captions what you said. Then adjust it by hand, or tell Claude what to change.
 
 <!-- Hero GIF: 10-15 s of a raw recording turning into the edited version.
