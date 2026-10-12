@@ -1,42 +1,60 @@
 import AVKit
 import AppKit
+import DirectorCore
 import SwiftUI
 
 // View state lives in ObservableObjects: @State needs Swift macro plugins, which the
 // Command Line Tools don't ship.
 
+final class EditorUI {
+  let timeline = TimelineUI()
+  let inspector = InspectorUI()
+}
+
 struct MainView: View {
   @ObservedObject var library: Library
   @ObservedObject var recorder: Recorder
+  @ObservedObject var setup: SetupModel
+  let editor: EditorUI
   let toggleRecording: () -> Void
   let importVideo: () -> Void
 
   var body: some View {
     NavigationSplitView {
       List(selection: $library.selection) {
-        ForEach(library.projects, id: \.self) { url in
-          Text(url.lastPathComponent).tag(url as URL?)
+        Section("Recordings") {
+          ForEach(library.projects, id: \.self) { url in
+            Label(url.lastPathComponent, systemImage: "film").tag(url as URL?)
+          }
         }
       }
-      .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+      .safeAreaInset(edge: .bottom) {
+        Button {
+          library.selection = nil
+        } label: {
+          Label(setup.allRequiredOK ? "Getting Started" : "Finish Setup", systemImage: setup.allRequiredOK ? "questionmark.circle" : "exclamationmark.circle")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(setup.allRequiredOK ? Color.secondary : Color.orange)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .navigationSplitViewColumnWidth(min: 180, ideal: 220)
     } detail: {
       if let project = library.current {
-        ProjectView(project: project)
+        EditorView(project: project, editor: editor)
       } else {
-        VStack(spacing: 12) {
-          Text("Record your screen, then tell Claude how to edit it.").font(.title3)
-          Text("⌃⌥⌘R starts and stops a recording from any app.").foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        SetupView(setup: setup, record: toggleRecording, importVideo: importVideo)
       }
     }
     .toolbar {
       ToolbarItemGroup {
         Button(action: importVideo) { Label("Import Video…", systemImage: "square.and.arrow.down") }
+          .help("Import a video you already recorded")
         Button(action: toggleRecording) {
           Label(recorder.isRecording ? "Stop" : "Record", systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle")
         }
-        .tint(.red)
+        .help("Start or stop recording (⌃⌥⌘R from any app)")
       }
     }
   }
@@ -46,7 +64,7 @@ struct PlayerView: NSViewRepresentable {
   let player: AVPlayer
   func makeNSView(context: Context) -> AVPlayerView {
     let v = AVPlayerView()
-    v.controlsStyle = .floating
+    v.controlsStyle = .none
     v.player = player
     return v
   }
@@ -55,51 +73,73 @@ struct PlayerView: NSViewRepresentable {
   }
 }
 
-struct ProjectView: View {
+struct EditorView: View {
   @ObservedObject var project: ProjectModel
+  let editor: EditorUI
 
   var body: some View {
-    VSplitView {
-      PlayerView(player: project.player)
-        .frame(minHeight: 280)
-      VStack(alignment: .leading, spacing: 10) {
-        HStack {
-          Text(project.name).font(.headline)
-          Spacer()
-          Text(project.status).foregroundStyle(.secondary).lineLimit(1)
-          Image(systemName: project.previewReady ? "play.circle" : "hourglass")
-            .foregroundStyle(.secondary)
-            .help(project.previewReady ? "Preview ready" : "Building preview")
-            .accessibilityLabel(project.previewReady ? "Preview ready" : "Building preview")
-          if project.busy { ProgressView().controlSize(.small) }
-        }
-        HStack {
-          Button(project.hasPlan ? "Re-analyze" : "Analyze & Plan") { project.analyzeAndPlan() }
-          Button("Reset Plan") { project.analyzeAndPlan(force: true) }.disabled(!project.hasPlan)
-          Button("Export") { project.export() }.disabled(!project.hasPlan)
-          Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.planURL]) }
-        }
-        .disabled(project.busy)
-        HStack {
-          TextField("Tell Claude how to edit: \"cut my retakes and zoom in when I mention the config\"", text: $project.instruction)
-            .onSubmit { project.askClaude() }
-          Button("Ask Claude") { project.askClaude() }
-            .disabled(project.busy || !project.hasPlan || project.instruction.isEmpty)
-        }
-        if !project.claudeLog.isEmpty {
-          ScrollView {
-            Text(project.claudeLog).font(.callout).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-          }
-          .frame(maxHeight: 120)
-        }
-        ScrollView(.vertical) {
-          Text(project.timeline).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(4)
-        }
+    HSplitView {
+      VStack(spacing: 10) {
+        header
+        PlayerView(player: project.player)
+          .aspectRatio(16 / 9, contentMode: .fit)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .background(Color.black)
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .onTapGesture(perform: project.togglePlay)
+        TimelineView(project: project, ui: editor.timeline)
+        claudeBar
       }
       .padding(12)
-      .frame(minHeight: 220)
+      .frame(minWidth: 560)
+      InspectorView(project: project, ui: editor.inspector)
+    }
+  }
+
+  private var header: some View {
+    HStack(spacing: 10) {
+      Text(project.name).font(.headline).lineLimit(1)
+      Text(project.status).foregroundStyle(.secondary).lineLimit(1)
+      if project.busy { ProgressView().controlSize(.small) }
+      Spacer()
+      Button { project.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+        .disabled(!project.canUndo).help("Undo (⌘Z)")
+      Button { project.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+        .disabled(!project.canRedo).help("Redo (⇧⌘Z)")
+      Menu {
+        Button("Re-analyze (keep my edits)") { project.analyzeAndPlan() }
+        Button("Start Over from a Fresh Draft") { project.analyzeAndPlan(force: true) }
+        Divider()
+        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.planURL]) }
+      } label: { Image(systemName: "ellipsis.circle") }
+        .menuIndicator(.hidden)
+        .fixedSize()
+      Button(project.hasPlan ? "Export" : "Analyze") {
+        if project.hasPlan { project.export() } else { project.analyzeAndPlan() }
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(project.busy)
+    }
+  }
+
+  private var claudeBar: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Image(systemName: "sparkles").foregroundStyle(.orange)
+        TextField("Ask Claude to edit: \"cut my retakes, zoom in when I mention the config, side-by-side for the intro\"", text: $project.instruction)
+          .textFieldStyle(.roundedBorder)
+          .onSubmit(project.askClaude)
+        Button("Ask Claude", action: project.askClaude)
+          .disabled(project.busy || !project.hasPlan || project.instruction.isEmpty)
+      }
+      if !project.claudeLog.isEmpty {
+        ScrollView {
+          Text(project.claudeLog).font(.callout).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 90)
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+      }
     }
   }
 }
@@ -113,7 +153,7 @@ struct SettingsView: View {
         Text("System default").tag("")
         ForEach(AppSettings.microphones, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
       }
-      Toggle("Record camera", isOn: $settings.useCamera)
+      Toggle("Record camera (for split screen and the camera bubble)", isOn: $settings.useCamera)
       Picker("Camera", selection: $settings.cameraID) {
         ForEach(AppSettings.cameras, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
       }
@@ -122,10 +162,10 @@ struct SettingsView: View {
         Text("30 fps").tag(30)
         Text("60 fps").tag(60)
       }
-      LabeledContent("Projects folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }
+      LabeledContent("Recordings folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }
     }
     .formStyle(.grouped)
-    .frame(width: 460)
+    .frame(width: 520)
     .padding()
   }
 }

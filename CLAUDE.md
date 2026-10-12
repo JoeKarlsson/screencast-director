@@ -22,6 +22,9 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 - SourceKit reports "Cannot find type ... in scope" on single files; ignore it and trust `swift build`.
 - An `AVAssetTrack` does not keep its `AVURLAsset` alive. Inserting from a track whose asset was freed fails with the unhelpful -11800/-12780; keep the asset in scope (see `camAsset` in Composition.swift).
 - Claude's Edit tool writes `plan.json` in place, which a folder watch misses; the app polls the file's modification date instead.
+- Bindings into the plan's arrays (`zooms[i]`) must be bounds-checked (`bindItem` in Inspector.swift): after an undo or delete removes the selected item, SwiftUI can read the old binding once before redrawing, and an out-of-range index kills the app. `commit()` clears a stale selection before publishing the plan for the same reason.
+- Editor shortcuts live in `Shortcuts.swift` (Screen Studio's defaults; its action table is `dist/BtdkWdRa.js` and siblings in `app.asar`, keys under `defaultShortcut`). A local key monitor in AppDelegate dispatches them and lets keys through while a text field has focus.
+- Driving the UI in tests: timeline bars are accessibility buttons (ordered by position, not by track), so System Events `perform action "AXPress"` selects them; `perform action "AXIncrement"` moves a slider (setting `value` doesn't reach the SwiftUI binding). Always `set frontmost to true` and check it before `keystroke`, or the keys go to whatever app is in front. Use `key code 44` for ⌘/, since `keystroke "/"` is layout-dependent.
 - Window screenshots (`screencapture -l`) of a window on another Space show the player black. Bring the window forward before judging the preview.
 
 ## Plan rules that are easy to break

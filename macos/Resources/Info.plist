@@ -10,6 +10,8 @@
 	<string>com.joekarlsson.screencastdirector</string>
 	<key>CFBundleExecutable</key>
 	<string>ScreencastDirector</string>
+	<key>CFBundleIconFile</key>
+	<string>ScreencastDirector</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

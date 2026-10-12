@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   lazy var library = Library(settings: settings)
   let recorder = Recorder()
   let hotKeys = HotKeys()
+  let setup = SetupModel()
+  let editor = EditorUI()
   var window: NSWindow!
   var settingsWindow: NSWindow?
   var statusItem: NSStatusItem!
@@ -15,10 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     buildMenu()
     let view = MainView(
-      library: library, recorder: recorder, toggleRecording: { [weak self] in self?.toggleRecording() },
+      library: library, recorder: recorder, setup: setup, editor: editor,
+      toggleRecording: { [weak self] in self?.toggleRecording() },
       importVideo: { [weak self] in self?.importVideo() })
     window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1200, height: 820), styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      contentRect: NSRect(x: 0, y: 0, width: 1440, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
     window.title = "Screencast Director"
     window.contentView = NSHostingView(rootView: view)
@@ -32,9 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem.button?.target = self
     statusItem.button?.action = #selector(toggleRecordingAction)
 
+    installKeyMonitor()
     hotKeys.onToggle = { [weak self] in self?.toggleRecording() }
     hotKeys.register()
-    if !InputTap.hasPermission { InputTap.requestPermission() }
     NSApp.activate()
   }
 
@@ -129,6 +132,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func importAction() { importVideo() }
+
+  var keyMonitor: Any?
+  var shortcutsWindow: NSWindow?
+
+  /// Editor shortcuts (Shortcuts.swift). Keys pass through while typing in a text field, in other
+  /// windows, or with no project open.
+  func installKeyMonitor() {
+    keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      guard let self, event.window === self.window, let project = self.library.current, project.hasPlan else { return event }
+      if event.window?.firstResponder is NSText { return event }
+      guard let shortcut = Shortcut.all.first(where: { $0.matches(event) }) else { return event }
+      shortcut.action(project, self.editor)
+      return nil
+    }
+  }
+
+  @objc func showShortcuts() {
+    if shortcutsWindow == nil {
+      let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+      w.title = "Keyboard Shortcuts"
+      w.contentView = NSHostingView(rootView: ShortcutsView())
+      w.isReleasedWhenClosed = false
+      shortcutsWindow = w
+    }
+    shortcutsWindow?.center()
+    shortcutsWindow?.makeKeyAndOrderFront(nil)
+  }
+
+  /// Text fields keep their own undo; otherwise ⌘Z undoes plan edits (including Claude's).
+  @objc func undoAction() {
+    if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.undoManager?.canUndo == true {
+      text.undoManager?.undo()
+    } else {
+      library.current?.undo()
+    }
+  }
+
+  @objc func redoAction() {
+    if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.undoManager?.canRedo == true {
+      text.undoManager?.redo()
+    } else {
+      library.current?.redo()
+    }
+  }
+
+  @objc func showSetup() {
+    library.selection = nil
+    setup.refresh()
+    window.makeKeyAndOrderFront(nil)
+  }
   @objc func refreshAction() { library.refresh() }
 
   private func buildMenu() {
@@ -155,12 +208,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let editItem = NSMenuItem()
     let editMenu = NSMenu(title: "Edit")
+    editMenu.addItem(withTitle: "Undo", action: #selector(undoAction), keyEquivalent: "z").target = self
+    let redo = editMenu.addItem(withTitle: "Redo", action: #selector(redoAction), keyEquivalent: "z")
+    redo.keyEquivalentModifierMask = [.command, .shift]
+    redo.target = self
+    editMenu.addItem(.separator())
     editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
     editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
     editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
     editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
     editItem.submenu = editMenu
     main.addItem(editItem)
+    let helpItem = NSMenuItem()
+    let helpMenu = NSMenu(title: "Help")
+    helpMenu.addItem(withTitle: "Getting Started", action: #selector(showSetup), keyEquivalent: "").target = self
+    helpMenu.addItem(withTitle: "Keyboard Shortcuts", action: #selector(showShortcuts), keyEquivalent: "/").target = self
+    helpItem.submenu = helpMenu
+    main.addItem(helpItem)
     NSApp.mainMenu = main
   }
 }

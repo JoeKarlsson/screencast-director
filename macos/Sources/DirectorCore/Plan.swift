@@ -46,12 +46,23 @@ public struct LayoutRange: Codable, Equatable {
   public var end: Double
   public var mode: LayoutMode
   public var note: String?
+  public init(start: Double, end: Double, mode: LayoutMode, note: String? = nil) {
+    self.start = start
+    self.end = end
+    self.mode = mode
+    self.note = note
+  }
 }
 
 public struct Callout: Codable, Equatable {
   public var start: Double
   public var end: Double
   public var text: String
+  public init(start: Double, end: Double, text: String) {
+    self.start = start
+    self.end = end
+    self.text = text
+  }
 }
 
 public struct Plan: Codable, Equatable {

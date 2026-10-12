@@ -54,6 +54,22 @@ struct Checks {
     let zooms = buildZooms(q)
     expect(zooms.count == 2 && zooms[0].end == zooms[1].start && zooms[1].x == 0.8, "zooms hand off")
 
+    // Manual edits.
+    var plan = buildPlan(p)
+    plan.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 6, end: 10, speed: 2)]
+    expect(plan.gaps == [Gap(start: 4, end: 6), Gap(start: 10, end: 12)], "gaps are the cut ranges")
+    expect(plan.split(at: 2) && plan.segments.count == 3 && plan.segments[0].end == 2 && plan.segments[1].start == 2, "split")
+    expect(!plan.split(at: 5), "can't split inside a cut")
+    plan.restore(Gap(start: 4, end: 6))
+    expect(plan.gaps == [Gap(start: 10, end: 12)] && plan.segments.count == 4, "restore fills the cut")
+    plan.trimSegment(3, start: 1)
+    expect(plan.segments[3].start == 6, "trim stops at the neighbor")
+    plan.zooms = [Zoom(start: 5, end: 30, x: 2, y: -1, scale: 9)]
+    plan.normalize()
+    expect(plan.zooms[0].end == 12 && plan.zooms[0].x == 1 && plan.zooms[0].y == 0 && plan.zooms[0].scale == 4, "normalize clamps zooms")
+    let clicks = [InputEvent(t: 1, type: .click, x: 0.3, y: 0.7)]
+    expect(zoomFocus(at: 5, clicks: clicks) == (0.3, 0.7) && zoomFocus(at: 20, clicks: clicks) == (0.5, 0.5), "zoom focus from last click")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

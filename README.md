@@ -22,6 +22,22 @@ GUI tools like Screen Studio and [Recordly](https://github.com/webadderallorg/Re
 - **Ask Claude** in plain language. The app runs Claude Code headless on the project, and the preview reloads when `plan.json` changes.
 - **Export** renders natively with AVFoundation and Core Image. The fixture renders in about 2 s, against 23 s with Remotion.
 
+**Editing by hand.** The editor has a preview, a scrubber timeline and an inspector:
+
+- **Timeline tracks:** Clips (blue is real time, orange is sped up, dashed is cut; click a cut to restore it), Words, Zoom, Layout and Titles. Drag on the ruler to scrub. Select a bar and drag its white handles to trim it; drag zooms, layouts and titles to move them.
+- **Inspector:** the Selection tab sets clip speed, zoom level and focus (drag on a frame of the recording), a layout's mode, or a title's text. The Style tab sets split screen, background, padding, corners, zoom speed, captions, overlays and output size.
+- **Undo:** ⌘Z undoes any edit, including Claude's.
+
+**Keyboard shortcuts** follow Screen Studio's defaults, read from its own action table:
+
+- **Playback:** Space plays, J/K/L shuttle, ← → step a frame (⇧ for a second), ⌘← ⌘→ jump to the start or end.
+- **Clips:** C splits, ⌫ removes, X removes back to the previous cut, S changes speed.
+- **Zoom and layout:** = and − change the zoom level, ⌘D duplicates a zoom, 1-4 set the camera layout, ⌃L adds a layout.
+- **Timeline and export:** ⌘= and ⌘− zoom the timeline, ⌘⇧E exports.
+- **Our own additions** (Screen Studio has no default for these): Z adds a zoom, T adds a title.
+
+⌘/ lists them all.
+
 ```
 macos/build.sh --install     # → /Applications/Screencast Director.app
 macos/test.sh                # Swift checks for the timeline math and planner
