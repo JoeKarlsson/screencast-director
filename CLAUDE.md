@@ -1,10 +1,11 @@
 # screencast-director
 
-Record the screen, then edit by changing a JSON plan that Remotion renders. Claude's job is usually to edit `projects/<name>/plan.json` from the user's instructions (use the `/edit-screencast` skill).
+Record the screen, then edit by changing a JSON plan. The Swift engine in `macos/` (the app and the `director` CLI) is the main implementation; the Node planner and Remotion renderer are legacy. Claude's job is usually to edit `projects/<name>/plan.json` from the user's instructions (use the `/edit-screencast` skill).
 
 ## Layout
 
-- `bin/sd`: the CLI (record, import, analyze, plan, describe, preview, render, auto).
+- `bin/sd`: the CLI (record, import, analyze, plan, describe, preview, render, auto). analyze/plan/describe/render delegate to `macos/.build/release/director` when it's built; `SD_NODE=1` forces the Node path and `sd render <name> --remotion` renders with Remotion.
+- **Legacy (Node):** `scripts/plan.ts`, `scripts/describe.ts`, `src/timeline.ts` and `src/Screencast.tsx` below. Keep them working and `npm test` green, but they don't get new features: easing, motion blur, the smoothed cursor, word snapping, profiles, retakes and script takes are Swift-only.
 - `logger/InputLogger.swift`: input logger. Timestamps use `CLOCK_UPTIME_RAW`, the clock AVFoundation stamps frames with; `sd record` reads the first frame's time from ffmpeg's log (`start N`) into `source.json` `captureStart`. Plain typing is logged without characters.
 - `scripts/plan.ts`: draft plan rules (speech 1x, typing 3x, mouse 1.5x, screen motion 4x, idle cut, filler words cut, zooms from click/typing clusters). `RULES` holds the thresholds.
 - `scripts/describe.ts`: readable timeline with transcript text. Read this before and after editing a plan.
@@ -15,7 +16,7 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 ## macOS app (`macos/`)
 
 - `Sources/DirectorCore`: Swift ports of the plan model, `timeline.ts` (Timeline.swift), `plan.ts` (Planner.swift) and `describe.ts`, plus native analysis (motion from decoded frames, whisper-cli → mlx-style transcript.json) and the renderer: `Scene` draws a frame with Core Image + CoreText, `Composition` builds the AVComposition (cuts and speed as edits, muting and fades in an audio mix) with a custom compositor. The same composition feeds the preview player and the export.
-- **Two implementations of the same rules.** A change to the planner, timeline math or look in TypeScript needs the same change in Swift (and the reverse). `npm test` and `macos/test.sh` check the same cases.
+- **Two implementations of the same core rules.** A change to the shared planner rules or timeline math in TypeScript needs the same change in Swift (and the reverse); `npm test` and `macos/test.sh` check the same cases. Swift-only features don't need a Node port.
   - Known divergence: the Swift renderer eases the camera asymmetrically (`cameraAt(lead:tail:)`, zooms start 0.3 s early with a 1.6x ease-out tail), adds motion blur during camera moves, draws the smoothed cursor (`cursorHidden` recordings) and snaps word timings to loudness at load (`WordTiming`). The Remotion renderer does none of these; `cameraAt` with default arguments still matches `src/timeline.ts`.
 - `Sources/director`: CLI (`analyze`, `plan`, `describe`, `render`, `still`, `debug`). The app bundles it, and `Resources/edit-prompt.md` tells headless Claude to use it (`{{DIRECTOR}}` is replaced with its path).
 - `Sources/ScreencastDirector`: the app. ScreenCaptureKit recorder (sample buffers use the host clock, same as `InputTap`'s `CLOCK_UPTIME_RAW`), library, preview, and the Claude box (`claude -p --permission-mode acceptEdits` with only Read/Edit/Write and `director describe`/`still` allowed).
@@ -31,6 +32,7 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 - Publishing (`DirectorCore/Publish.swift`): the SRT uses the same caption pages as the burned-in captions. Thumbnails score camera frames with `VNDetectFaceCaptureQualityRequest` plus `CIDetector` smile and blink detection, and cut the person out with `VNGeneratePersonSegmentationRequest`.
 - AppleScript `keystroke ","` and `"/"` can map to other keys on non-US keyboard layouts (`","` opened the import panel). Use `key code` or click menu items; the app menu is `menu bar item 2`.
 - A SwiftUI `Form` in an `NSWindow` built with `contentRect: .zero` collapses to its title bar. Give the window and the view a real size.
+- Tests beyond `macos/test.sh`: `macos/playback-test.sh` plays a composition from a synthetic recording through `AVPlayerItemVideoOutput` and fails on black or missing frames (runs in CI). `macos/smoke-test.sh` builds dist/, launches that copy on a temp fixture (`-projectsFolder`, `-openProject`), and drives the editor through System Events by PID; it needs a GUI session, so it's local only.
 - Every composition track must end exactly at the instruction's end. A camera track a few milliseconds long (scaled-range rounding) makes AVPlayer render nothing, black and silent, while `AVAssetImageGenerator` and export still work, so `director still` can't catch it. `buildComposition` trims to the frame count. Test playback with an `AVPlayerItemVideoOutput`, not just stills.
 - Window screenshots (`screencapture -l`) of a window on another Space show the player black. Bring the window forward before judging the preview.
 

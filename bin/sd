@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# sd: record a screencast, plan the edit, render it with Remotion.
+# sd: record a screencast, plan the edit, render it.
+#
+# When the Swift `director` is built (macos/build.sh or `swift build -c release --package-path macos`),
+# analyze, plan, describe and render use it, so the CLI matches the macOS app (easing, cursor, word
+# timing, profiles, retakes, script takes). The Node planner and Remotion renderer remain as the
+# legacy path: `sd render <name> --remotion` for custom motion graphics, or SD_NODE=1 for everything.
 #
 #   sd devices                    list cameras, screens and microphones
 #   sd record <name> [--camera]   record screen + mic (+ camera) with input logging; Ctrl-C stops
@@ -8,7 +13,7 @@
 #   sd plan <name> [--force]      write a first-draft plan.json
 #   sd describe <name>            print the plan as a readable timeline
 #   sd preview <name>             open the Remotion studio on the project
-#   sd render <name> [out.mp4]    render the final video
+#   sd render <name> [out.mp4] [--remotion]   render the final video
 #   sd auto <name>                analyze + plan + render
 #
 # Devices and defaults can be overridden in sd.env at the repo root (see sd.env.example).
@@ -26,7 +31,11 @@ SD_CAMERA_FPS="${SD_CAMERA_FPS:-30}"
 SD_FPS="${SD_FPS:-30}"
 SD_WHISPER_MODEL="${SD_WHISPER_MODEL:-mlx-community/whisper-large-v3-turbo}"
 
+DIRECTOR="${SD_DIRECTOR:-$ROOT/macos/.build/release/director}"
+
 die() { echo "sd: $*" >&2; exit 1; }
+# True when the Swift director should handle a command.
+use_director() { [ "${SD_NODE:-0}" != 1 ] && [ -x "$DIRECTOR" ]; }
 project_dir() { [ -n "${1:-}" ] || die "missing project name"; echo "$PROJECTS/$1"; }
 need_project() { [ -f "$1/source.json" ] || die "no project at $1 (run sd record or sd import)"; }
 
@@ -128,6 +137,7 @@ cmd_import() {
 
 cmd_analyze() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  if use_director; then "$DIRECTOR" analyze "$dir"; return; fi
   local video; video=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).video)' "$dir/source.json")
   mkdir -p "$dir/.render"
 
@@ -153,11 +163,13 @@ cmd_analyze() {
 
 cmd_plan() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  if use_director; then "$DIRECTOR" plan "$dir" ${2:+"$2"}; return; fi
   node "$ROOT/scripts/plan.ts" "$dir" ${2:+"$2"}
 }
 
 cmd_describe() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  if use_director; then "$DIRECTOR" describe "$dir"; return; fi
   node "$ROOT/scripts/describe.ts" "$dir"
 }
 
@@ -169,7 +181,16 @@ cmd_preview() {
 
 cmd_render() {
   local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  local out=${2:-$dir/out.mp4}
+  shift
+  local remotion=0 out=""
+  for a in "$@"; do
+    case $a in
+      --remotion) remotion=1 ;;
+      *) out=$a ;;
+    esac
+  done
+  out=${out:-$dir/out.mp4}
+  if [ $remotion = 0 ] && use_director; then "$DIRECTOR" render "$dir" "$out"; return; fi
   local props; props=$(node "$ROOT/scripts/props.ts" "$dir")
   cd "$ROOT" && npx remotion render Screencast "$out" --props="$props" --public-dir="$dir"
   echo "Rendered $out"
@@ -185,5 +206,5 @@ cmd_auto() {
 cmd=${1:-help}; shift || true
 case $cmd in
   devices|record|import|analyze|plan|describe|preview|render|auto) "cmd_$cmd" "$@" ;;
-  *) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac
