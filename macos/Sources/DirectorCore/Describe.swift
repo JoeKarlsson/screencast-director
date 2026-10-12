@@ -4,6 +4,7 @@ import Foundation
 public func describe(_ project: Project, _ plan: Plan) -> String {
   let fps = plan.output.fps
   let mapped = mapPlan(plan)
+  let screen = ScreenText.load(project.dir)
 
   func said(_ a: Double, _ b: Double) -> String {
     let text = project.words.filter { $0.start < b && $0.end > a }.map(\.text).joined(separator: " ")
@@ -14,7 +15,9 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     var parts: [String] = []
     let keys = ev.filter { $0.type == .key }.count
     if keys > 0 { parts.append("\(keys) keys") }
-    parts += ev.filter { $0.type == .click }.map { String(format: "click@%@(%.2f,%.2f)", fmtTime($0.t), $0.x, $0.y) }
+    parts += ev.filter { $0.type == .click }.map { c in
+      String(format: "click@%@(%.2f,%.2f)", fmtTime(c.t), c.x, c.y) + (ScreenText.clicked(screen, at: c.t).map { " on \"\($0)\"" } ?? "")
+    }
     let labels = ev.compactMap { $0.type == .key ? $0.label : nil }
     if !labels.isEmpty { parts.append(labels.joined(separator: " ")) }
     parts += ev.filter { $0.type == .retake }.map { "RETAKE@\(fmtTime($0.t))" }
@@ -72,6 +75,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append(
       line(
         "  #\(i) src \(fmtTime(z.start))-\(fmtTime(z.end)) at (\(z.x.formatted()), \(z.y.formatted())) x\(z.scale.formatted())",
+        ScreenText.near(screen, x: z.x, y: z.y, from: z.start, to: z.end).map { "aimed at \"\($0)\"" } ?? "",
         z.ease.map { "ease \($0)" } ?? "", z.seconds.map { "move \($0.formatted()) s" } ?? "", z.note ?? "", said(z.start, z.end)))
   }
   out.append("")

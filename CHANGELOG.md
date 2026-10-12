@@ -32,6 +32,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Ask Claude shows each step as it works (reading the timeline, checking frame 412, editing the plan) and has a Stop button.
 - After an AI edit, a list of what it changed: jump to each change, undo just that one, or keep them all.
 - The AI knows your playhead, selected item and selected transcript words, so "zoom here" and "cut this" work. The box shows which AI answers, with a Set Up link when it isn't ready.
+- The AI knows what you clicked: analysis reads the text around each click on screen (on-device, with Apple's Vision), so the timeline says `click on "Settings…"` and zooms say what they're aimed at. Older recordings get it before their first AI edit, or with `director screentext`.
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing

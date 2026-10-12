@@ -60,4 +60,16 @@ public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) asyn
   log("Measuring screen motion...")
   let motion = try await Analyzer.measureMotion(video)
   try Analyzer.writeMotion(motion, to: dir.appendingPathComponent("motion.json"))
+  try await readScreenText(dir, log: log)
+}
+
+/// Reads the text around each click into screentext.json (see ScreenText).
+public func readScreenText(_ dir: URL, log: @escaping (String) -> Void = { _ in }) async throws {
+  let project = try Project.load(dir)
+  guard !project.clicks.isEmpty else { return }
+  log("Reading text on screen at \(project.clicks.count) clicks...")
+  let samples = try await ScreenText.recognize(project)
+  let enc = JSONEncoder()
+  enc.outputFormatting = [.withoutEscapingSlashes]
+  try enc.encode(samples).write(to: ScreenText.url(dir), options: .atomic)
 }

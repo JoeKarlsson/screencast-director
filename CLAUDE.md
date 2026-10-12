@@ -6,7 +6,7 @@ Record the screen, then edit by changing a JSON plan. Everything runs on the Swi
 
 - `bin/sd`: the CLI (devices, record, import, analyze, plan, describe, render, auto). Recording uses ffmpeg; analyze/plan/describe/render run `macos/.build/release/director`, building it on first use.
 - `logger/InputLogger.swift`: input logger. Timestamps use `CLOCK_UPTIME_RAW`, the clock AVFoundation stamps frames with; `sd record` reads the first frame's time from ffmpeg's log (`start N`) into `source.json` `captureStart`. Plain typing is logged without characters.
-- `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `plan.json`, `out.mp4`.
+- `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, `out.mp4`.
 
 ## macOS app (`macos/`)
 

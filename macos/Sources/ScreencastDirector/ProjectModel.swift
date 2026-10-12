@@ -890,6 +890,7 @@ final class ProjectModel: ObservableObject {
     if ai.provider != .claudeCode {
       run("\(ai.provider.shortName) is editing…") { [self] in
         defer { finishAsk() }
+        try await readScreenTextIfNeeded()
         guard let plan, let project else { return }
         asks[asks.count - 1].steps.append("Sending the timeline to \(ai.provider.shortName)")
         let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: request, settings: ai)
@@ -904,6 +905,7 @@ final class ProjectModel: ObservableObject {
     aiEditing = true
     run("Claude is editing…") { [self] in
       defer { finishAsk() }
+      try await readScreenTextIfNeeded()
       let code = try await Claude.edit(project: dir, instruction: request) { event in
         Task { @MainActor in
           guard !self.asks.isEmpty else { return }
@@ -946,6 +948,14 @@ final class ProjectModel: ObservableObject {
       if !asks.isEmpty, asks[asks.count - 1].reply.isEmpty { asks[asks.count - 1].reply = claudeLog.isEmpty ? status : claudeLog }
       saveAsks()
     }
+  }
+
+  /// Recordings analyzed before screen text existed get it once, before their first AI edit, so the
+  /// timeline says what each click landed on.
+  private func readScreenTextIfNeeded() async throws {
+    guard project?.clicks.isEmpty == false, !FileManager.default.fileExists(atPath: ScreenText.url(dir).path) else { return }
+    if !asks.isEmpty { asks[asks.count - 1].steps.append("Reading text on screen") }
+    try await readScreenText(dir)
   }
 
   /// Undoes one change from an AI edit (itself undoable) and drops it from the list.

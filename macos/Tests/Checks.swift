@@ -365,6 +365,15 @@ struct Checks {
       }
     }
 
+    // What a click landed on, from text boxes read off the screen.
+    let boxes = [ScreenText.Item(text: "Save", x: 0.40, y: 0.10, w: 0.05, h: 0.02), ScreenText.Item(text: String(repeating: "long ", count: 20), x: 0.1, y: 0.5, w: 0.3, h: 0.02)]
+    expect(ScreenText.label(at: 0.42, 0.11, in: boxes) == "Save", "a click inside a box reads its text")
+    expect(ScreenText.label(at: 0.47, 0.11, in: boxes) == "Save", "a click just beside a box still reads it")
+    expect(ScreenText.label(at: 0.8, 0.8, in: boxes) == nil, "nothing near")
+    expect(ScreenText.label(at: 0.2, 0.51, in: boxes)?.count == 41, "long lines are cut short")
+    let samples = [ScreenText.Sample(t: 5, x: 0.42, y: 0.11, items: boxes)]
+    expect(ScreenText.clicked(samples, at: 5.2) == "Save" && ScreenText.clicked(samples, at: 6) == nil, "matched by time")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

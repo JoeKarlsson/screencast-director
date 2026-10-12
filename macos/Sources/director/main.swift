@@ -25,6 +25,7 @@ let usage = """
     director profile  <dir> <profileDir>
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
+    director screentext <dir>                        read the text around each click (screentext.json)
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
@@ -71,6 +72,10 @@ do {
   case "analyze":
     try await analyze(dir) { print($0) }
     print("Analysis done: transcript.json, motion.json")
+  case "screentext":
+    try await readScreenText(dir) { print($0) }
+    let samples = ScreenText.load(dir)
+    print("Read \(samples.count) clicks: " + samples.prefix(8).map { ScreenText.clicked(samples, at: $0.t) ?? "?" }.joined(separator: ", "))
   case "plan":
     let project = try Project.load(dir)
     if FileManager.default.fileExists(atPath: project.planURL.path), args.dropFirst(2).first != "--force" {
