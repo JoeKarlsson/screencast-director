@@ -108,8 +108,8 @@ struct Checks {
     var after = before
     after.segments[1].speed = 3
     after.zooms = [Zoom(start: 6, end: 10, x: 0.5, y: 0.5, scale: 2)]
-    let changed = changedRanges(from: before, to: after)
-    expect(changed.count == 1 && changed[0].0 == 5 && changed[0].1 == 10, "changed ranges merge the sped-up clip and the new zoom")
+    let touched = changedRanges(from: before, to: after)
+    expect(touched.count == 1 && touched[0].0 == 5 && touched[0].1 == 10, "changed ranges merge the sped-up clip and the new zoom")
     expect(changedRanges(from: before, to: before).isEmpty, "no change, no ranges")
 
     // Retake marks: the phrase before the mark goes, the redo after it stays.

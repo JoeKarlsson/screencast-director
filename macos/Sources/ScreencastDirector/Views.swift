@@ -10,6 +10,9 @@ final class EditorUI: ObservableObject {
   let timeline = TimelineUI()
   let inspector = InspectorUI()
   @Published var showInspector = true
+  /// The project whose preview has loaded. Only the first load gets the loading cover;
+  /// the rebuild after each edit keeps showing the previous frame.
+  @Published var frameShownFor: URL?
 }
 
 struct MainView: View {
@@ -18,6 +21,7 @@ struct MainView: View {
   @ObservedObject var recorder: Recorder
   @ObservedObject var setup: SetupModel
   @ObservedObject var editor: EditorUI
+  let home = HomeUI()
 
   var body: some View {
     NavigationSplitView {
@@ -27,13 +31,21 @@ struct MainView: View {
       Group {
         if let project = library.current {
           EditorView(project: project, editor: editor)
+            .id(project.dir)
+            .transition(.opacity)
         } else {
-          SetupView(setup: setup, record: app.showRecordSetup, importVideo: app.importVideo, watchTour: app.watchTour)
-            .navigationTitle("Screencast Director")
+          HomeView(
+            library: library, setup: setup, posters: PosterCache.shared, ui: home, record: app.showRecordSetup,
+            importVideo: app.importVideo, watchTour: app.watchTour
+          )
+          .navigationTitle("Screencast Director")
+          .transition(.opacity)
         }
       }
+      .animation(.easeInOut(duration: 0.2), value: library.current?.dir)
       .overlay(alignment: .top) { NoticeBanner(notices: Notices.shared) }
     }
+    .tint(Theme.accent)
     .toolbar {
       ToolbarItem(placement: .navigation) {
         Button(action: recorder.isRecording ? app.toggleRecording : app.showRecordSetup) {
@@ -149,7 +161,7 @@ struct LibrarySidebar: View {
         HStack(spacing: 6) {
           Text(info.duration > 0 ? fmtTime(info.duration) : "–").monospacedDigit()
           Text(info.date.formatted(.dateTime.month(.abbreviated).day()))
-          stageBadge(info.stage)
+          StageBadge(stage: info.stage)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -160,19 +172,6 @@ struct LibrarySidebar: View {
     .simultaneousGesture(TapGesture().onEnded { library.selection = url })
   }
 
-  @ViewBuilder
-  private func stageBadge(_ stage: Library.Stage) -> some View {
-    switch stage {
-    case .new: badge("New", .blue)
-    case .edited: EmptyView()
-    case .exported: badge("Exported", .green)
-    }
-  }
-
-  private func badge(_ text: String, _ color: Color) -> some View {
-    Text(text).font(.caption2.weight(.semibold)).padding(.horizontal, 5).padding(.vertical, 1)
-      .background(Capsule().fill(color.opacity(0.18))).foregroundStyle(color)
-  }
 }
 
 /// Poster frames for the sidebar, made once per recording per launch.
@@ -190,7 +189,7 @@ final class PosterCache: ObservableObject {
     Task { @MainActor in
       let gen = AVAssetImageGenerator(asset: AVURLAsset(url: video))
       gen.appliesPreferredTrackTransform = true
-      gen.maximumSize = CGSize(width: 256, height: 160)
+      gen.maximumSize = CGSize(width: 640, height: 400)
       if let (cg, _) = try? await gen.image(at: CMTime(seconds: at, preferredTimescale: 600)) {
         images[url] = NSImage(cgImage: cg, size: .zero)
       }
@@ -217,6 +216,12 @@ struct PlayerView: NSViewRepresentable {
 struct EditorView: View {
   @ObservedObject var project: ProjectModel
   @ObservedObject var editor: EditorUI
+  @ObservedObject var posters = PosterCache.shared
+
+  /// The preview isn't ready (building the composition) or there's nothing to show yet (analyzing).
+  private var loading: Bool {
+    (project.hasPlan && editor.frameShownFor != project.dir) || (!project.hasPlan && project.busy)
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -246,15 +251,18 @@ struct EditorView: View {
   private var stage: some View {
     let w = project.plan.map { Double($0.output.width) } ?? project.project?.source.width ?? 16
     let h = project.plan.map { Double($0.output.height) } ?? project.project?.source.height ?? 9
+    let aspect = CGFloat(w) / CGFloat(max(h, 1))
     return ZStack {
       LinearGradient(colors: [Color(white: 0.11), Color(white: 0.06)], startPoint: .top, endPoint: .bottom)
       PlayerView(player: project.player)
-        .aspectRatio(CGFloat(w) / CGFloat(max(h, 1)), contentMode: .fit)
+        .aspectRatio(aspect, contentMode: .fit)
+        .overlay { if loading { loadingCover.transition(.opacity) } }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
         .padding(20)
         .onTapGesture(perform: project.togglePlay)
-      if project.busy {
+        .animation(.easeOut(duration: 0.3), value: loading)
+      if project.busy && !loading {
         VStack {
           HStack(spacing: 8) {
             ProgressView().controlSize(.small)
@@ -270,6 +278,35 @@ struct EditorView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .layoutPriority(1)
+    .onAppear {
+      posters.load(project.dir)
+      revealWhenReady()
+    }
+    .onChange(of: project.previewReady) { _, _ in revealWhenReady() }
+  }
+
+  /// Lifts the loading cover once the first preview is ready, a beat later so the player has drawn.
+  private func revealWhenReady() {
+    guard project.previewReady, editor.frameShownFor != project.dir else { return }
+    let dir = project.dir
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { editor.frameShownFor = dir }
+  }
+
+  /// A blurred poster frame with what's happening, until the preview can play.
+  private var loadingCover: some View {
+    ZStack {
+      Color.black
+      if let poster = posters.images[project.dir] {
+        Image(nsImage: poster).resizable().scaledToFill().blur(radius: 28).opacity(0.55).clipped()
+      }
+      VStack(spacing: 10) {
+        ProgressView().controlSize(.large)
+        Text(project.busy ? project.status : "Loading preview…").font(.headline).lineLimit(1)
+      }
+      .padding(.horizontal, 22).padding(.vertical, 16)
+      .glassCard(cornerRadius: 18)
+      .environment(\.colorScheme, .dark)
+    }
   }
 }
 
@@ -336,7 +373,7 @@ struct EditorToolbar: ToolbarContent {
       } label: { Label("More", systemImage: "ellipsis.circle") }
         .help("Re-analyze, version history, Show in Finder")
       if project.hasPlan {
-        Button { project.openPublish() } label: { Label("Publish", systemImage: "megaphone") }
+        Button { project.openPublish() } label: { Label("Publish", systemImage: "paperplane") }
           .disabled(project.busy)
           .help("Captions (SRT), chapters, a YouTube description draft and thumbnails")
         ExportQueueButton(queue: ExportQueue.shared)
@@ -359,7 +396,7 @@ struct EditorToolbar: ToolbarContent {
         Button { project.analyzeAndPlan() } label: { Label("Analyze", systemImage: "wand.and.stars") }
           .disabled(project.busy)
       }
-      Button { editor.showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
+      Button { withAnimation(.snappy) { editor.showInspector.toggle() } } label: { Label("Inspector", systemImage: "sidebar.right") }
         .help("Show or hide the inspector (⌥⌘I)")
     }
   }
@@ -428,7 +465,7 @@ struct ClaudeBar: View {
                 Spacer(minLength: 40)
                 Text(ask.instruction)
                   .padding(.horizontal, 10).padding(.vertical, 6)
-                  .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor.opacity(0.2)))
+                  .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.accent.opacity(0.2)))
               }
               if !ask.reply.isEmpty || ask.running {
                 HStack(alignment: .top, spacing: 6) {

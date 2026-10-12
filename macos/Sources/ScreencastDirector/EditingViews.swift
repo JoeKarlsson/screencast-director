@@ -5,19 +5,37 @@ import SwiftUI
 // Views for the export queue, version history and transcript editing. View state lives in
 // ObservableObjects (no @State: the Command Line Tools have no macro plugins).
 
-/// The Export button's companion: shows how many exports are running, and the queue in a popover.
+/// The Export button's companion: a progress ring while exports run, a tray once some are done,
+/// nothing before the first export. The queue is in its popover.
 struct ExportQueueButton: View {
   @ObservedObject var queue: ExportQueue
 
   var body: some View {
-    Button {
-      queue.showList.toggle()
-    } label: {
-      Label(queue.activeCount > 0 ? "\(queue.activeCount)" : "", systemImage: queue.activeCount > 0 ? "arrow.down.circle" : "tray")
-        .labelStyle(.titleAndIcon)
+    if !queue.jobs.isEmpty {
+      Button {
+        queue.showList.toggle()
+      } label: {
+        if queue.activeCount > 0 {
+          // Jobs publish their own progress; poll them while something runs.
+          SwiftUI.TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            let running = queue.jobs.filter { !$0.isFinished }
+            let progress = running.isEmpty ? 0 : running.map(\.progress).reduce(0, +) / Double(running.count)
+            ZStack {
+              Circle().stroke(Color.primary.opacity(0.15), lineWidth: 2.5)
+              Circle().trim(from: 0, to: max(0.03, progress)).stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+              Text("\(queue.activeCount)").font(.system(size: 8, weight: .bold)).monospacedDigit()
+            }
+            .frame(width: 17, height: 17)
+          }
+        } else {
+          Label("Exports", systemImage: "checkmark.circle")
+        }
+      }
+      .help(queue.activeCount > 0 ? "\(queue.activeCount) exporting" : "Exports")
+      .accessibilityLabel("Exports")
+      .popover(isPresented: $queue.showList, arrowEdge: .bottom) { ExportQueueList(queue: queue) }
     }
-    .help("Exports")
-    .popover(isPresented: $queue.showList, arrowEdge: .bottom) { ExportQueueList(queue: queue) }
   }
 }
 
@@ -214,7 +232,7 @@ struct TranscriptView: View {
       .padding(.horizontal, 2)
       .background(
         RoundedRectangle(cornerRadius: 3).fill(
-          selected ? Color.accentColor.opacity(0.35) : playing ? Color.yellow.opacity(0.25) : Color.clear))
+          selected ? Theme.accent.opacity(0.35) : playing ? Color.yellow.opacity(0.25) : Color.clear))
       .onTapGesture { project.clickWord(i, extend: NSEvent.modifierFlags.contains(.shift)) }
       .help("\(fmtTime(w.start))\(speed == nil ? ", cut" : (speed ?? 1) > 1.01 ? ", \((speed ?? 1).formatted())x" : "")")
   }

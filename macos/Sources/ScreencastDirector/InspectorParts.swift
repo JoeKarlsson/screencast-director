@@ -18,9 +18,9 @@ struct InspectorTabBar: View {
             .font(.system(size: 14, weight: .medium))
             .symbolRenderingMode(.hierarchical)
             .frame(width: 32, height: 28)
-            .foregroundStyle(on ? Color.accentColor : Color.secondary)
+            .foregroundStyle(on ? Theme.accent : Color.secondary)
             .background(
-              RoundedRectangle(cornerRadius: 7, style: .continuous).fill(on ? Color.accentColor.opacity(0.16) : Color.clear))
+              RoundedRectangle(cornerRadius: 7, style: .continuous).fill(on ? Theme.accent.opacity(0.16) : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -142,12 +142,12 @@ struct GradientSwatch: View {
       .padding(3)
       .overlay(
         RoundedRectangle(cornerRadius: 11, style: .continuous)
-          .strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 2))
+          .strokeBorder(selected ? Theme.accent : Color.clear, lineWidth: 2))
       .overlay(alignment: .bottomTrailing) {
         if selected {
           Image(systemName: "checkmark.circle.fill")
             .font(.system(size: 13))
-            .foregroundStyle(.white, Color.accentColor)
+            .foregroundStyle(.white, Theme.accent)
             .padding(6)
         }
       }

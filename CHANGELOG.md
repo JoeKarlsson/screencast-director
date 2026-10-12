@@ -14,6 +14,12 @@ Each release lists what changed for people using the app or the CLI. The version
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
+- A new look: the app's indigo accent throughout, and a refreshed icon in the layered glass style.
+- The start page is a gallery of your recordings with a big New Recording button. Setup folds away once everything's ready, and first-timers see how it works.
+- Opening a recording shows a blurred poster with "Loading preview…" instead of a black box.
+- The export button shows a progress ring while exports run.
+- Smoother transitions when switching recordings and showing or hiding the inspector.
+- Badges stay readable on a selected sidebar row.
 - A menu bar menu: start, pause, retake, restart or discard a recording, pick the display, mic and camera, and open recent recordings.
 - Standard Mac menus and windows: About, Hide, the Window menu, Show/Hide Inspector (⌥⌘I), and Settings split into General, Recording, AI and Sharing tabs.
 - The editor's buttons move to the window toolbar; the project's name and length are in the title.
@@ -24,6 +30,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Ask Claude: a new prompt box with starter ideas and a history of what you asked and what it changed.
 
 ### Editing
+- Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
 

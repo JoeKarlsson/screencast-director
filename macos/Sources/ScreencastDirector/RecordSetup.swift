@@ -128,6 +128,7 @@ struct RecordSetupView: View {
     .padding(18)
     .frame(width: 520)
     .glassCard(cornerRadius: Theme.panelCorner)
+    .tint(Theme.accent)
   }
 
   private func rowLabel(_ text: String, _ symbol: String) -> some View {
@@ -143,10 +144,10 @@ struct RecordSetupView: View {
       .frame(maxWidth: .infinity, minHeight: 64)
       .background(
         RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
-          .fill(selected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05)))
+          .fill(selected ? Theme.accent.opacity(0.18) : Color.primary.opacity(0.05)))
       .overlay(
         RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
-          .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
+          .strokeBorder(selected ? Theme.accent : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)

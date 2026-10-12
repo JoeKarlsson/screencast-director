@@ -4,6 +4,8 @@ import SwiftUI
 /// inspector's icons and headers use the same ones), corner radii, and Liquid Glass with a
 /// material fallback for macOS 15.
 enum Theme {
+  /// The app's accent: the indigo of the icon.
+  static let accent = Color(red: 0.42, green: 0.36, blue: 0.92)
   static let clip = Color.blue
   static let audio = Color.green
   static let words = Color.secondary

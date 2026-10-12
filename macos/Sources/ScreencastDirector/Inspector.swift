@@ -308,12 +308,12 @@ struct InspectorView: View {
               Text(modeName(mode)).font(.caption)
             }
             .frame(maxWidth: .infinity, minHeight: 54)
-            .foregroundStyle(on ? Color.accentColor : Color.primary)
+            .foregroundStyle(on ? Theme.accent : Color.primary)
             .background(
-              RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04)))
+              RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.04)))
             .overlay(
               RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(on ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
+                .strokeBorder(on ? Theme.accent : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)

@@ -16,7 +16,7 @@ struct ScreencastDirectorApp: App {
     .commands { AppCommands(app: app, recorder: app.recorder, library: app.library, editor: app.editor) }
 
     Settings {
-      SettingsView(settings: app.settings)
+      SettingsView(settings: app.settings).tint(Theme.accent)
     }
 
     MenuBarExtra {
@@ -83,7 +83,7 @@ struct AppCommands: Commands {
       Picker("Sort Recordings By", selection: $library.sort) {
         ForEach(Library.Sort.allCases) { Text($0.label).tag($0) }
       }
-      Button(editor.showInspector ? "Hide Inspector" : "Show Inspector") { editor.showInspector.toggle() }
+      Button(editor.showInspector ? "Hide Inspector" : "Show Inspector") { withAnimation(.snappy) { editor.showInspector.toggle() } }
         .keyboardShortcut("i", modifiers: [.command, .option])
         .disabled(library.current == nil)
     }
