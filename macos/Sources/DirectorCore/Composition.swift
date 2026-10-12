@@ -111,6 +111,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   withExtendedLifetime(camAsset) {}
   withExtendedLifetime(screenAsset) {}
   let total = CMTime(value: CMTimeValue(scene.frameCount), timescale: fps)
+  // Rounding can leave a track (usually the camera) a few milliseconds past the last frame.
+  // AVPlayer rejects a video composition whose instruction doesn't cover every track and then
+  // plays nothing at all (black, silent), so trim everything to the exact frame count.
+  if comp.duration > total {
+    comp.removeTimeRange(CMTimeRange(start: total, end: comp.duration))
+  }
   let instruction = DirectorInstruction(
     timeRange: CMTimeRange(start: .zero, duration: total), scene: scene, screenTrack: vTrack.trackID, cameraTrack: camTrack?.trackID)
   let vc = AVMutableVideoComposition()

@@ -30,6 +30,7 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 - Publishing (`DirectorCore/Publish.swift`): the SRT uses the same caption pages as the burned-in captions. Thumbnails score camera frames with `VNDetectFaceCaptureQualityRequest` plus `CIDetector` smile and blink detection, and cut the person out with `VNGeneratePersonSegmentationRequest`.
 - AppleScript `keystroke ","` and `"/"` map to other keys on this Mac's layout (`","` opened the import panel). Use `key code` or click menu items; the app menu is `menu bar item 2`.
 - A SwiftUI `Form` in an `NSWindow` built with `contentRect: .zero` collapses to its title bar. Give the window and the view a real size.
+- Every composition track must end exactly at the instruction's end. A camera track a few milliseconds long (scaled-range rounding) makes AVPlayer render nothing, black and silent, while `AVAssetImageGenerator` and export still work, so `director still` can't catch it. `buildComposition` trims to the frame count. Test playback with an `AVPlayerItemVideoOutput`, not just stills.
 - Window screenshots (`screencapture -l`) of a window on another Space show the player black. Bring the window forward before judging the preview.
 
 ## Plan rules that are easy to break
