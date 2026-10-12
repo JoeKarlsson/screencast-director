@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     installKeyMonitor()
     hotKeys.onToggle = { [weak self] in self?.toggleRecording() }
+    hotKeys.onRetake = { [weak self] in self?.markRetake() }
     hotKeys.register()
     NSApp.activate()
   }
@@ -70,6 +71,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func toggleRecordingAction() { toggleRecording() }
+
+  /// ⌃⌥⌘M while recording: the phrase you just said gets cut from the draft; say it again after.
+  @objc func markRetake() {
+    guard recorder.isRecording else { return }
+    InputTap.markRetake()
+    // A short flash in the menu bar, so you know it took.
+    let title = statusItem.button?.title ?? ""
+    statusItem.button?.title = " RETAKE"
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+      if self?.statusItem.button?.title == " RETAKE" { self?.statusItem.button?.title = title }
+    }
+  }
 
   func toggleRecording() {
     Task { @MainActor in
@@ -227,6 +240,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let rec = fileMenu.addItem(withTitle: "Start/Stop Recording", action: #selector(toggleRecordingAction), keyEquivalent: "r")
     rec.keyEquivalentModifierMask = [.control, .option, .command]
     rec.target = self
+    let retake = fileMenu.addItem(withTitle: "Mark Retake (cut the line I just said)", action: #selector(markRetake), keyEquivalent: "m")
+    retake.keyEquivalentModifierMask = [.control, .option, .command]
+    retake.target = self
     fileMenu.addItem(withTitle: "Import Video…", action: #selector(importAction), keyEquivalent: "i").target = self
     fileMenu.addItem(withTitle: "Refresh Library", action: #selector(refreshAction), keyEquivalent: "").target = self
     fileMenu.addItem(.separator())

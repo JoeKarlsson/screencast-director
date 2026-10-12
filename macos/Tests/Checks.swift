@@ -82,6 +82,52 @@ struct Checks {
     expect(pp.segments.contains { $0.start <= 0.5 && $0.end >= 1.5 }, "gentle gives the pause back")
     expect(!pp.segments.contains { $0.start < 3.2 && $0.end > 3.2 }, "and still keeps the word cut")
 
+    // Retake marks: the phrase before the mark goes, the redo after it stays.
+    let flub = [
+      Word(text: "Welcome", start: 0, end: 0.4), Word(text: "everyone.", start: 0.5, end: 1.0),
+      Word(text: "Click", start: 2.0, end: 2.3), Word(text: "the", start: 2.4, end: 2.5), Word(text: "buton", start: 2.6, end: 3.0),
+      Word(text: "Click", start: 4.0, end: 4.3), Word(text: "the", start: 4.4, end: 4.5), Word(text: "button.", start: 4.6, end: 5.0),
+    ]
+    let rc = retakeCuts(words: flub, marks: [3.3])
+    expect(rc.count == 1 && abs(rc[0].0 - 1.9) < 1e-9 && abs(rc[0].1 - 3.6) < 1e-9, "retake cuts the flubbed phrase only")
+    let gapless = [Word(text: "Hi", start: 0, end: 0.5), Word(text: "all.", start: 0.5, end: 1), Word(text: "Clik", start: 1, end: 1.5),
+      Word(text: "it", start: 1.5, end: 2)]
+    let gc = retakeCuts(words: gapless, marks: [2.2])
+    expect(gc.count == 1 && abs(gc[0].0 - 0.9) < 1e-9, "retake stops at the previous sentence end")
+    var rp = Project(dir: URL(fileURLWithPath: "/tmp"), source: src)
+    rp.words = flub
+    rp.events = [InputEvent(t: 3.3, type: .retake, x: 0, y: 0)]
+    let rs = buildSegments(rp)
+    expect(!rs.contains { $0.start < 2.5 && $0.end > 2.5 }, "flub is out of the draft")
+    expect(rs.contains { $0.start <= 4.0 && $0.end >= 5.0 } && rs.contains { $0.start <= 0.5 && $0.end >= 1.0 }, "redo and earlier line stay")
+
+    // Script takes: an earlier attempt at a line is cut; halves of one long line are not.
+    let script = scriptLines("""
+      # Title
+      ---
+      *[open the app]* Click the record button to start.
+      **Note**
+      Then talk through your demo like normal.
+      ---
+      """)
+    expect(script == ["Click the record button to start", "Then talk through your demo like normal"], "script lines skip directions and headers")
+    let takes = [
+      Word(text: "Click", start: 0, end: 0.3), Word(text: "the", start: 0.35, end: 0.5), Word(text: "record", start: 0.55, end: 0.9),
+      Word(text: "button", start: 0.95, end: 1.3), Word(text: "to", start: 1.35, end: 1.5), Word(text: "start", start: 1.55, end: 2.0),
+      Word(text: "Click", start: 3, end: 3.3), Word(text: "the", start: 3.35, end: 3.5), Word(text: "record", start: 3.55, end: 3.9),
+      Word(text: "button", start: 3.95, end: 4.3), Word(text: "to", start: 4.35, end: 4.5), Word(text: "start.", start: 4.55, end: 5.0),
+      Word(text: "Then", start: 6, end: 6.3), Word(text: "talk", start: 6.35, end: 6.6), Word(text: "through", start: 6.65, end: 7.0),
+      Word(text: "your", start: 8, end: 8.2), Word(text: "demo", start: 8.25, end: 8.6), Word(text: "like", start: 8.65, end: 8.9),
+      Word(text: "normal.", start: 8.95, end: 9.4),
+    ]
+    let tc = earlierTakeCuts(words: takes, script: script)
+    expect(tc.count == 1 && abs(tc[0].0 - -0.1) < 1e-9 && abs(tc[0].1 - 2.15) < 1e-9, "earlier take cut, split halves kept")
+
+    // Window capture: positions are fractions of the window, not the display.
+    let win = CGRect(x: 200, y: 100, width: 800, height: 600)
+    let (nx, ny) = normalizedPoint(CGPoint(x: 600, y: 250), in: win)
+    expect(nx == 0.5 && ny == 0.25, "point normalized to the window frame")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

@@ -152,7 +152,7 @@ public struct Word: Codable, Equatable {
 }
 
 public enum InputKind: String, Codable {
-  case move, click, scroll, key
+  case move, click, scroll, key, retake
 }
 
 public struct InputEvent: Equatable {

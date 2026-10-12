@@ -14,7 +14,7 @@ export type Source = {
   camera?: { video: string; offset: number };
 };
 
-export type InputEvent = { t: number; type: "move" | "click" | "scroll" | "key"; x: number; y: number; label?: string };
+export type InputEvent = { t: number; type: "move" | "click" | "scroll" | "key" | "retake"; x: number; y: number; label?: string };
 
 export type Project = {
   dir: string;

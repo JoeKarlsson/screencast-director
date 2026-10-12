@@ -1,6 +1,7 @@
 import AVKit
 import AppKit
 import DirectorCore
+import ScreenCaptureKit
 import SwiftUI
 
 // View state lives in ObservableObjects: @State needs Swift macro plugins, which the
@@ -233,6 +234,7 @@ struct SettingsView: View {
       Picker("Pause trimming for new recordings", selection: $settings.pauseLevel) {
         ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
       }
+      CapturePicker(settings: settings, list: CaptureWindows.shared)
       Toggle("Show this app in recordings (for recording a tour of it)", isOn: $settings.showSelfInRecordings)
       LabeledContent("Recordings folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }
     }
@@ -244,6 +246,47 @@ struct SettingsView: View {
 
 final class SettingsUI: ObservableObject {
   @Published var testResult = ""
+}
+
+/// Windows that can be recorded on their own, refreshed each time Settings shows the picker.
+final class CaptureWindows: ObservableObject {
+  static let shared = CaptureWindows()
+  @Published private(set) var windows: [(id: Int, label: String)] = []
+
+  func refresh() {
+    Task { @MainActor in
+      guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true) else { return }
+      windows = content.windows
+        .filter { $0.isOnScreen && $0.windowLayer == 0 && $0.frame.width > 200 && $0.frame.height > 150 }
+        .filter { $0.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier }
+        .map { w in
+          let app = w.owningApplication?.applicationName ?? "Window"
+          let title = (w.title ?? "").isEmpty ? "" : ": \(w.title!)"
+          return (Int(w.windowID), String("\(app)\(title)".prefix(70)))
+        }
+        .sorted { $0.label < $1.label }
+    }
+  }
+}
+
+struct CapturePicker: View {
+  @ObservedObject var settings: AppSettings
+  @ObservedObject var list: CaptureWindows
+
+  var body: some View {
+    Picker("Record", selection: Binding(get: { settings.captureWindowID }, set: { id in
+      settings.captureWindowID = id
+      settings.captureWindowLabel = list.windows.first { $0.id == id }?.label ?? ""
+    })) {
+      Text("Whole display").tag(0)
+      if settings.captureWindowID != 0, !list.windows.contains(where: { $0.id == settings.captureWindowID }) {
+        Text(settings.captureWindowLabel).tag(settings.captureWindowID)
+      }
+      ForEach(list.windows, id: \.id) { Text($0.label).tag($0.id) }
+    }
+    .onAppear { list.refresh() }
+    .help("A single window records sharper and smaller than the whole display; clicks are measured inside it.")
+  }
 }
 
 struct PublishView: View {

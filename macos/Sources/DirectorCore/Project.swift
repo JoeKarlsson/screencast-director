@@ -28,8 +28,13 @@ public struct Project {
   public var events: [InputEvent]
   /// (time, mean frame-to-frame luma difference) samples at 10 fps.
   public var motion: [(Double, Double)]
+  /// Spoken lines of the teleprompter script (script.md, copied from Followspot when you record
+  /// with it open). Empty when there's no script.
+  public var script: [String] = []
 
   public var planURL: URL { dir.appendingPathComponent("plan.json") }
+  /// Retake marks (⌃⌥⌘M while recording), in seconds into the video.
+  public var retakes: [Double] { events.filter { $0.type == .retake }.map(\.t) }
   public var name: String { dir.lastPathComponent }
 
   public init(dir: URL, source: Source, words: [Word] = [], events: [InputEvent] = [], motion: [(Double, Double)] = []) {
@@ -49,6 +54,9 @@ public struct Project {
       let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]]
     {
       p.motion = arr.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+    }
+    if let md = try? String(contentsOf: dir.appendingPathComponent("script.md"), encoding: .utf8) {
+      p.script = scriptLines(md)
     }
     return p
   }

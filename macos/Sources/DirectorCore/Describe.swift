@@ -17,6 +17,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     parts += ev.filter { $0.type == .click }.map { String(format: "click@%@(%.2f,%.2f)", fmtTime($0.t), $0.x, $0.y) }
     let labels = ev.compactMap { $0.type == .key ? $0.label : nil }
     if !labels.isEmpty { parts.append(labels.joined(separator: " ")) }
+    parts += ev.filter { $0.type == .retake }.map { "RETAKE@\(fmtTime($0.t))" }
     return parts.isEmpty ? "" : "[\(parts.joined(separator: ", "))]"
   }
   func line(_ parts: String...) -> String {
@@ -43,6 +44,16 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     cursor = s.end
   }
   if plan.source.duration - cursor > 0.05 { out.append("  CUT  src \(fmtTime(cursor))-\(fmtTime(plan.source.duration))") }
+
+  if !project.retakes.isEmpty {
+    out.append("")
+    out.append("## Retake marks (the phrase before each was a flub; the redo follows)")
+    out.append("  " + project.retakes.map { fmtTime($0) }.joined(separator: ", "))
+  }
+  if !project.script.isEmpty {
+    out.append("")
+    out.append("## Script (script.md, \(project.script.count) lines). Keep the last good take of each line.")
+  }
 
   out.append("")
   out.append("## Zooms")

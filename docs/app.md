@@ -27,6 +27,10 @@ Press ⌃⌥⌘R from any app, or use the menu bar button. ScreenCaptureKit reco
 
 When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a live preview.
 
+- **Retakes:** flubbed a line? Press ⌃⌥⌘M (or File > Mark Retake) and say it again. The draft cuts the phrase before the mark, back to the last pause or sentence end (at most 6 s), and keeps the redo. `director describe` lists the marks, and the menu bar flashes RETAKE so you know it took. The hotkeys never show up as shortcut chips.
+- **One window:** Settings > Capture records a single window instead of the whole display: crisper text and smaller files. Clicks and the cursor are logged relative to that window, so zooms land in the right place. Window IDs don't survive a relaunch, so the setting goes back to Whole display each time the app starts.
+- **FollowSpot scripts:** if FollowSpot is running when you stop, the script it has open is saved as `script.md` in the recording. The draft then keeps only the last take of each script line you read more than once (two halves of one long line both stay), and the AI editor is told to keep the best take of each line.
+
 ## Edit
 
 - **Ask the AI** in plain language. The preview reloads when `plan.json` changes.

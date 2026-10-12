@@ -57,7 +57,10 @@ private func roundTo(_ v: Double, _ places: Int) -> Double {
 }
 
 public func buildSegments(_ p: Project) -> [Segment] {
-  let fillers = p.words.filter { Rules.isFiller($0.text) }.map { Interval(start: $0.start - 0.05, end: $0.end + 0.05) }
+  // Cut filler words, phrases marked as retakes (⌃⌥⌘M), and earlier takes of script lines.
+  var fillers = p.words.filter { Rules.isFiller($0.text) }.map { Interval(start: $0.start - 0.05, end: $0.end + 0.05) }
+  fillers += retakeCuts(words: p.words, marks: p.retakes).map { Interval(start: $0.0, end: $0.1) }
+  fillers += earlierTakeCuts(words: p.words, script: p.script).map { Interval(start: $0.0, end: $0.1) }
   let speech = merge(
     p.words.filter { !Rules.isFiller($0.text) }.map {
       Interval(start: $0.start - Rules.speechPadBefore, end: $0.end + Rules.speechPadAfter)
@@ -67,7 +70,7 @@ public func buildSegments(_ p: Project) -> [Segment] {
 
   func label(_ t: Double) -> Label {
     if speech.contains(where: { t + b > $0.start && t < $0.end }) { return .speech }
-    let near = p.events.filter { $0.t >= t - 0.5 && $0.t < t + b + 0.5 }
+    let near = p.events.filter { $0.type != .retake && $0.t >= t - 0.5 && $0.t < t + b + 0.5 }
     if near.contains(where: { $0.type == .key }) { return .typing }
     if !near.isEmpty { return .mouse }
     let changing = p.motion.contains { $0.0 >= t && $0.0 < t + b && $0.1 > Rules.motionThreshold }

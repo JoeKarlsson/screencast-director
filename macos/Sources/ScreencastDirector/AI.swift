@@ -123,6 +123,7 @@ enum APIEditor {
     - `callouts`: {start, end, text}, short 2-5 word titles.
     - Keep every field you don't need to change exactly as it is (including `look`, `style`, `output`, `source`, `camera`).
     Unless the user asked for one specific change, also: keep only the last clean take of a restarted sentence; cut dead air over ~0.6 s (keep ~0.1 s each side); speed up typing or waiting without narration; zoom toward what the user points at, using click positions.
+    If the timeline lists a script (script.md), the user read from it: keep the best take of each script line (usually the last) and cut earlier attempts. Retake marks mean the phrase just before each mark was a flub and the redo follows; make sure it's cut cleanly.
     Reply with 1-4 short lines saying what you changed (with output timestamps), then the COMPLETE updated plan as one ```json code block. Nothing after the code block.
     """
 

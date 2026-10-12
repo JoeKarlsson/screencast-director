@@ -13,6 +13,10 @@ final class AppSettings: ObservableObject {
   @Published var projectsFolder: String { didSet { d.set(projectsFolder, forKey: "projectsFolder") } }
   /// Off by default: this app's windows stay out of recordings. Turn on to record a tour of the app itself.
   @Published var showSelfInRecordings: Bool { didSet { d.set(showSelfInRecordings, forKey: "showSelfInRecordings") } }
+  /// 0 records the whole display; otherwise the ScreenCaptureKit window ID to record.
+  @Published var captureWindowID: Int { didSet { d.set(captureWindowID, forKey: "captureWindowID") } }
+  /// "App: window title", for messages when the window has closed.
+  @Published var captureWindowLabel: String { didSet { d.set(captureWindowLabel, forKey: "captureWindowLabel") } }
   @Published var pauseLevel: PauseLevel { didSet { d.set(pauseLevel.rawValue, forKey: "pauseLevel") } }
   @Published var autoName: Bool { didSet { d.set(autoName, forKey: "autoName") } }
   static let shared = AppSettings()
@@ -25,6 +29,9 @@ final class AppSettings: ObservableObject {
     useCamera = d.bool(forKey: "useCamera")
     fps = d.object(forKey: "fps") as? Int ?? 30
     showSelfInRecordings = d.bool(forKey: "showSelfInRecordings")
+    // Window IDs don't survive a relaunch of the recorded app, so start each session on the display.
+    captureWindowID = 0
+    captureWindowLabel = ""
     pauseLevel = PauseLevel(rawValue: d.string(forKey: "pauseLevel") ?? "") ?? .normal
     autoName = d.object(forKey: "autoName") as? Bool ?? true
     projectsFolder =

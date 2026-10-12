@@ -1,23 +1,33 @@
 import Carbon.HIToolbox
 
-/// ⌃⌥⌘R starts and stops a recording from any app. RegisterEventHotKey needs no Accessibility
-/// permission. (Followspot uses ⌃⌥R, so this adds ⌘ to stay clear of it.)
+/// Global shortcuts that work from any app. RegisterEventHotKey needs no Accessibility permission.
+/// ⌃⌥⌘R starts and stops a recording; ⌃⌥⌘M marks a retake (the line you just said gets cut, the
+/// redo stays). Followspot uses ⌃⌥ alone, so these add ⌘ to stay clear of it.
 final class HotKeys {
   var onToggle: (() -> Void)?
-  private var ref: EventHotKeyRef?
+  var onRetake: (() -> Void)?
+  private var refs: [EventHotKeyRef] = []
   private var handler: EventHandlerRef?
 
   func register() {
-    guard ref == nil else { return }
+    guard refs.isEmpty else { return }
     var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
     InstallEventHandler(
       GetApplicationEventTarget(),
-      { _, _, context in
+      { _, event, context in
+        var id = EventHotKeyID()
+        GetEventParameter(
+          event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+          MemoryLayout<EventHotKeyID>.size, nil, &id)
         let me = Unmanaged<HotKeys>.fromOpaque(context!).takeUnretainedValue()
-        me.onToggle?()
+        if id.id == 1 { me.onToggle?() } else if id.id == 2 { me.onRetake?() }
         return noErr
       }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
-    let id = EventHotKeyID(signature: OSType(0x5343_4452), id: 1)  // 'SCDR'
-    RegisterEventHotKey(UInt32(kVK_ANSI_R), UInt32(controlKey | optionKey | cmdKey), id, GetApplicationEventTarget(), 0, &ref)
+    for (i, key) in [kVK_ANSI_R, kVK_ANSI_M].enumerated() {
+      var ref: EventHotKeyRef?
+      let id = EventHotKeyID(signature: OSType(0x5343_4452), id: UInt32(i + 1))  // 'SCDR'
+      RegisterEventHotKey(UInt32(key), UInt32(controlKey | optionKey | cmdKey), id, GetApplicationEventTarget(), 0, &ref)
+      if let ref { refs.append(ref) }
+    }
   }
 }

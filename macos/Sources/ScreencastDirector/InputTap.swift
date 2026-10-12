@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import DirectorCore
 import Foundation
 
 // In-process version of logger/InputLogger.swift: writes clicks, keys and cursor moves as
@@ -21,11 +22,13 @@ enum InputTap {
 
   static func now() -> Double { Double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9 }
 
+  /// `capture` is the recorded area in global points (a display's bounds or a window's frame);
+  /// positions are logged as 0...1 fractions of it.
   @discardableResult
-  static func start(writingTo url: URL, display: CGDirectDisplayID) -> Bool {
+  static func start(writingTo url: URL, capture: CGRect) -> Bool {
     FileManager.default.createFile(atPath: url.path, contents: nil)
     out = FileHandle(forWritingAtPath: url.path)
-    bounds = CGDisplayBounds(display)
+    bounds = capture
     emit([
       "type": "meta", "clock": "uptime_raw", "t": now(), "epochMs": Int(Date().timeIntervalSince1970 * 1000),
       "display": ["w": bounds.width, "h": bounds.height],
@@ -47,6 +50,11 @@ enum InputTap {
     return true
   }
 
+  /// Marks a retake: the phrase just before this moment gets cut, and the redo after it stays.
+  static func markRetake() {
+    emit(["type": "retake", "t": now()])
+  }
+
   static func stop() {
     if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
     if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
@@ -63,9 +71,7 @@ enum InputTap {
   }
 
   private static func norm(_ p: CGPoint) -> (Double, Double) {
-    let x = (p.x - bounds.origin.x) / bounds.width
-    let y = (p.y - bounds.origin.y) / bounds.height
-    return ((x * 10000).rounded() / 10000, (y * 10000).rounded() / 10000)
+    normalizedPoint(p, in: bounds)
   }
 
   private static func handle(_ type: CGEventType, _ event: CGEvent) {
@@ -86,9 +92,12 @@ enum InputTap {
       emit(["type": "scroll", "t": t, "x": x, "y": y])
     case .keyDown:
       if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return }
+      let label = keyLabel(event)
+      // The app's own hotkeys (record, retake) aren't part of the demo; don't show them as chips.
+      if label == "⌃⌥⌘R" || label == "⌃⌥⌘M" { return }
       let (x, y) = norm(event.location)
       var obj: [String: Any] = ["type": "key", "t": t, "x": x, "y": y]
-      if let label = keyLabel(event) { obj["label"] = label }
+      if let label { obj["label"] = label }
       emit(obj)
     default:
       break

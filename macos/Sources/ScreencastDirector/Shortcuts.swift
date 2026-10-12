@@ -92,7 +92,9 @@ struct ShortcutsView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         Text("Keyboard Shortcuts").font(.title2.bold())
-        Text("Recording: ⌃⌥⌘R from any app. Undo/Redo: ⌘Z / ⇧⌘Z. Single-letter keys work when you're not typing in a text field.")
+        Text(
+          "Recording: ⌃⌥⌘R from any app. Retake (cut the line you just said, then say it again): ⌃⌥⌘M. Undo/Redo: ⌘Z / ⇧⌘Z. "
+            + "Single-letter keys work when you're not typing in a text field.")
           .font(.callout).foregroundStyle(.secondary)
         ForEach(groups, id: \.self) { g in
           VStack(alignment: .leading, spacing: 4) {

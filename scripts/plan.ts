@@ -13,7 +13,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Plan, Segment, Zoom } from "../src/types.ts";
+import type { Plan, Segment, Word, Zoom } from "../src/types.ts";
 import { loadProject, type InputEvent, type Project } from "./project.ts";
 
 const RULES = {
@@ -56,13 +56,37 @@ function speechIntervals(p: Project): { speech: Interval[]; fillers: Interval[] 
   const spoken = p.words
     .filter((w) => !RULES.fillers.test(w.text))
     .map((w) => ({ start: w.start - RULES.speechPadBefore, end: w.end + RULES.speechPadAfter }));
-  return { speech: mergeIntervals(spoken, RULES.speechMergeGap), fillers };
+  const marks = p.events.filter((e) => e.type === "retake").map((e) => e.t);
+  return { speech: mergeIntervals(spoken, RULES.speechMergeGap), fillers: [...fillers, ...retakeCuts(p.words, marks)] };
+}
+
+// Retake marks (⌃⌥⌘M): cut the phrase before each mark, back to a pause over 0.5 s, a sentence
+// end, the previous mark or 6 s, up to the mark plus 0.3 s. Same rule as DirectorCore/Takes.swift.
+function retakeCuts(words: Word[], marks: number[]): Interval[] {
+  const sorted = [...words].sort((a, b) => a.start - b.start);
+  const cuts: Interval[] = [];
+  let floor = 0;
+  for (const m of [...marks].sort((a, b) => a - b)) {
+    const before = sorted.filter((w) => w.start < m && w.start >= floor);
+    if (!before.length) {
+      floor = m;
+      continue;
+    }
+    let first = before[before.length - 1];
+    for (const w of before.slice(0, -1).reverse()) {
+      if (first.start - w.end > 0.5 || m - w.start > 6 || /[.?!]$/.test(w.text)) break;
+      first = w;
+    }
+    cuts.push({ start: Math.max(floor, first.start - 0.1), end: m + 0.3 });
+    floor = m + 0.3;
+  }
+  return cuts;
 }
 
 function labelAt(t: number, p: Project, speech: Interval[], events: InputEvent[]): Label {
   const b = RULES.bucket;
   if (speech.some((s) => t + b > s.start && t < s.end)) return "speech";
-  const near = events.filter((e) => e.t >= t - 0.5 && e.t < t + b + 0.5);
+  const near = events.filter((e) => e.type !== "retake" && e.t >= t - 0.5 && e.t < t + b + 0.5);
   if (near.some((e) => e.type === "key")) return "typing";
   if (near.some((e) => e.type !== "key")) return "mouse";
   const changing = p.motion.some(([mt, d]) => mt >= t && mt < t + b && d > RULES.motionThreshold);

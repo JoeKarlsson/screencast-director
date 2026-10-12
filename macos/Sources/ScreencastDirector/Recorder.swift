@@ -1,4 +1,5 @@
 import AVFoundation
+import AppKit
 import DirectorCore
 import Foundation
 import ScreenCaptureKit
@@ -36,9 +37,24 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }) ?? content.displays.first else {
       throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display to record."])
     }
-    // Keep this app's own windows out of the recording.
-    let own = settings.showSelfInRecordings ? [] : content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
-    let filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: [])
+    let filter: SCContentFilter
+    // The recorded area in global points, for normalizing click and cursor positions.
+    let captureRect: CGRect
+    if settings.captureWindowID != 0 {
+      // One window: crisper than the whole display, and smaller files.
+      guard let window = content.windows.first(where: { Int($0.windowID) == settings.captureWindowID }) else {
+        throw NSError(
+          domain: "Recorder", code: 3,
+          userInfo: [NSLocalizedDescriptionKey: "The window picked in Settings (\(settings.captureWindowLabel)) isn't open anymore. Pick another one, or record the whole display."])
+      }
+      filter = SCContentFilter(desktopIndependentWindow: window)
+      captureRect = window.frame
+    } else {
+      // Keep this app's own windows out of the recording.
+      let own = settings.showSelfInRecordings ? [] : content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+      filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: [])
+      captureRect = CGDisplayBounds(display.displayID)
+    }
 
     let fmt = DateFormatter()
     fmt.dateFormat = "yyyy-MM-dd HHmmss"
@@ -47,8 +63,11 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     self.dir = dir
 
     let scale = CGFloat(filter.pointPixelScale)
-    size = CGSize(width: (filter.contentRect.width * scale).rounded(), height: (filter.contentRect.height * scale).rounded())
+    // Even pixel sizes: the H.264 encoder rejects odd ones, and windows can be any size.
+    func even(_ v: CGFloat) -> CGFloat { (v / 2).rounded() * 2 }
+    size = CGSize(width: even(filter.contentRect.width * scale), height: even(filter.contentRect.height * scale))
     let cfg = SCStreamConfiguration()
+    cfg.ignoreShadowsSingleWindow = true
     cfg.width = Int(size.width)
     cfg.height = Int(size.height)
     cfg.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(settings.fps))
@@ -85,7 +104,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
     try await stream.startCapture()
     self.stream = stream
-    InputTap.start(writingTo: dir.appendingPathComponent("events.jsonl"), display: display.displayID)
+    InputTap.start(writingTo: dir.appendingPathComponent("events.jsonl"), capture: captureRect)
 
     await MainActor.run {
       isRecording = true
@@ -132,12 +151,25 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .sortedKeys]
     try enc.encode(source).write(to: dir.appendingPathComponent("source.json"))
+    Recorder.copyFollowspotScript(into: dir)
 
     await MainActor.run {
       isRecording = false
       startedAt = nil
     }
     return dir
+  }
+
+  /// If Followspot (Joe's teleprompter) is running, the script it has open is what was just read:
+  /// save it as script.md so the edit can keep the best take of each line. Followspot links the
+  /// open script at Application Support/Followspot/www/current.md.
+  static func copyFollowspotScript(into dir: URL) {
+    let running = NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.joekarlsson.followspot" }
+    guard running else { return }
+    let link = FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent("Library/Application Support/Followspot/www/current.md")
+    guard let text = try? String(contentsOf: link.resolvingSymlinksInPath(), encoding: .utf8), !text.isEmpty else { return }
+    try? text.write(to: dir.appendingPathComponent("script.md"), atomically: true, encoding: .utf8)
   }
 
   // MARK: Screen + mic samples

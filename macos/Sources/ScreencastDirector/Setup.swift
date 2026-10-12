@@ -115,7 +115,7 @@ struct SetupView: View {
 
         VStack(alignment: .leading, spacing: 10) {
           Text("How it works").font(.title3.bold())
-          step(1, "Record", "Press ⌃⌥⌘R in any app (or the ● button). Talk through your demo, then press ⌃⌥⌘R again.")
+          step(1, "Record", "Press ⌃⌥⌘R in any app (or the ● button). Talk through your demo (flubbed a line? press ⌃⌥⌘M and say it again), then press ⌃⌥⌘R again.")
           step(2, "It drafts the edit", "Dead air is cut, typing is sped up, the camera zooms to your clicks, captions come from your voice.")
           step(3, "Adjust", "Scrub the timeline, trim or cut clips, add zooms, split screen and titles; style it in the inspector.")
           step(4, "Or ask Claude", "\"Cut my retakes and zoom in when I mention the config.\" ⌘Z undoes it if you don't like it.")
