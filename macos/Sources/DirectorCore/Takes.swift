@@ -113,3 +113,31 @@ public func earlierTakeCuts(words: [Word], script: [String], contain: Double = 0
   }
   return cuts
 }
+
+/// Script lines that the edit doesn't contain: fewer than 70% of a line's words are said, in order,
+/// in the kept (not cut) speech. Catches a line that was never recorded or whose only take was cut.
+public func missingScriptLines(_ script: [String], words: [Word], plan: Plan) -> [String] {
+  let kept = words.filter { plan.speed(at: ($0.start + $0.end) / 2) != nil }.flatMap { tokens($0.text) }
+  guard !kept.isEmpty else { return script }
+  var index: [String: [Int]] = [:]
+  for (i, w) in kept.enumerated() { index[w, default: []].append(i) }
+  return script.filter { line in
+    let want = tokens(line)
+    guard !want.isEmpty else { return false }
+    // The best in-order match starting at each place the first few words occur.
+    var best = 0
+    let starts = Set(want.prefix(3).flatMap { index[$0] ?? [] })
+    for start in starts {
+      var pos = start, hits = 0
+      for w in want {
+        // Look a little ahead for each word, so a filler or a misheard word doesn't break the run.
+        if let next = (pos..<min(kept.count, pos + 4)).first(where: { kept[$0] == w }) {
+          hits += 1
+          pos = next + 1
+        }
+      }
+      best = max(best, hits)
+    }
+    return Double(best) / Double(want.count) < 0.7
+  }
+}

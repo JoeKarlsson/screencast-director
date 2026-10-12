@@ -488,7 +488,9 @@ struct ClaudeBar: View {
   @FocusState private var focused: Bool
 
   static let ideas = [
-    "Cut my retakes", "Tighten the pauses", "Zoom in when I click", "Side by side for the intro", "Add a title at the start",
+    "Cut my retakes", "Tighten the pauses", "Zoom in when I click", "Add chapter cards at each new section",
+    "A lower third with my name at the start", "Box what I click on", "Blur any emails or keys on screen", "Make it feel cinematic",
+    "Side by side for the intro",
   ]
 
   var body: some View {

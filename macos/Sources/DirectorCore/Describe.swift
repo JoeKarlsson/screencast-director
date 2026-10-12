@@ -66,6 +66,11 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   if !project.script.isEmpty {
     out.append("")
     out.append("## Script (script.md, \(project.script.count) lines). Keep the last good take of each line.")
+    let missing = missingScriptLines(project.script, words: project.words, plan: plan)
+    if !missing.isEmpty {
+      out.append("  Not in the edit (never said, or every take is cut):")
+      for l in missing.prefix(12) { out.append("  - \"\(l)\"") }
+    }
   }
 
   out.append("")

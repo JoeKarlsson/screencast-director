@@ -374,6 +374,17 @@ struct Checks {
     let samples = [ScreenText.Sample(t: 5, x: 0.42, y: 0.11, items: boxes)]
     expect(ScreenText.clicked(samples, at: 5.2) == "Save" && ScreenText.clicked(samples, at: 6) == nil, "matched by time")
 
+    // Script lines missing from the edit.
+    var sp = buildPlan(p)
+    sp.segments = [Segment(start: 0, end: 2.1, speed: 1)]
+    let scriptWords = [
+      Word(text: "Hello", start: 0.2, end: 0.5), Word(text: "and", start: 0.5, end: 0.7), Word(text: "welcome", start: 0.7, end: 1.0),
+      Word(text: "everyone", start: 1.0, end: 1.4), Word(text: "this", start: 5, end: 5.2), Word(text: "part", start: 5.2, end: 5.5),
+      Word(text: "is", start: 5.5, end: 5.6), Word(text: "cut", start: 5.6, end: 6),
+    ]
+    let missing = missingScriptLines(["Hello and welcome, everyone", "This part is cut"], words: scriptWords, plan: sp)
+    expect(missing == ["This part is cut"], "a line whose only take is cut is missing (\(missing))")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }
