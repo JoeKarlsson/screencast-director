@@ -10,6 +10,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - A 3-2-1 countdown before recording starts (Settings > Recording; ⌃⌥⌘R during it cancels).
 - New Recording (⌘N) picks the display or window, the mic and the camera before you start. ⌃⌥⌘R still records right away.
 - Record any connected display, not just the main one.
+- The recording widget floats above full-screen apps and other floating windows, and the arrow on its right shrinks it to just the clock and Stop.
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
@@ -17,6 +18,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Standard Mac menus and windows: About, Hide, the Window menu, Show/Hide Inspector (⌥⌘I), and Settings split into General, Recording, AI and Sharing tabs.
 - The editor's buttons move to the window toolbar; the project's name and length are in the title.
 - The preview matches the export's shape (vertical, square) on a dark stage, with play, step and a scrubber under it.
+- Sort the library by recently added (the default), oldest first, recently edited, name or length, from the Recordings header or View > Sort Recordings By.
 - The library shows a poster frame, length, date and a New or Exported badge. Double-click a name to rename it in place.
 - Errors and confirmations show as banners in the window instead of dialogs that block the app.
 - Ask Claude: a new prompt box with starter ideas and a history of what you asked and what it changed.

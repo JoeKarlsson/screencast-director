@@ -27,17 +27,25 @@ struct ScreencastDirectorApp: App {
   }
 }
 
-/// Hands the hosting NSWindow to AppDelegate once SwiftUI has made it.
+/// Hands the hosting NSWindow to AppDelegate once SwiftUI has put the view in it (and again if it
+/// moves to a new one). Asking `view.window` right after making the view is too early.
 struct WindowAccessor: NSViewRepresentable {
   let found: (NSWindow) -> Void
-  func makeNSView(context: Context) -> NSView {
-    let v = NSView()
-    DispatchQueue.main.async { if let w = v.window { found(w) } }
+
+  final class Probe: NSView {
+    var found: ((NSWindow) -> Void)?
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if let window { found?(window) }
+    }
+  }
+
+  func makeNSView(context: Context) -> Probe {
+    let v = Probe()
+    v.found = found
     return v
   }
-  func updateNSView(_ v: NSView, context: Context) {
-    if let w = v.window { DispatchQueue.main.async { found(w) } }
-  }
+  func updateNSView(_ v: Probe, context: Context) { v.found = found }
 }
 
 struct AppCommands: Commands {
@@ -72,6 +80,9 @@ struct AppCommands: Commands {
       Button("Redo") { app.redoAction() }.keyboardShortcut("z", modifiers: [.command, .shift])
     }
     CommandGroup(after: .sidebar) {
+      Picker("Sort Recordings By", selection: $library.sort) {
+        ForEach(Library.Sort.allCases) { Text($0.label).tag($0) }
+      }
       Button(editor.showInspector ? "Hide Inspector" : "Show Inspector") { editor.showInspector.toggle() }
         .keyboardShortcut("i", modifiers: [.command, .option])
         .disabled(library.current == nil)

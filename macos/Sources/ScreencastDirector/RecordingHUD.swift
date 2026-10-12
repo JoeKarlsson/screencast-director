@@ -14,7 +14,8 @@ final class FloatingPanel: NSPanel {
       contentRect: NSRect(origin: .zero, size: size),
       styleMask: activating ? [.borderless, .fullSizeContentView] : [.borderless, .nonactivatingPanel, .fullSizeContentView],
       backing: .buffered, defer: false)
-    level = .floating
+    // Above normal floating windows and full-screen apps, so Stop is always in reach.
+    level = .statusBar
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     isMovableByWindowBackground = true
     backgroundColor = .clear
@@ -46,6 +47,10 @@ final class FloatingPanel: NSPanel {
 final class RecordingHUDModel: ObservableObject {
   enum Confirm { case restart, discard }
   @Published var confirming: Confirm?
+  /// Just the clock and Stop, for when the full widget is in the way. Remembered.
+  @Published var compact = UserDefaults.standard.bool(forKey: "hudCompact") {
+    didSet { UserDefaults.standard.set(compact, forKey: "hudCompact") }
+  }
   @Published private(set) var elapsed: TimeInterval = 0
   let recorder: Recorder
   var onStop: () -> Void = {}
@@ -136,6 +141,42 @@ struct RecordingHUDView: View {
   var body: some View {
     HStack(spacing: 14) {
       clock
+      if !model.compact { details }
+      HStack(spacing: 6) {
+        if !model.compact { controls }
+        Button(action: model.onStop) {
+          Image(systemName: "stop.fill").font(.system(size: 13, weight: .bold))
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Theme.recording))
+            .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+        .help("Stop and edit (⌃⌥⌘R)")
+        Button {
+          model.compact.toggle()
+        } label: {
+          Image(systemName: model.compact ? "chevron.left" : "chevron.right")
+            .font(.system(size: 10, weight: .bold))
+            .frame(width: 16, height: 30)
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(model.compact ? "Show the full widget" : "Shrink to the clock and Stop")
+      }
+    }
+    .padding(.leading, 18)
+    .padding(.trailing, 8)
+    .padding(.vertical, 10)
+    .glassCard(cornerRadius: 30)
+    .animation(.snappy, value: recorder.retakeCount)
+    .animation(.snappy, value: recorder.isPaused)
+    .animation(.snappy, value: model.confirming)
+    .fixedSize()
+  }
+
+  @ViewBuilder
+  private var details: some View {
       MicMeter(level: recorder.isPaused ? 0 : recorder.micLevel)
         .help("Microphone level")
       if let session = recorder.cameraSession {
@@ -158,7 +199,10 @@ struct RecordingHUDView: View {
           .help("Input Monitoring is off, so clicks and typing aren't logged: no auto-zoom or typing speed-ups. Turn it on in System Settings > Privacy & Security.")
       }
       Divider().frame(height: 24)
-      HStack(spacing: 6) {
+  }
+
+  @ViewBuilder
+  private var controls: some View {
         hudButton(recorder.isPaused ? "play.fill" : "pause.fill", recorder.isPaused ? "Resume" : "Pause (the paused part is cut)") {
           recorder.isPaused ? recorder.resume() : recorder.pause()
         }
@@ -172,24 +216,6 @@ struct RecordingHUDView: View {
           model.confirming == .discard ? "Click again to discard this recording" : "Discard",
           tint: model.confirming == .discard ? .red : nil
         ) { model.tap(.discard) }
-        Button(action: model.onStop) {
-          Image(systemName: "stop.fill").font(.system(size: 13, weight: .bold))
-            .frame(width: 34, height: 34)
-            .background(Circle().fill(Theme.recording))
-            .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-        .help("Stop and edit (⌃⌥⌘R)")
-      }
-    }
-    .padding(.leading, 18)
-    .padding(.trailing, 10)
-    .padding(.vertical, 10)
-    .glassCard(cornerRadius: 30)
-    .animation(.snappy, value: recorder.retakeCount)
-    .animation(.snappy, value: recorder.isPaused)
-    .animation(.snappy, value: model.confirming)
-    .fixedSize()
   }
 
   private var clock: some View {

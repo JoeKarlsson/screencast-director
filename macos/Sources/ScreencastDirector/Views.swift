@@ -61,7 +61,7 @@ struct LibrarySidebar: View {
 
   var body: some View {
     List(selection: $library.selection) {
-      Section("Recordings") {
+      Section {
         ForEach(library.filtered, id: \.self) { url in
           row(url).tag(url as URL?)
             .contextMenu {
@@ -70,6 +70,25 @@ struct LibrarySidebar: View {
               Divider()
               Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
             }
+        }
+      } header: {
+        HStack {
+          Text("Recordings")
+          Spacer()
+          Menu {
+            Picker("Sort By", selection: $library.sort) {
+              ForEach(Library.Sort.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.inline)
+          } label: {
+            Label(library.sort.label, systemImage: "arrow.up.arrow.down")
+              .labelStyle(.titleAndIcon)
+              .font(.caption)
+          }
+          .menuStyle(.borderlessButton)
+          .menuIndicator(.hidden)
+          .fixedSize()
+          .help("Sort recordings")
         }
       }
     }

@@ -15,18 +15,46 @@ final class Library: ObservableObject {
   /// Transcript text per recording, for search (loaded lazily).
   private var transcripts: [URL: String] = [:]
 
-  /// Recordings matching the search box: by name, or by anything said in them.
+  /// How the sidebar orders recordings. `projects` itself stays newest first (Recent and Join use it).
+  enum Sort: String, CaseIterable, Identifiable {
+    case recentlyAdded, oldestFirst, recentlyEdited, name, longest
+    var id: String { rawValue }
+    var label: String {
+      switch self {
+      case .recentlyAdded: return "Recently Added"
+      case .oldestFirst: return "Oldest First"
+      case .recentlyEdited: return "Recently Edited"
+      case .name: return "Name"
+      case .longest: return "Longest First"
+      }
+    }
+  }
+  @Published var sort = Sort(rawValue: UserDefaults.standard.string(forKey: "librarySort") ?? "") ?? .recentlyAdded {
+    didSet { UserDefaults.standard.set(sort.rawValue, forKey: "librarySort") }
+  }
+
+  /// Recordings matching the search box (by name, or by anything said in them), in the chosen order.
   var filtered: [URL] {
     let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-    guard !q.isEmpty else { return projects }
-    return projects.filter { url in
+    let matches = q.isEmpty ? projects : projects.filter(matching(q))
+    switch sort {
+    case .recentlyAdded: return matches
+    case .oldestFirst: return matches.reversed()
+    case .recentlyEdited: return matches.sorted { info($0).edited > info($1).edited }
+    case .name: return matches.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    case .longest: return matches.sorted { info($0).duration > info($1).duration }
+    }
+  }
+
+  private func matching(_ q: String) -> (URL) -> Bool {
+    { url in
       if url.lastPathComponent.lowercased().contains(q) { return true }
-      if transcripts[url] == nil {
+      if self.transcripts[url] == nil {
         let obj = (try? Data(contentsOf: url.appendingPathComponent("transcript.json")))
           .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-        transcripts[url] = ((obj?["text"] as? String) ?? "").lowercased()
+        self.transcripts[url] = ((obj?["text"] as? String) ?? "").lowercased()
       }
-      return transcripts[url]!.contains(q)
+      return self.transcripts[url]!.contains(q)
     }
   }
 
@@ -67,6 +95,8 @@ final class Library: ObservableObject {
   struct Info {
     let duration: Double
     let date: Date
+    /// When the edit last changed (the recording's date if it was never edited).
+    let edited: Date
     let stage: Stage
   }
   private var infos: [URL: Info] = [:]
@@ -78,8 +108,9 @@ final class Library: ObservableObject {
     let files = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
     let stage: Stage =
       files.contains { $0.hasPrefix("out") && $0.hasSuffix(".mp4") } ? .exported : files.contains("plan.json") ? .edited : .new
-    let i = Info(
-      duration: source?.duration ?? 0, date: (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date(), stage: stage)
+    let date = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
+    let edited = (try? fm.attributesOfItem(atPath: url.appendingPathComponent("plan.json").path))?[.modificationDate] as? Date
+    let i = Info(duration: source?.duration ?? 0, date: date, edited: edited ?? date, stage: stage)
     infos[url] = i
     return i
   }
@@ -149,6 +180,8 @@ final class Library: ObservableObject {
   }
 
   private func open(_ url: URL?) {
+    // Leaving a project: its edit date and export badge may have changed.
+    if let old = current?.dir { infos[old] = nil }
     current?.close()
     current = url.map { ProjectModel(dir: $0) }
   }
