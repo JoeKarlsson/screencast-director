@@ -27,7 +27,7 @@ final class ProfileStore: ObservableObject {
     if !FileManager.default.fileExists(atPath: personal.path) {
       try? FileManager.default.createDirectory(at: personal.deletingLastPathComponent(), withIntermediateDirectories: true)
       try? Data(
-        #"{"name": "Personal", "style": {"background": ["#1d2b64", "#f8cdda"], "padding": 0.06, "radius": 14, "transition": 0.8}, "look": {}}"#
+        ##"{"name": "Personal", "style": {"background": ["#1d2b64", "#f8cdda"], "padding": 0.06, "radius": 14, "transition": 0.8}, "look": {}}"##
           .utf8
       ).write(to: personal)
     }
