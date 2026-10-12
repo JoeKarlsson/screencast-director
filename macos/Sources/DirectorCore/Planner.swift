@@ -124,6 +124,16 @@ public func buildSegments(_ p: Project) -> [Segment] {
       merged.append(s)
     }
   }
+  // A joined recording's takes meet with a hard cut: no segment runs across a join.
+  for j in p.source.joins ?? [] {
+    merged = merged.flatMap { s -> [Segment] in
+      guard s.start < j - 0.01, s.end > j + 0.01 else { return [s] }
+      var a = s, b = s
+      a.end = j
+      b.start = j
+      return [a, b]
+    }
+  }
   return merged.filter { $0.end - $0.start > 0.04 }.map {
     var s = $0
     s.start = roundTo(s.start, 3)
@@ -173,6 +183,10 @@ public func buildZooms(_ p: Project) -> [Zoom] {
   // Overlapping zooms hand off: the earlier one ends where the next begins (renders as a pan).
   if zooms.count > 1 {
     for i in 0..<(zooms.count - 1) where zooms[i].end > zooms[i + 1].start { zooms[i].end = zooms[i + 1].start }
+  }
+  // Nor does a zoom: it ends where the next take starts.
+  for j in p.source.joins ?? [] {
+    for i in zooms.indices where zooms[i].start < j && zooms[i].end > j { zooms[i].end = j }
   }
   return zooms.filter { $0.end - $0.start > 0.3 }
 }

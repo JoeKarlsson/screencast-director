@@ -129,6 +129,60 @@ final class Library: ObservableObject {
     current = url.map { ProjectModel(dir: $0) }
   }
 
+  /// Asks which recordings to join (oldest first), then makes a new project from them and drafts
+  /// its edit. The originals aren't touched.
+  func promptJoin() {
+    let alert = NSAlert()
+    alert.messageText = "Join Recordings"
+    alert.informativeText = "Pick two or more recordings of the same screen size. They're joined oldest first into a new recording; the originals stay as they are."
+    let rows = projects.reversed().map { url -> NSButton in
+      let b = NSButton(checkboxWithTitle: url.lastPathComponent, target: nil, action: nil)
+      b.state = url == selection ? .on : .off
+      return b
+    }
+    let stack = NSStackView(views: rows)
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 6
+    let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 380, height: min(300, CGFloat(rows.count) * 24 + 8)))
+    scroll.hasVerticalScroller = true
+    stack.frame = NSRect(x: 0, y: 0, width: 380, height: stack.fittingSize.height)
+    scroll.documentView = stack
+    alert.accessoryView = scroll
+    alert.addButton(withTitle: "Join")
+    alert.addButton(withTitle: "Cancel")
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+    let takes = zip(projects.reversed(), rows).filter { $0.1.state == .on }.map(\.0)
+    guard takes.count >= 2 else {
+      status = "Pick at least two recordings to join."
+      return
+    }
+    let base = "\(takes[0].lastPathComponent) (joined)"
+    var out = settings.projectsURL.appendingPathComponent(base)
+    var n = 2
+    while FileManager.default.fileExists(atPath: out.path) {
+      out = settings.projectsURL.appendingPathComponent("\(base) \(n)")
+      n += 1
+    }
+    status = "Joining \(takes.count) recordings…"
+    let dest = out
+    Task { @MainActor in
+      do {
+        _ = try await Join.run(takes, into: dest)
+        status = ""
+        refresh()
+        selection = dest
+        let analyzed = ["motion.json", "loudness.json"].allSatisfy {
+          FileManager.default.fileExists(atPath: dest.appendingPathComponent($0).path)
+        }
+        current?.analyzeAndPlan(analyzeFirst: !analyzed)
+      } catch {
+        status = ""
+        NSAlert(error: error).runModal()
+      }
+    }
+  }
+
   /// Copies a video in as a new project (no input log, so zooms come from Claude, not clicks).
   func importVideo(_ video: URL) async throws -> URL {
     let dir = settings.projectsURL.appendingPathComponent(video.deletingPathExtension().lastPathComponent)

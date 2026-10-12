@@ -28,6 +28,7 @@ let usage = """
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
+    director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
 
@@ -134,6 +135,20 @@ do {
     try plan.write(to: project.planURL)
     let after = Double(planFrames(plan)) / Double(plan.output.fps)
     print("\(args[0]) \(fmtTime(a))-\(fmtTime(b)): \(fmtTime(before)) -> \(fmtTime(after))")
+  case "join":
+    guard positional.count >= 4 else { fail(usage) }
+    let takes = positional.dropFirst(2).map { URL(fileURLWithPath: $0).standardizedFileURL }
+    let result = try await Join.run(Array(takes), into: dir) { print($0) }
+    let project = try Project.load(dir)
+    let plan = buildPlan(project)
+    try plan.write(to: project.planURL)
+    let mapped = mapPlan(plan)
+    print("joined \(takes.count) takes into \(dir.path): \(fmtTime(project.source.duration)), \(project.words.count) words, \(project.events.count) events")
+    for (i, (t, start)) in zip(takes, result.starts).enumerated() {
+      let f = Int(srcToOutClamped(mapped, start, fps: plan.output.fps))
+      print("  take \(i + 1) \(t.lastPathComponent) starts at src \(fmtTime(start)), output frame \(f)")
+    }
+    print("wrote \(project.planURL.path): \(plan.segments.count) segments, \(plan.zooms.count) zooms")
   case "profile":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)

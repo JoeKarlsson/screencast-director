@@ -163,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func importAction() { importVideo() }
+  @objc func joinAction() { library.promptJoin() }
 
   var keyMonitor: Any?
   var shortcutsWindow: NSWindow?
@@ -255,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     retake.keyEquivalentModifierMask = [.control, .option, .command]
     retake.target = self
     fileMenu.addItem(withTitle: "Import Video…", action: #selector(importAction), keyEquivalent: "i").target = self
+    fileMenu.addItem(withTitle: "Join Recordings…", action: #selector(joinAction), keyEquivalent: "").target = self
     fileMenu.addItem(withTitle: "Refresh Library", action: #selector(refreshAction), keyEquivalent: "").target = self
     fileMenu.addItem(.separator())
     fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

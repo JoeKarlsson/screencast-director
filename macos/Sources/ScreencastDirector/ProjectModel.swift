@@ -566,10 +566,11 @@ final class ProjectModel: ObservableObject {
   }
 
   /// Transcribe, measure motion, and write a first-draft plan (keeps an existing plan unless `force`).
-  func analyzeAndPlan(force: Bool = false, then done: (() -> Void)? = nil) {
+  /// A joined recording already has its transcript and motion, so it passes `analyzeFirst: false`.
+  func analyzeAndPlan(force: Bool = false, analyzeFirst: Bool = true, then done: (() -> Void)? = nil) {
     run("Analyzing…") { [self] in
       defer { done?() }
-      try await analyze(dir) { msg in Task { @MainActor in self.status = msg } }
+      if analyzeFirst { try await analyze(dir) { msg in Task { @MainActor in self.status = msg } } }
       var draft = buildPlan(try Project.load(dir))
       ProfileStore.shared.defaultProfile?.apply(to: &draft, name: name)
       let level = AppSettings.shared.pauseLevel

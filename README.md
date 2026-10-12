@@ -42,7 +42,7 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 - **Profiles:** your look (background, fonts, colors, logo, frame), full bleed or padded.
 - **Intro and outro cards** in your profile's fonts, colors and logo.
 - **AI:** Claude Code (your Claude login, no key), the Anthropic API, or any OpenAI-compatible endpoint.
-- **Library:** search by name or by what you said, and let Claude name recordings.
+- **Library:** search by name or by what you said, let Claude name recordings, and join takes into one.
 
 Details: [docs/app.md](docs/app.md). The scriptable CLI, which uses the same Swift engine when it's built (Remotion stays as a legacy renderer), is in [docs/cli.md](docs/cli.md). Both use the project format in [docs/plan-format.md](docs/plan-format.md).
 

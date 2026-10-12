@@ -231,6 +231,13 @@ struct Checks {
     Profile(name: "T", style: prof.style, look: look).apply(to: &prof, name: "Tour")
     expect(prof.intro?.title == "Tour" && prof.intro?.subtitle == "Joe Karlsson" && prof.outro == nil, "profile fills the intro title")
 
+    // Joined takes: no segment or zoom runs across the join.
+    var jp = p
+    jp.source.joins = [6]
+    expect(buildSegments(p).contains { $0.start < 6 && $0.end > 6 }, "without a join, a segment spans 6 s")
+    expect(!buildSegments(jp).contains { $0.start < 6 && $0.end > 6 }, "segments split at a join")
+    expect(!buildZooms(jp).contains { $0.start < 6 && $0.end > 6 }, "zooms end at a join")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

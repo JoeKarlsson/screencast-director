@@ -14,6 +14,9 @@ public struct Project {
     /// True when the recording left the real cursor out, so the renderer draws a smooth one
     /// from the logged mouse moves.
     public var cursorHidden: Bool?
+    /// Joined recordings: where each take after the first starts (seconds). Cuts and zooms
+    /// don't run across these.
+    public var joins: [Double]?
 
     public init(
       video: String, width: Double, height: Double, duration: Double, captureStart: Double?, camera: Plan.Camera?,

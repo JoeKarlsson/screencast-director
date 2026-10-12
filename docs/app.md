@@ -54,6 +54,8 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 
 Search the sidebar by name or by anything said in a recording. Right-click a recording to rename it or have the AI suggest a name. With **Name new recordings from what you said** on (the default), new recordings get named after analysis.
 
+**File > Join Recordings…** joins two or more takes (same screen size, oldest first) into a new recording with a fresh draft edit: one `screen.mp4`, a `camera.mp4` when every take has a camera, and the transcript, clicks, loudness and motion shifted onto the joined clock. Videos are copied without re-encoding when possible, and the originals are untouched. No cut or zoom runs across a join (`source.json` lists them in `joins`).
+
 ## Profiles and formats
 
 - **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed), and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Style tab, choose a default in Settings, or save any video's look as a profile. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos.
@@ -93,12 +95,14 @@ They follow Screen Studio's defaults. ⌘/ lists them all.
 
 ## Headless
 
-`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore` and `profile` without the UI:
+`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore`, `profile`, `join` and `gif` without the UI:
 
 ```sh
 director render <project-dir> --preset vertical
 director publish <project-dir> --title "My demo"
 director pauses <project-dir> tight
 director frame-camera <project-dir>
+director join <new-dir> <take1> <take2>          # join takes into a new project
+director gif <project-dir> --from 10 --to 18     # a GIF of the edited video (output seconds)
 director cut <project-dir> 0.94 2.88    # source seconds; restore takes the same arguments
 ```
