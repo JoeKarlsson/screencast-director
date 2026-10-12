@@ -35,6 +35,24 @@ GUI tools like Screen Studio and [Recordly](https://github.com/webadderallorg/Re
 - **Formats:** 16:9, 9:16, 1:1 or 4:5 at 720p to 4K. Vertical, square and feed crop the screen and pan to follow zooms and clicks, with the camera stacked below.
 - **Export** renders the current format or any preset (YouTube 4K and 1080p; Shorts, Reels and TikTok; Square; Feed) to its own file without changing the plan. `director render <dir> --preset vertical` does the same headless.
 
+**AI editing (Settings > AI editing).**
+
+- **Claude Code** (default): uses your Claude login, so no API key. It can run `director describe` and `still` to check its own work.
+- **Anthropic API:** your key, stored in the Keychain. Defaults to `claude-opus-5-5`, with server-side refusal fallback.
+- **Any OpenAI-compatible endpoint:** OpenRouter, OpenAI, a gateway such as LiteLLM, or Ollama. Fill in the base URL, model and an optional key.
+
+The API providers send the timeline, transcript and plan in one request and get back the whole updated plan. Every AI edit is one ⌘Z away.
+
+**Publishing (Publish… in the editor)** writes into `publish/` in the recording's folder:
+
+- `captions.srt`, timed to the edited video
+- `chapters.txt`, from your titles: YouTube needs at least three, each at least 10 s long
+- `transcript.txt` with timestamps
+- `description.md`: title options, a description, chapters and tags, drafted by your AI provider
+- `thumbnail-N.png`: the clearest smiling camera frames (Vision face quality, plus CoreImage smile and blink detection), with you cut out of the background next to the screen and the title in your profile's style
+
+`director publish <dir> --title "..."` does everything except the description, headless.
+
 **Keyboard shortcuts** follow Screen Studio's defaults, read from its own action table:
 
 - **Playback:** Space plays, J/K/L shuttle, ← → step a frame (⇧ for a second), ⌘← ⌘→ jump to the start or end.

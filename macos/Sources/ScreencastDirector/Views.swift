@@ -94,6 +94,7 @@ struct EditorView: View {
       .frame(minWidth: 560)
       InspectorView(project: project, ui: editor.inspector)
     }
+    .sheet(isPresented: $project.showPublish) { PublishView(project: project) }
   }
 
   private var header: some View {
@@ -115,6 +116,9 @@ struct EditorView: View {
         .menuIndicator(.hidden)
         .fixedSize()
       if project.hasPlan {
+        Button("Publish…") { project.openPublish() }
+          .disabled(project.busy)
+          .help("Captions (SRT), chapters, a YouTube description draft and thumbnails")
         Menu {
           Button("Export Current Format") { project.export() }
           Divider()
@@ -224,4 +228,77 @@ struct SettingsView: View {
 
 final class SettingsUI: ObservableObject {
   @Published var testResult = ""
+}
+
+struct PublishView: View {
+  @ObservedObject var project: ProjectModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack {
+        Text("Publish").font(.title2.bold())
+        Spacer()
+        if project.busy { ProgressView().controlSize(.small) }
+        Text(project.status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+      }
+      TextField("Video title (used on thumbnails and in the description)", text: $project.publishTitle)
+        .textFieldStyle(.roundedBorder)
+      HStack {
+        Button("Make Captions, Chapters & Thumbnails", action: project.makePublishKit)
+        Button("Draft YouTube Description with \(AISettings.shared.provider.shortName)", action: project.draftDescription)
+        Spacer()
+        Button("Show in Finder") {
+          try? FileManager.default.createDirectory(at: project.publishDir, withIntermediateDirectories: true)
+          NSWorkspace.shared.open(project.publishDir)
+        }
+      }
+      .disabled(project.busy)
+
+      let thumbs = project.publishFiles.filter { $0.pathExtension == "png" }
+      if !thumbs.isEmpty {
+        Text("Thumbnails: your clearest smiling camera frames, with the title in your profile's style").font(.headline)
+        ScrollView(.horizontal) {
+          HStack(spacing: 10) {
+            ForEach(thumbs, id: \.self) { url in
+              if let img = NSImage(contentsOf: url) {
+                Image(nsImage: img).resizable().aspectRatio(16 / 9, contentMode: .fit).frame(height: 150)
+                  .clipShape(RoundedRectangle(cornerRadius: 8))
+                  .onTapGesture { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                  .help(url.lastPathComponent)
+              }
+            }
+          }
+        }
+      }
+      let other = project.publishFiles.filter { $0.pathExtension != "png" }
+      if !other.isEmpty {
+        Text("Files").font(.headline)
+        ForEach(other, id: \.self) { url in
+          HStack {
+            Text(url.lastPathComponent).font(.system(.body, design: .monospaced))
+            Spacer()
+            Button("Copy") {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString((try? String(contentsOf: url, encoding: .utf8)) ?? "", forType: .string)
+            }
+            Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+          }
+        }
+      }
+      if !project.descriptionText.isEmpty {
+        Text("Description draft").font(.headline)
+        ScrollView {
+          Text(project.descriptionText).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: 140)
+      }
+      Spacer(minLength: 0)
+      HStack {
+        Spacer()
+        Button("Done") { project.showPublish = false }.keyboardShortcut(.defaultAction)
+      }
+    }
+    .padding(20)
+    .frame(width: 760, height: 620)
+  }
 }

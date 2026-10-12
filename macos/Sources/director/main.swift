@@ -22,6 +22,7 @@ let usage = """
     director render   <dir> [out.mp4]
     director still    <dir> <frame> <out.png> [--preset id]
     director profile  <dir> <profileDir>
+    director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
 
@@ -41,7 +42,8 @@ func planFor(_ project: Project) throws -> Plan {
   guard i + 1 < args.count, let preset = ExportPreset.all.first(where: { $0.id == args[i + 1] }) else { fail(usage) }
   return preset.applied(to: plan)
 }
-let positional = args.enumerated().filter { i, a in a != "--preset" && (i == 0 || args[i - 1] != "--preset") }.map(\.element)
+let flags: Set<String> = ["--preset", "--title"]
+let positional = args.enumerated().filter { i, a in !flags.contains(a) && (i == 0 || !flags.contains(args[i - 1])) }.map(\.element)
 
 func stillFrame(_ project: Project, _ plan: Plan, frame: Int, to out: URL) async throws {
   let built = try await buildComposition(project: project, plan: plan)
@@ -89,6 +91,11 @@ do {
     let project = try Project.load(dir)
     try await stillFrame(project, try planFor(project), frame: frame, to: URL(fileURLWithPath: positional[3]))
     print(positional[3])
+  case "publish":
+    let project = try Project.load(dir)
+    let title = args.firstIndex(of: "--title").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? dir.lastPathComponent
+    let files = try await Publish.run(project: project, plan: try planFor(project), title: title) { print($0) }
+    files.forEach { print("wrote \($0.path)") }
   case "profile":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)

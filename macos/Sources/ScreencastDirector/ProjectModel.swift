@@ -30,6 +30,10 @@ final class ProjectModel: ObservableObject {
   @Published private(set) var claudeLog = ""
   @Published private(set) var canUndo = false
   @Published private(set) var canRedo = false
+  @Published var showPublish = false
+  @Published var publishTitle = ""
+  @Published private(set) var publishFiles: [URL] = []
+  @Published private(set) var descriptionText = ""
 
   private var undoStack: [Plan] = [] { didSet { canUndo = !undoStack.isEmpty } }
   private var redoStack: [Plan] = [] { didSet { canRedo = !redoStack.isEmpty } }
@@ -362,6 +366,46 @@ final class ProjectModel: ObservableObject {
       }
       if let img { thumbnails[key] = img }
       done(img)
+    }
+  }
+
+  // MARK: Publishing
+
+  var publishDir: URL { dir.appendingPathComponent("publish") }
+
+  func openPublish() {
+    if publishTitle.isEmpty { publishTitle = plan?.callouts.first?.text ?? name }
+    publishFiles = (try? FileManager.default.contentsOfDirectory(at: publishDir, includingPropertiesForKeys: nil))?
+      .sorted { $0.lastPathComponent < $1.lastPathComponent } ?? []
+    descriptionText = (try? String(contentsOf: publishDir.appendingPathComponent("description.md"), encoding: .utf8)) ?? ""
+    showPublish = true
+  }
+
+  /// Captions, chapters, transcript and thumbnails into publish/.
+  func makePublishKit() {
+    run("Making captions and thumbnails…") { [self] in
+      guard let plan, let project else { return }
+      let files = try await Publish.run(project: project, plan: plan, title: publishTitle) { msg in
+        Task { @MainActor in self.status = msg }
+      }
+      publishFiles = files
+      status = "Wrote \(files.count) files to publish/"
+    }
+  }
+
+  func draftDescription() {
+    let ai = AISettings.shared
+    run("\(ai.provider.shortName) is writing the description…") { [self] in
+      guard let plan, let project else { return }
+      let scene = Scene(plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts)
+      let user = "Video title: \(publishTitle)\nLength: \(fmtTime(Double(scene.frameCount) / Double(scene.fps)))\n\nTranscript with timestamps:\n\(Publish.timedTranscript(scene))"
+      let text = try await AIText.generate(system: AIText.descriptionSystem, user: user, settings: ai)
+      try FileManager.default.createDirectory(at: publishDir, withIntermediateDirectories: true)
+      let url = publishDir.appendingPathComponent("description.md")
+      try text.write(to: url, atomically: true, encoding: .utf8)
+      descriptionText = text
+      if !publishFiles.contains(url) { publishFiles.append(url) }
+      status = "Wrote publish/description.md"
     }
   }
 

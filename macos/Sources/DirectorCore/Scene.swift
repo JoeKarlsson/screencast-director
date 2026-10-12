@@ -34,8 +34,12 @@ public final class Scene: @unchecked Sendable {
   public var fps: Int { plan.output.fps }
   public var frameCount: Int { totalFrames(mapped) }
 
+  /// Transcript words (source times), for captions and SRT export.
+  public let words: [Word]
+
   public init(plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent]) {
     self.plan = plan
+    self.words = words
     let fps = plan.output.fps
     mapped = mapSegments(plan.segments, fps: fps)
     zooms = zoomsToOut(plan.zooms, mapped, fps: fps)

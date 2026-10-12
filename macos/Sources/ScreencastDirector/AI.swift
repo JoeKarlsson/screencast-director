@@ -230,3 +230,39 @@ enum APIEditor {
     }
   }
 }
+
+/// Plain text generation with whichever provider is selected (used for YouTube descriptions).
+enum AIText {
+  static func generate(system: String, user: String, settings: AISettings) async throws -> String {
+    switch settings.provider {
+    case .anthropic: return try await APIEditor.anthropic(system: system, user: user, settings: settings)
+    case .openAICompatible: return try await APIEditor.openAI(system: system, user: user, settings: settings)
+    case .claudeCode:
+      guard let claude = Claude.executable else { throw AIError.notConfigured("Claude Code isn't installed.") }
+      let p = Process()
+      p.executableURL = claude
+      p.arguments = ["-p", user, "--append-system-prompt", system]
+      let out = Pipe()
+      p.standardOutput = out
+      p.standardError = Pipe()
+      try p.run()
+      let data = out.fileHandleForReading.readDataToEndOfFile()
+      p.waitUntilExit()
+      guard p.terminationStatus == 0 else { throw AIError.http(Int(p.terminationStatus), "claude exited with an error") }
+      return String(decoding: data, as: UTF8.self)
+    }
+  }
+
+  static let descriptionSystem = """
+    You write YouTube video descriptions for screen-recorded demos. Write plainly: no hype, no emojis, no hashtags in the body, and never use an em dash (use a comma, colon or new sentence instead).
+    Output Markdown with exactly these sections:
+    ## Title options
+    Three titles, each under 70 characters.
+    ## Description
+    Two or three short paragraphs: what the video shows and who it helps.
+    ## Chapters
+    YouTube chapter lines "M:SS Name", starting with 0:00, at least three, each at least 10 seconds apart, using the timestamps in the transcript. If the video is too short for three, write "Too short for chapters."
+    ## Tags
+    Ten comma-separated tags.
+    """
+}
