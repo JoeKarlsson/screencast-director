@@ -28,6 +28,13 @@ GUI tools like Screen Studio and [Recordly](https://github.com/webadderallorg/Re
 - **Inspector:** the Selection tab sets clip speed, zoom level and focus (drag on a frame of the recording), a layout's mode, or a title's text. The Style tab sets split screen, background, padding, corners, zoom speed, captions, overlays and output size.
 - **Undo:** ⌘Z undoes any edit, including Claude's.
 
+**Profiles and formats.**
+
+- **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. Pick one per video in the Style tab, choose a default for new recordings in Settings, or save any video's look as a profile.
+  - Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/profile.json` with their fonts and logos. They're kept out of this repo because brand fonts are licensed.
+- **Formats:** 16:9, 9:16, 1:1 or 4:5 at 720p to 4K. Vertical, square and feed crop the screen and pan to follow zooms and clicks, with the camera stacked below.
+- **Export** renders the current format or any preset (YouTube 4K and 1080p; Shorts, Reels and TikTok; Square; Feed) to its own file without changing the plan. `director render <dir> --preset vertical` does the same headless.
+
 **Keyboard shortcuts** follow Screen Studio's defaults, read from its own action table:
 
 - **Playback:** Space plays, J/K/L shuttle, ← → step a frame (⇧ for a second), ⌘← ⌘→ jump to the start or end.

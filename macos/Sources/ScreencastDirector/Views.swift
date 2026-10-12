@@ -114,11 +114,26 @@ struct EditorView: View {
       } label: { Image(systemName: "ellipsis.circle") }
         .menuIndicator(.hidden)
         .fixedSize()
-      Button(project.hasPlan ? "Export" : "Analyze") {
-        if project.hasPlan { project.export() } else { project.analyzeAndPlan() }
+      if project.hasPlan {
+        Menu {
+          Button("Export Current Format") { project.export() }
+          Divider()
+          ForEach(ExportPreset.all, id: \.id) { p in Button(p.name) { project.export([p]) } }
+          Divider()
+          Button("All of the Above") { project.export(ExportPreset.all.map { Optional($0) }) }
+        } label: {
+          Text("Export")
+        } primaryAction: {
+          project.export()
+        }
+        .menuStyle(.borderedButton)
+        .fixedSize()
+        .disabled(project.busy)
+      } else {
+        Button("Analyze") { project.analyzeAndPlan() }
+          .buttonStyle(.borderedProminent)
+          .disabled(project.busy)
       }
-      .buttonStyle(.borderedProminent)
-      .disabled(project.busy)
     }
   }
 
@@ -152,6 +167,9 @@ struct SettingsView: View {
       Picker("Microphone", selection: $settings.micID) {
         Text("System default").tag("")
         ForEach(AppSettings.microphones, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
+      }
+      Picker("Profile for new recordings", selection: Binding(get: { ProfileStore.shared.defaultName }, set: { ProfileStore.shared.defaultName = $0 })) {
+        ForEach(ProfileStore.shared.names, id: \.self) { Text($0).tag($0) }
       }
       Toggle("Record camera (for split screen and the camera bubble)", isOn: $settings.useCamera)
       Picker("Camera", selection: $settings.cameraID) {

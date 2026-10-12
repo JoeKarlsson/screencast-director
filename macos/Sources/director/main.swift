@@ -10,7 +10,9 @@ import UniformTypeIdentifiers
 //   director plan     <dir> [--force]      first-draft plan.json
 //   director describe <dir>                the plan as a readable timeline
 //   director render   <dir> [out.mp4]      export (default <dir>/out.mp4)
-//   director still    <dir> <frame> <png>  one output frame, for checking an edit
+//   director still    <dir> <frame> <png> [--preset id]  one output frame, for checking an edit
+//   director profile  <dir> <profileDir>   apply a profile (look + style) to the plan
+//   director render   <dir> [out.mp4] [--preset id]   presets: youtube-4k youtube-1080 vertical square feed
 
 let usage = """
   usage:
@@ -18,7 +20,9 @@ let usage = """
     director plan     <dir> [--force]
     director describe <dir>
     director render   <dir> [out.mp4]
-    director still    <dir> <frame> <out.png>
+    director still    <dir> <frame> <out.png> [--preset id]
+    director profile  <dir> <profileDir>
+    presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
 
 func fail(_ msg: String) -> Never {
@@ -29,6 +33,15 @@ func fail(_ msg: String) -> Never {
 let args = Array(CommandLine.arguments.dropFirst())
 guard args.count >= 2 else { fail(usage) }
 let dir = URL(fileURLWithPath: args[1]).standardizedFileURL
+
+/// The plan, reshaped by --preset if given (the saved plan is untouched).
+func planFor(_ project: Project) throws -> Plan {
+  let plan = try Plan.load(project.planURL)
+  guard let i = args.firstIndex(of: "--preset") else { return plan }
+  guard i + 1 < args.count, let preset = ExportPreset.all.first(where: { $0.id == args[i + 1] }) else { fail(usage) }
+  return preset.applied(to: plan)
+}
+let positional = args.enumerated().filter { i, a in a != "--preset" && (i == 0 || args[i - 1] != "--preset") }.map(\.element)
 
 func stillFrame(_ project: Project, _ plan: Plan, frame: Int, to out: URL) async throws {
   let built = try await buildComposition(project: project, plan: plan)
@@ -64,18 +77,26 @@ do {
     print(describe(project, try Plan.load(project.planURL)))
   case "render":
     let project = try Project.load(dir)
-    let out = args.count > 2 ? URL(fileURLWithPath: args[2]) : dir.appendingPathComponent("out.mp4")
-    let built = try await buildComposition(project: project, plan: try Plan.load(project.planURL))
+    let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.mp4")
+    let built = try await buildComposition(project: project, plan: try planFor(project))
     let started = Date()
     try await export(built, to: out) { p in
       FileHandle.standardError.write(Data("\(Int(p * 100))%\n".utf8))
     }
     print(String(format: "Rendered %@ in %.1fs", out.path, Date().timeIntervalSince(started)))
   case "still":
-    guard args.count == 4, let frame = Int(args[2]) else { fail(usage) }
+    guard positional.count == 4, let frame = Int(positional[2]) else { fail(usage) }
     let project = try Project.load(dir)
-    try await stillFrame(project, try Plan.load(project.planURL), frame: frame, to: URL(fileURLWithPath: args[3]))
-    print(args[3])
+    try await stillFrame(project, try planFor(project), frame: frame, to: URL(fileURLWithPath: positional[3]))
+    print(positional[3])
+  case "profile":
+    guard positional.count == 3 else { fail(usage) }
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    let profile = try Profile.load(URL(fileURLWithPath: positional[2]))
+    profile.apply(to: &plan)
+    try plan.write(to: project.planURL)
+    print("applied profile \(profile.name)")
   default:
     fail(usage)
   }

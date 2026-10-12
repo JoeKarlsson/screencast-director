@@ -91,6 +91,9 @@ public struct Plan: Codable, Equatable {
     public var padding: Double
     public var radius: Double
     public var transition: Double
+    /// Width/height of the screen card. nil shows the whole screen; vertical and square formats
+    /// crop (e.g. 0.8 is 4:5) and pan to follow zooms and clicks.
+    public var screenAspect: Double?
   }
   public struct Captions: Codable, Equatable {
     public var enabled: Bool
@@ -110,6 +113,8 @@ public struct Plan: Codable, Equatable {
   public var clickRipples: Bool
   public var shortcutChips: Bool
   public var callouts: [Callout]
+  /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
+  public var look: Look?
 
   public static func load(_ url: URL) throws -> Plan {
     try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url))

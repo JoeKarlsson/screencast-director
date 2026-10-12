@@ -97,12 +97,15 @@ public struct CameraState: Equatable {
   public var y: Double
 }
 
-public func cameraAt(_ f: Int, zooms: [OutZoom], halfWidth: Int) -> CameraState {
+/// `base` is where the camera rests outside zooms (the center, or the last click when a cropped
+/// vertical frame should follow the action).
+public func cameraAt(_ f: Int, zooms: [OutZoom], halfWidth: Int, base: ((Int) -> (Double, Double))? = nil) -> CameraState {
   let v = smooth(f, halfWidth: halfWidth) { frame in
     var hit: OutZoom?
     for z in zooms where Double(frame) >= z.startF && Double(frame) < z.endF { hit = z }
     if let hit { return [hit.scale, hit.x, hit.y] }
-    return [1, 0.5, 0.5]
+    let b = base?(frame) ?? (0.5, 0.5)
+    return [1, b.0, b.1]
   }
   let half = 0.5 / max(v[0], 1)
   return CameraState(scale: v[0], x: min(max(v[1], half), 1 - half), y: min(max(v[2], half), 1 - half))
@@ -140,13 +143,46 @@ func fit(_ area: (x: Double, y: Double, w: Double, h: Double), aspect: Double) -
 
 public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let W = Double(plan.output.width), H = Double(plan.output.height)
-  let pad = plan.style.padding * H
-  let aspect = plan.source.width / plan.source.height
-  let r = plan.style.radius
+  let pad = plan.style.padding * min(W, H)
+  let aspect = plan.style.screenAspect ?? plan.source.width / plan.source.height
+  let r = plan.style.radius * min(W, H) / 1080
   let full = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad)
+  func box(_ f: (x: Double, y: Double, w: Double, h: Double), r: Double, opacity: Double = 1) -> Box {
+    Box(x: f.x, y: f.y, w: f.w, h: f.h, r: r, opacity: opacity)
+  }
+
+  if H > W * 1.05 {
+    // Portrait: screen on top, camera stacked under it, captions below that.
+    let captionSpace = H * 0.16
+    let bubble = (W * 0.34).rounded()
+    let screenArea = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad - captionSpace)
+    let s = fit(screenArea, aspect: aspect)
+    let screenTop = box((s.x, pad + (screenArea.h - s.h) * 0.3, s.w, s.h), r: r)
+    let withBubbleArea = (x: pad, y: pad, w: W - 2 * pad, h: screenArea.h - bubble - pad)
+    let s2 = fit(withBubbleArea, aspect: aspect)
+    let screenPip = box((s2.x, pad + (withBubbleArea.h - s2.h) * 0.3, s2.w, s2.h), r: r)
+    let pipCam = Box(x: (W - bubble) / 2, y: screenPip.y + screenPip.h + pad, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
+    switch mode {
+    case .screen:
+      let b = bubble * 0.6
+      return LayoutBoxes(
+        screen: screenTop, cam: Box(x: (W - b) / 2, y: screenTop.y + screenTop.h + pad, w: b, h: b, r: b / 2, opacity: 0))
+    case .pip:
+      return LayoutBoxes(screen: screenPip, cam: pipCam)
+    case .side:
+      let half = (x: pad, y: pad, w: W - 2 * pad, h: (screenArea.h - pad) * 0.55)
+      let s3 = fit(half, aspect: aspect)
+      let top = box((s3.x, pad, s3.w, s3.h), r: r)
+      let camY = top.y + top.h + pad
+      return LayoutBoxes(screen: top, cam: Box(x: pad, y: camY, w: W - 2 * pad, h: max(1, pad + screenArea.h - camY), r: r, opacity: 1))
+    case .camera:
+      return LayoutBoxes(screen: box((s.x, s.y, s.w, s.h), r: r, opacity: 0), cam: box((full.x, full.y, full.w, full.h - captionSpace), r: r))
+    }
+  }
+
   let s = fit(full, aspect: aspect)
   let screenFull = Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1)
-  let bubble = (H * 0.24).rounded()
+  let bubble = (min(W, H) * 0.24).rounded()
   let pipCam = Box(x: W - pad - bubble, y: H - pad - bubble, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
 
   switch mode {

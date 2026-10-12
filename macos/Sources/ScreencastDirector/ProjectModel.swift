@@ -385,7 +385,8 @@ final class ProjectModel: ObservableObject {
   func analyzeAndPlan(force: Bool = false) {
     run("Analyzing…") { [self] in
       try await analyze(dir) { msg in Task { @MainActor in self.status = msg } }
-      let draft = buildPlan(try Project.load(dir))
+      var draft = buildPlan(try Project.load(dir))
+      ProfileStore.shared.defaultProfile?.apply(to: &draft)
       if let current = plan, force {
         undoStack.append(current)
         commit(draft)
@@ -397,14 +398,44 @@ final class ProjectModel: ObservableObject {
     }
   }
 
-  func export() {
+  /// Exports the current format, or a preset (the plan itself isn't changed). Each preset gets its own file.
+  func export(_ presets: [ExportPreset?] = [nil]) {
     run("Exporting…") { [self] in
-      let built = try await buildComposition(project: try Project.load(dir), plan: try Plan.load(planURL))
-      try await DirectorCore.export(built, to: outURL) { p in
-        Task { @MainActor in self.status = "Exporting… \(Int(p * 100))%" }
+      var files: [URL] = []
+      for (n, preset) in presets.enumerated() {
+        var plan = try Plan.load(planURL)
+        if let preset { plan = preset.applied(to: plan) }
+        let url = preset.map { dir.appendingPathComponent("out-\($0.id).mp4") } ?? outURL
+        let label = preset?.name ?? "current format"
+        let built = try await buildComposition(project: try Project.load(dir), plan: plan)
+        try await DirectorCore.export(built, to: url) { p in
+          Task { @MainActor in
+            self.status = "Exporting \(label)\(presets.count > 1 ? " (\(n + 1)/\(presets.count))" : "")… \(Int(p * 100))%"
+          }
+        }
+        files.append(url)
       }
-      status = "Exported out.mp4"
-      NSWorkspace.shared.activateFileViewerSelecting([outURL])
+      status = "Exported \(files.map(\.lastPathComponent).joined(separator: ", "))"
+      NSWorkspace.shared.activateFileViewerSelecting(files)
+    }
+  }
+
+  func applyProfile(_ name: String) {
+    guard let profile = ProfileStore.shared.load(name) else { return }
+    apply { profile.apply(to: &$0) }
+    status = "Applied profile \(name)"
+  }
+
+  /// Changes the video's shape; vertical, square and feed crop the screen and follow the action.
+  func setFormat(aspect: Aspect? = nil, resolution: Resolution? = nil) {
+    guard let plan else { return }
+    let a = aspect ?? Aspect.of(plan.output)
+    let r = resolution ?? Resolution.of(plan.output)
+    let size = outputSize(a, r)
+    apply {
+      $0.output.width = size.width
+      $0.output.height = size.height
+      if aspect != nil { $0.style.screenAspect = ExportPreset.all.first { $0.aspect == a }?.screenAspect }
     }
   }
 

@@ -185,6 +185,36 @@ struct InspectorView: View {
 
   @ViewBuilder
   private func stylePane(_ plan: Plan) -> some View {
+    header("Profile", "Branded look: background, frame, fonts, colors and logo.")
+    Menu(plan.look?.name ?? "Built-in look") {
+      ForEach(ProfileStore.shared.names, id: \.self) { name in
+        Button(name) { project.applyProfile(name) }
+      }
+      Divider()
+      Button("Save This Look as a Profile…") { ProfileStore.shared.promptSave(from: plan) }
+      Button("Open Profiles Folder") { ProfileStore.shared.openFolder() }
+    }
+    .onAppear { ProfileStore.shared.refresh() }
+
+    Divider()
+    header("Format")
+    Picker("Shape", selection: Binding(get: { Aspect.of(plan.output) }, set: { project.setFormat(aspect: $0) })) {
+      ForEach(Aspect.allCases, id: \.self) { Text($0.label).tag($0) }
+    }
+    Picker("Resolution", selection: Binding(get: { Resolution.of(plan.output) }, set: { project.setFormat(resolution: $0) })) {
+      ForEach(Resolution.allCases, id: \.self) { Text($0.label).tag($0) }
+    }
+    Picker("Screen", selection: bind("screenAspect", { $0.style.screenAspect ?? 0 }, { $0.style.screenAspect = $1 == 0 ? nil : $1 })) {
+      Text("Whole screen").tag(0.0)
+      Text("Crop 4:3").tag(4.0 / 3)
+      Text("Crop 5:4").tag(1.25)
+      Text("Crop square").tag(1.0)
+      Text("Crop 4:5").tag(0.8)
+    }
+    Text("\(plan.output.width)×\(plan.output.height). Cropped screens pan to follow zooms and clicks. The Export menu also renders other formats without changing this one.")
+      .font(.caption).foregroundStyle(.secondary)
+
+    Divider()
     header("Split screen")
     layoutPicker(bind("defaultLayout", { $0.defaultLayout }, { $0.defaultLayout = $1 }), hasCamera: plan.camera != nil)
     Text("The default; add Layout ranges on the timeline to switch for part of the video.").font(.caption).foregroundStyle(.secondary)
@@ -228,13 +258,7 @@ struct InspectorView: View {
     Toggle("Shortcut labels (⌘K)", isOn: bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
 
     Divider()
-    header("Output")
-    Picker("Resolution", selection: bind("res", { $0.output.width }, { p, w in p.output.width = w; p.output.height = w * 9 / 16 })) {
-      Text("720p").tag(1280)
-      Text("1080p").tag(1920)
-      Text("1440p").tag(2560)
-      Text("4K").tag(3840)
-    }
+    header("Frame rate")
     Picker("Frame rate", selection: bind("fps", { $0.output.fps }, { $0.output.fps = $1 })) {
       Text("30 fps").tag(30)
       Text("60 fps").tag(60)
