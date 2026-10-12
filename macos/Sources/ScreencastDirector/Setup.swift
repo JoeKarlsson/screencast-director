@@ -151,6 +151,11 @@ struct SetupView: View {
           }
           Text("After allowing Screen Recording or Input Monitoring, macOS may ask you to quit and reopen the app.")
             .font(.caption).foregroundStyle(.secondary)
+          Link(
+            "Privacy: what's recorded and what leaves your Mac",
+            destination: URL(string: "https://github.com/JoeKarlsson/screencast-director/blob/main/docs/privacy.md")!
+          )
+          .font(.caption)
         }
       }
       .padding(28)

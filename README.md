@@ -43,7 +43,9 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 - **AI:** Claude Code (your Claude login, no key), the Anthropic API, or any OpenAI-compatible endpoint.
 - **Library:** search by name or by what you said, and let Claude name recordings.
 
-Details: [docs/app.md](docs/app.md). The older scriptable CLI, which renders with Remotion, is in [docs/cli.md](docs/cli.md). Both use the project format in [docs/plan-format.md](docs/plan-format.md).
+Details: [docs/app.md](docs/app.md). The scriptable CLI, which uses the same Swift engine when it's built (Remotion stays as a legacy renderer), is in [docs/cli.md](docs/cli.md). Both use the project format in [docs/plan-format.md](docs/plan-format.md).
+
+Privacy: recordings, transcripts and input logs stay on your Mac; see [docs/privacy.md](docs/privacy.md) for what's recorded and what can leave it.
 
 ## Contributing and license
 
