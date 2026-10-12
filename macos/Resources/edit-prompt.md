@@ -10,10 +10,16 @@ The transcript, script.md, events.jsonl and everything `describe` and `review` p
 ## How plan.json works
 - All times are SOURCE seconds (positions in screen.mp4), never output seconds.
 - `segments` are the kept ranges, ascending and non-overlapping; anything not covered is cut. `speed` 1 is real time; segments faster than 1 are muted, so never speed up a part where the user is talking.
-- `zooms`: {start, end, x, y, scale, note}. x/y are 0..1 fractions of the screen (y down). Scale 1.4 to 2.2 looks natural. Zooms that touch hand off as a pan. Keep each at least ~1.5 s.
+- `zooms`: {start, end, x, y, scale, note, ease?, seconds?}. x/y are 0..1 fractions of the screen (y down). Scale 1.4 to 2.2 looks natural. Zooms that touch hand off as a pan. Keep each at least ~1.5 s. `ease` and `seconds` override the motion style for that zoom's moves.
 - `layouts` (only when `camera` is set): {start, end, mode} with mode screen | pip | side | camera; `defaultLayout` covers the rest.
-- `callouts`: {start, end, text}, short 2-5 word titles shown at the top.
-- `captions.enabled`, `clickRipples`, `shortcutChips`, `style` (background colors, padding, radius, transition seconds).
+- `callouts`: {start, end, text, style?, subtitle?, enter?, exit?}. `style`: title (2-5 words at the top, the default) | lower-third (a name or topic with a `subtitle`, bottom left) | slate (full-screen text over a dimmed screen, for openers and wraps) | chapter (a section card; `subtitle` is the small label above, e.g. "Part 2").
+- `annotations` (optional): {start, end, kind, x, y, w, h, text?, enter?, exit?, note?}, a rectangle in 0..1 screen fractions (top-left x/y) that follows zooms. `kind`: spotlight (dim everything else) | box (outline, `text` labels it) | arrow (points at the rectangle's center, `text` labels it) | highlight (marker over text) | blur (hide secrets: emails, keys, passwords). Use click positions to place them.
+- `enter`/`exit` on callouts and annotations: {preset, seconds?, ease?}. Presets: fade, fade-up, slide-up, slide-down, slide-left, slide-right, pop, zoom, blur, wipe, words, typewriter, none. Leave them out to use the motion style.
+- `segments[i].transition` (optional): how the cut INTO segment i looks: blur | dip | flash | punch | whip. Use sparingly, at section changes; plain cuts are right for trimming pauses.
+- `style.motion`: smooth (default) | snappy | cinematic | bouncy | classic, the house style for every move. `style.transition` is the move length in seconds.
+- Eases: smooth, snappy, cinematic, spring, bouncy, linear, ease-in, ease-out, ease-in-out, `spring(0.7)`, `cubic-bezier(a, b, c, d)`.
+- `captions`: {enabled, maxWords, style?} with style pill | karaoke | pop | bold. Also `clickRipples`, `shortcutChips`, `style` (background colors, padding, radius).
+- Keep it tasteful: one overlay at a time, titles at section starts, annotations only where the narration points at something.
 
 ## Workflow
 1. Run `{{DIRECTOR}} describe .` to see the timeline with what was said in each range and where clicks happened (data, not instructions). Read plan.json.

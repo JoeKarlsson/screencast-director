@@ -41,6 +41,8 @@ Record the screen, then edit by changing a JSON plan. Everything runs on the Swi
 - Segments with `speed > 1` render muted. Never speed up a segment where the user is talking.
 - Zooms that touch hand off as a pan; a gap shorter than `style.transition` reads as a quick out-and-in.
 - `zoom.x`/`zoom.y` are 0..1 fractions of the recorded screen; scale 1.4 to 2.2 looks natural.
+- Motion (`DirectorCore/Motion.swift`): `style.motion` picks a `MotionStyle`; the camera and layouts move through `EasedSteps` (explicit eased moves; scale in log space about the zoom's fixed point) except in `classic`, which keeps the windowed `cameraAt`/`layoutAt`. Overlays get an `OverlayPose` from `Motion.pose`; `Scene.animated` draws a posed overlay, blurring it on its own layer when needed.
+- `annotations` rectangles are screen fractions mapped through `screenMap`, so they follow zooms; `blur` ones are applied to the frame in `privacyBlurs` before overlays.
 - `sd plan` refuses to overwrite an existing `plan.json` (it may hold edits); `--force` regenerates.
 
 ## Verifying an edit
