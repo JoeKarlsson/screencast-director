@@ -160,6 +160,53 @@ struct Playback {
     expect(size.0 == Int(built.videoComposition.renderSize.width), "frames are the render size")
     expect(minLuma > 30, "no black frames (darkest mean luma \(String(format: "%.1f", minLuma)))")
 
+    // Intro and outro cards add time with no source video: every track must still end exactly
+    // where the instruction does, and playback must run through the outro.
+    do {
+      let project = try Project.load(dir)
+      var plan = built.scene.plan
+      plan.intro = Card(duration: 1, title: "Intro")
+      plan.outro = Card(duration: 1, title: "Outro")
+      let box = ResultBox<BuiltComposition>()
+      let sem = DispatchSemaphore(value: 0)
+      let planCopy = plan
+      Task.detached {
+        do { box.value = try await buildComposition(project: project, plan: planCopy) } catch { box.error = error }
+        sem.signal()
+      }
+      while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+      if let e = box.error { throw e }
+      let carded = box.value!
+      expect(carded.scene.frameCount == 135, "cards add 30 frames each (got \(carded.scene.frameCount))")
+      let end = carded.videoComposition.instructions.last!.timeRange.end
+      for t in carded.asset.tracks {
+        expect(t.timeRange.end == end, "\(t.mediaType.rawValue) track \(t.trackID) ends at the instruction end (\(t.timeRange.end.seconds)s vs \(end.seconds)s)")
+      }
+      let item = carded.playerItem()
+      let out = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+      item.add(out)
+      let player = AVPlayer(playerItem: item)
+      player.isMuted = true
+      spin(10) { item.status != .unknown }
+      expect(item.status == .readyToPlay, "carded player item is ready")
+      player.play()
+      var cardFrames = 0
+      let t0 = Date()
+      while Date().timeIntervalSince(t0) < 8, player.currentTime().seconds < 4.4 {
+        RunLoop.main.run(until: Date().addingTimeInterval(1.0 / 60))
+        let now = out.itemTime(forHostTime: CACurrentMediaTime())
+        if out.hasNewPixelBuffer(forItemTime: now), out.copyPixelBuffer(forItemTime: now, itemTimeForDisplay: nil) != nil,
+          now.seconds < 1 || now.seconds >= 3.5
+        {
+          cardFrames += 1
+        }
+      }
+      player.pause()
+      expect(cardFrames >= 20, "intro and outro frames played (\(cardFrames)), reached \(String(format: "%.2f", player.currentTime().seconds))s")
+    } catch {
+      expect(false, "carded composition: \(error)")
+    }
+
     if failures > 0 {
       print("\(failures) playback check(s) failed")
       exit(1)

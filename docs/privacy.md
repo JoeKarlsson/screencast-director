@@ -29,7 +29,7 @@ Speech is transcribed on your Mac with whisper.cpp. Your audio is never sent any
 Only two things, and only when you ask for them:
 
 1. **AI edits and writing help.** When you ask the AI to change an edit, or to write a title, description or chapters, the request goes to the provider you chose in Settings: Claude Code (your Claude login), the Anthropic API, or an OpenAI-compatible endpoint (which can be a local one, such as Ollama). The request contains your instruction, the transcript, a text timeline of the edit and `plan.json`. Claude Code can also render still frames of the edit and look at them, which sends those images to Anthropic. Video and audio files are never sent. API keys are stored in your macOS Keychain.
-2. **Uploads you start.** If you upload or share an export, that file goes to the service you picked, and nothing else does.
+2. **Uploads you start.** **Upload and Copy Link** sends the one file you pick to the S3-compatible bucket set in Settings > Sharing (its keys are in your Keychain), and nothing else goes with it.
 
 Nothing is sent in the background.
 
