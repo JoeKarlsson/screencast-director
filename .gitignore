@@ -5,3 +5,6 @@ logger/bin/
 out/
 .DS_Store
 sd.env
+macos/.build/
+macos/.whisper/
+dist/

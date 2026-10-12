@@ -1,0 +1,200 @@
+import Foundation
+
+// Port of src/timeline.ts: segment mapping and Hann-window smoothing. Keep the two in step.
+
+public struct MappedSegment: Equatable {
+  public var start: Double
+  public var end: Double
+  public var speed: Double
+  public var note: String?
+  /// First output frame of this segment.
+  public var outStart: Int
+  public var frames: Int
+}
+
+public func mapSegments(_ segments: [Segment], fps: Int) -> [MappedSegment] {
+  var out: [MappedSegment] = []
+  var outStart = 0
+  for s in segments.sorted(by: { $0.start < $1.start }) {
+    let frames = Int(((s.end - s.start) / s.speed * Double(fps)).rounded())
+    if frames < 1 { continue }
+    out.append(MappedSegment(start: s.start, end: s.end, speed: s.speed, note: s.note, outStart: outStart, frames: frames))
+    outStart += frames
+  }
+  return out
+}
+
+public func totalFrames(_ mapped: [MappedSegment]) -> Int {
+  guard let last = mapped.last else { return 1 }
+  return last.outStart + last.frames
+}
+
+/// Output frame (fractional) for a source time, or nil if that moment is cut.
+public func srcToOut(_ mapped: [MappedSegment], _ t: Double, fps: Int) -> Double? {
+  for s in mapped where t >= s.start && t < s.end {
+    return Double(s.outStart) + (t - s.start) * Double(fps) / s.speed
+  }
+  return nil
+}
+
+/// Like srcToOut, but a cut moment snaps to the next kept frame (or the previous one if `before`).
+public func srcToOutClamped(_ mapped: [MappedSegment], _ t: Double, fps: Int, before: Bool = false) -> Double {
+  if let exact = srcToOut(mapped, t, fps: fps) { return exact }
+  if before {
+    for s in mapped.reversed() where s.end <= t { return Double(s.outStart + s.frames) }
+    return 0
+  }
+  for s in mapped where s.start >= t { return Double(s.outStart) }
+  return Double(totalFrames(mapped))
+}
+
+public func outToSrc(_ mapped: [MappedSegment], _ f: Double, fps: Int) -> Double? {
+  for s in mapped where f >= Double(s.outStart) && f < Double(s.outStart + s.frames) {
+    return s.start + (f - Double(s.outStart)) / Double(fps) * s.speed
+  }
+  return nil
+}
+
+/// Averages a step function under a Hann window, turning steps into eased transitions
+/// and back-to-back zooms into pans.
+public func smooth(_ f: Int, halfWidth: Int, _ sample: (Int) -> [Double]) -> [Double] {
+  if halfWidth < 1 { return sample(f) }
+  var acc: [Double] = []
+  var total = 0.0
+  for d in -halfWidth...halfWidth {
+    let w = 0.5 + 0.5 * cos(Double.pi * Double(d) / Double(halfWidth + 1))
+    let v = sample(f + d)
+    if acc.isEmpty { acc = Array(repeating: 0, count: v.count) }
+    for i in v.indices { acc[i] += v[i] * w }
+    total += w
+  }
+  return acc.map { $0 / total }
+}
+
+public struct OutZoom: Equatable {
+  public var startF: Double
+  public var endF: Double
+  public var x: Double
+  public var y: Double
+  public var scale: Double
+}
+
+public func zoomsToOut(_ zooms: [Zoom], _ mapped: [MappedSegment], fps: Int) -> [OutZoom] {
+  zooms
+    .map {
+      OutZoom(
+        startF: srcToOutClamped(mapped, $0.start, fps: fps),
+        endF: srcToOutClamped(mapped, $0.end, fps: fps, before: true),
+        x: $0.x, y: $0.y, scale: $0.scale)
+    }
+    .filter { $0.endF > $0.startF }
+    .sorted { $0.startF < $1.startF }
+}
+
+public struct CameraState: Equatable {
+  public var scale: Double
+  public var x: Double
+  public var y: Double
+}
+
+public func cameraAt(_ f: Int, zooms: [OutZoom], halfWidth: Int) -> CameraState {
+  let v = smooth(f, halfWidth: halfWidth) { frame in
+    var hit: OutZoom?
+    for z in zooms where Double(frame) >= z.startF && Double(frame) < z.endF { hit = z }
+    if let hit { return [hit.scale, hit.x, hit.y] }
+    return [1, 0.5, 0.5]
+  }
+  let half = 0.5 / max(v[0], 1)
+  return CameraState(scale: v[0], x: min(max(v[1], half), 1 - half), y: min(max(v[2], half), 1 - half))
+}
+
+// MARK: Layouts
+
+/// A box in output pixels, top-left origin (like CSS), with corner radius and opacity.
+public struct Box: Equatable {
+  public var x, y, w, h, r, opacity: Double
+  var vec: [Double] { [x, y, w, h, r, opacity] }
+  init(_ v: ArraySlice<Double>) {
+    let a = Array(v)
+    (x, y, w, h, r, opacity) = (a[0], a[1], a[2], a[3], a[4], a[5])
+  }
+  public init(x: Double, y: Double, w: Double, h: Double, r: Double, opacity: Double) {
+    (self.x, self.y, self.w, self.h, self.r, self.opacity) = (x, y, w, h, r, opacity)
+  }
+}
+
+public struct LayoutBoxes: Equatable {
+  public var screen: Box
+  public var cam: Box
+}
+
+func fit(_ area: (x: Double, y: Double, w: Double, h: Double), aspect: Double) -> (x: Double, y: Double, w: Double, h: Double) {
+  var w = area.w
+  var h = w / aspect
+  if h > area.h {
+    h = area.h
+    w = h * aspect
+  }
+  return (area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h)
+}
+
+public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
+  let W = Double(plan.output.width), H = Double(plan.output.height)
+  let pad = plan.style.padding * H
+  let aspect = plan.source.width / plan.source.height
+  let r = plan.style.radius
+  let full = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad)
+  let s = fit(full, aspect: aspect)
+  let screenFull = Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1)
+  let bubble = (H * 0.24).rounded()
+  let pipCam = Box(x: W - pad - bubble, y: H - pad - bubble, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
+
+  switch mode {
+  case .screen:
+    let b = bubble * 0.6
+    return LayoutBoxes(
+      screen: screenFull, cam: Box(x: pipCam.x + bubble * 0.2, y: pipCam.y + bubble * 0.2, w: b, h: b, r: b / 2, opacity: 0))
+  case .pip:
+    return LayoutBoxes(screen: screenFull, cam: pipCam)
+  case .side:
+    let camW = (W - 3 * pad) * 0.3
+    let s = fit((pad, pad, W - 3 * pad - camW, H - 2 * pad), aspect: aspect)
+    let camH = min(s.h, camW * 16 / 9)
+    return LayoutBoxes(
+      screen: Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1),
+      cam: Box(x: W - pad - camW, y: s.y + (s.h - camH) / 2, w: camW, h: camH, r: r, opacity: 1))
+  case .camera:
+    var hidden = screenFull
+    hidden.opacity = 0
+    return LayoutBoxes(screen: hidden, cam: Box(x: full.x, y: full.y, w: full.w, h: full.h, r: r, opacity: 1))
+  }
+}
+
+public struct OutLayout: Equatable {
+  public var startF: Double
+  public var endF: Double
+  public var mode: LayoutMode
+}
+
+public func layoutsToOut(_ plan: Plan, _ mapped: [MappedSegment]) -> [OutLayout] {
+  let fps = plan.output.fps
+  return plan.layouts
+    .map {
+      OutLayout(
+        startF: srcToOutClamped(mapped, $0.start, fps: fps),
+        endF: srcToOutClamped(mapped, $0.end, fps: fps, before: true), mode: $0.mode)
+    }
+    .filter { $0.endF > $0.startF }
+}
+
+public func layoutAt(_ f: Int, plan: Plan, ranges: [OutLayout], halfWidth: Int) -> LayoutBoxes {
+  var boxes: [LayoutMode: LayoutBoxes] = [:]
+  for m in LayoutMode.allCases { boxes[m] = layoutBoxes(m, plan: plan) }
+  let v = smooth(f, halfWidth: halfWidth) { frame in
+    var mode = plan.defaultLayout
+    for l in ranges where Double(frame) >= l.startF && Double(frame) < l.endF { mode = l.mode }
+    let b = boxes[mode]!
+    return b.screen.vec + b.cam.vec
+  }
+  return LayoutBoxes(screen: Box(v[0..<6]), cam: Box(v[6..<12]))
+}
