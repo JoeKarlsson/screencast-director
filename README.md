@@ -38,4 +38,4 @@ Details: [docs/app.md](docs/app.md). The older scriptable CLI, which renders wit
 
 ## Contributing and license
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). [MIT](LICENSE). The CLI's Remotion renderer needs a [company license](https://www.remotion.dev/license) for teams of more than three people. The app doesn't use Remotion.
+See [CONTRIBUTING.md](CONTRIBUTING.md). [MIT](LICENSE). Only the CLI renders with Remotion, which needs a [company license](https://www.remotion.dev/license) for teams of more than three people.
