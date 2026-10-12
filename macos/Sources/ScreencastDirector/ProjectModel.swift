@@ -33,6 +33,9 @@ final class ProjectModel: ObservableObject {
   @Published var showPublish = false
   /// Loudness every 50 ms (source time), for the timeline's audio track and normalizing.
   @Published private(set) var levels: [(Double, Double)] = []
+  @Published var showHistory = false
+  /// Words selected in the Transcript tab (indexes into project.words), first to last.
+  @Published var transcriptSel: ClosedRange<Int>?
   @Published var publishTitle = ""
   @Published private(set) var publishFiles: [URL] = []
   @Published private(set) var descriptionText = ""
@@ -107,6 +110,9 @@ final class ProjectModel: ObservableObject {
       guard mtime != self.lastPlanMtime else { return }
       self.lastPlanMtime = mtime
       guard let data = try? Data(contentsOf: self.planURL), data != self.lastPlanData else { return }
+      // An outside edit (Claude Code's Edit tool, a text editor) bypasses Plan.write, so keep the
+      // version it replaced in .history here.
+      if let previous = self.lastPlanData { PlanHistory.snapshot(previous, planURL: self.planURL) }
       if let old = self.plan {
         self.undoStack.append(old)
         self.redoStack.removeAll()
@@ -217,6 +223,10 @@ final class ProjectModel: ObservableObject {
   }
 
   func deleteSelection() {
+    if transcriptSel != nil {
+      cutTranscriptSelection()
+      return
+    }
     guard let selection else { return }
     apply { p in
       switch selection {
@@ -258,6 +268,78 @@ final class ProjectModel: ObservableObject {
     let c = Callout(start: t, end: min(plan.source.duration, t + 2.5), text: "Title")
     apply { $0.callouts.append(c) }
     if let i = self.plan?.callouts.firstIndex(of: c) { selection = .callout(i) }
+  }
+
+  // MARK: Transcript editing
+
+  var words: [Word] { project?.words ?? [] }
+
+  /// The source time range the selected words cover, from the first word's start to the last's end.
+  var transcriptRange: Range<Double>? {
+    guard let sel = transcriptSel, sel.lowerBound >= 0, sel.upperBound < words.count else { return nil }
+    let a = words[sel.lowerBound].start, b = words[sel.upperBound].end
+    return b > a ? a..<b : nil
+  }
+
+  /// Whether every selected word is already cut (then the action is Restore).
+  var transcriptSelectionIsCut: Bool {
+    guard let sel = transcriptSel, let plan, sel.upperBound < words.count else { return false }
+    return words[sel].allSatisfy { plan.speed(at: ($0.start + $0.end) / 2) == nil }
+  }
+
+  /// Click a word: select it (shift-click extends) and seek there.
+  func clickWord(_ i: Int, extend: Bool) {
+    guard words.indices.contains(i) else { return }
+    if extend, let sel = transcriptSel {
+      transcriptSel = min(sel.lowerBound, i)...max(sel.upperBound, i)
+    } else {
+      transcriptSel = i...i
+    }
+    player.pause()
+    seek(src: words[i].start)
+  }
+
+  func cutTranscriptSelection() {
+    guard let r = transcriptRange else { return }
+    apply { $0.cut(range: r) }
+    status = "Cut \(fmtTime(r.upperBound - r.lowerBound)) of speech. ⌘Z puts it back."
+    transcriptSel = nil
+  }
+
+  func restoreTranscriptSelection() {
+    guard let r = transcriptRange else { return }
+    apply { $0.restore(range: r) }
+    status = "Restored \(fmtTime(r.upperBound - r.lowerBound))."
+    transcriptSel = nil
+  }
+
+  // MARK: Version history
+
+  struct Version: Identifiable {
+    let id: URL
+    let date: Date
+    let length: Double?
+    let summary: String
+  }
+
+  /// Saved versions of plan.json, newest first, each with how it differs from now.
+  func versions() -> [Version] {
+    PlanHistory.list(planURL: planURL).map { e in
+      let old = try? Plan.load(e.url)
+      let length = old.map { Double(totalFrames(mapSegments($0.segments, fps: $0.output.fps))) / Double($0.output.fps) }
+      let summary = old.flatMap { o in plan.map { PlanHistory.summary(from: $0, to: o) } } ?? "unreadable"
+      return Version(id: e.url, date: e.date, length: length, summary: summary)
+    }
+  }
+
+  /// Makes an earlier version current. Undoable, and the version it replaces goes into history.
+  func restoreVersion(_ url: URL) {
+    guard let old = try? Plan.load(url) else {
+      status = "Couldn't read that version."
+      return
+    }
+    apply { $0 = old }
+    status = "Restored the version from \(DateFormatter.localizedString(from: (PlanHistory.list(planURL: planURL).first { $0.url == url }?.date ?? Date()), dateStyle: .none, timeStyle: .medium)). ⌘Z undoes it."
   }
 
   // MARK: Keyboard actions (Screen Studio's defaults; see Shortcuts.swift)
@@ -511,26 +593,20 @@ final class ProjectModel: ObservableObject {
     }
   }
 
-  /// Exports the current format, or a preset (the plan itself isn't changed). Each preset gets its own file.
+  /// Queues the current format, or presets, for export (one file each). Exports run in the
+  /// background on the plan as it is right now, so you can keep editing.
   func export(_ presets: [ExportPreset?] = [nil]) {
-    run("Exporting…") { [self] in
-      var files: [URL] = []
-      for (n, preset) in presets.enumerated() {
-        var plan = try Plan.load(planURL)
-        if let preset { plan = preset.applied(to: plan) }
+    guard let plan else { return }
+    // Menus, buttons and key shortcuts all call this on the main thread.
+    MainActor.assumeIsolated {
+      for preset in presets {
+        let p = preset.map { $0.applied(to: plan) } ?? plan
         let url = preset.map { dir.appendingPathComponent("out-\($0.id).mp4") } ?? outURL
-        let label = preset?.name ?? "current format"
-        let built = try await buildComposition(project: try Project.load(dir), plan: plan)
-        try await DirectorCore.export(built, to: url) { p in
-          Task { @MainActor in
-            self.status = "Exporting \(label)\(presets.count > 1 ? " (\(n + 1)/\(presets.count))" : "")… \(Int(p * 100))%"
-          }
-        }
-        files.append(url)
+        ExportQueue.shared.enqueue(projectDir: dir, plan: p, label: "\(name): \(preset?.name ?? "current format")", url: url)
       }
-      status = "Exported \(files.map(\.lastPathComponent).joined(separator: ", "))"
-      NSWorkspace.shared.activateFileViewerSelecting(files)
+      ExportQueue.shared.showList = true
     }
+    status = presets.count == 1 ? "Exporting in the background." : "Queued \(presets.count) exports."
   }
 
   func applyProfile(_ name: String) {

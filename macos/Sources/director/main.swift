@@ -24,6 +24,8 @@ let usage = """
     director profile  <dir> <profileDir>
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
+    director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
+    director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
@@ -119,6 +121,15 @@ do {
     plan.camera?.zoom = zoom
     try plan.write(to: project.planURL)
     print(String(format: "camera centered on face at (%.2f, %.2f), zoom %.2f", face.x, face.y, plan.camera?.zoom ?? 1))
+  case "cut", "restore":
+    guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    let before = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    if args[0] == "cut" { plan.cut(range: a..<b) } else { plan.restore(range: a..<b) }
+    try plan.write(to: project.planURL)
+    let after = Double(totalFrames(mapSegments(plan.segments, fps: plan.output.fps))) / Double(plan.output.fps)
+    print("\(args[0]) \(fmtTime(a))-\(fmtTime(b)): \(fmtTime(before)) -> \(fmtTime(after))")
   case "profile":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)

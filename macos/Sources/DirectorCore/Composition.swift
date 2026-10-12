@@ -200,7 +200,16 @@ public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable 
     }
   }
   defer { watcher.cancel() }
-  try await session.export(to: url, as: .mp4)
+  // Cancelling the calling task stops the export and removes the partial file.
+  try await withTaskCancellationHandler {
+    try await session.export(to: url, as: .mp4)
+  } onCancel: {
+    session.cancelExport()
+  }
+  if Task.isCancelled {
+    try? FileManager.default.removeItem(at: url)
+    throw CancellationError()
+  }
   progress?(1)
 }
 

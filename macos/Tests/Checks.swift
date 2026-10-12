@@ -127,6 +127,38 @@ struct Checks {
     let win = CGRect(x: 200, y: 100, width: 800, height: 600)
     let (nx, ny) = normalizedPoint(CGPoint(x: 600, y: 250), in: win)
     expect(nx == 0.5 && ny == 0.25, "point normalized to the window frame")
+    // Transcript edits: cut a word range out of the middle of a clip, then put it back.
+    var tp = buildPlan(p)
+    tp.source.duration = 30
+    tp.segments = [Segment(start: 0, end: 10, speed: 1), Segment(start: 12, end: 20, speed: 3)]
+    tp.cut(range: 4..<6)
+    expect(tp.segments.count == 3 && tp.speed(at: 5) == nil && tp.speed(at: 3.9) == 1 && tp.speed(at: 6) == 1, "cut splits a clip")
+    tp.cut(range: 9..<14)
+    expect(tp.speed(at: 9.5) == nil && tp.speed(at: 13) == nil && tp.speed(at: 14) == 3, "cut across a gap trims both sides")
+    tp.restore(range: 4..<6)
+    expect(tp.speed(at: 5) == 1, "restore puts the range back at 1x")
+    tp.restore(range: 9..<14)
+    expect(tp.speed(at: 11) == 1 && tp.speed(at: 13) == 1 && tp.speed(at: 14) == 3, "restore fills only the cut parts")
+
+    // Plan history: snapshots skip duplicates and keep only the newest N.
+    let hdir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-history-check-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: hdir, withIntermediateDirectories: true)
+    let planURL = hdir.appendingPathComponent("plan.json")
+    for i in 0..<8 {
+      PlanHistory.snapshot(Data("v\(i)".utf8), planURL: planURL, keep: 5, now: Date(timeIntervalSince1970: 1_000_000 + Double(i)))
+    }
+    PlanHistory.snapshot(Data("v7".utf8), planURL: planURL, keep: 5, now: Date(timeIntervalSince1970: 2_000_000))
+    let versions = PlanHistory.list(planURL: planURL)
+    expect(versions.count == 5, "history keeps the newest 5 (got \(versions.count))")
+    expect(
+      (try? String(contentsOf: versions[0].url, encoding: .utf8)) == "v7"
+        && versions.last.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) } == "v3",
+      "history is newest first and skips a duplicate")
+    var changed = tp
+    changed.zooms.append(Zoom(start: 1, end: 3, x: 0.5, y: 0.5, scale: 2))
+    changed.cut(range: 1..<2)
+    expect(PlanHistory.summary(from: tp, to: changed) == "2 clips, 1 zoom", "history summary (got \(PlanHistory.summary(from: tp, to: changed)))")
+    try? FileManager.default.removeItem(at: hdir)
 
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)

@@ -154,3 +154,40 @@ extension Plan {
     normalize()
   }
 }
+
+extension Plan {
+  /// Cuts a source time range out of the edit, splitting clips as needed.
+  public mutating func cut(range: Range<Double>) {
+    guard range.upperBound > range.lowerBound else { return }
+    segments = segments.flatMap { s -> [Segment] in
+      if range.upperBound <= s.start || range.lowerBound >= s.end { return [s] }
+      var parts: [Segment] = []
+      if range.lowerBound > s.start {
+        var left = s
+        left.end = range.lowerBound
+        parts.append(left)
+      }
+      if range.upperBound < s.end {
+        var right = s
+        right.start = range.upperBound
+        parts.append(right)
+      }
+      return parts
+    }
+    normalize()
+  }
+
+  /// Puts back the cut parts of a source time range at real-time speed. Parts already in the edit
+  /// (at any speed) stay as they are.
+  public mutating func restore(range: Range<Double>) {
+    for g in gaps where g.end > range.lowerBound && g.start < range.upperBound {
+      segments.append(Segment(start: max(g.start, range.lowerBound), end: min(g.end, range.upperBound), speed: 1, note: "restored"))
+    }
+    normalize()
+  }
+
+  /// The speed a source moment plays at, or nil if it's cut.
+  public func speed(at t: Double) -> Double? {
+    segments.first { t >= $0.start && t < $0.end }?.speed
+  }
+}

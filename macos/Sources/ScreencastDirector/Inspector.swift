@@ -3,7 +3,7 @@ import DirectorCore
 import SwiftUI
 
 final class InspectorUI: ObservableObject {
-  enum Tab: String, CaseIterable { case selection = "Selection", style = "Style" }
+  enum Tab: String, CaseIterable { case selection = "Selection", style = "Style", transcript = "Transcript" }
   @Published var tab: Tab = .selection
   @Published var thumbnail: NSImage?
   @Published var cameraThumbnail: NSImage?
@@ -53,7 +53,7 @@ struct InspectorView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 14) {
           if let plan = project.plan {
-            if ui.tab == .selection { selectionPane(plan) } else { stylePane(plan) }
+            switch ui.tab { case .selection: selectionPane(plan); case .style: stylePane(plan); case .transcript: TranscriptView(project: project) }
           } else {
             Text("Analyze the recording to start editing.").foregroundStyle(.secondary)
           }

@@ -1,5 +1,6 @@
 import AVKit
 import AppKit
+import DirectorCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -17,6 +18,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     buildMenu()
+    MainActor.assumeIsolated {
+      ExportQueue.shared.onFinished = { NSWorkspace.shared.activateFileViewerSelecting([$0.url]) }
+    }
     let view = MainView(
       library: library, recorder: recorder, setup: setup, editor: editor,
       toggleRecording: { [weak self] in self?.toggleRecording() },

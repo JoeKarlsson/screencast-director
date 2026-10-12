@@ -107,6 +107,7 @@ struct EditorView: View {
       InspectorView(project: project, ui: editor.inspector)
     }
     .sheet(isPresented: $project.showPublish) { PublishView(project: project) }
+    .sheet(isPresented: $project.showHistory) { VersionHistoryView(project: project) }
   }
 
   private var header: some View {
@@ -122,6 +123,7 @@ struct EditorView: View {
       Menu {
         Button("Re-analyze (keep my edits)") { project.analyzeAndPlan() }
         Button("Start Over from a Fresh Draft") { project.analyzeAndPlan(force: true) }
+        Button("Version History…") { project.showHistory = true }
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.planURL]) }
       } label: { Image(systemName: "ellipsis.circle") }
@@ -144,7 +146,7 @@ struct EditorView: View {
         }
         .menuStyle(.borderedButton)
         .fixedSize()
-        .disabled(project.busy)
+        ExportQueueButton(queue: ExportQueue.shared)
       } else {
         Button("Analyze") { project.analyzeAndPlan() }
           .buttonStyle(.borderedProminent)

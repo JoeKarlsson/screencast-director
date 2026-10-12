@@ -131,11 +131,13 @@ public struct Plan: Codable, Equatable {
     try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url))
   }
 
+  /// Writes the plan, first saving the version it replaces to .history/ (see PlanHistory).
   public func write(to url: URL) throws {
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
     var data = try enc.encode(self)
     data.append(0x0A)
+    if let old = try? Data(contentsOf: url), old != data { PlanHistory.snapshot(old, planURL: url) }
     try data.write(to: url, options: .atomic)
   }
 }
