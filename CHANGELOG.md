@@ -45,6 +45,8 @@ Each release lists what changed for people using the app or the CLI. The version
 - The inspector has controls for every motion feature: motion style tiles with live easing curves, a zoom's ease and length, a title's style, second line and in/out animations, an annotation's kind, area (drag on the frame), label and animations, a clip's styled cut, and caption styles. Preview plays from just before the item.
 - A Marks track for annotations, a title button that holds lower thirds, slates and chapters, and an Annotate menu (A adds a box).
 - Pinch or ⌥-scroll to zoom the timeline around the pointer; the zoom slider and ⌘= / ⌘- keep the playhead in place. The timeline follows the playhead while playing, clicking an empty spot moves the playhead, and ⌥← / ⌥→ nudge the selected item a frame.
+- A strip under the scrubber shows the finished video's shape: real-time clips in blue, sped-up parts in orange, titles as ticks and zooms underlined.
+- Transport buttons have VoiceOver labels.
 - The trim cursor no longer gets stuck after deselecting a bar.
 - Fixed a hang at the end of an AI edit: pipeline steps now run on the main thread, so they never update the window from the background.
 - Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).

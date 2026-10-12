@@ -344,6 +344,46 @@ struct TransportScrubber: View {
       .controlSize(.small)
       .disabled(!project.hasPlan)
       .accessibilityLabel("Playhead")
+      .background(alignment: .bottom) {
+        if let plan = project.plan { OutputMap(plan: plan, mapped: project.mapped).equatable().frame(height: 4).offset(y: 9).padding(.horizontal, 2) }
+      }
+  }
+}
+
+/// The finished video's shape under the scrubber: intro and outro cards, clips at real-time (blue)
+/// or sped up (orange), titles and zooms as ticks. Cut parts don't appear, so it matches the export.
+struct OutputMap: View, Equatable {
+  let plan: Plan
+  let mapped: [MappedSegment]
+
+  var body: some View {
+    Canvas { ctx, size in
+      let total = Double(planFrames(plan))
+      guard total > 0 else { return }
+      func x(_ f: Double) -> CGFloat { CGFloat(f / total) * size.width }
+      let cards = cardFrames(plan)
+      if cards.intro > 0 { ctx.fill(Path(CGRect(x: 0, y: 0, width: x(Double(cards.intro)), height: size.height)), with: .color(.gray.opacity(0.6))) }
+      if cards.outro > 0 {
+        ctx.fill(Path(CGRect(x: x(total - Double(cards.outro)), y: 0, width: x(Double(cards.outro)), height: size.height)), with: .color(.gray.opacity(0.6)))
+      }
+      for s in mapped {
+        let rect = CGRect(x: x(Double(s.outStart)) + 0.5, y: 0, width: max(1, x(Double(s.frames)) - 1), height: size.height)
+        ctx.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(s.speed > 1.01 ? Color.orange.opacity(0.75) : Theme.clip.opacity(0.6)))
+      }
+      let fps = plan.output.fps
+      for c in plan.callouts {
+        guard let f = srcToOut(mapped, c.start, fps: fps) else { continue }
+        ctx.fill(Path(CGRect(x: x(f) - 1, y: -3, width: 2, height: size.height + 3)), with: .color(Theme.title))
+      }
+      for z in plan.zooms {
+        let a = srcToOutClamped(mapped, z.start, fps: fps), b = srcToOutClamped(mapped, z.end, fps: fps, before: true)
+        guard b > a else { continue }
+        ctx.fill(Path(CGRect(x: x(a), y: size.height - 1.5, width: x(b) - x(a), height: 1.5)), with: .color(Theme.zoom))
+      }
+    }
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
+    .help("The finished video: blue plays in real time, orange is sped up, ticks are titles, purple underlines are zooms")
   }
 }
 
@@ -382,6 +422,7 @@ struct TransportBar: View {
     .buttonStyle(.plain)
     .foregroundStyle(.secondary)
     .help(help)
+    .accessibilityLabel(help.components(separatedBy: " (").first ?? help)
   }
 }
 

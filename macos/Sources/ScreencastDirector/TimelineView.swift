@@ -143,9 +143,14 @@ private struct PlayheadOffset: ViewModifier {
   let project: ProjectModel
   @ObservedObject var playhead: Playhead
   let ui: TimelineUI
+  /// Passed as values (not read from ui/project) so a timeline zoom or a new plan redraws the line.
+  let pxPerSec: Double
+  let mapped: [MappedSegment]
 
   func body(content: Content) -> some View {
-    content.offset(x: project.playheadSrc * ui.pxPerSec - 6)
+    let total = Double(max(project.totalOutFrames - 1, 0))
+    let src = outToSrc(mapped, min(playhead.frame, total), fps: project.fps) ?? 0
+    return content.offset(x: src * pxPerSec - 6)
       .onChange(of: playhead.frame) { _, _ in
         if project.isPlaying { ui.follow(project.playheadSrc) }
       }
@@ -525,7 +530,7 @@ struct TimelineView: View {
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
     .frame(width: 12, height: Track.total, alignment: .top)
-    .modifier(PlayheadOffset(project: project, playhead: project.playhead, ui: ui))
+    .modifier(PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped))
     .allowsHitTesting(false)
   }
 
