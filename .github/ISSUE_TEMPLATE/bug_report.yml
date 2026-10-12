@@ -1,0 +1,25 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Which part
+      options: [macOS app, CLI (sd), Claude edit skill, Not sure]
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: macOS version and Mac
+      placeholder: macOS 26.0, M3 MacBook Pro
+  - type: textarea
+    attributes:
+      label: Logs or plan.json
+      description: Error output, or the plan.json from the project folder if the edit looks wrong.
+      render: shell

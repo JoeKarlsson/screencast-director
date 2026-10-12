@@ -31,7 +31,7 @@ struct EndpointPreset: Identifiable {
   static let all = [
     EndpointPreset(id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", modelHint: "provider/model, e.g. openai/gpt-5"),
     EndpointPreset(id: "openai", name: "OpenAI", baseURL: "https://api.openai.com/v1", modelHint: "e.g. gpt-5"),
-    EndpointPreset(id: "litellm", name: "LiteLLM gateway (homelab)", baseURL: "http://192.168.0.230:4000/v1", modelHint: "a model name your gateway routes"),
+    EndpointPreset(id: "litellm", name: "LiteLLM gateway", baseURL: "http://localhost:4000/v1", modelHint: "a model name your gateway routes"),
     EndpointPreset(id: "ollama", name: "Ollama (this Mac)", baseURL: "http://localhost:11434/v1", modelHint: "a pulled model, e.g. qwen3"),
   ]
 }

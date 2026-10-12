@@ -1,0 +1,10 @@
+name: Feature request
+description: Suggest an idea
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: What would you like to do?
+      description: Describe the problem or the video you're trying to make, not only the solution.
+    validations:
+      required: true

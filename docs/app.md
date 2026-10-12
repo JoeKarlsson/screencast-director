@@ -10,6 +10,13 @@ macos/build.sh --install        # builds /Applications/Screencast Director.app
 macos/test.sh                   # Swift checks for the timeline math and planner
 ```
 
+The app also needs a Whisper model. The Setup window shows the download command, or run:
+
+```sh
+curl -L --create-dirs -o ~/Library/Application\ Support/Screencast\ Director/models/ggml-large-v3-turbo.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
+```
+
 The app asks for **Screen & System Audio Recording**, **Microphone**, **Input Monitoring** and, optionally, **Camera** permission. Builds are signed with a local code-signing identity when one exists, so permissions survive rebuilds.
 
 Projects live in `~/Movies/Screencast Director`, in the same format the CLI uses.

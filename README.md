@@ -14,7 +14,7 @@ Apple silicon, macOS 15+, the Xcode Command Line Tools, and `brew install whispe
 macos/build.sh --install      # builds /Applications/Screencast Director.app
 ```
 
-On first launch, **Getting Started** shows which permissions are missing and plays a 3-minute tour.
+On first launch, **Getting Started** shows which permissions are missing, gives you the command to download a Whisper model, and plays a 3-minute tour.
 
 ## Use it
 

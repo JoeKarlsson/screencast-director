@@ -1,6 +1,6 @@
 # screencast-director
 
-Record the screen, then edit by changing a JSON plan that Remotion renders. Claude's job is usually to edit `projects/<name>/plan.json` from Joe's instructions (use the `/edit-screencast` skill).
+Record the screen, then edit by changing a JSON plan that Remotion renders. Claude's job is usually to edit `projects/<name>/plan.json` from the user's instructions (use the `/edit-screencast` skill).
 
 ## Layout
 
@@ -18,7 +18,7 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 - **Two implementations of the same rules.** A change to the planner, timeline math or look in TypeScript needs the same change in Swift (and the reverse). `npm test` and `macos/test.sh` check the same cases.
 - `Sources/director`: CLI (`analyze`, `plan`, `describe`, `render`, `still`, `debug`). The app bundles it, and `Resources/edit-prompt.md` tells headless Claude to use it (`{{DIRECTOR}}` is replaced with its path).
 - `Sources/ScreencastDirector`: the app. ScreenCaptureKit recorder (sample buffers use the host clock, same as `InputTap`'s `CLOCK_UPTIME_RAW`), library, preview, and the Claude box (`claude -p --permission-mode acceptEdits` with only Read/Edit/Write and `director describe`/`still` allowed).
-- Build with `macos/build.sh`; Command Line Tools only, so no SwiftUI macros (`@State`): view state lives in `ObservableObject`s, as in Followspot.
+- Build with `macos/build.sh`; Command Line Tools only, so no SwiftUI macros (`@State`): view state lives in `ObservableObject`s.
 - SourceKit reports "Cannot find type ... in scope" on single files; ignore it and trust `swift build`.
 - An `AVAssetTrack` does not keep its `AVURLAsset` alive. Inserting from a track whose asset was freed fails with the unhelpful -11800/-12780; keep the asset in scope (see `camAsset` in Composition.swift).
 - Claude's Edit tool writes `plan.json` in place, which a folder watch misses; the app polls the file's modification date instead.
@@ -28,7 +28,7 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 - Profiles (`DirectorCore/Look.swift`, `Formats.swift`): `plan.look` holds fonts, colors, the bracket frame and the watermark; `style.screenAspect` crops the screen for vertical, square and feed formats, and `Scene.screenMap` pans the crop to the camera focus (the last click when there's no zoom). The Remotion path ignores both.
 - AI providers (`ScreencastDirector/AI.swift`): Claude Code CLI (agentic), the Anthropic Messages API (raw HTTP, since Swift has no SDK; `fallbacks: "default"` with `server-side-fallback-2026-07-01`), or any OpenAI-compatible endpoint. API edits return the complete plan in a json code block, which is parsed, normalized and applied through `apply`, so it can be undone.
 - Publishing (`DirectorCore/Publish.swift`): the SRT uses the same caption pages as the burned-in captions. Thumbnails score camera frames with `VNDetectFaceCaptureQualityRequest` plus `CIDetector` smile and blink detection, and cut the person out with `VNGeneratePersonSegmentationRequest`.
-- AppleScript `keystroke ","` and `"/"` map to other keys on this Mac's layout (`","` opened the import panel). Use `key code` or click menu items; the app menu is `menu bar item 2`.
+- AppleScript `keystroke ","` and `"/"` can map to other keys on non-US keyboard layouts (`","` opened the import panel). Use `key code` or click menu items; the app menu is `menu bar item 2`.
 - A SwiftUI `Form` in an `NSWindow` built with `contentRect: .zero` collapses to its title bar. Give the window and the view a real size.
 - Every composition track must end exactly at the instruction's end. A camera track a few milliseconds long (scaled-range rounding) makes AVPlayer render nothing, black and silent, while `AVAssetImageGenerator` and export still work, so `director still` can't catch it. `buildComposition` trims to the frame count. Test playback with an `AVPlayerItemVideoOutput`, not just stills.
 - Window screenshots (`screencapture -l`) of a window on another Space show the player black. Bring the window forward before judging the preview.
@@ -37,7 +37,7 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 
 - All plan times are **source seconds** (positions in `screen.mp4`), never output seconds.
 - `segments` must be ascending and non-overlapping. Anything not covered is cut.
-- Segments with `speed > 1` render muted. Never speed up a segment where Joe is talking.
+- Segments with `speed > 1` render muted. Never speed up a segment where the user is talking.
 - Zooms that touch hand off as a pan; a gap shorter than `style.transition` reads as a quick out-and-in.
 - `zoom.x`/`zoom.y` are 0..1 fractions of the recorded screen; scale 1.4 to 2.2 looks natural.
 - `sd plan` refuses to overwrite an existing `plan.json` (it may hold edits); `--force` regenerates.

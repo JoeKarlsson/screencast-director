@@ -1,6 +1,6 @@
 import Foundation
 
-/// Finds whisper-cli and a Whisper model. Shares models with Followspot and Screen Studio.
+/// Finds whisper-cli and a Whisper model. Also reuses models other apps on this Mac (Followspot, Screen Studio) have downloaded.
 public enum Tools {
   static let home = FileManager.default.homeDirectoryForCurrentUser
 

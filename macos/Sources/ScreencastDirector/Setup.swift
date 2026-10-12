@@ -48,6 +48,10 @@ final class SetupModel: ObservableObject {
       }
     }
 
+    let installWhisper = "brew install whisper-cpp"
+    let modelPath = Tools.modelsDir.appendingPathComponent("ggml-large-v3-turbo.bin").path
+    let downloadModel = "curl -L --create-dirs -o '\(modelPath)' https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
+
     items = [
       Item(
         id: "screen", title: "Screen Recording", detail: "To record your display.", ok: screen, required: true,
@@ -72,11 +76,11 @@ final class SetupModel: ObservableObject {
         id: "whisper", title: "Transcription (Whisper)",
         detail: whisper != nil && model != nil
           ? "\(model!.lastPathComponent) via \(whisper!.path)"
-          : (whisper == nil ? "Install whisper.cpp: brew install whisper-cpp" : "No model found. Followspot's model downloader can fetch one."),
+          : (whisper == nil ? "Install whisper.cpp: \(installWhisper)" : "No Whisper model found. Copy the command and run it in Terminal to download one (1.6 GB)."),
         ok: whisper != nil && model != nil, required: true, fixLabel: "Copy Command",
         fix: {
           NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString("brew install whisper-cpp", forType: .string)
+          NSPasteboard.general.setString(whisper == nil ? installWhisper : downloadModel, forType: .string)
         }),
       Item(
         id: "claude", title: "Claude Code", detail: claude?.path ?? "For \"Ask Claude\". Install from claude.com/claude-code.",
