@@ -9,11 +9,9 @@
 
 A macOS app that records your screen and does the boring part of the edit. Talk through your demo once: it cuts the dead air, speeds up typing, zooms to your clicks and captions what you said. Then adjust it by hand, or tell Claude what to change.
 
-![The editor: preview with camera bubble and captions, a timeline of speech, sped-up and cut clips with zooms and titles, and the Style inspector](docs/media/editor.png)
+![A demo edited by Screencast Director: an intro card, captions, a camera bubble, a zoom while typing, side by side, and an outro card](docs/media/hero.gif)
 
-<!-- Hero GIF: 10-15 s of a raw recording turning into the edited version.
-![Screencast Director turning a raw recording into an edited video](docs/media/hero.gif)
--->
+![The editor: preview with camera bubble and captions, a timeline of speech, sped-up and cut clips with zooms, layouts and titles, and the Camera inspector](docs/media/editor.png)
 
 ## Install
 
@@ -23,7 +21,7 @@ Apple silicon, macOS 15+, the Xcode Command Line Tools, and `brew install whispe
 macos/build.sh --install      # builds /Applications/Screencast Director.app
 ```
 
-On first launch, **Getting Started** shows which permissions are missing, gives you the command to download a Whisper model, and plays a 3-minute tour.
+On first launch, **Getting Started** shows which permissions are missing, gives you the command to download a Whisper model, and plays a short demo.
 
 ## Use it
 

@@ -14,6 +14,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
+- Getting Started plays a short demo in place of the 3-minute tour.
 - A new look: the app's indigo accent throughout, and a refreshed icon in the layered glass style.
 - The start page is a gallery of your recordings with a big New Recording button. Setup folds away once everything's ready, and first-timers see how it works.
 - Opening a recording shows a blurred poster with "Loading preview…" instead of a black box.
