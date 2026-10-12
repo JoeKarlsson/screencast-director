@@ -1,3 +1,4 @@
+import AppKit
 import DirectorCore
 import SwiftUI
 
@@ -13,6 +14,10 @@ final class TimelineUI: ObservableObject {
   }
   /// A drag in progress: which item and its live range, drawn instead of the saved one.
   @Published var drag: (sel: Selection, start: Double, end: Double)?
+  /// The bar under the pointer.
+  @Published var hover: Selection?
+  /// The source time a dragged edge is snapped to, drawn as a guide line.
+  @Published var snap: Double?
 }
 
 private enum Track: CaseIterable {
@@ -38,6 +43,28 @@ private enum Track: CaseIterable {
     case .titles: return "Titles"
     }
   }
+  var icon: String {
+    switch self {
+    case .ruler: return ""
+    case .clips: return "film"
+    case .audio: return "waveform"
+    case .words: return "text.quote"
+    case .zooms: return "plus.magnifyingglass"
+    case .layouts: return "rectangle.split.2x1"
+    case .titles: return "textformat"
+    }
+  }
+  var color: Color {
+    switch self {
+    case .ruler: return .secondary
+    case .clips: return Theme.clip
+    case .audio: return Theme.audio
+    case .words: return Theme.words
+    case .zooms: return Theme.zoom
+    case .layouts: return Theme.layout
+    case .titles: return Theme.title
+    }
+  }
   var y: CGFloat {
     var y: CGFloat = 0
     for t in Track.allCases {
@@ -49,29 +76,69 @@ private enum Track: CaseIterable {
   static var total: CGFloat { allCases.reduce(0) { $0 + $1.height + 4 } }
 }
 
+/// Diagonal hatching, for cuts and sped-up clips.
+private struct Hatch: Shape {
+  var spacing: CGFloat = 6
+
+  func path(in r: CGRect) -> Path {
+    var p = Path()
+    var x = r.minX - r.height
+    while x < r.maxX {
+      p.move(to: CGPoint(x: x, y: r.maxY))
+      p.addLine(to: CGPoint(x: x + r.height, y: r.minY))
+      x += spacing
+    }
+    return p
+  }
+}
+
+/// The playhead's grip in the ruler: a rounded tab that tapers to a point.
+private struct PlayheadCap: Shape {
+  func path(in r: CGRect) -> Path {
+    let c: CGFloat = 2.5
+    let shoulder = r.maxY - r.width * 0.55
+    var p = Path()
+    p.move(to: CGPoint(x: r.midX, y: r.maxY))
+    p.addLine(to: CGPoint(x: r.minX, y: shoulder))
+    p.addLine(to: CGPoint(x: r.minX, y: r.minY + c))
+    p.addQuadCurve(to: CGPoint(x: r.minX + c, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
+    p.addLine(to: CGPoint(x: r.maxX - c, y: r.minY))
+    p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + c), control: CGPoint(x: r.maxX, y: r.minY))
+    p.addLine(to: CGPoint(x: r.maxX, y: shoulder))
+    p.closeSubpath()
+    return p
+  }
+}
+
 struct TimelineView: View {
   @ObservedObject var project: ProjectModel
   @ObservedObject var ui: TimelineUI
 
+  /// Width of the track header column.
+  private static let headerWidth: CGFloat = 76
+  /// How close (in points) a dragged edge must come to another edge to snap to it.
+  private static let snapDistance: CGFloat = 6
+  private static let playheadColor = Color.red
+
   var body: some View {
-    VStack(spacing: 6) {
+    VStack(spacing: 8) {
       toolbar
       if let plan = project.plan {
         GeometryReader { geo in
           HStack(spacing: 0) {
             labels
             ScrollView(.horizontal) {
-              tracks(plan).frame(width: max(geo.size.width - 60, plan.source.duration * ui.pxPerSec), height: Track.total)
+              tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, plan.source.duration * ui.pxPerSec), height: Track.total)
             }
           }
           .onAppear {
-            ui.width = geo.size.width - 60
+            ui.width = geo.size.width - Self.headerWidth
             if !ui.fitted {
               ui.fit(plan.source.duration)
               ui.fitted = true
             }
           }
-          .onChange(of: geo.size.width) { _, w in ui.width = w - 60 }
+          .onChange(of: geo.size.width) { _, w in ui.width = w - Self.headerWidth }
         }
         .frame(height: Track.total + 14)
       }
@@ -81,36 +148,64 @@ struct TimelineView: View {
   // MARK: Toolbar
 
   private var toolbar: some View {
-    HStack(spacing: 8) {
-      Button(action: project.togglePlay) { Image(systemName: project.isPlaying ? "pause.fill" : "play.fill").frame(width: 16) }
-        .help("Play/Pause (Space; J/K/L to shuttle)")
-      Text("\(fmtTime(project.outFrame / Double(project.fps))) / \(fmtTime(Double(project.totalOutFrames) / Double(project.fps)))")
-        .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+    HStack(spacing: 10) {
+      toolGroup {
+        iconButton("Split", "scissors", help: "Split the clip at the playhead (C)", action: project.splitAtPlayhead)
+        iconButton("Delete", "trash", help: "Cut the selected clip, or remove the selected zoom, layout or title (⌫)", action: project.deleteSelection)
+          .disabled(project.selection == nil || isGap)
+      }
+      toolGroup {
+        iconButton("Zoom", "plus.magnifyingglass", help: "Add a zoom at the playhead, aimed at the last click (Z)", action: project.addZoom)
+        Menu {
+          ForEach(LayoutMode.allCases, id: \.self) { m in Button(modeName(m)) { project.addLayout(m) } }
+        } label: {
+          Image(systemName: "rectangle.split.2x1")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .fixedSize()
-      Divider().frame(height: 16)
-      Button(action: project.splitAtPlayhead) { Label("Split", systemImage: "scissors") }
-        .help("Split the clip at the playhead (C)")
-      Button(action: project.deleteSelection) { Label("Delete", systemImage: "trash") }
-        .disabled(project.selection == nil || isGap)
-        .help("Cut the selected clip, or remove the selected zoom, layout or title (⌫)")
-      Divider().frame(height: 16)
-      Button(action: project.addZoom) { Label("Zoom", systemImage: "plus.magnifyingglass") }
-        .help("Add a zoom at the playhead, aimed at the last click (Z)")
-      Menu {
-        ForEach(LayoutMode.allCases, id: \.self) { m in Button(modeName(m)) { project.addLayout(m) } }
-      } label: { Label("Layout", systemImage: "rectangle.split.2x1").labelStyle(.titleAndIcon) }
-        .fixedSize()
+        .frame(width: 28, height: 22)
+        .accessibilityLabel("Layout")
         .help("Change the camera layout from the playhead (⌃L, or 1-4)")
-      Button(action: project.addCallout) { Label("Title", systemImage: "textformat") }.help("Add a title at the playhead (T)")
+        iconButton("Title", "textformat", help: "Add a title at the playhead (T)", action: project.addCallout)
+      }
       Spacer(minLength: 4)
-      Slider(value: $ui.pxPerSec, in: 4...400).frame(minWidth: 60, maxWidth: 110)
-        .help("Timeline zoom")
-      Button { ui.fit(project.plan?.source.duration ?? 1) } label: { Label("Fit", systemImage: "arrow.left.and.right") }
-        .help("Fit the whole recording")
+      HStack(spacing: 6) {
+        Image(systemName: "minus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+        Slider(value: $ui.pxPerSec, in: 4...400)
+          .controlSize(.small)
+          .frame(minWidth: 60, maxWidth: 120)
+          .help("Timeline zoom")
+        Image(systemName: "plus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+      }
+      toolGroup {
+        iconButton("Fit", "arrow.left.and.right", help: "Fit the whole recording") {
+          ui.fit(project.plan?.source.duration ?? 1)
+        }
+      }
     }
-    .labelStyle(.iconOnly)
-    .controlSize(.regular)
+    .font(.system(size: 13))
     .disabled(!project.hasPlan)
+  }
+
+  /// A borderless icon button of the toolbar's standard size.
+  private func iconButton(_ title: String, _ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .frame(width: 28, height: 22)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.borderless)
+    .accessibilityLabel(title)
+    .help(help)
+  }
+
+  /// Related toolbar buttons on one shared rounded backing.
+  private func toolGroup<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    HStack(spacing: 0) { content() }
+      .padding(2)
+      .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.055)))
+      .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
   }
 
   private var isGap: Bool {
@@ -118,15 +213,27 @@ struct TimelineView: View {
     return false
   }
 
+  /// Track headers: the track's icon in its color, and its name.
   private var labels: some View {
     ZStack(alignment: .topLeading) {
-      ForEach(Track.allCases, id: \.self) { t in
-        Text(t.label).font(.caption2).foregroundStyle(.secondary)
-          .frame(width: 56, height: t.height, alignment: .leading)
-          .offset(y: t.y)
+      ForEach(Track.allCases.filter { $0 != .ruler }, id: \.self) { t in
+        HStack(spacing: 5) {
+          Image(systemName: t.icon)
+            .font(.system(size: t == .words ? 9 : 10, weight: .semibold))
+            .foregroundStyle(t.color)
+            .frame(width: 14)
+          Text(t.label)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+        .padding(.leading, 6)
+        .frame(width: Self.headerWidth - 6, height: t.height, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.04)))
+        .offset(y: t.y)
       }
     }
-    .frame(width: 60, height: Track.total, alignment: .topLeading)
+    .frame(width: Self.headerWidth, height: Track.total, alignment: .topLeading)
   }
 
   // MARK: Tracks
@@ -141,30 +248,21 @@ struct TimelineView: View {
   @ViewBuilder
   private func tracks(_ plan: Plan) -> some View {
     ZStack(alignment: .topLeading) {
+      lanes
       ruler(plan)
       // Clips: kept segments, and cuts you can restore.
       ForEach(Array(plan.gaps.enumerated()), id: \.offset) { _, g in
-        let sel = Selection.gap(g)
-        RoundedRectangle(cornerRadius: 5)
-          .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-          .foregroundStyle(project.selection == sel ? Color.white : Color.gray.opacity(0.6))
-          .background(RoundedRectangle(cornerRadius: 5).fill(Color.gray.opacity(0.12)))
-          .overlay(Text(x(g.end) - x(g.start) > 30 ? "cut" : "").font(.caption2).foregroundStyle(.secondary))
-          .frame(width: max(2, x(g.end) - x(g.start)), height: Track.clips.height)
-          .contentShape(Rectangle())
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("Cut at \(fmtTime(g.start))")
-          .accessibilityAddTraits(.isButton)
-          .accessibilityAction { project.selection = sel }
-          .onTapGesture { project.selection = sel }
-          .offset(x: x(g.start), y: Track.clips.y)
+        gap(g)
       }
       ForEach(Array(plan.segments.enumerated()), id: \.offset) { i, s in
         let sel = Selection.segment(i)
         let (a, b) = range(sel, s.start, s.end)
+        let fast = s.speed > 1.01
+        let lo = i > 0 ? plan.segments[i - 1].end : 0
+        let hi = i + 1 < plan.segments.count ? plan.segments[i + 1].start : plan.source.duration
         bar(
-          sel: sel, start: a, end: b, track: .clips, color: s.speed > 1.01 ? .orange : .blue,
-          label: s.speed == 1 ? (s.note ?? "") : "\(s.speed.formatted())×  \(s.note ?? "")", movable: false
+          sel: sel, start: a, end: b, track: .clips, color: Theme.clip, label: s.note ?? "",
+          badge: s.speed == 1 ? nil : "\(s.speed.formatted())×", striped: fast, movable: false, bounds: lo...max(lo, hi)
         ) { newStart, newEnd in
           project.apply { $0.trimSegment(i, start: newStart, end: newEnd) }
         }
@@ -174,7 +272,7 @@ struct TimelineView: View {
       ForEach(Array(plan.zooms.enumerated()), id: \.offset) { i, z in
         let sel = Selection.zoom(i)
         let (a, b) = range(sel, z.start, z.end)
-        bar(sel: sel, start: a, end: b, track: .zooms, color: .purple, label: "\(z.scale.formatted())×", movable: true) { s, e in
+        bar(sel: sel, start: a, end: b, track: .zooms, color: Theme.zoom, label: "\(z.scale.formatted())×", movable: true) { s, e in
           project.apply {
             guard $0.zooms.indices.contains(i) else { return }
             $0.zooms[i].start = s
@@ -189,7 +287,7 @@ struct TimelineView: View {
       ForEach(Array(plan.layouts.enumerated()), id: \.offset) { i, l in
         let sel = Selection.layout(i)
         let (a, b) = range(sel, l.start, l.end)
-        bar(sel: sel, start: a, end: b, track: .layouts, color: .teal, label: modeName(l.mode), movable: true) { s, e in
+        bar(sel: sel, start: a, end: b, track: .layouts, color: Theme.layout, label: modeName(l.mode), movable: true) { s, e in
           project.apply {
             guard $0.layouts.indices.contains(i) else { return }
             $0.layouts[i].start = s
@@ -204,7 +302,7 @@ struct TimelineView: View {
       ForEach(Array(plan.callouts.enumerated()), id: \.offset) { i, c in
         let sel = Selection.callout(i)
         let (a, b) = range(sel, c.start, c.end)
-        bar(sel: sel, start: a, end: b, track: .titles, color: .pink, label: c.text, movable: true) { s, e in
+        bar(sel: sel, start: a, end: b, track: .titles, color: Theme.title, label: c.text, movable: true) { s, e in
           project.apply {
             guard $0.callouts.indices.contains(i) else { return }
             $0.callouts[i].start = s
@@ -216,24 +314,65 @@ struct TimelineView: View {
           }
         }
       }
-      // Playhead.
-      Rectangle().fill(Color.red).frame(width: 2, height: Track.total)
-        .offset(x: x(project.playheadSrc) - 1)
-        .allowsHitTesting(false)
+      if let s = ui.snap {
+        Rectangle().fill(Color.primary.opacity(0.8))
+          .frame(width: 1, height: Track.total - Track.ruler.height)
+          .offset(x: x(s) - 0.5, y: Track.ruler.height)
+          .allowsHitTesting(false)
+      }
+      playhead
     }
+  }
+
+  /// A faint band behind each track.
+  private var lanes: some View {
+    ZStack(alignment: .topLeading) {
+      ForEach(Track.allCases.filter { $0 != .ruler }, id: \.self) { t in
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+          .fill(Color.primary.opacity(0.03))
+          .frame(height: t.height)
+          .offset(y: t.y)
+      }
+    }
+    .allowsHitTesting(false)
+  }
+
+  /// The playhead: a grip in the ruler and a line through the tracks. The ruler handles dragging it.
+  private var playhead: some View {
+    ZStack(alignment: .top) {
+      Rectangle().fill(Self.playheadColor)
+        .frame(width: 1.5, height: Track.total - 4)
+        .offset(y: 4)
+      PlayheadCap().fill(Self.playheadColor)
+        .frame(width: 11, height: 15)
+        .offset(y: 2)
+        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
+    }
+    .frame(width: 12, height: Track.total, alignment: .top)
+    .offset(x: x(project.playheadSrc) - 6)
+    .allowsHitTesting(false)
   }
 
   private func ruler(_ plan: Plan) -> some View {
     let pps = ui.pxPerSec
     let step: Double = pps > 120 ? 1 : pps > 40 ? 5 : pps > 12 ? 10 : 30
+    let minor = step / (step == 1 ? 4 : 5)
     return Canvas { ctx, size in
-      var t = 0.0
-      while t <= plan.source.duration {
+      var i = 0
+      while Double(i) * minor <= plan.source.duration {
+        let t = Double(i) * minor
         let px = t * pps
-        ctx.fill(Path(CGRect(x: px, y: 14, width: 1, height: 8)), with: .color(.secondary))
-        ctx.draw(Text(fmtTime(t).replacingOccurrences(of: ".0", with: "")).font(.system(size: 9)).foregroundColor(.secondary),
-                 at: CGPoint(x: px + 2, y: 6), anchor: .leading)
-        t += step
+        let major = i % Int((step / minor).rounded()) == 0
+        ctx.fill(
+          Path(CGRect(x: px, y: major ? 13 : 17, width: 1, height: major ? 9 : 5)),
+          with: .color(.secondary.opacity(major ? 0.7 : 0.35)))
+        if major {
+          ctx.draw(
+            Text(fmtTime(t).replacingOccurrences(of: ".0", with: "")).font(.system(size: 9, weight: .medium).monospacedDigit())
+              .foregroundColor(.secondary),
+            at: CGPoint(x: px + 3, y: 7), anchor: .leading)
+        }
+        i += 1
       }
     }
     .frame(height: Track.ruler.height)
@@ -241,10 +380,10 @@ struct TimelineView: View {
     .gesture(
       DragGesture(minimumDistance: 0).onChanged { v in
         project.player.pause()
-        project.seek(src: max(0, v.location.x / pps))
+        project.seek(src: min(max(0, v.location.x / pps), plan.source.duration))
       }
     )
-    .help("Drag to scrub")
+    .help("Click or drag to move the playhead")
   }
 
   /// The voice waveform from measured loudness; cut ranges are dimmed.
@@ -264,15 +403,17 @@ struct TimelineView: View {
         let t = chunk.first!.0
         let db = chunk.map(\.1).max() ?? -90
         let v = max(0, min(1, (db + 55) / 50))
-        let barH = max(1, v * (h - 4))
+        let barH = max(1, v * (h - 6))
         let kept = srcToOut(mapped, t, fps: fps) != nil
-        let rect = CGRect(x: t * pps, y: (h - barH) / 2, width: max(1, Double(step) * 0.05 * pps - 0.5), height: barH)
-        ctx.fill(Path(rect), with: .color(kept ? Color.green.opacity(0.75) : Color.gray.opacity(0.3)))
+        let w = max(1, Double(step) * 0.05 * pps - 0.6)
+        let rect = CGRect(x: t * pps, y: (h - barH) / 2, width: w, height: barH)
+        ctx.fill(
+          Path(roundedRect: rect, cornerRadius: min(w, barH) / 2),
+          with: .color(kept ? Theme.audio.opacity(0.8) : Color.secondary.opacity(0.25)))
         i += step
       }
     }
     .frame(height: h)
-    .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.04)))
     .offset(y: Track.audio.y)
     .allowsHitTesting(false)
   }
@@ -289,9 +430,9 @@ struct TimelineView: View {
         let px = w.start * pps
         guard px > lastEnd + 2 else { continue }
         let kept = srcToOut(mapped, w.start, fps: fps) != nil
-        let text = ctx.resolve(Text(w.text).font(.system(size: 9)).foregroundColor(kept ? .primary : .secondary.opacity(0.5)))
+        let text = ctx.resolve(Text(w.text).font(.system(size: 9)).foregroundColor(kept ? .primary.opacity(0.85) : .secondary.opacity(0.5)))
         let sz = text.measure(in: CGSize(width: 400, height: 20))
-        ctx.draw(text, at: CGPoint(x: px, y: 9), anchor: .leading)
+        ctx.draw(text, at: CGPoint(x: px + 2, y: 9), anchor: .leading)
         lastEnd = px + sz.width
       }
     }
@@ -300,25 +441,78 @@ struct TimelineView: View {
     .allowsHitTesting(false)
   }
 
+  /// A cut: hatched and dashed, selectable so it can be restored.
+  private func gap(_ g: Gap) -> some View {
+    let sel = Selection.gap(g)
+    let selected = project.selection == sel
+    let hovered = ui.hover == sel
+    let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+    return shape.fill(Color.primary.opacity(hovered ? 0.07 : 0.035))
+      .overlay(Hatch().stroke(Color.primary.opacity(hovered ? 0.16 : 0.1), lineWidth: 1).clipShape(shape))
+      .overlay(
+        shape.strokeBorder(
+          selected ? Color.accentColor : Color.primary.opacity(0.22),
+          style: StrokeStyle(lineWidth: selected ? 1.5 : 1, dash: selected ? [] : [4, 3])))
+      .frame(width: max(2, x(g.end) - x(g.start)), height: Track.clips.height)
+      .contentShape(Rectangle())
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Cut at \(fmtTime(g.start))")
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction { project.selection = sel }
+      .onTapGesture { project.selection = sel }
+      .onHover { setHover(sel, $0) }
+      .help("Cut: select it and press ⌫ to restore")
+      .offset(x: x(g.start), y: Track.clips.y)
+  }
+
+  private func setHover(_ sel: Selection, _ inside: Bool) {
+    if inside { ui.hover = sel } else if ui.hover == sel { ui.hover = nil }
+  }
+
   /// A selectable bar with drag handles on both edges; `movable` bars can also be dragged whole.
+  /// `badge` is a capsule before the label (a clip's speed); `striped` hatches it (sped-up clips).
   private func bar(
-    sel: Selection, start: Double, end: Double, track: Track, color: Color, label: String, movable: Bool,
+    sel: Selection, start: Double, end: Double, track: Track, color: Color, label: String,
+    badge: String? = nil, striped: Bool = false, movable: Bool, bounds: ClosedRange<Double>? = nil,
     commit: @escaping (Double, Double) -> Void
   ) -> some View {
     let selected = project.selection == sel
+    let hovered = ui.hover == sel
     let w = max(3, x(end) - x(start))
     let pps = ui.pxPerSec
-    let dur = project.plan?.source.duration ?? 0
-    return RoundedRectangle(cornerRadius: 5)
-      .fill(color.opacity(selected ? 0.95 : 0.7))
-      .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(selected ? Color.white : Color.clear, lineWidth: 2))
-      .overlay(alignment: .leading) {
-        Text(w > 24 ? label : "").font(.caption2).foregroundStyle(.white).lineLimit(1).padding(.horizontal, 6)
+    let limits = bounds ?? 0...(project.plan?.source.duration ?? 0)
+    let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+    let base = selected ? 1 : hovered ? 0.85 : 0.7
+    return shape
+      .fill(color.opacity(striped ? base * 0.6 : base))
+      .overlay(shape.fill(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .top, endPoint: .center)))
+      .overlay {
+        if striped { Hatch(spacing: 7).stroke(Color.white.opacity(0.22), lineWidth: 2).clipShape(shape) }
       }
+      .overlay(
+        shape.strokeBorder(
+          selected ? Color.white : Color.white.opacity(hovered ? 0.35 : 0.12), lineWidth: selected ? 1.5 : 0.5)
+      )
+      .overlay(alignment: .leading) {
+        HStack(spacing: 5) {
+          if let badge, w > 30 {
+            Text(badge).font(.system(size: 9, weight: .bold).monospacedDigit())
+              .padding(.horizontal, 4).padding(.vertical, 1)
+              .background(Capsule().fill(Color.black.opacity(0.25)))
+          }
+          if w > 24 && !label.isEmpty {
+            Text(label).font(.system(size: 10, weight: .medium)).lineLimit(1)
+          }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 7)
+      }
+      .clipShape(shape)
+      .shadow(color: selected ? color.opacity(0.55) : .black.opacity(hovered ? 0.15 : 0), radius: selected ? 5 : 2, y: 1)
       .frame(width: w, height: track.height)
       .contentShape(Rectangle())
       .accessibilityElement(children: .ignore)
-      .accessibilityLabel("\(track.label) \(label) at \(fmtTime(start))")
+      .accessibilityLabel("\(track.label) \([badge, label].compactMap { $0 }.joined(separator: " ")) at \(fmtTime(start))")
       .accessibilityAddTraits(.isButton)
       .accessibilityAction {
         project.selection = sel
@@ -328,47 +522,95 @@ struct TimelineView: View {
         project.selection = sel
         project.seek(src: start + loc.x / pps)
       }
+      .onHover { setHover(sel, $0) }
       .gesture(
         DragGesture(minimumDistance: 3)
           .onChanged { v in
             guard movable else { return }
             project.selection = sel
-            let d = v.translation.width / pps
             let len = end - start
-            let s = min(max(0, start + d), dur - len)
+            let clamp = { (s: Double) in min(max(limits.lowerBound, s), limits.upperBound - len) }
+            var s = clamp(start + v.translation.width / pps)
+            s = clamp(s + snapShift([s, s + len], excluding: sel, start: start, end: end))
             ui.drag = (sel, s, s + len)
           }
           .onEnded { _ in
+            ui.snap = nil
             guard movable, let d = ui.drag, d.sel == sel else { return }
             ui.drag = nil
             commit(d.start, d.end)
           }
       )
-      .overlay(alignment: .leading) { if selected { handle(sel: sel, start: start, end: end, left: true, commit: commit) } }
-      .overlay(alignment: .trailing) { if selected { handle(sel: sel, start: start, end: end, left: false, commit: commit) } }
+      .overlay(alignment: .leading) {
+        if selected { handle(sel: sel, start: start, end: end, left: true, limits: limits, commit: commit) }
+      }
+      .overlay(alignment: .trailing) {
+        if selected { handle(sel: sel, start: start, end: end, left: false, limits: limits, commit: commit) }
+      }
       .offset(x: x(start), y: track.y)
   }
 
-  private func handle(sel: Selection, start: Double, end: Double, left: Bool, commit: @escaping (Double, Double) -> Void) -> some View {
+  private func handle(
+    sel: Selection, start: Double, end: Double, left: Bool, limits: ClosedRange<Double>,
+    commit: @escaping (Double, Double) -> Void
+  ) -> some View {
     let pps = ui.pxPerSec
-    let dur = project.plan?.source.duration ?? 0
-    return RoundedRectangle(cornerRadius: 2).fill(Color.white)
-      .frame(width: 6)
-      .padding(.vertical, 4)
-      .contentShape(Rectangle().inset(by: -4))
+    return Capsule().fill(Color.white)
+      .frame(width: 4)
+      .padding(.vertical, 6)
+      .padding(.horizontal, 2)
+      .shadow(color: .black.opacity(0.3), radius: 1)
+      .contentShape(Rectangle().inset(by: -3))
       .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
       .gesture(
         DragGesture(minimumDistance: 1)
           .onChanged { v in
-            let d = v.translation.width / pps
-            ui.drag = left ? (sel, min(max(0, start + d), end - 0.1), end) : (sel, start, max(min(dur, end + d), start + 0.1))
+            var t = (left ? start : end) + v.translation.width / pps
+            t += snapShift([t], excluding: sel, start: start, end: end)
+            ui.drag =
+              left
+              ? (sel, min(max(limits.lowerBound, t), end - 0.1), end)
+              : (sel, start, max(min(limits.upperBound, t), start + 0.1))
           }
           .onEnded { _ in
+            ui.snap = nil
             guard let d = ui.drag, d.sel == sel else { return }
             ui.drag = nil
             commit(d.start, d.end)
           }
       )
+  }
+
+  // MARK: Snapping
+
+  /// Edges a dragged item can snap to: the playhead, the ends of the recording, and every other
+  /// item's start and end (its own saved edges excluded).
+  private func snapTargets(excluding sel: Selection, start: Double, end: Double) -> [Double] {
+    guard let p = project.plan else { return [] }
+    var ts = [project.playheadSrc, 0, p.source.duration]
+    for s in p.segments { ts += [s.start, s.end] }
+    for z in p.zooms { ts += [z.start, z.end] }
+    for l in p.layouts { ts += [l.start, l.end] }
+    for c in p.callouts { ts += [c.start, c.end] }
+    return ts.filter { abs($0 - start) > 1e-9 && abs($0 - end) > 1e-9 || $0 == project.playheadSrc }
+  }
+
+  /// The shift that lands the nearest of `edges` on a target within `snapDistance` points (0 when
+  /// none is close, or while ⌘ is held). Sets or clears the guide line.
+  private func snapShift(_ edges: [Double], excluding sel: Selection, start: Double, end: Double) -> Double {
+    guard !NSEvent.modifierFlags.contains(.command) else {
+      ui.snap = nil
+      return 0
+    }
+    let tolerance = Double(Self.snapDistance) / ui.pxPerSec
+    var best: (shift: Double, at: Double)?
+    for t in snapTargets(excluding: sel, start: start, end: end) {
+      for e in edges where abs(t - e) <= tolerance && abs(t - e) < abs(best?.shift ?? .infinity) {
+        best = (t - e, t)
+      }
+    }
+    if ui.snap != best?.at { ui.snap = best?.at }
+    return best?.shift ?? 0
   }
 }
 
