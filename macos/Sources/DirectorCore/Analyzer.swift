@@ -178,11 +178,16 @@ extension Analyzer {
   }
 
   /// Silent stretches: quieter than the room's noise floor plus 12 dB.
+  /// Quieter than this is silence: the room's noise floor (quietest 10%) plus 12 dB, at most -30 dBFS.
+  public static func silenceThreshold(_ levels: [(Double, Double)]) -> Double {
+    guard !levels.isEmpty else { return -45 }
+    let sorted = levels.map(\.1).sorted()
+    return min(sorted[sorted.count / 10] + 12, -30)
+  }
+
   public static func silences(_ levels: [(Double, Double)], minLength: Double) -> [(Double, Double)] {
     guard !levels.isEmpty else { return [] }
-    let sorted = levels.map(\.1).sorted()
-    let floor = sorted[sorted.count / 10]
-    let threshold = min(floor + 12, -30)
+    let threshold = silenceThreshold(levels)
     var out: [(Double, Double)] = []
     var start: Double?
     for (t, db) in levels {

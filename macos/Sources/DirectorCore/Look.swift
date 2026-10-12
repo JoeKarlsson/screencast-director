@@ -47,12 +47,15 @@ public struct Profile: Codable, Equatable {
   public var style: Plan.Style
   public var look: Look
   public var captions: Plan.Captions?
+  /// A default background track for videos with this profile (path relative to the profile folder).
+  public var music: Music?
 
-  public init(name: String, style: Plan.Style, look: Look, captions: Plan.Captions? = nil) {
+  public init(name: String, style: Plan.Style, look: Look, captions: Plan.Captions? = nil, music: Music? = nil) {
     self.name = name
     self.style = style
     self.look = look
     self.captions = captions
+    self.music = music
   }
 
   /// Loads profile.json from a folder and makes asset paths absolute.
@@ -61,6 +64,7 @@ public struct Profile: Codable, Equatable {
     func abs(_ path: String) -> String { path.hasPrefix("/") ? path : dir.appendingPathComponent(path).path }
     p.look.fontFiles = p.look.fontFiles?.map(abs)
     if let w = p.look.watermark { p.look.watermark?.image = abs(w.image) }
+    if let m = p.music { p.music?.file = abs(m.file) }
     return p
   }
 
@@ -73,6 +77,7 @@ public struct Profile: Codable, Equatable {
     look.name = name
     plan.look = look
     if let captions { plan.captions.maxWords = captions.maxWords }
+    if let music { plan.music = music }
   }
 }
 

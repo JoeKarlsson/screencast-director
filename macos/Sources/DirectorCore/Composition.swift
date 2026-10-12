@@ -39,8 +39,16 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   guard let srcVideo = try await screenAsset.loadTracks(withMediaType: .video).first else {
     throw CompositionError.noVideo(plan.source.video)
   }
-  let srcAudio = try await screenAsset.loadTracks(withMediaType: .audio).first
+  var srcAudio = try await screenAsset.loadTracks(withMediaType: .audio).first
   let screenDuration = try await screenAsset.load(.duration)
+  // Clean up voice: same timing, audio from the cached voice-clean.m4a. If the render fails, keep
+  // the original audio rather than failing the whole preview.
+  var cleanAsset: AVURLAsset?
+  if plan.audio?.cleanup == true, srcAudio != nil, let url = try? await VoiceCleanup.cleaned(project, video: plan.source.video) {
+    cleanAsset = AVURLAsset(url: url)
+    if let track = try? await cleanAsset?.loadTracks(withMediaType: .audio).first { srcAudio = track }
+  }
+  let audioEnd = try await srcAudio?.load(.timeRange).end ?? screenDuration
 
   let vTrack = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)!
   let aTrack = srcAudio != nil ? comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) : nil
@@ -90,8 +98,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     try insert(vTrack, srcRange, of: srcVideo, at: at, "screen video")
     vTrack.scaleTimeRange(CMTimeRange(start: at, duration: srcRange.duration), toDuration: outDur)
     if let aTrack, let srcAudio {
-      try insert(aTrack, srcRange, of: srcAudio, at: at, "audio")
-      aTrack.scaleTimeRange(CMTimeRange(start: at, duration: srcRange.duration), toDuration: outDur)
+      let audioRange = CMTimeRange(start: srcRange.start, end: CMTimeMinimum(srcRange.end, audioEnd))
+      if audioRange.duration.seconds > 0 {
+        try insert(aTrack, audioRange, of: srcAudio, at: at, "audio")
+        let audioOut = audioRange == srcRange ? outDur : t(outDur.seconds * audioRange.duration.seconds / srcRange.duration.seconds)
+        aTrack.scaleTimeRange(CMTimeRange(start: at, duration: audioRange.duration), toDuration: audioOut)
+      }
       if s.speed > 1.01 {
         audioParams?.setVolume(0, at: at)
       } else {
@@ -115,9 +127,32 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     }
   }
 
+  let total = CMTime(value: CMTimeValue(scene.frameCount), timescale: fps)
+  var musicParams: AVMutableAudioMixInputParameters?
+  var musicAsset: AVURLAsset?
+  if let music = plan.music {
+    let url = music.file.hasPrefix("/") ? URL(fileURLWithPath: music.file) : project.dir.appendingPathComponent(music.file)
+    musicAsset = AVURLAsset(url: url)
+    if let musicAsset, let src = try? await musicAsset.loadTracks(withMediaType: .audio).first {
+      let range = try await src.load(.timeRange)
+      let mTrack = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)!
+      // Loop the track to the end of the video; the trim below cuts the last pass to length.
+      var at = CMTime.zero
+      while range.duration.seconds > 0.1 && at < total {
+        try insert(mTrack, range, of: src, at: at, "music")
+        at = CMTimeAdd(at, range.duration)
+      }
+      let levels = (try? await Analyzer.loudness(project, video: plan.source.video)) ?? []
+      let p = AVMutableAudioMixInputParameters(track: mTrack)
+      MusicDuck.apply(music, to: p, speech: MusicDuck.speech(levels: levels, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+      musicParams = p
+    }
+  }
+
   withExtendedLifetime(camAsset) {}
   withExtendedLifetime(screenAsset) {}
-  let total = CMTime(value: CMTimeValue(scene.frameCount), timescale: fps)
+  withExtendedLifetime(cleanAsset) {}
+  withExtendedLifetime(musicAsset) {}
   // Rounding can leave a track (usually the camera) a few milliseconds past the last frame.
   // AVPlayer rejects a video composition whose instruction doesn't cover every track and then
   // plays nothing at all (black, silent), so trim everything to the exact frame count.
@@ -133,7 +168,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   vc.instructions = [instruction]
 
   let mix = AVMutableAudioMix()
-  if let audioParams { mix.inputParameters = [audioParams] }
+  mix.inputParameters = [audioParams, musicParams].compactMap { $0 }
   return BuiltComposition(asset: comp, videoComposition: vc, audioMix: mix, scene: scene)
 }
 

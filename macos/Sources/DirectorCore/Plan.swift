@@ -126,6 +126,8 @@ public struct Plan: Codable, Equatable {
   public var pauses: PauseLevel?
   /// Voice level: normalize to a standard loudness, plus a manual trim.
   public var audio: AudioSettings?
+  /// Background music, ducked under the voice.
+  public var music: Music?
   /// The drawn cursor (only for recordings made with the real cursor hidden).
   public var cursor: CursorSettings?
 
@@ -203,9 +205,27 @@ public struct AudioSettings: Codable, Equatable {
   public var normalize: Bool?
   /// Extra gain in dB, -12...12.
   public var gainDB: Double?
-  public init(normalize: Bool? = nil, gainDB: Double? = nil) {
+  /// Remove room noise and echo from the voice (Apple's voice isolation, cached as voice-clean.m4a).
+  public var cleanup: Bool?
+  public init(normalize: Bool? = nil, gainDB: Double? = nil, cleanup: Bool? = nil) {
     self.normalize = normalize
     self.gainDB = gainDB
+    self.cleanup = cleanup
+  }
+}
+
+/// A background music track, looped to the video's length and ducked under the voice.
+public struct Music: Codable, Equatable {
+  /// A file in the project folder, or an absolute path.
+  public var file: String
+  /// Music level when nobody's talking, in dB (0 = as recorded). Default -14.
+  public var volumeDB: Double?
+  /// How far the music drops while the voice is talking, in dB. Default -18.
+  public var duckDB: Double?
+  public init(file: String, volumeDB: Double? = nil, duckDB: Double? = nil) {
+    self.file = file
+    self.volumeDB = volumeDB
+    self.duckDB = duckDB
   }
 }
 

@@ -189,6 +189,21 @@ struct Checks {
     expect(abs(refined[0].start - 1.0) < 0.06 && abs(refined[0].end - 1.6) < 0.06, "word edges snap to the loud part")
     expect(refined[1].start <= 2.75 && refined[1].end >= 2.75, "a silent word keeps its midpoint")
 
+    // Music ducking: talking spans in output time, short gaps bridged, sped-up clips ignored.
+    var talk: [(Double, Double)] = []
+    for i in 0..<260 {
+      let t = Double(i) * 0.05
+      let loud = (t >= 1 && t < 3) || (t >= 3.5 && t < 4) || (t >= 6 && t < 7) || (t >= 11 - 0.001 && t < 12)
+      talk.append((t, loud ? -20 : -60))
+    }
+    let duckMap = mapSegments([Segment(start: 0, end: 5, speed: 1), Segment(start: 5, end: 8, speed: 3), Segment(start: 10, end: 12, speed: 1)], fps: fps)
+    let spans = MusicDuck.speech(levels: talk, mapped: duckMap, fps: fps)
+    expect(spans.count == 2, "a 0.5 s gap stays ducked, the 3x clip doesn't count (got \(spans))")
+    if spans.count == 2 {
+      expect(abs(spans[0].0 - 1) < 0.01 && abs(spans[0].1 - 4) < 0.01, "first span is 1-4 s")
+      expect(abs(spans[1].0 - 7) < 0.01 && abs(spans[1].1 - 8) < 0.01, "source 11-12 s lands at 7-8 s of output")
+    }
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

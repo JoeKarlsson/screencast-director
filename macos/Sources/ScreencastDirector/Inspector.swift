@@ -252,6 +252,39 @@ struct InspectorView: View {
       Text(String(format: "Normalize adds %+.1f dB.", AudioGain.normalizeGain(project.levels)))
         .font(.caption).foregroundStyle(.secondary)
     }
+    Toggle("Clean up voice", isOn: Binding(get: { plan.audio?.cleanup ?? false }, set: { v in
+      project.apply { p in
+        var a = p.audio ?? AudioSettings()
+        a.cleanup = v
+        p.audio = a
+      }
+    }))
+    .help("Removes room noise, hum and echo with Apple's voice isolation. The first time takes a few seconds.")
+
+    Divider()
+    header("Music", "A background track, looped to the video's length. It drops while you talk.")
+    if let music = plan.music {
+      HStack {
+        Image(systemName: "music.note")
+        Text((music.file as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
+        Spacer()
+        Button("Remove") { project.apply { $0.music = nil } }
+      }
+      LabeledContent("Volume") {
+        Slider(value: Binding(get: { project.plan?.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, set: { v in
+          project.apply(coalesce: "musicVolume") { p in p.music?.volumeDB = v.rounded() }
+        }), in: -40...0)
+        Text(String(format: "%.0f dB", music.volumeDB ?? MusicDuck.defaultVolumeDB)).monospacedDigit().frame(width: 60, alignment: .trailing)
+      }
+      LabeledContent("Under voice") {
+        Slider(value: Binding(get: { project.plan?.music?.duckDB ?? MusicDuck.defaultDuckDB }, set: { v in
+          project.apply(coalesce: "musicDuck") { p in p.music?.duckDB = v.rounded() }
+        }), in: -40...0)
+        Text(String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB)).monospacedDigit().frame(width: 60, alignment: .trailing)
+      }
+    } else {
+      Button("Add Music…") { pickMusic() }
+    }
 
     Divider()
     header("Pauses", "How hard to cut silence. Cuts that removed words always stay cut.")
@@ -377,6 +410,30 @@ struct InspectorView: View {
       Slider(value: value, in: range)
       Text(label).monospacedDigit().frame(width: 44, alignment: .trailing)
     }
+  }
+
+  /// Copies the chosen track into the project folder, so the project still plays if the original moves.
+  private func pickMusic() {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .aiff]
+    panel.message = "Choose a background track"
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    var name = url.lastPathComponent
+    if url.deletingLastPathComponent().standardizedFileURL != project.dir.standardizedFileURL {
+      // Never overwrite a project file (or an earlier track) that happens to share the name.
+      var n = 1
+      while FileManager.default.fileExists(atPath: project.dir.appendingPathComponent(name).path) {
+        n += 1
+        name = "\(url.deletingPathExtension().lastPathComponent) \(n).\(url.pathExtension)"
+      }
+      do {
+        try FileManager.default.copyItem(at: url, to: project.dir.appendingPathComponent(name))
+      } catch {
+        NSAlert(error: error).runModal()
+        return
+      }
+    }
+    project.apply { p in p.music = Music(file: name) }
   }
 }
 

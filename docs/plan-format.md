@@ -29,4 +29,5 @@ The full schema is in [src/types.ts](../src/types.ts) (TypeScript) and `macos/So
 | `transcript.json` | Word-level transcript |
 | `motion.json` | Frame-to-frame screen motion |
 | `plan.json` | The edit |
+| `voice-clean.m4a` | The cleaned voice, when Clean up voice is on (rendered on demand) |
 | `out.mp4` | The render |
