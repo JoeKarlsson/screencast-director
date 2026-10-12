@@ -13,7 +13,9 @@ final class AppSettings: ObservableObject {
 
   init() {
     micID = d.string(forKey: "micID") ?? ""
-    cameraID = d.string(forKey: "cameraID") ?? ""
+    // Default to the first camera so the picker isn't blank (an external one if there is one).
+    let cams = AppSettings.cameras
+    cameraID = d.string(forKey: "cameraID") ?? (cams.first { $0.deviceType == .external } ?? cams.first)?.uniqueID ?? ""
     useCamera = d.bool(forKey: "useCamera")
     fps = d.object(forKey: "fps") as? Int ?? 30
     projectsFolder =

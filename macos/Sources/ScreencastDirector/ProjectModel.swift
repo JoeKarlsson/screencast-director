@@ -443,6 +443,18 @@ final class ProjectModel: ObservableObject {
     let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
     claudeLog = ""
+    let ai = AISettings.shared
+    if ai.provider != .claudeCode {
+      run("\(ai.provider.shortName) is editing…") { [self] in
+        guard let plan, let project else { return }
+        let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: text, settings: ai)
+        apply { $0 = newPlan }
+        claudeLog = summary
+        instruction = ""
+        status = "Edited by \(ai.provider == .anthropic ? ai.anthropicModel : ai.model). ⌘Z undoes it."
+      }
+      return
+    }
     run("Claude is editing…") { [self] in
       let code = try await Claude.edit(project: dir, instruction: text) { chunk in
         Task { @MainActor in self.claudeLog += chunk }

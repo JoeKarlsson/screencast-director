@@ -141,10 +141,10 @@ struct EditorView: View {
     VStack(alignment: .leading, spacing: 6) {
       HStack {
         Image(systemName: "sparkles").foregroundStyle(.orange)
-        TextField("Ask Claude to edit: \"cut my retakes, zoom in when I mention the config, side-by-side for the intro\"", text: $project.instruction)
+        TextField("Ask \(AISettings.shared.provider.shortName) to edit: \"cut my retakes, zoom in when I mention the config, side-by-side for the intro\"", text: $project.instruction)
           .textFieldStyle(.roundedBorder)
           .onSubmit(project.askClaude)
-        Button("Ask Claude", action: project.askClaude)
+        Button("Ask \(AISettings.shared.provider.shortName)", action: project.askClaude)
           .disabled(project.busy || !project.hasPlan || project.instruction.isEmpty)
       }
       if !project.claudeLog.isEmpty {
@@ -161,9 +161,43 @@ struct EditorView: View {
 
 struct SettingsView: View {
   @ObservedObject var settings: AppSettings
+  @ObservedObject var ai = AISettings.shared
+  @ObservedObject var ui = SettingsUI()
 
   var body: some View {
     Form {
+      Section("AI editing") {
+        Picker("Provider", selection: $ai.provider) {
+          ForEach(AIProvider.allCases) { Text($0.label).tag($0) }
+        }
+        switch ai.provider {
+        case .claudeCode:
+          Text(Claude.executable.map { "Uses \($0.path) and your Claude login. It can check frames while it edits." }
+            ?? "Install Claude Code from claude.com/claude-code, or pick an API provider.")
+            .font(.caption).foregroundStyle(.secondary)
+        case .anthropic:
+          TextField("Model", text: $ai.anthropicModel)
+          SecureField("API key", text: Binding(get: { ai.key(for: .anthropic) }, set: { ai.setKey($0, for: .anthropic) }))
+          Text("Stored in your Keychain. Refusals fall back automatically to Anthropic's recommended model.")
+            .font(.caption).foregroundStyle(.secondary)
+        case .openAICompatible:
+          Picker("Endpoint", selection: Binding(get: { EndpointPreset.all.first { $0.baseURL == ai.baseURL }?.id ?? "custom" },
+            set: { id in if let p = EndpointPreset.all.first(where: { $0.id == id }) { ai.baseURL = p.baseURL } })) {
+            ForEach(EndpointPreset.all) { Text($0.name).tag($0.id) }
+            Text("Custom").tag("custom")
+          }
+          TextField("Base URL", text: $ai.baseURL)
+          TextField("Model", text: $ai.model, prompt: Text(EndpointPreset.all.first { $0.baseURL == ai.baseURL }?.modelHint ?? "model name"))
+          SecureField("API key (blank for Ollama)", text: Binding(get: { ai.key(for: .openAICompatible) }, set: { ai.setKey($0, for: .openAICompatible) }))
+        }
+        HStack {
+          Button("Test") {
+            ui.testResult = "Testing…"
+            Task { @MainActor in ui.testResult = await APIEditor.test(ai) }
+          }
+          Text(ui.testResult).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        }
+      }
       Picker("Microphone", selection: $settings.micID) {
         Text("System default").tag("")
         ForEach(AppSettings.microphones, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
@@ -183,7 +217,11 @@ struct SettingsView: View {
       LabeledContent("Recordings folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }
     }
     .formStyle(.grouped)
-    .frame(width: 520)
-    .padding()
+    // A grouped Form has no height of its own; without this the window collapses to its title bar.
+    .frame(width: 600, height: 640)
   }
+}
+
+final class SettingsUI: ObservableObject {
+  @Published var testResult = ""
 }

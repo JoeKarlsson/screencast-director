@@ -121,7 +121,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @objc func showSettings() {
     if settingsWindow == nil {
-      let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+      let w = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 600, height: 640), styleMask: [.titled, .closable, .resizable], backing: .buffered,
+        defer: false)
       w.title = "Settings"
       w.contentView = NSHostingView(rootView: SettingsView(settings: settings))
       w.isReleasedWhenClosed = false
