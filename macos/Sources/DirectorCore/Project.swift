@@ -11,14 +11,21 @@ public struct Project {
     /// Host-clock time of the first video frame; absent for imported videos.
     public var captureStart: Double?
     public var camera: Plan.Camera?
+    /// True when the recording left the real cursor out, so the renderer draws a smooth one
+    /// from the logged mouse moves.
+    public var cursorHidden: Bool?
 
-    public init(video: String, width: Double, height: Double, duration: Double, captureStart: Double?, camera: Plan.Camera?) {
+    public init(
+      video: String, width: Double, height: Double, duration: Double, captureStart: Double?, camera: Plan.Camera?,
+      cursorHidden: Bool? = nil
+    ) {
       self.video = video
       self.width = width
       self.height = height
       self.duration = duration
       self.captureStart = captureStart
       self.camera = camera
+      self.cursorHidden = cursorHidden
     }
   }
 
@@ -95,6 +102,10 @@ public struct Project {
   }
 
   public var clicks: [InputEvent] { events.filter { $0.type == .click } }
+  /// Where the pointer was over time (moves and clicks), when the renderer draws the cursor.
+  public var cursorPath: [InputEvent] {
+    source.cursorHidden == true ? events.filter { ($0.type == .move || $0.type == .click) } : []
+  }
   public var shortcuts: [InputEvent] {
     events.filter { e in e.type == .key && (e.label.map { $0.contains("⌘") || $0.contains("⌃") || $0.contains("⌥") } ?? false) }
   }

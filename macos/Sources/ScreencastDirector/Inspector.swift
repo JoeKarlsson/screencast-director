@@ -197,8 +197,40 @@ struct InspectorView: View {
     }
     .onAppear { ProfileStore.shared.refresh() }
 
+    if project.project?.source.cursorHidden == true {
+      Divider()
+      header("Cursor", "Drawn from your mouse moves, so it glides instead of jittering.")
+      Toggle("Show cursor", isOn: Binding(get: { !(plan.cursor?.hidden ?? false) }, set: { v in
+        project.apply { p in
+          var c = p.cursor ?? CursorSettings()
+          c.hidden = v ? nil : true
+          p.cursor = c
+        }
+      }))
+      LabeledContent("Size") {
+        Slider(value: Binding(get: { project.plan?.cursor?.size ?? 32 }, set: { v in
+          project.apply(coalesce: "cursorSize") { p in
+            var c = p.cursor ?? CursorSettings()
+            c.size = v.rounded()
+            p.cursor = c
+          }
+        }), in: 16...72)
+        Text("\(Int(plan.cursor?.size ?? 32))").monospacedDigit().frame(width: 36, alignment: .trailing)
+      }
+      LabeledContent("Smoothing") {
+        Slider(value: Binding(get: { project.plan?.cursor?.smoothing ?? 0.12 }, set: { v in
+          project.apply(coalesce: "cursorSmoothing") { p in
+            var c = p.cursor ?? CursorSettings()
+            c.smoothing = (v * 100).rounded() / 100
+            p.cursor = c
+          }
+        }), in: 0...0.4)
+        Text(String(format: "%.2f s", plan.cursor?.smoothing ?? 0.12)).monospacedDigit().frame(width: 52, alignment: .trailing)
+      }
+    }
+
     Divider()
-    header("Sound", "Normalize brings your voice to a steady level; a limiter keeps peaks from clipping.")
+    header("Sound","Normalize brings your voice to a steady level; a limiter keeps peaks from clipping.")
     Toggle("Normalize voice", isOn: Binding(get: { plan.audio?.normalize ?? false }, set: { v in
       project.apply { p in
         var a = p.audio ?? AudioSettings()

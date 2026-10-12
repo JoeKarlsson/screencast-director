@@ -30,7 +30,8 @@ public enum CompositionError: LocalizedError {
 private let fadeFrames = 3
 
 public func buildComposition(project: Project, plan: Plan) async throws -> BuiltComposition {
-  let scene = Scene(plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts)
+  let scene = Scene(
+    plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts, cursorPath: project.cursorPath)
   let fps = Int32(plan.output.fps)
   let comp = AVMutableComposition()
 

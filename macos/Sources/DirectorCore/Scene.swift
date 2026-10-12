@@ -36,10 +36,18 @@ public final class Scene: @unchecked Sendable {
 
   /// Transcript words (source times), for captions and SRT export.
   public let words: [Word]
+  /// Pointer samples (source time, x, y), sorted, when the renderer draws the cursor.
+  let pointer: [(t: Double, x: Double, y: Double)]
+  /// Click times (source), for the cursor's press pulse.
+  let clickTimes: [Double]
 
-  public init(plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent]) {
+  public init(plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = []) {
     self.plan = plan
     self.words = words
+    pointer =
+      plan.cursor?.hidden == true
+      ? [] : cursorPath.filter { (-0.05...1.05).contains($0.x) && (-0.05...1.05).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
+    clickTimes = clicks.map(\.t).sorted()
     let fps = plan.output.fps
     mapped = mapSegments(plan.segments, fps: fps)
     zooms = zoomsToOut(plan.zooms, mapped, fps: fps)
@@ -236,7 +244,10 @@ public final class Scene: @unchecked Sendable {
     let border = camBox.map { $0.opacity > 0.01 } ?? false
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
-    if page == nil && chip == nil && callout == nil && ripples.isEmpty && !border && !brackets && watermark == nil { return nil }
+    let pointerAt = b.opacity > 0.01 ? cursorPosition(frame: f) : nil
+    if page == nil && chip == nil && callout == nil && ripples.isEmpty && !border && !brackets && watermark == nil && pointerAt == nil {
+      return nil
+    }
 
     guard
       let ctx = CGContext(
@@ -266,6 +277,16 @@ public final class Scene: @unchecked Sendable {
         ctx.setLineWidth(3 * u)
         ctx.strokeEllipse(in: rect)
       }
+      ctx.restoreGState()
+    }
+
+    if let p = pointerAt {
+      ctx.saveGState()
+      ctx.addPath(CGPath(roundedRect: CGRect(x: b.x, y: b.y, width: b.w, height: b.h), cornerWidth: b.r, cornerHeight: b.r, transform: nil))
+      ctx.clip()
+      let (k, tx, ty) = screenMap(b, cam)
+      drawCursor(ctx, at: CGPoint(x: tx + k * p.x * plan.source.width, y: ty + k * p.y * plan.source.height),
+        height: (plan.cursor?.size ?? 32) * u * cam.scale * p.pulse)
       ctx.restoreGState()
     }
 
@@ -383,6 +404,64 @@ public final class Scene: @unchecked Sendable {
     let frame = CTFramesetterCreateFrame(CTFramesetterCreateWithAttributedString(s), CFRange(location: 0, length: 0), path, nil)
     CTFrameDraw(frame, ctx)
     ctx.restoreGState()
+  }
+
+  /// The smoothed pointer position (0..1 of the screen) at an output frame, plus a press pulse
+  /// (1 = normal size, briefly larger just after a click). nil when there's no pointer data.
+  func cursorPosition(frame f: Double) -> (x: Double, y: Double, pulse: Double)? {
+    guard !pointer.isEmpty, let t = outToSrc(mapped, f, fps: plan.output.fps) else { return nil }
+    // Hide it before the first sample and after a long gap (pointer on another display).
+    guard t >= pointer[0].t - 0.2, t <= pointer[pointer.count - 1].t + 2 else { return nil }
+    let sigma = max(0.001, (plan.cursor?.smoothing ?? 0.12) / 2)
+    // Gaussian-weighted average of the samples around t, which also interpolates between them.
+    var lo = 0, hi = pointer.count
+    while lo < hi {
+      let mid = (lo + hi) / 2
+      if pointer[mid].t < t - 3 * sigma - 0.05 { lo = mid + 1 } else { hi = mid }
+    }
+    var sx = 0.0, sy = 0.0, sw = 0.0
+    var i = lo
+    while i < pointer.count, pointer[i].t <= t + 3 * sigma + 0.05 {
+      let d = (pointer[i].t - t) / sigma
+      let w = exp(-0.5 * d * d)
+      sx += pointer[i].x * w
+      sy += pointer[i].y * w
+      sw += w
+      i += 1
+    }
+    if sw < 1e-6 {
+      // No sample close by: hold the last known position.
+      let last = pointer.last { $0.t <= t } ?? pointer[0]
+      sx = last.x
+      sy = last.y
+      sw = 1
+    }
+    var pulse = 1.0
+    if let c = clickTimes.last(where: { $0 <= t }), t - c < 0.3 {
+      pulse = 1 + 0.25 * sin(.pi * (t - c) / 0.3)
+    }
+    return (sx / sw, sy / sw, pulse)
+  }
+
+  /// The arrow from the app icon, tip at `at`, white with a dark outline.
+  func drawCursor(_ ctx: CGContext, at p: CGPoint, height h: Double) {
+    let s = h / 54
+    let pts: [(Double, Double)] = [(0, 0), (0, 46), (11, 36), (19, 54), (27, 50), (19, 33), (33, 33)]
+    let path = CGMutablePath()
+    path.move(to: p)
+    for (x, y) in pts.dropFirst() { path.addLine(to: CGPoint(x: p.x + x * s, y: p.y + y * s)) }
+    path.closeSubpath()
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: 2 * s), blur: 6 * s, color: CGColor(gray: 0, alpha: 0.4))
+    ctx.addPath(path)
+    ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+    ctx.fillPath()
+    ctx.restoreGState()
+    ctx.addPath(path)
+    ctx.setStrokeColor(CGColor(gray: 0.08, alpha: 1))
+    ctx.setLineWidth(max(1.2, 3 * s))
+    ctx.setLineJoin(.round)
+    ctx.strokePath()
   }
 
   /// Corner brackets: thick rounded corners just outside the screen card.

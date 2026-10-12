@@ -19,6 +19,7 @@ final class AppSettings: ObservableObject {
   @Published var captureWindowLabel: String { didSet { d.set(captureWindowLabel, forKey: "captureWindowLabel") } }
   @Published var pauseLevel: PauseLevel { didSet { d.set(pauseLevel.rawValue, forKey: "pauseLevel") } }
   @Published var autoName: Bool { didSet { d.set(autoName, forKey: "autoName") } }
+  @Published var smoothCursor: Bool { didSet { d.set(smoothCursor, forKey: "smoothCursor") } }
   static let shared = AppSettings()
 
   init() {
@@ -34,6 +35,7 @@ final class AppSettings: ObservableObject {
     captureWindowLabel = ""
     pauseLevel = PauseLevel(rawValue: d.string(forKey: "pauseLevel") ?? "") ?? .normal
     autoName = d.object(forKey: "autoName") as? Bool ?? true
+    smoothCursor = d.object(forKey: "smoothCursor") as? Bool ?? true
     projectsFolder =
       d.string(forKey: "projectsFolder")
       ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies/Screencast Director").path

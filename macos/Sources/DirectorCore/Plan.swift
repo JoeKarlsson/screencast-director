@@ -126,6 +126,8 @@ public struct Plan: Codable, Equatable {
   public var pauses: PauseLevel?
   /// Voice level: normalize to a standard loudness, plus a manual trim.
   public var audio: AudioSettings?
+  /// The drawn cursor (only for recordings made with the real cursor hidden).
+  public var cursor: CursorSettings?
 
   public static func load(_ url: URL) throws -> Plan {
     try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url))
@@ -204,5 +206,19 @@ public struct AudioSettings: Codable, Equatable {
   public init(normalize: Bool? = nil, gainDB: Double? = nil) {
     self.normalize = normalize
     self.gainDB = gainDB
+  }
+}
+
+public struct CursorSettings: Codable, Equatable {
+  /// Arrow height in pixels at 1080p (it grows with zooms). Default 32.
+  public var size: Double?
+  /// Seconds of smoothing on the pointer path, 0 (raw) to 0.4. Default 0.12.
+  public var smoothing: Double?
+  /// Hide the drawn cursor entirely.
+  public var hidden: Bool?
+  public init(size: Double? = nil, smoothing: Double? = nil, hidden: Bool? = nil) {
+    self.size = size
+    self.smoothing = smoothing
+    self.hidden = hidden
   }
 }

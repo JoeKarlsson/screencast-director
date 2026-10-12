@@ -238,6 +238,7 @@ struct SettingsView: View {
         Text("60 fps").tag(60)
       }
       Toggle("Name new recordings from what you said", isOn: $settings.autoName)
+      Toggle("Draw a smooth cursor (records without the real one)", isOn: $settings.smoothCursor)
       Picker("Pause trimming for new recordings", selection: $settings.pauseLevel) {
         ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
       }

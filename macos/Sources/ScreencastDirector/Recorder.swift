@@ -30,6 +30,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
   private let camQueue = DispatchQueue(label: "recorder.camera")
 
   private(set) var dir: URL?
+  private var cursorHidden = false
 
   func start(in root: URL, settings: AppSettings) async throws {
     guard !isRecording else { return }
@@ -72,7 +73,9 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     cfg.height = Int(size.height)
     cfg.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(settings.fps))
     cfg.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-    cfg.showsCursor = true
+    // With a smooth cursor, leave the real one out; the renderer draws it from the input log.
+    cursorHidden = settings.smoothCursor
+    cfg.showsCursor = !cursorHidden
     cfg.queueDepth = 8
     cfg.captureMicrophone = true
     if !settings.micID.isEmpty { cfg.microphoneCaptureDeviceID = settings.micID }
@@ -147,7 +150,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     let duration = try await asset.load(.duration).seconds
     let source = Project.Source(
       video: "screen.mp4", width: size.width, height: size.height, duration: duration, captureStart: firstPTS?.seconds,
-      camera: camera)
+      camera: camera, cursorHidden: cursorHidden ? true : nil)
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .sortedKeys]
     try enc.encode(source).write(to: dir.appendingPathComponent("source.json"))
