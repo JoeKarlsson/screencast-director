@@ -9,6 +9,8 @@
 
 A macOS app that records your screen and does the boring part of the edit. Talk through your demo once: it cuts the dead air, speeds up typing, zooms to your clicks and captions what you said. Then adjust it by hand, or tell Claude what to change.
 
+![The editor: preview with camera bubble and captions, a timeline of speech, sped-up and cut clips with zooms and titles, and the Style inspector](docs/media/editor.png)
+
 <!-- Hero GIF: 10-15 s of a raw recording turning into the edited version.
 ![Screencast Director turning a raw recording into an edited video](docs/media/hero.gif)
 -->
