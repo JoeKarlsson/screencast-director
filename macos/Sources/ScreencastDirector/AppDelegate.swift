@@ -90,8 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let s = Int(Date().timeIntervalSince(start))
             self.statusItem.button?.title = String(format: " %d:%02d", s / 60, s % 60)
           }
-          // Get out of the way of what's being recorded.
-          window.orderOut(nil)
+          // Get out of the way of what's being recorded, unless the app itself is the subject.
+          if !settings.showSelfInRecordings { window.orderOut(nil) }
         }
       } catch {
         let alert = NSAlert(error: error)

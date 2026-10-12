@@ -10,6 +10,8 @@ final class AppSettings: ObservableObject {
   @Published var useCamera: Bool { didSet { d.set(useCamera, forKey: "useCamera") } }
   @Published var fps: Int { didSet { d.set(fps, forKey: "fps") } }
   @Published var projectsFolder: String { didSet { d.set(projectsFolder, forKey: "projectsFolder") } }
+  /// Off by default: this app's windows stay out of recordings. Turn on to record a tour of the app itself.
+  @Published var showSelfInRecordings: Bool { didSet { d.set(showSelfInRecordings, forKey: "showSelfInRecordings") } }
 
   init() {
     micID = d.string(forKey: "micID") ?? ""
@@ -18,6 +20,7 @@ final class AppSettings: ObservableObject {
     cameraID = d.string(forKey: "cameraID") ?? (cams.first { $0.deviceType == .external } ?? cams.first)?.uniqueID ?? ""
     useCamera = d.bool(forKey: "useCamera")
     fps = d.object(forKey: "fps") as? Int ?? 30
+    showSelfInRecordings = d.bool(forKey: "showSelfInRecordings")
     projectsFolder =
       d.string(forKey: "projectsFolder")
       ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies/Screencast Director").path

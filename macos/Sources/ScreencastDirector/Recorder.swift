@@ -37,7 +37,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
       throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display to record."])
     }
     // Keep this app's own windows out of the recording.
-    let own = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+    let own = settings.showSelfInRecordings ? [] : content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
     let filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: [])
 
     let fmt = DateFormatter()

@@ -218,6 +218,7 @@ struct SettingsView: View {
         Text("30 fps").tag(30)
         Text("60 fps").tag(60)
       }
+      Toggle("Show this app in recordings (for recording a tour of it)", isOn: $settings.showSelfInRecordings)
       LabeledContent("Recordings folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }
     }
     .formStyle(.grouped)
