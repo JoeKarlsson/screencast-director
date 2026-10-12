@@ -46,7 +46,7 @@ enum Claude {
       "-p", instruction,
       "--append-system-prompt", system,
       "--permission-mode", "acceptEdits",
-      "--allowedTools", "Read", "Edit", "Write", "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)",
+      "--allowedTools", "Read", "Edit", "Write", "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)", "Bash(\(dir) review:*)",
     ]
     let pipe = Pipe()
     p.standardOutput = pipe

@@ -160,6 +160,15 @@ struct Checks {
     expect(PlanHistory.summary(from: tp, to: changed) == "2 clips, 1 zoom", "history summary (got \(PlanHistory.summary(from: tp, to: changed)))")
     try? FileManager.default.removeItem(at: hdir)
 
+    // AI double-check notes: a zoom lists what was said, a cut edge inside a word is flagged.
+    var ep = buildPlan(p)
+    ep.segments = [Segment(start: 0, end: 0.8, speed: 1), Segment(start: 1.5, end: 12, speed: 1)]
+    ep.zooms = [Zoom(start: 0, end: 2, x: 0.5, y: 0.5, scale: 2)]
+    let review = editReview(p, ep)
+    expect(review.contains("said \"Hello um there\"") && review.contains("splits the word \"Hello\"") && !review.contains("\"um\" ("),
+      "edit review (got \(review))")
+    expect(ep.changesCutsOrZooms(from: buildPlan(p)) && !ep.changesCutsOrZooms(from: ep), "edit changes cuts or zooms")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

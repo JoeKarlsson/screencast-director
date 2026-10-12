@@ -19,6 +19,7 @@ let usage = """
     director analyze  <dir>
     director plan     <dir> [--force]
     director describe <dir>
+    director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4]
     director still    <dir> <frame> <out.png> [--preset id]
     director profile  <dir> <profileDir>
@@ -81,6 +82,9 @@ do {
   case "describe":
     let project = try Project.load(dir)
     print(describe(project, try Plan.load(project.planURL)))
+  case "review":
+    let project = try Project.load(dir)
+    print(editReview(project, try Plan.load(project.planURL)))
   case "render":
     let project = try Project.load(dir)
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.mp4")

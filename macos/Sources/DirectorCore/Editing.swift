@@ -190,4 +190,39 @@ extension Plan {
   public func speed(at t: Double) -> Double? {
     segments.first { t >= $0.start && t < $0.end }?.speed
   }
+
+  /// Whether two plans differ in cuts, speeds or zooms (what a second look checks).
+  public func changesCutsOrZooms(from old: Plan) -> Bool {
+    segments != old.segments || zooms != old.zooms
+  }
+}
+
+/// What an AI's second look at its own edit needs: for each zoom, what was said and clicked while
+/// it's on screen, and every cut edge that lands inside a word.
+public func editReview(_ project: Project, _ plan: Plan) -> String {
+  var lines: [String] = []
+  let fps = plan.output.fps
+  let mapped = mapSegments(plan.segments, fps: fps)
+  for (i, z) in plan.zooms.enumerated() {
+    let said = project.words.filter { $0.end > z.start && $0.start < z.end }.map(\.text).joined(separator: " ")
+    let clicks = project.events.filter { $0.type == .click && $0.t >= z.start && $0.t < z.end }
+      .map { String(format: "(%.2f, %.2f)", $0.x, $0.y) }
+    let mid = Int(srcToOutClamped(mapped, (z.start + z.end) / 2, fps: fps))
+    lines.append(
+      "zoom #\(i) src \(fmtTime(z.start))-\(fmtTime(z.end)) at " + String(format: "(%.2f, %.2f) x%.1f", z.x, z.y, z.scale)
+        + ": said \"\(said)\"" + (clicks.isEmpty ? ", no clicks" : ", clicks at " + clicks.joined(separator: " "))
+        + "; middle is output frame \(mid)")
+  }
+  // Each place the video jumps over a cut, and the frame 0.5 s after it.
+  for (i, m) in mapped.enumerated() where i > 0 ? mapped[i - 1].end < m.start - 0.001 : m.start > 0.001 {
+    lines.append("cut before src \(fmtTime(m.start)): 0.5 s after it is output frame \(m.outStart + fps / 2)")
+  }
+  for s in plan.segments {
+    for edge in [s.start, s.end] {
+      if let w = project.words.first(where: { $0.start + 0.05 < edge && edge < $0.end - 0.05 }) {
+        lines.append("cut edge at src \(fmtTime(edge)) splits the word \"\(w.text)\" (\(fmtTime(w.start))-\(fmtTime(w.end)))")
+      }
+    }
+  }
+  return lines.isEmpty ? "No zooms and no cuts inside words." : lines.joined(separator: "\n")
 }

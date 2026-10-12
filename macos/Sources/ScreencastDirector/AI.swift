@@ -44,8 +44,11 @@ final class AISettings: ObservableObject {
   @Published var anthropicModel: String { didSet { d.set(anthropicModel, forKey: "ai.anthropicModel") } }
   @Published var baseURL: String { didSet { d.set(baseURL, forKey: "ai.baseURL") } }
   @Published var model: String { didSet { d.set(model, forKey: "ai.model") } }
+  /// API providers: a second request that reviews zooms and cut edges after an edit changes them.
+  @Published var doubleCheck: Bool { didSet { d.set(doubleCheck, forKey: "ai.doubleCheck") } }
 
   init() {
+    doubleCheck = d.object(forKey: "ai.doubleCheck") as? Bool ?? true
     provider = AIProvider(rawValue: d.string(forKey: "ai.provider") ?? "") ?? .claudeCode
     anthropicModel = d.string(forKey: "ai.anthropicModel") ?? "claude-opus-5-5"
     baseURL = d.string(forKey: "ai.baseURL") ?? EndpointPreset.all[0].baseURL
@@ -147,13 +150,36 @@ enum APIEditor {
     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     let planJSON = String(decoding: try enc.encode(plan), as: UTF8.self)
     let user = userMessage(instruction: instruction, timeline: describe(project, plan), planJSON: planJSON)
-    let reply: String
+    let (summary, edited) = try parse(try await send(system: instructions, user: user, settings: settings))
+    guard settings.doubleCheck, edited.changesCutsOrZooms(from: plan) else { return (summary, edited) }
+    // Second look: does each zoom sit on what's being discussed, and does any cut split a word?
+    let review = """
+      You just made this edit: \(summary)
+
+      The new timeline:
+      \(describe(project, edited))
+
+      What's on screen during each zoom, and cut edges that land inside a word:
+      \(editReview(project, edited))
+
+      Check your edit: each zoom should point at what is being talked about or clicked (move x/y to the click, or drop the zoom if nothing there matters), and no cut edge should split a word (move it to the gap between words). If it's all fine, say so and return the plan unchanged. Reply with 1-2 short lines, then the COMPLETE plan as one ```json code block.
+
+      ```json
+      \(String(decoding: try enc.encode(edited), as: UTF8.self))
+      ```
+      """
+    guard let checked = try? parse(try await send(system: instructions, user: review, settings: settings)) else {
+      return (summary, edited)
+    }
+    return (summary + "\nDouble-check: " + checked.0, checked.1)
+  }
+
+  static func send(system: String, user: String, settings: AISettings) async throws -> String {
     switch settings.provider {
-    case .anthropic: reply = try await anthropic(system: instructions, user: user, settings: settings)
-    case .openAICompatible: reply = try await openAI(system: instructions, user: user, settings: settings)
+    case .anthropic: return try await anthropic(system: system, user: user, settings: settings)
+    case .openAICompatible: return try await openAI(system: system, user: user, settings: settings)
     case .claudeCode: throw AIError.notConfigured("Claude Code edits through the CLI, not this path.")
     }
-    return try parse(reply)
   }
 
   static func parse(_ reply: String) throws -> (String, Plan) {

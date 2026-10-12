@@ -36,7 +36,9 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 - **Ask the AI** in plain language. The preview reloads when `plan.json` changes.
 - **Timeline tracks:** Clips (blue is real time, orange is sped up, dashed is cut; click a cut to restore it), Audio, Words, Zoom, Layout and Titles. Drag on the ruler to scrub. Select a bar and drag its handles to trim it; drag zooms, layouts and titles to move them.
 - **Inspector:** the Selection tab sets clip speed, zoom level and focus (drag on a frame of the recording), a layout's mode, or a title's text. The Style tab sets split screen, background, padding, corners, zoom speed, captions, overlays and output size.
+- **Transcript:** the Transcript tab shows what you said as text. Cut words are struck through, sped-up words are orange. Click a word to jump there; shift-click another to select the run, then press Cut (or ⌫). Select struck-through words and press Restore to put them back.
 - **Undo:** ⌘Z undoes any edit, including the AI's.
+- **Version history:** every change to `plan.json` (yours, the AI's or another tool's) first saves the previous version to `.history/` in the recording's folder, keeping the newest 30. **… > Version History…** lists them with their length and what differs from now; Restore is undoable.
 
 ## Camera, sound and pauses
 
@@ -53,15 +55,15 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 
 - **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed), and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Style tab, choose a default in Settings, or save any video's look as a profile. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos.
 - **Formats:** 16:9, 9:16, 1:1 or 4:5 at 720p to 4K. Vertical, square and feed crop the screen and pan to follow zooms and clicks, with the camera stacked below.
-- **Export** renders the current format or any preset (YouTube 4K and 1080p; Shorts, Reels and TikTok; Square; Feed) to its own file without changing the plan.
+- **Export** renders the current format or any preset (YouTube 4K and 1080p; Shorts, Reels and TikTok; Square; Feed) to its own file without changing the plan. Exports run in the background, one at a time, so you can keep editing: each renders the edit as it was when you queued it. The button next to Export shows the queue, with progress and Cancel.
 
 ## AI editing (Settings > AI editing)
 
-- **Claude Code** (default): uses your Claude login, so no API key. It can run `director describe` and `still` to check its own work.
+- **Claude Code** (default): uses your Claude login, so no API key. After an edit that changes zooms or cuts, it must run `director review`, render a still at the middle of every zoom and just after every cut it changed, look at them, and fix bad framing or mid-word cuts (one fix round) before replying.
 - **Anthropic API:** your key, stored in the Keychain.
 - **Any OpenAI-compatible endpoint:** OpenRouter, OpenAI, a gateway such as LiteLLM, or Ollama. Fill in the base URL, model and an optional key.
 
-The API providers send the timeline, transcript and plan in one request and get back the whole updated plan.
+The API providers send the timeline, transcript and plan in one request and get back the whole updated plan. With **Double-check AI edits** on (the default), an edit that changed zooms or cuts gets a second request with what's said and clicked during each zoom and any cut that splits a word, asking for corrections.
 
 ## Publish
 
@@ -87,11 +89,12 @@ They follow Screen Studio's defaults. ⌘/ lists them all.
 
 ## Headless
 
-`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `render`, `still`, `publish`, `pauses`, `frame-camera` and `profile` without the UI:
+`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore` and `profile` without the UI:
 
 ```sh
 director render <project-dir> --preset vertical
 director publish <project-dir> --title "My demo"
 director pauses <project-dir> tight
 director frame-camera <project-dir>
+director cut <project-dir> 0.94 2.88    # source seconds; restore takes the same arguments
 ```

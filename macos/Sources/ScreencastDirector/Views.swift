@@ -208,6 +208,11 @@ struct SettingsView: View {
           TextField("Model", text: $ai.model, prompt: Text(EndpointPreset.all.first { $0.baseURL == ai.baseURL }?.modelHint ?? "model name"))
           SecureField("API key (blank for Ollama)", text: Binding(get: { ai.key(for: .openAICompatible) }, set: { ai.setKey($0, for: .openAICompatible) }))
         }
+        if ai.provider != .claudeCode {
+          Toggle("Double-check AI edits", isOn: $ai.doubleCheck)
+          Text("After an edit that changes cuts or zooms, a second request checks zoom targets and cut edges.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
         HStack {
           Button("Test") {
             ui.testResult = "Testing…"
