@@ -14,7 +14,8 @@ Record the screen, then edit by changing a JSON plan. Everything runs on the Swi
 - The camera eases asymmetrically (`cameraAt(lead:tail:)`: zooms start 0.3 s early with a 1.6x ease-out tail), with motion blur during moves; word timings snap to loudness at load (`WordTiming`).
 - `Sources/director`: CLI (`analyze`, `plan`, `describe`, `render`, `still`, `debug`). The app bundles it, and `Resources/edit-prompt.md` tells headless Claude to use it (`{{DIRECTOR}}` is replaced with its path).
 - `Sources/ScreencastDirector`: the app. ScreenCaptureKit recorder (sample buffers use the host clock, same as `InputTap`'s `CLOCK_UPTIME_RAW`), library, preview, and the Claude box (`claude -p --permission-mode acceptEdits` with only Read/Edit/Write and `director describe`/`still` allowed).
-- Build with `macos/build.sh`; Command Line Tools only, so no SwiftUI macros (`@State`): view state lives in `ObservableObject`s.
+- Build with `macos/build.sh` (version from `VERSION`, build number from the commit count); release with `macos/release.sh` after adding a CHANGELOG.md section. Add user-facing changes to CHANGELOG.md under Unreleased.
+- Command Line Tools only, so no SwiftUI macros (`@State`): view state lives in `ObservableObject`s.
 - SourceKit reports "Cannot find type ... in scope" on single files; ignore it and trust `swift build`.
 - An `AVAssetTrack` does not keep its `AVURLAsset` alive. Inserting from a track whose asset was freed fails with the unhelpful -11800/-12780; keep the asset in scope (see `camAsset` in Composition.swift).
 - Claude's Edit tool writes `plan.json` in place, which a folder watch misses; the app polls the file's modification date instead.

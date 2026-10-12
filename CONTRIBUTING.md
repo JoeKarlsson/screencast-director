@@ -24,3 +24,8 @@ CI runs all of these except the smoke test. Lint errors fail the build; SwiftLin
 
 - Keep each PR to one change, and say how you tested it.
 - Commit messages use `feat:`, `fix:` or `chore:` followed by a capitalized summary.
+- Add user-facing changes to the Unreleased section of [CHANGELOG.md](CHANGELOG.md).
+
+## Releasing
+
+Move the Unreleased notes under a new version heading, set `VERSION` to match, commit and push, then run `macos/release.sh`. It builds the app, tags the version and publishes a GitHub release with the zipped app and those notes.

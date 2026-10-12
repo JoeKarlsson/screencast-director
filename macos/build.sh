@@ -26,8 +26,10 @@ cp Resources/edit-prompt.md Resources/ScreencastDirector.icns "$APP/Contents/Res
 # Without a bundled whisper-cli the app falls back to Homebrew's (brew install whisper-cpp).
 [[ -x .whisper/whisper-cli ]] && cp .whisper/whisper-cli "$APP/Contents/Helpers/"
 
-VERSION="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' "$ROOT/package.json")"
+VERSION="$(cat "$ROOT/VERSION")"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
+# Build number: the commit count, so every build from a newer commit sorts higher.
+plutil -replace CFBundleVersion -string "$(git -C "$ROOT" rev-list --count HEAD)" "$APP/Contents/Info.plist"
 
 # A fixed identity keeps Screen Recording, Input Monitoring, mic and camera permissions across
 # rebuilds; macOS keys them to the signature, and ad-hoc changes it every build. Followspot's
