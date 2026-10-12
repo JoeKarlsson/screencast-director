@@ -29,6 +29,10 @@ Each release lists what changed for people using the app or the CLI. The version
 - The library shows a poster frame, length, date and a New or Exported badge. Double-click a name to rename it in place.
 - Errors and confirmations show as banners in the window instead of dialogs that block the app.
 - Ask Claude: a new prompt box with starter ideas and a history of what you asked and what it changed.
+- Ask Claude shows each step as it works (reading the timeline, checking frame 412, editing the plan) and has a Stop button.
+- After an AI edit, a list of what it changed: jump to each change, undo just that one, or keep them all.
+- The AI knows your playhead, selected item and selected transcript words, so "zoom here" and "cut this" work. The box shows which AI answers, with a Set Up link when it isn't ready.
+- What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
 - Playback no longer redraws the whole editor 30 times a second; only the playhead, clock and current transcript word follow it.

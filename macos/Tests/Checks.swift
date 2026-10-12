@@ -337,6 +337,34 @@ struct Checks {
     let short = Motion.pose(frame: 33, start: 30, end: 36, fps: fps, enter: Motion(preset: "fade", seconds: 1), exit: nil, style: MotionStyle.named("smooth"))
     expect(short.opacity > 0.2 && short.opacity < 1, "a short overlay squeezes its moves to fit")
 
+    // Reviewing an AI edit: each change can be undone on its own.
+    var planA = buildPlan(p)
+    planA.zooms = [Zoom(start: 1, end: 3, x: 0.5, y: 0.5, scale: 2), Zoom(start: 6, end: 8, x: 0.2, y: 0.2, scale: 1.6)]
+    var planB = planA
+    planB.zooms[0].scale = 1.8
+    planB.zooms.remove(at: 1)
+    planB.callouts.append(Callout(start: 4, end: 6, text: "Hi", style: "lower-third"))
+    planB.style.motion = "snappy"
+    planB.segments[0].speed = 2
+    let changes = planChanges(from: planA, to: planB)
+    let kinds: [String] = changes.map { $0.kind }
+    expect(Set(kinds) == Set(["clips", "zoom", "title", "style"]), "change kinds (\(changes.map { $0.label }))")
+    let zoomVerbs: [String] = changes.filter { $0.kind == "zoom" }.map { String($0.label.split(separator: " ")[0]) }.sorted()
+    expect(zoomVerbs == ["Changed", "Removed"], "zoom changed and removed")
+    for c in changes {
+      var undone = planB
+      c.revert(&undone)
+      let sameTitles = undone.callouts == planB.callouts
+      let sameZooms = undone.zooms == planB.zooms
+      switch c.kind {
+      case "zoom" where c.label.hasPrefix("Changed"): expect(undone.zooms.contains(planA.zooms[0]) && sameTitles, "undo one zoom change only")
+      case "zoom": expect(undone.zooms.count == 2, "undo a removed zoom puts it back")
+      case "title": expect(undone.callouts == planA.callouts && sameZooms, "undo the added title only")
+      case "style": expect(undone.style.motion == planA.style.motion && sameTitles, "undo style keeps the rest")
+      default: expect(undone.segments == planA.segments && sameZooms, "undo clips keeps the rest")
+      }
+    }
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

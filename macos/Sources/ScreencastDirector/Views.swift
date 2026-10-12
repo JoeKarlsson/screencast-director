@@ -437,6 +437,12 @@ struct ClaudeBar: View {
           .onSubmit(project.askClaude)
         if project.busy && project.asks.last?.running == true {
           ProgressView().controlSize(.small)
+          Button(action: project.stopAsk) {
+            Image(systemName: "stop.circle.fill").font(.system(size: 22)).foregroundStyle(.secondary)
+          }
+          .buttonStyle(.plain)
+          .help("Stop. What it already changed stays, and ⌘Z undoes it.")
+          .accessibilityLabel("Stop")
         } else {
           Button(action: project.askClaude) {
             Image(systemName: "arrow.up.circle.fill").font(.system(size: 22))
@@ -451,6 +457,21 @@ struct ClaudeBar: View {
       .padding(.horizontal, 14)
       .padding(.vertical, 9)
       .glassCard(cornerRadius: 20)
+      HStack(spacing: 6) {
+        // Which AI answers, and a way to set it up when it can't yet.
+        Circle().fill(ai.isReady ? Color.green : Color.orange).frame(width: 6, height: 6)
+        Text(ai.provider == .claudeCode ? "Claude Code" : ai.provider == .anthropic ? ai.anthropicModel : ai.model)
+          .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        if !ai.isReady {
+          SettingsLink { Text("Set up…").font(.caption2) }.buttonStyle(.link)
+        }
+        Spacer()
+        if project.transcriptSel != nil || project.selection != nil {
+          Label("Knows your selection and playhead", systemImage: "scope").font(.caption2).foregroundStyle(.secondary)
+            .help(project.askContext())
+        }
+      }
+      .padding(.horizontal, 6)
       if project.asks.isEmpty && project.instruction.isEmpty && project.hasPlan {
         ScrollView(.horizontal, showsIndicators: false) {
           HStack(spacing: 6) {
@@ -480,6 +501,17 @@ struct ClaudeBar: View {
                   .padding(.horizontal, 10).padding(.vertical, 6)
                   .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.accent.opacity(0.2)))
               }
+              if ask.running, !ask.steps.isEmpty {
+                // The last few steps, newest last, so you can see it working.
+                VStack(alignment: .leading, spacing: 2) {
+                  ForEach(Array(ask.steps.suffix(4).enumerated()), id: \.offset) { i, step in
+                    let current = i == min(ask.steps.count, 4) - 1
+                    Label(step, systemImage: current ? "circle.dotted" : "checkmark")
+                      .font(.caption).foregroundStyle(current ? .primary : .secondary)
+                  }
+                }
+                .padding(.leading, 20)
+              }
               if !ask.reply.isEmpty || ask.running {
                 HStack(alignment: .top, spacing: 6) {
                   Image(systemName: "sparkles").foregroundStyle(Theme.ai).font(.caption)
@@ -489,6 +521,7 @@ struct ClaudeBar: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
               }
+              if !ask.changes.isEmpty { changeList(ask) }
             }
             .font(.callout)
             .id(ask.id)
@@ -496,11 +529,62 @@ struct ClaudeBar: View {
         }
         .padding(10)
       }
-      .frame(maxHeight: 120)
+      .frame(maxHeight: project.asks.last?.changes.isEmpty == false ? 220 : 120)
       .card(padding: 0)
       .onChange(of: project.asks.last?.reply) { _, _ in
         if let id = project.asks.last?.id { scroll.scrollTo(id, anchor: .bottom) }
       }
+    }
+  }
+}
+
+extension ClaudeBar {
+  /// What the edit changed, each with Undo (and a click to jump there), plus Keep All.
+  func changeList(_ ask: Ask) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      HStack {
+        Text("\(ask.changes.count) change\(ask.changes.count == 1 ? "" : "s")").font(.caption.weight(.semibold))
+        Spacer()
+        Button("Keep All") { project.acceptAllChanges(in: ask.id) }.controlSize(.small)
+      }
+      ForEach(ask.changes) { change in
+        HStack(spacing: 6) {
+          Image(systemName: Self.icon(change.kind)).foregroundStyle(Theme.ai).frame(width: 14)
+          Button {
+            if let r = change.range { project.seek(src: r.0) }
+          } label: {
+            Text(change.label).lineLimit(1).truncationMode(.tail)
+          }
+          .buttonStyle(.plain)
+          .help(change.range == nil ? change.label : "Jump to \(fmtTime(change.range!.0))")
+          Spacer()
+          Button("Undo") { project.rejectChange(change, in: ask.id) }.controlSize(.mini)
+            .help("Put just this back the way it was")
+          Button {
+            project.dropChange(change.id, in: ask.id)
+          } label: {
+            Image(systemName: "checkmark")
+          }
+          .controlSize(.mini)
+          .help("Keep it")
+          .accessibilityLabel("Keep")
+        }
+        .font(.caption)
+      }
+    }
+    .padding(8)
+    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.04)))
+    .padding(.leading, 20)
+  }
+
+  static func icon(_ kind: String) -> String {
+    switch kind {
+    case "clips": return "scissors"
+    case "zoom": return "plus.magnifyingglass"
+    case "layout": return "rectangle.split.2x1"
+    case "title": return "textformat"
+    case "annotation": return "scribble"
+    default: return "paintpalette"
     }
   }
 }

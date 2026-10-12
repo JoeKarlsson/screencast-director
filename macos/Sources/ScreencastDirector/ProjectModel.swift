@@ -10,14 +10,25 @@ enum Selection: Equatable {
   case zoom(Int)
   case layout(Int)
   case callout(Int)
+  case annotation(Int)
 }
 
-/// One request to the AI editor and its reply (streamed in while it runs).
+/// One request to the AI editor and its reply (streamed in while it runs), the steps it took,
+/// and what it changed (each can be undone on its own until accepted).
 struct Ask: Identifiable {
   let id = UUID()
   let instruction: String
   var reply = ""
   var running = true
+  var steps: [String] = []
+  var changes: [PlanChange] = []
+}
+
+/// What's kept of an ask in .history/asks.json.
+private struct SavedAsk: Codable {
+  var instruction: String
+  var reply: String
+  var steps: [String]?
 }
 
 /// The playhead, apart from ProjectModel: it ticks 30 times a second while playing, and only the
@@ -100,6 +111,7 @@ final class ProjectModel: ObservableObject {
     }
     loadFromDisk()
     watchPlan()
+    loadAsks()
   }
 
   var name: String { dir.lastPathComponent }
@@ -272,6 +284,7 @@ final class ProjectModel: ObservableObject {
     case .zoom(let i) where i >= p.zooms.count: selection = nil
     case .layout(let i) where i >= p.layouts.count: selection = nil
     case .callout(let i) where i >= p.callouts.count: selection = nil
+    case .annotation(let i) where i >= p.annotationList.count: selection = nil
     default: break
     }
     plan = p
@@ -319,6 +332,7 @@ final class ProjectModel: ObservableObject {
       case .zoom(let i) where p.zooms.indices.contains(i): p.zooms.remove(at: i)
       case .layout(let i) where p.layouts.indices.contains(i): p.layouts.remove(at: i)
       case .callout(let i) where p.callouts.indices.contains(i): p.callouts.remove(at: i)
+      case .annotation(let i) where p.annotationList.indices.contains(i): p.annotationList.remove(at: i)
       case .gap(let g): p.restore(g)
       default: break
       }
@@ -354,6 +368,19 @@ final class ProjectModel: ObservableObject {
     let c = Callout(start: t, end: min(plan.source.duration, t + 2.5), text: "Title")
     apply { $0.callouts.append(c) }
     if let i = self.plan?.callouts.firstIndex(of: c) { selection = .callout(i) }
+  }
+
+  /// Adds a spotlight, box, arrow, highlight or blur at the playhead, around the last click.
+  func addAnnotation(_ kind: String) {
+    guard let plan else { return }
+    let t = playheadSrc
+    let f = zoomFocus(at: t, clicks: project?.clicks ?? [])
+    let w = kind == "highlight" ? 0.2 : 0.16, h = kind == "highlight" ? 0.04 : 0.1
+    let a = Annotation(
+      start: t, end: min(plan.source.duration, t + 2.5), kind: kind, x: min(max(f.x - w / 2, 0), 1 - w), y: min(max(f.y - h / 2, 0), 1 - h),
+      w: w, h: h)
+    apply { $0.annotationList.append(a) }
+    if let i = self.plan?.annotationList.firstIndex(of: a) { selection = .annotation(i) }
   }
 
   // MARK: Transcript editing
@@ -648,19 +675,32 @@ final class ProjectModel: ObservableObject {
 
   // MARK: Pipeline
 
+  /// The running pipeline step, so Stop can cancel it.
+  private var task: Task<Void, Never>?
+
   func run(_ label: String, _ work: @escaping () async throws -> Void) {
     guard !busy else { return }
     busy = true
     status = label
-    Task { @MainActor in
+    task = Task { @MainActor in
       do {
         try await work()
+      } catch is CancellationError {
+        status = "Stopped."
+      } catch where Task.isCancelled {
+        status = "Stopped."
       } catch {
         status = "\(label.replacingOccurrences(of: "…", with: "")) failed: \(error.localizedDescription)"
         Notices.shared.show(status, error: true)
       }
       busy = false
+      task = nil
     }
+  }
+
+  /// Stops the AI edit in progress. What it already changed stays, as one undo step.
+  func stopAsk() {
+    task?.cancel()
   }
 
   /// Transcribe, measure motion, and write a first-draft plan (keeps an existing plan unless `force`).
@@ -729,6 +769,39 @@ final class ProjectModel: ObservableObject {
     }
   }
 
+  /// Where you are in the editor, so "zoom here" or "cut this" mean something to the AI.
+  func askContext() -> String {
+    var lines: [String] = []
+    let t = playheadSrc
+    let near = words.filter { $0.end > t - 2 && $0.start < t + 2 }.map(\.text).joined(separator: " ")
+    lines.append("Playhead: source \(fmtTime(t))\(near.isEmpty ? "" : ", around \"\(near)\"")")
+    if let r = transcriptRange, let sel = transcriptSel {
+      let text = words[sel].map(\.text).joined(separator: " ")
+      lines.append("Selected transcript: source \(fmtTime(r.lowerBound))-\(fmtTime(r.upperBound)) \"\(text)\"")
+    }
+    if let plan, let selection {
+      switch selection {
+      case .segment(let i) where plan.segments.indices.contains(i):
+        let s = plan.segments[i]
+        lines.append("Selected clip: source \(fmtTime(s.start))-\(fmtTime(s.end)) at \(s.speed.formatted())x")
+      case .zoom(let i) where plan.zooms.indices.contains(i):
+        let z = plan.zooms[i]
+        lines.append("Selected zoom #\(i): source \(fmtTime(z.start))-\(fmtTime(z.end))")
+      case .layout(let i) where plan.layouts.indices.contains(i):
+        lines.append("Selected layout #\(i): source \(fmtTime(plan.layouts[i].start))-\(fmtTime(plan.layouts[i].end))")
+      case .callout(let i) where plan.callouts.indices.contains(i):
+        lines.append("Selected title #\(i): \"\(plan.callouts[i].text)\"")
+      case .annotation(let i) where plan.annotationList.indices.contains(i):
+        let a = plan.annotationList[i]
+        lines.append("Selected annotation #\(i): \(a.kind) source \(fmtTime(a.start))-\(fmtTime(a.end))")
+      case .gap(let g):
+        lines.append("Selected cut: source \(fmtTime(g.start))-\(fmtTime(g.end))")
+      default: break
+      }
+    }
+    return lines.joined(separator: "\n")
+  }
+
   func askClaude() {
     let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty, !busy else { return }
@@ -737,11 +810,13 @@ final class ProjectModel: ObservableObject {
     asks.append(Ask(instruction: text))
     planBeforeAsk = plan
     let ai = AISettings.shared
+    let request = "\(text)\n\n(Where I am in the editor, for words like \"here\" or \"this\":\n\(askContext()))"
     if ai.provider != .claudeCode {
       run("\(ai.provider.shortName) is editing…") { [self] in
         defer { finishAsk() }
         guard let plan, let project else { return }
-        let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: text, settings: ai)
+        asks[asks.count - 1].steps.append("Sending the timeline to \(ai.provider.shortName)")
+        let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: request, settings: ai)
         apply { $0 = newPlan }
         claudeLog = summary
         asks[asks.count - 1].reply = summary
@@ -753,14 +828,23 @@ final class ProjectModel: ObservableObject {
     aiEditing = true
     run("Claude is editing…") { [self] in
       defer { finishAsk() }
-      let code = try await Claude.edit(project: dir, instruction: text) { chunk in
+      let code = try await Claude.edit(project: dir, instruction: request) { event in
         Task { @MainActor in
-          self.claudeLog += chunk
-          if !self.asks.isEmpty { self.asks[self.asks.count - 1].reply = self.claudeLog }
+          guard !self.asks.isEmpty else { return }
+          switch event {
+          case .step(let s): self.asks[self.asks.count - 1].steps.append(s)
+          case .text(let t):
+            self.claudeLog += (self.claudeLog.isEmpty ? "" : "\n\n") + t
+            self.asks[self.asks.count - 1].reply = self.claudeLog
+          }
         }
       }
       instruction = ""
-      status = code == 0 ? "Claude finished. ⌘Z undoes its edit." : "Claude exited with status \(code)."
+      if Task.isCancelled {
+        status = "Stopped. ⌘Z undoes anything it changed."
+      } else {
+        status = code == 0 ? "Claude finished. ⌘Z undoes its edit." : "Claude exited with status \(code)."
+      }
     }
   }
 
@@ -779,10 +863,42 @@ final class ProjectModel: ObservableObject {
       }
       let ranges = changedRanges(from: old, to: new)
       if !ranges.isEmpty { aiChange = (UUID(), ranges) }
+      if !asks.isEmpty { asks[asks.count - 1].changes = planChanges(from: old, to: new) }
     }
     // On a failure, run() sets the status after this; pick it up on the next turn.
     DispatchQueue.main.async { [self] in
       if !asks.isEmpty, asks[asks.count - 1].reply.isEmpty { asks[asks.count - 1].reply = claudeLog.isEmpty ? status : claudeLog }
+      saveAsks()
     }
+  }
+
+  /// Undoes one change from an AI edit (itself undoable) and drops it from the list.
+  func rejectChange(_ change: PlanChange, in askID: UUID) {
+    apply { change.revert(&$0) }
+    dropChange(change.id, in: askID)
+  }
+
+  func dropChange(_ id: UUID, in askID: UUID) {
+    guard let i = asks.firstIndex(where: { $0.id == askID }) else { return }
+    asks[i].changes.removeAll { $0.id == id }
+  }
+
+  func acceptAllChanges(in askID: UUID) {
+    guard let i = asks.firstIndex(where: { $0.id == askID }) else { return }
+    asks[i].changes = []
+  }
+
+  private var asksURL: URL { PlanHistory.directory(for: planURL).appendingPathComponent("asks.json") }
+
+  private func loadAsks() {
+    guard let data = try? Data(contentsOf: asksURL), let saved = try? JSONDecoder().decode([SavedAsk].self, from: data) else { return }
+    asks = saved.map { Ask(instruction: $0.instruction, reply: $0.reply, running: false, steps: $0.steps ?? []) }
+  }
+
+  /// Keeps the last 50 asks with the project, so the history survives switching recordings.
+  private func saveAsks() {
+    let saved = asks.filter { !$0.running }.suffix(50).map { SavedAsk(instruction: $0.instruction, reply: $0.reply, steps: $0.steps) }
+    try? FileManager.default.createDirectory(at: asksURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? JSONEncoder().encode(Array(saved)).write(to: asksURL, options: .atomic)
   }
 }

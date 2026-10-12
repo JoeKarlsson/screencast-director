@@ -85,6 +85,8 @@ extension ProjectModel {
     case .segment(let i) where plan.segments.indices.contains(i): return range(plan.segments[i].start, plan.segments[i].end)
     case .zoom(let i) where plan.zooms.indices.contains(i): return range(plan.zooms[i].start, plan.zooms[i].end)
     case .callout(let i) where plan.callouts.indices.contains(i): return range(plan.callouts[i].start, plan.callouts[i].end)
+    case .annotation(let i) where plan.annotationList.indices.contains(i):
+      return range(plan.annotationList[i].start, plan.annotationList[i].end)
     default: return nil
     }
   }
