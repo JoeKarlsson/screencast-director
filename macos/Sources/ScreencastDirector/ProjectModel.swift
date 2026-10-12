@@ -38,6 +38,10 @@ final class ProjectModel: ObservableObject {
   @Published private(set) var claudeLog = ""
   /// What you've asked the AI to do in this session, and what it said back.
   @Published private(set) var asks: [Ask] = []
+  /// What the last AI edit changed, in source seconds; the timeline flashes these ranges. A new
+  /// id each time, so the same ranges flash again.
+  @Published private(set) var aiChange: (id: UUID, ranges: [(Double, Double)])?
+  private var planBeforeAsk: Plan?
   @Published private(set) var canUndo = false
   @Published private(set) var canRedo = false
   @Published var showPublish = false
@@ -645,6 +649,7 @@ final class ProjectModel: ObservableObject {
     guard !text.isEmpty, !busy else { return }
     claudeLog = ""
     asks.append(Ask(instruction: text))
+    planBeforeAsk = plan
     let ai = AISettings.shared
     if ai.provider != .claudeCode {
       run("\(ai.provider.shortName) is editing…") { [self] in
@@ -675,6 +680,13 @@ final class ProjectModel: ObservableObject {
   private func finishAsk() {
     guard !asks.isEmpty else { return }
     asks[asks.count - 1].running = false
+    // Claude Code writes plan.json itself and the watcher picks it up within a second.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+      guard let old = planBeforeAsk, let new = plan else { return }
+      planBeforeAsk = nil
+      let ranges = changedRanges(from: old, to: new)
+      if !ranges.isEmpty { aiChange = (UUID(), ranges) }
+    }
     // On a failure, run() sets the status after this; pick it up on the next turn.
     DispatchQueue.main.async { [self] in
       if !asks.isEmpty, asks[asks.count - 1].reply.isEmpty { asks[asks.count - 1].reply = claudeLog.isEmpty ? status : claudeLog }

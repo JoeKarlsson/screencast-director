@@ -101,6 +101,17 @@ struct Checks {
     pz.words = [Word(text: "Talking", start: 0.2, end: 0.8), Word(text: "through", start: 1.2, end: 1.8), Word(text: "it", start: 2.2, end: 2.6)]
     expect(!buildSegments(pz).contains { $0.start < 1.5 && $0.end > 1.5 }, "the paused stretch is out of the draft")
 
+    // What an edit touched: one clip sped up and one zoom added, merged where they overlap.
+    var before = buildPlan(p)
+    before.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 5, end: 9, speed: 1)]
+    before.zooms = []
+    var after = before
+    after.segments[1].speed = 3
+    after.zooms = [Zoom(start: 6, end: 10, x: 0.5, y: 0.5, scale: 2)]
+    let changed = changedRanges(from: before, to: after)
+    expect(changed.count == 1 && changed[0].0 == 5 && changed[0].1 == 10, "changed ranges merge the sped-up clip and the new zoom")
+    expect(changedRanges(from: before, to: before).isEmpty, "no change, no ranges")
+
     // Retake marks: the phrase before the mark goes, the redo after it stays.
     let flub = [
       Word(text: "Welcome", start: 0, end: 0.4), Word(text: "everyone.", start: 0.5, end: 1.0),
