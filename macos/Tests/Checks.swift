@@ -31,6 +31,16 @@ struct Checks {
     expect(abs(mid.scale - 2) < 1e-9 && abs(mid.x - 0.6) < 1e-9 && abs(mid.y - 0.4) < 1e-9, "reaches zoom target")
     let easing = cameraAt(60, zooms: z, halfWidth: 12)
     expect(easing.scale > 1.3 && easing.scale < 1.7, "halfway at the zoom start")
+    // The renderer's easing: 9 frames (0.3 s) of lead, a 1.6x ease-out tail. The zoom starts at
+    // frame 60, so the move runs from frame 39 to 70 instead of 48 to 72.
+    let eased = { (f: Int) in cameraAt(f, zooms: z, halfWidth: 12, lead: 9, tail: 1.6).scale }
+    expect(eased(38) == 1 && eased(40) > 1, "eased zoom starts 21 frames before the zoom")
+    expect(eased(48) > cameraAt(48, zooms: z, halfWidth: 12).scale + 0.1, "eased zoom is ahead of the symmetric one")
+    expect(eased(60) > 1.7 && eased(60) < 2, "mostly in by the zoom start, still settling")
+    expect(abs(eased(70) - 2) < 1e-9 && eased(69) < 2, "settles 10 frames after the zoom start")
+    let steps = (40...70).map { eased($0) - eased($0 - 1) }
+    let peak = steps.firstIndex(of: steps.max()!)! + 40
+    expect(peak < 55, "fastest early, long ease-out (peak at frame \(peak))")
     let edge = cameraAt(150, zooms: zoomsToOut([Zoom(start: 0, end: 10, x: 0.98, y: 0.01, scale: 2)], one, fps: fps), halfWidth: 12)
     expect(edge.x == 0.75 && edge.y == 0.25, "viewport clamped inside the recording")
 

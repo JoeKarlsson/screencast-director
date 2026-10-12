@@ -30,6 +30,7 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 - **Retakes:** flubbed a line? Press ⌃⌥⌘M (or File > Mark Retake) and say it again. The draft cuts the phrase before the mark, back to the last pause or sentence end (at most 6 s), and keeps the redo. `director describe` lists the marks, and the menu bar flashes RETAKE so you know it took. The hotkeys never show up as shortcut chips.
 - **One window:** Settings > Capture records a single window instead of the whole display: crisper text and smaller files. Clicks and the cursor are logged relative to that window, so zooms land in the right place. Window IDs don't survive a relaunch, so the setting goes back to Whole display each time the app starts.
 - **FollowSpot scripts:** if FollowSpot is running when you stop, the script it has open is saved as `script.md` in the recording. The draft then keeps only the last take of each script line you read more than once (two halves of one long line both stay), and the AI editor is told to keep the best take of each line.
+- **Smooth cursor** (Settings, on by default): the recording leaves out the real pointer, and the video draws one from the mouse log instead, smoothed so hand jitter disappears, scaled with zoom and pulsing on clicks. The Style tab's **Cursor** section hides it or changes its size and smoothing (`plan.cursor`). Older recordings keep their own cursor.
 
 ## Edit
 
@@ -39,13 +40,14 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 - **Transcript:** the Transcript tab shows what you said as text. Cut words are struck through, sped-up words are orange. Click a word to jump there; shift-click another to select the run, then press Cut (or ⌫). Select struck-through words and press Restore to put them back.
 - **Undo:** ⌘Z undoes any edit, including the AI's.
 - **Version history:** every change to `plan.json` (yours, the AI's or another tool's) first saves the previous version to `.history/` in the recording's folder, keeping the newest 30. **… > Version History…** lists them with their length and what differs from now; Restore is undoable.
+- **Camera motion:** zooms start moving about 0.3 s before the zoom begins and settle on a longer, softer tail. While the camera pans, the screen is motion blurred in the direction of travel (capped, and only during moves).
 
 ## Camera, sound and pauses
 
 - **Camera framing:** new recordings center the camera on your face (Vision face detection across the footage, with enough zoom to pan). In the Style tab, drag the focus point, change the zoom, or press **Center on My Face**.
 - **Camera color:** exposure, contrast, saturation and warmth, with Natural, Warm, Punchy, Cool and Bright presets.
 - **Sound:** **Normalize voice** measures your speaking level and brings it to about -20 dBFS. **Volume** adds up to ±12 dB, and a soft limiter keeps peaks under -0.5 dBFS. The timeline's **Audio** track shows the waveform, with cut ranges dimmed.
-- **Pauses:** Gentle, Normal or Tight. Silence is measured from the audio, because Whisper's word timings run through short pauses. Changing the level rewrites only silent cuts, so cuts that removed words stay cut. Settings has the default for new recordings.
+- **Pauses:** Gentle, Normal or Tight. Silence is measured from the audio, because Whisper's word timings run through short pauses. Word timings are also tightened against the audio when a project loads: each word's start and end move in over silence, never past the word's middle (`transcript.json` keeps Whisper's raw times). Changing the level rewrites only silent cuts, so cuts that removed words stay cut. Settings has the default for new recordings.
 
 ## Library
 

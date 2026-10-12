@@ -107,14 +107,15 @@ public final class Scene: @unchecked Sendable {
       plan.style.screenAspect == nil
       ? nil
       : { frame in clicks.last(where: { $0.f <= Double(frame) }).map { ($0.x, $0.y) } ?? (0.5, 0.5) }
-    let cam = cameraAt(f, zooms: zooms, halfWidth: half, base: base)
+    let cam = cameraState(f, base: base)
     let boxes = layoutAt(f, plan: plan, ranges: layouts, halfWidth: half)
     var image = background()
 
     let b = boxes.screen
     if let screen, b.opacity > 0.01 {
       image = shadow(b, opacity: 0.45, blur: 40 * u, drop: 30 * u).composited(over: image)
-      image = screenCard(screen, box: b, cam: cam).composited(over: image)
+      let blur = cameraMotion(f, box: b, cam: cam, base: base)
+      image = screenCard(screen, box: b, cam: cam, blur: blur).composited(over: image)
     }
     let cb = boxes.cam
     if let camera, plan.camera != nil, cb.opacity > 0.01 {
@@ -190,12 +191,48 @@ public final class Scene: @unchecked Sendable {
     return (k, tx, ty)
   }
 
-  func screenCard(_ src: CIImage, box b: Box, cam: CameraState) -> CIImage {
+  /// Zoom-ins start this much output time before the zoom does, and settle on a tail this many
+  /// times the transition's half-width (see `cameraAt`).
+  static let zoomLead = 0.3
+  static let easeTail = 1.6
+  /// Motion blur: the share of a frame's movement smeared (a 180 degree shutter is 0.5), and its cap.
+  static let shutter = 0.5
+  static let maxBlur = 28.0
+
+  func cameraState(_ f: Int, base: ((Int) -> (Double, Double))?) -> CameraState {
+    cameraAt(
+      f, zooms: zooms, halfWidth: half, base: base, lead: Int((Scene.zoomLead * Double(fps)).rounded()), tail: Scene.easeTail)
+  }
+
+  /// How far (output pixels, top-left coordinates) the screen content under the card's center
+  /// moved since the previous frame. Zero while the camera holds still.
+  public func cameraMotion(_ f: Int, box b: Box, cam: CameraState, base: ((Int) -> (Double, Double))? = nil) -> (dx: Double, dy: Double) {
+    guard f > 0 else { return (0, 0) }
+    let prev = cameraState(f - 1, base: base)
+    if prev == cam { return (0, 0) }
+    let (k, tx, ty) = screenMap(b, cam)
+    let (pk, ptx, pty) = screenMap(b, prev)
+    let cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    // The source point now at the center, and where the previous frame drew it.
+    let sx = (cx - tx) / k, sy = (cy - ty) / k
+    return (cx - (ptx + pk * sx), cy - (pty + pk * sy))
+  }
+
+  func screenCard(_ src: CIImage, box b: Box, cam: CameraState, blur: (dx: Double, dy: Double) = (0, 0)) -> CIImage {
     let (k0, tx, ty) = screenMap(b, cam)
     // The decoded frame may differ from source.json's size; scale relative to it.
     let k = k0 * plan.source.width / src.extent.width
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
-    let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: H - ty - src.extent.height * k))
+    var placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: H - ty - src.extent.height * k))
+    // Smear along the pan while the camera moves; the card's edges stay sharp because the mask
+    // is applied afterwards.
+    let radius = min(hypot(blur.dx, blur.dy) * Scene.shutter, Scene.maxBlur * u)
+    if radius > 1 {
+      let extent = placed.extent
+      placed = placed.clampedToExtent()
+        .applyingFilter("CIMotionBlur", parameters: [kCIInputRadiusKey: radius, kCIInputAngleKey: atan2(-blur.dy, blur.dx)])
+        .cropped(to: extent)
+    }
     return masked(placed, ciRect(b), radius: b.r, opacity: b.opacity)
   }
 

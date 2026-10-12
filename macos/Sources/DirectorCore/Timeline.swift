@@ -99,10 +99,35 @@ public struct CameraState: Equatable {
 
 /// `base` is where the camera rests outside zooms (the center, or the last click when a cropped
 /// vertical frame should follow the action).
-public func cameraAt(_ f: Int, zooms: [OutZoom], halfWidth: Int, base: ((Int) -> (Double, Double))? = nil) -> CameraState {
-  let v = smooth(f, halfWidth: halfWidth) { frame in
+/// Like `smooth`, but the window looks `ahead` frames forward and `behind` frames back. A move
+/// starts `ahead` frames before its step and settles `behind` frames after it, so a longer
+/// `behind` gives a quick start and a long, soft ease-out.
+public func smooth(_ f: Int, ahead: Int, behind: Int, _ sample: (Int) -> [Double]) -> [Double] {
+  if ahead == behind { return smooth(f, halfWidth: ahead, sample) }
+  var acc: [Double] = []
+  var total = 0.0
+  for d in -max(behind, 0)...max(ahead, 0) {
+    let side = d < 0 ? behind : ahead
+    let w = 0.5 + 0.5 * cos(Double.pi * Double(d) / Double(side + 1))
+    let v = sample(f + d)
+    if acc.isEmpty { acc = Array(repeating: 0, count: v.count) }
+    for i in v.indices { acc[i] += v[i] * w }
+    total += w
+  }
+  return acc.map { $0 / total }
+}
+
+/// The smoothed camera at output frame `f`. `lead` pulls each zoom's start that many frames
+/// earlier (the camera is already moving when the click lands) and `tail` stretches the ease-out
+/// side of the window. With the defaults the move is symmetric around the zoom's start, like
+/// `cameraAt` in src/timeline.ts.
+public func cameraAt(
+  _ f: Int, zooms: [OutZoom], halfWidth: Int, base: ((Int) -> (Double, Double))? = nil, lead: Int = 0, tail: Double = 1
+) -> CameraState {
+  let behind = max(halfWidth, Int((Double(halfWidth) * tail).rounded()))
+  let v = smooth(f, ahead: halfWidth, behind: behind) { frame in
     var hit: OutZoom?
-    for z in zooms where Double(frame) >= z.startF && Double(frame) < z.endF { hit = z }
+    for z in zooms where Double(frame) >= z.startF - Double(lead) && Double(frame) < z.endF { hit = z }
     if let hit { return [hit.scale, hit.x, hit.y] }
     let b = base?(frame) ?? (0.5, 0.5)
     return [1, b.0, b.1]
