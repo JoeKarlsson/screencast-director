@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+# sd: record a screencast, plan the edit, render it with Remotion.
+#
+#   sd devices                    list cameras, screens and microphones
+#   sd record <name> [--camera]   record screen + mic (+ camera) with input logging; Ctrl-C stops
+#   sd import <name> <video> [--camera <file> [--camera-offset <sec>]]
+#   sd analyze <name>             transcribe (Whisper) and measure screen motion
+#   sd plan <name> [--force]      write a first-draft plan.json
+#   sd describe <name>            print the plan as a readable timeline
+#   sd preview <name>             open the Remotion studio on the project
+#   sd render <name> [out.mp4]    render the final video
+#   sd auto <name>                analyze + plan + render
+#
+# Devices and defaults can be overridden in sd.env at the repo root (see sd.env.example).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECTS="${SD_PROJECTS:-$ROOT/projects}"
+[ -f "$ROOT/sd.env" ] && source "$ROOT/sd.env"
+SD_SCREEN="${SD_SCREEN:-Capture screen 0}"
+SD_MIC="${SD_MIC:-default}"
+SD_CAMERA="${SD_CAMERA:-}"
+SD_CAMERA_SIZE="${SD_CAMERA_SIZE:-1920x1080}"
+SD_CAMERA_FPS="${SD_CAMERA_FPS:-30}"
+SD_FPS="${SD_FPS:-30}"
+SD_WHISPER_MODEL="${SD_WHISPER_MODEL:-mlx-community/whisper-large-v3-turbo}"
+
+die() { echo "sd: $*" >&2; exit 1; }
+project_dir() { [ -n "${1:-}" ] || die "missing project name"; echo "$PROJECTS/$1"; }
+need_project() { [ -f "$1/source.json" ] || die "no project at $1 (run sd record or sd import)"; }
+
+# Host-clock start time of the first video frame, from ffmpeg's avfoundation input log.
+capture_start() { sed -nE 's/.*Stream #0:0: Video:.* start ([0-9.]+).*/\1/p' "$1" | head -1; }
+
+write_source() { # dir video [captureStart] [cameraVideo cameraOffset]
+  local dir=$1 video=$2 start=${3:-} cam=${4:-} off=${5:-0}
+  local w h d
+  IFS=, read -r w h < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$dir/$video")
+  d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dir/$video")
+  {
+    printf '{\n  "video": "%s",\n  "width": %s,\n  "height": %s,\n  "duration": %s' "$video" "$w" "$h" "$d"
+    [ -n "$start" ] && printf ',\n  "captureStart": %s' "$start"
+    [ -n "$cam" ] && printf ',\n  "camera": { "video": "%s", "offset": %s }' "$cam" "$off"
+    printf '\n}\n'
+  } > "$dir/source.json"
+}
+
+cmd_devices() {
+  ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | sed -nE 's/^\[AVFoundation[^]]*\] //p'
+}
+
+cmd_record() {
+  local name=${1:-}; shift || true
+  local camera=0
+  [ "${1:-}" = "--camera" ] && camera=1
+  [ $camera = 1 ] && [ -z "$SD_CAMERA" ] && die "set SD_CAMERA in sd.env (see sd devices)"
+  local dir; dir=$(project_dir "$name")
+  [ -e "$dir" ] && die "$dir already exists"
+  mkdir -p "$dir"
+  [ -x "$ROOT/logger/bin/input-logger" ] || "$ROOT/logger/build.sh"
+
+  "$ROOT/logger/bin/input-logger" "$dir/events.jsonl" 2>"$dir/.logger.log" &
+  local logger_pid=$!
+  ffmpeg -hide_banner -nostdin -f avfoundation -capture_cursor 1 -framerate "$SD_FPS" \
+    -i "$SD_SCREEN:$SD_MIC" -r "$SD_FPS" -c:v h264_videotoolbox -b:v 24M -c:a aac -b:a 192k \
+    "$dir/screen.mkv" 2>"$dir/.ffmpeg-screen.log" &
+  local screen_pid=$! cam_pid=""
+  if [ $camera = 1 ]; then
+    ffmpeg -hide_banner -nostdin -f avfoundation -framerate "$SD_CAMERA_FPS" -video_size "$SD_CAMERA_SIZE" \
+      -i "$SD_CAMERA:none" -c:v h264_videotoolbox -b:v 12M "$dir/camera.mkv" 2>"$dir/.ffmpeg-camera.log" &
+    cam_pid=$!
+  fi
+
+  stopping=0
+  stop() {
+    [ $stopping = 1 ] && return
+    stopping=1
+    echo; echo "Stopping..."
+    kill -TERM "$screen_pid" $cam_pid 2>/dev/null || true
+    wait "$screen_pid" $cam_pid 2>/dev/null || true
+    kill -INT "$logger_pid" 2>/dev/null || true
+    wait "$logger_pid" 2>/dev/null || true
+  }
+  trap stop INT TERM
+  echo "Recording to $dir (screen: $SD_SCREEN, mic: $SD_MIC${SD_CAMERA:+, camera: $SD_CAMERA}). Ctrl-C to stop."
+  wait "$screen_pid" || true
+  stop
+  trap - INT TERM
+
+  [ -s "$dir/screen.mkv" ] || { tail -5 "$dir/.ffmpeg-screen.log" >&2; die "screen recording failed (log: $dir/.ffmpeg-screen.log)"; }
+  ffmpeg -hide_banner -loglevel error -i "$dir/screen.mkv" -c copy -movflags +faststart "$dir/screen.mp4" && rm "$dir/screen.mkv"
+  local start cam_video="" cam_off=0
+  start=$(capture_start "$dir/.ffmpeg-screen.log")
+  if [ $camera = 1 ] && [ -s "$dir/camera.mkv" ]; then
+    ffmpeg -hide_banner -loglevel error -i "$dir/camera.mkv" -c copy -movflags +faststart "$dir/camera.mp4" && rm "$dir/camera.mkv"
+    cam_video=camera.mp4
+    cam_off=$(awk -v a="$(capture_start "$dir/.ffmpeg-camera.log")" -v b="$start" 'BEGIN { printf "%.3f", b - a }')
+  fi
+  write_source "$dir" screen.mp4 "$start" "$cam_video" "$cam_off"
+  echo "Saved $dir. Next: sd auto $name   (or sd analyze/plan, then ask Claude to edit plan.json)"
+}
+
+cmd_import() {
+  local name=${1:-} video=${2:-}; shift 2 || die "usage: sd import <name> <video> [--camera <file> [--camera-offset <sec>]]"
+  local cam="" off=0
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --camera) cam=$2; shift 2 ;;
+      --camera-offset) off=$2; shift 2 ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  [ -f "$video" ] || die "no such file: $video"
+  local dir; dir=$(project_dir "$name")
+  [ -e "$dir" ] && die "$dir already exists"
+  mkdir -p "$dir"
+  local ext="${video##*.}"
+  cp -c "$video" "$dir/screen.$ext" 2>/dev/null || cp "$video" "$dir/screen.$ext"
+  if [ -n "$cam" ]; then
+    cp -c "$cam" "$dir/camera.${cam##*.}" 2>/dev/null || cp "$cam" "$dir/camera.${cam##*.}"
+    write_source "$dir" "screen.$ext" "" "camera.${cam##*.}" "$off"
+  else
+    write_source "$dir" "screen.$ext"
+  fi
+  echo "Imported to $dir (no input events, so zooms come from Claude, not clicks)."
+}
+
+cmd_analyze() {
+  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  local video; video=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).video)' "$dir/source.json")
+  mkdir -p "$dir/.render"
+
+  if ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$dir/$video" | grep -q .; then
+    echo "Transcribing with $SD_WHISPER_MODEL..."
+    ffmpeg -hide_banner -loglevel error -y -i "$dir/$video" -vn -ac 1 -ar 16000 "$dir/.render/audio.wav"
+    mlx_whisper "$dir/.render/audio.wav" --model "$SD_WHISPER_MODEL" --word-timestamps True \
+      --output-format json --output-dir "$dir" --output-name transcript --verbose False
+  else
+    echo "No audio track; skipping transcription."
+    echo '{"segments": []}' > "$dir/transcript.json"
+  fi
+
+  # Mean frame-to-frame luma difference at 10 fps: how much the screen is changing.
+  echo "Measuring screen motion..."
+  ffmpeg -hide_banner -nostdin -loglevel error -i "$dir/$video" -an \
+    -vf "fps=10,scale=480:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" \
+    -f null - | paste - - |
+    awk '{ split($3, a, ":"); split($4, b, "="); out = out sep sprintf("[%s, %.3f]", a[2], b[2]); sep = ", " }
+         END { print "[" out "]" }' > "$dir/motion.json"
+  echo "Analysis done: transcript.json, motion.json"
+}
+
+cmd_plan() {
+  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  node "$ROOT/scripts/plan.ts" "$dir" ${2:-}
+}
+
+cmd_describe() {
+  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  node "$ROOT/scripts/describe.ts" "$dir"
+}
+
+cmd_preview() {
+  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  local props; props=$(node "$ROOT/scripts/props.ts" "$dir")
+  cd "$ROOT" && npx remotion studio --props="$props" --public-dir="$dir"
+}
+
+cmd_render() {
+  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
+  local out=${2:-$dir/out.mp4}
+  local props; props=$(node "$ROOT/scripts/props.ts" "$dir")
+  cd "$ROOT" && npx remotion render Screencast "$out" --props="$props" --public-dir="$dir"
+  echo "Rendered $out"
+}
+
+cmd_auto() {
+  cmd_analyze "$1"
+  cmd_plan "$1" --force
+  cmd_describe "$1"
+  cmd_render "$1"
+}
+
+cmd=${1:-help}; shift || true
+case $cmd in
+  devices|record|import|analyze|plan|describe|preview|render|auto) "cmd_$cmd" "$@" ;;
+  *) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac

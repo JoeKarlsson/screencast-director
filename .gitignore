@@ -1,0 +1,7 @@
+node_modules/
+projects/*
+!projects/.gitkeep
+logger/bin/
+out/
+.DS_Store
+sd.env
