@@ -65,6 +65,10 @@ public struct Plan: Codable, Equatable {
     public var video: String
     /// Seconds to add to a screen time to get the same moment in the camera file.
     public var offset: Double
+    public init(video: String, offset: Double) {
+      self.video = video
+      self.offset = offset
+    }
   }
   public struct Output: Codable, Equatable {
     public var width: Int

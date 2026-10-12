@@ -13,6 +13,22 @@ sd render demo
 
 GUI tools like Screen Studio and [Recordly](https://github.com/webadderallorg/Recordly) do the polish well, but every edit is a drag on a timeline. Headless tools like [screenstudio-alt](https://github.com/connerkward/screenstudio-alternative-skill) are scriptable but don't know what you're saying. This project drives the edit from the **narration**: Whisper word timestamps decide what's a retake, when typing can be sped up (you're not talking), where a zoom belongs ("now look at this button"), and what the captions say.
 
+## macOS app
+
+`macos/` is a native app (Apple silicon, macOS 15+) with the same pipeline and no Node:
+
+- **Record** with ⌃⌥⌘R from any app, or the menu bar button. ScreenCaptureKit records the main display and your mic (the app's own windows stay out of the shot), plus your camera if you turn it on in Settings, plus the click and keystroke log.
+- When you stop, it transcribes (whisper.cpp, sharing Followspot's models), drafts a plan, and opens a live preview.
+- **Ask Claude** in plain language. The app runs Claude Code headless on the project, and the preview reloads when `plan.json` changes.
+- **Export** renders natively with AVFoundation and Core Image. The fixture renders in about 2 s, against 23 s with Remotion.
+
+```
+macos/build.sh --install     # → /Applications/Screencast Director.app
+macos/test.sh                # Swift checks for the timeline math and planner
+```
+
+The app needs Screen & System Audio Recording, Microphone, Input Monitoring and (optionally) Camera permission. Builds are signed with a local identity when one exists (Followspot's works), so permissions survive rebuilds. Without a bundled `whisper-cli` (`macos/build-whisper.sh`, needs cmake) it uses Homebrew's (`brew install whisper-cpp`). Projects live in `~/Movies/Screencast Director`, in the same format the CLI uses, and `macos/.build/release/director` runs `analyze`, `plan`, `describe`, `render` and `still` headless.
+
 ## How it works
 
 1. **Record** (`sd record`): ffmpeg captures the screen, mic and optionally a camera. A small Swift logger records clicks, keystrokes and cursor moves on the same host clock AVFoundation stamps frames with, so events line up with the video to the frame. Plain typing is logged without characters; only shortcuts like ⌘K are named.

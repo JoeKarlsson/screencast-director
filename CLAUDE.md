@@ -12,6 +12,18 @@ Record the screen, then edit by changing a JSON plan that Remotion renders. Clau
 - `src/Screencast.tsx`: the Remotion composition.
 - `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `plan.json`, `out.mp4`.
 
+## macOS app (`macos/`)
+
+- `Sources/DirectorCore`: Swift ports of the plan model, `timeline.ts` (Timeline.swift), `plan.ts` (Planner.swift) and `describe.ts`, plus native analysis (motion from decoded frames, whisper-cli → mlx-style transcript.json) and the renderer: `Scene` draws a frame with Core Image + CoreText, `Composition` builds the AVComposition (cuts and speed as edits, muting and fades in an audio mix) with a custom compositor. The same composition feeds the preview player and the export.
+- **Two implementations of the same rules.** A change to the planner, timeline math or look in TypeScript needs the same change in Swift (and the reverse). `npm test` and `macos/test.sh` check the same cases.
+- `Sources/director`: CLI (`analyze`, `plan`, `describe`, `render`, `still`, `debug`). The app bundles it, and `Resources/edit-prompt.md` tells headless Claude to use it (`{{DIRECTOR}}` is replaced with its path).
+- `Sources/ScreencastDirector`: the app. ScreenCaptureKit recorder (sample buffers use the host clock, same as `InputTap`'s `CLOCK_UPTIME_RAW`), library, preview, and the Claude box (`claude -p --permission-mode acceptEdits` with only Read/Edit/Write and `director describe`/`still` allowed).
+- Build with `macos/build.sh`; Command Line Tools only, so no SwiftUI macros (`@State`): view state lives in `ObservableObject`s, as in Followspot.
+- SourceKit reports "Cannot find type ... in scope" on single files; ignore it and trust `swift build`.
+- An `AVAssetTrack` does not keep its `AVURLAsset` alive. Inserting from a track whose asset was freed fails with the unhelpful -11800/-12780; keep the asset in scope (see `camAsset` in Composition.swift).
+- Claude's Edit tool writes `plan.json` in place, which a folder watch misses; the app polls the file's modification date instead.
+- Window screenshots (`screencapture -l`) of a window on another Space show the player black. Bring the window forward before judging the preview.
+
 ## Plan rules that are easy to break
 
 - All plan times are **source seconds** (positions in `screen.mp4`), never output seconds.
