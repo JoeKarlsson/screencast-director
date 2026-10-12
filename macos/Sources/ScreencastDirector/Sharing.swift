@@ -44,6 +44,12 @@ final class SharingSettings: ObservableObject {
       endpoint: url, region: region.isEmpty ? "us-east-1" : region, bucket: bucket, accessKey: accessKey, secretKey: secretKey,
       publicBase: publicBase.isEmpty ? nil : publicBase)
   }
+
+  /// A filled-in endpoint that isn't https (shown as a warning; uploads still work).
+  var insecure: Bool {
+    let e = endpoint.trimmingCharacters(in: .whitespaces).lowercased()
+    return !e.isEmpty && !e.hasPrefix("https://")
+  }
 }
 
 struct SharingSection: View {
@@ -52,6 +58,10 @@ struct SharingSection: View {
   var body: some View {
     Section("Sharing") {
       TextField("Endpoint", text: $sharing.endpoint, prompt: Text("http://192.168.0.202:9000"))
+      if sharing.insecure {
+        Label("This endpoint isn't HTTPS: keys are signed, but uploads and links travel unencrypted. Fine on a home network, not on public Wi-Fi.", systemImage: "exclamationmark.triangle.fill")
+          .font(.caption).foregroundStyle(.orange)
+      }
       TextField("Region", text: $sharing.region)
       TextField("Bucket", text: $sharing.bucket)
       SecureField("Access key", text: Binding(get: { sharing.accessKey }, set: { sharing.accessKey = $0 }))

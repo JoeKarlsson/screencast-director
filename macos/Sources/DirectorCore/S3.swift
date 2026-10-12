@@ -55,11 +55,18 @@ public enum S3 {
     }
   }
 
-  /// A key that won't collide: "<name>-<time>.<ext>", lowercase, dashes for anything unusual.
-  public static func key(for file: URL, name: String, date: Date = Date()) -> String {
+  /// A key that won't collide and can't be guessed from the name and time:
+  /// "<name>-<time>-<8 random hex>.<ext>", lowercase, dashes for anything unusual.
+  public static func key(for file: URL, name: String, date: Date = Date(), nonce: String = randomHex(4)) -> String {
     let slug = name.lowercased().map { $0.isLetter || $0.isNumber ? String($0) : "-" }.joined()
       .split(separator: "-").joined(separator: "-")
-    return "\(slug.isEmpty ? "video" : slug)-\(Int(date.timeIntervalSince1970)).\(file.pathExtension.lowercased())"
+    return "\(slug.isEmpty ? "video" : slug)-\(Int(date.timeIntervalSince1970))-\(nonce).\(file.pathExtension.lowercased())"
+  }
+
+  /// `bytes` random bytes as lowercase hex.
+  public static func randomHex(_ bytes: Int) -> String {
+    var g = SystemRandomNumberGenerator()
+    return (0..<bytes).map { _ in String(format: "%02x", UInt8.random(in: 0...255, using: &g)) }.joined()
   }
 
   /// PUTs a file and returns its public URL.

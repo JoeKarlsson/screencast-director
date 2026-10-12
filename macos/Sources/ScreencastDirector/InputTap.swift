@@ -1,11 +1,13 @@
 import AppKit
+import Carbon
 import CoreGraphics
 import DirectorCore
 import Foundation
 
 // In-process version of logger/InputLogger.swift: writes clicks, keys and cursor moves as
 // JSON lines while a recording runs. Same format, same privacy rule: plain typing (and Space)
-// is logged without characters; only shortcut combos get a label.
+// is logged without characters; only ⌘ or ⌃ combos get a label (⌥ alone types characters),
+// and nothing is logged while secure input (a password field) is on.
 //
 // Timestamps use CLOCK_UPTIME_RAW, the host clock ScreenCaptureKit stamps frames with.
 
@@ -96,6 +98,8 @@ enum InputTap {
       emit(["type": "scroll", "t": t, "x": x, "y": y])
     case .keyDown:
       if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return }
+      // A password field (or any app) has secure input on: log nothing, not even that a key was hit.
+      if IsSecureEventInputEnabled() { return }
       let label = keyLabel(event)
       // The app's own hotkeys (record, retake) aren't part of the demo; don't show them as chips.
       if label == "⌃⌥⌘R" || label == "⌃⌥⌘M" { return }
@@ -110,7 +114,7 @@ enum InputTap {
 
   static func keyLabel(_ event: CGEvent) -> String? {
     let flags = event.flags
-    let shortcut = flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate)
+    let shortcut = flags.contains(.maskCommand) || flags.contains(.maskControl)
     let code = event.getIntegerValueField(.keyboardEventKeycode)
     let special: [Int64: String] = [49: "Space", 36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑"]
     if !shortcut { return code == 49 ? nil : special[code] }

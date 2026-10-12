@@ -103,7 +103,18 @@ do {
   case "still":
     guard positional.count == 4, let frame = Int(positional[2]) else { fail(usage) }
     let project = try Project.load(dir)
-    try await stillFrame(project, try planFor(project), frame: frame, to: URL(fileURLWithPath: positional[3]))
+    // Headless Claude may run this: write only into the project (e.g. .checks/) or a temp folder,
+    // and never through a symlink.
+    let out = URL(fileURLWithPath: positional[3])
+    let roots = [dir, URL(fileURLWithPath: NSTemporaryDirectory()), URL(fileURLWithPath: "/tmp")]
+    guard roots.contains(where: { PathSafety.url(out, isInside: $0) }) else {
+      fail("refusing to write \(out.path): stills go in the project folder or a temp folder")
+    }
+    if (try? FileManager.default.destinationOfSymbolicLink(atPath: out.path)) != nil { fail("refusing to overwrite the symlink \(out.path)") }
+    if PathSafety.url(out, isInside: dir) {
+      try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+    }
+    try await stillFrame(project, try planFor(project), frame: frame, to: out)
     print(positional[3])
   case "publish":
     let project = try Project.load(dir)

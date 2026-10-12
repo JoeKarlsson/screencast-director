@@ -34,6 +34,15 @@ Each release lists what changed for people using the app or the CLI. The version
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
 
+### Security
+- Claude Code edits can only read the recording's folder, edit plan.json and run the director's describe, still and review. A project folder's own `.claude/` settings and hooks are ignored, and check frames go in the project's `.checks/` folder instead of /tmp.
+- YouTube descriptions and recording names from Claude Code run with no tools, from an empty folder.
+- What was said and typed in a recording is treated as data, never as instructions. An AI edit that points the recording, camera, music, logos or fonts at a file outside the project is undone, and the reply says so.
+- `director still` only writes into the project folder or a temp folder, and won't write through a symlink.
+- Shortcut chips only record keys held with ⌘ or ⌃ (⌥ combos type characters, so they stay unlabeled), and nothing is logged while a password field has secure input on.
+- Upload links get a random suffix so they can't be guessed, and Settings > Sharing warns when the endpoint isn't HTTPS.
+- Releases list the zip's SHA-256 and can be signed with a Developer ID and notarized.
+
 ## 0.2.0 (2026-10-12)
 
 The first tagged release. Everything runs on the native Swift engine.

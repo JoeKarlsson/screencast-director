@@ -1,3 +1,4 @@
+import DirectorCore
 import Foundation
 
 /// Runs Claude Code headless (`claude -p`) in a project folder to edit its plan.json.
@@ -39,14 +40,24 @@ enum Claude {
     }
     let dir = director.path
     let system = editPrompt.replacingOccurrences(of: "{{DIRECTOR}}", with: dir)
+    let planURL = project.appendingPathComponent("plan.json")
+    let before = try? Plan.load(planURL)
     let p = Process()
     p.executableURL = claude
     p.currentDirectoryURL = project
+    // Read the project, edit only plan.json and run the three director commands. A recording
+    // folder isn't trusted: its .claude/ settings and hooks are skipped (only user settings load),
+    // and Write and edits to .claude/ are denied outright.
     p.arguments = [
       "-p", instruction,
       "--append-system-prompt", system,
       "--permission-mode", "acceptEdits",
-      "--allowedTools", "Read", "Edit", "Write", "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)", "Bash(\(dir) review:*)",
+      "--setting-sources", "user",
+      "--strict-mcp-config",
+      "--tools", "Read,Edit,Bash",
+      "--allowedTools", "Read(./**)", "Edit(./plan.json)",
+      "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)", "Bash(\(dir) review:*)",
+      "--disallowedTools", "Write", "Edit(./.claude/**)", "Read(./.claude/**)", "WebFetch", "WebSearch",
     ]
     let pipe = Pipe()
     p.standardOutput = pipe
@@ -60,6 +71,14 @@ enum Claude {
       p.terminationHandler = { _ in c.resume() }
     }
     pipe.fileHandleForReading.readabilityHandler = nil
+    // Put back any file path Claude pointed outside the project (a prompt-injected transcript
+    // could ask for that); the app's file poll then picks up the corrected plan.
+    if let before, let after = try? Plan.load(planURL) {
+      let (safe, reverted) = PathSafety.sanitize(after, previous: before, project: project)
+      if !reverted.isEmpty, (try? safe.write(to: planURL)) != nil {
+        onOutput("\nKept the previous \(reverted.joined(separator: ", ")): the edit pointed outside the project folder.\n")
+      }
+    }
     return p.terminationStatus
   }
 }

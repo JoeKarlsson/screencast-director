@@ -276,7 +276,33 @@ struct Checks {
       "S3 GET example Authorization header")
     let s3c = S3.Config(endpoint: URL(string: "http://192.168.0.202:9000/")!, bucket: "videos", accessKey: "a", secretKey: "b")
     expect(S3.objectURL(s3c, key: "my demo/clip 1.gif").absoluteString == "http://192.168.0.202:9000/videos/my%20demo/clip%201.gif", "object URL")
-    expect(S3.key(for: URL(fileURLWithPath: "/x/out.MP4"), name: "2026-10-12 Demo: Take #2", date: Date(timeIntervalSince1970: 5)) == "2026-10-12-demo-take-2-5.mp4", "upload key")
+    expect(S3.key(for: URL(fileURLWithPath: "/x/out.MP4"), name: "2026-10-12 Demo: Take #2", date: Date(timeIntervalSince1970: 5), nonce: "0a1b2c3d") == "2026-10-12-demo-take-2-5-0a1b2c3d.mp4", "upload key")
+    let k1 = S3.key(for: URL(fileURLWithPath: "/x/a.gif"), name: "a"), k2 = S3.key(for: URL(fileURLWithPath: "/x/a.gif"), name: "a")
+    expect(k1 != k2 && k1.range(of: #"^a-\d+-[0-9a-f]{8}\.gif$"#, options: .regularExpression) != nil, "upload keys get a random suffix (\(k1))")
+
+    // PathSafety: an AI edit can't point the plan's files outside the project.
+    let proj = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sd-pathsafety-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: proj, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: proj) }
+    expect(PathSafety.path("screen.mp4", isInside: proj) && PathSafety.path(".checks/1.png", isInside: proj), "relative paths stay inside")
+    expect(!PathSafety.path("../other/screen.mp4", isInside: proj) && !PathSafety.path("/etc/passwd", isInside: proj), "parent and absolute paths leave")
+    expect(PathSafety.path(proj.path + "/cam.mov", isInside: proj), "an absolute path into the project is inside")
+    try? FileManager.default.createSymbolicLink(atPath: proj.appendingPathComponent("link").path, withDestinationPath: "/etc")
+    expect(!PathSafety.path("link/passwd", isInside: proj), "a symlink out of the project leaves")
+    var prior = buildPlan(Project(dir: proj, source: src))
+    prior.look = Look()
+    prior.look?.fontFiles = ["/Library/Fonts/Brand.otf"]
+    var evil = prior
+    evil.source.video = "/Users/someone/secret.mov"
+    evil.camera = Plan.Camera(video: "../cam.mov", offset: 0)
+    evil.music = Music(file: "/etc/passwd")
+    evil.look?.fontFiles = ["/Library/Fonts/Brand.otf", "/tmp/evil.otf", "fonts/ok.otf"]
+    evil.zooms = []
+    let (cleaned, reverted) = PathSafety.sanitize(evil, previous: prior, project: proj)
+    expect(cleaned.source.video == prior.source.video && cleaned.camera == nil && cleaned.music == nil, "unsafe paths reverted")
+    expect(cleaned.look?.fontFiles == ["/Library/Fonts/Brand.otf", "fonts/ok.otf"], "unchanged and in-project fonts kept")
+    expect(Set(reverted) == ["source.video", "camera.video", "music.file", "look.fontFiles"], "reverted fields (\(reverted))")
+    expect(cleaned.zooms == [] && PathSafety.sanitize(prior, previous: prior, project: proj).1.isEmpty, "other edits kept; unchanged plan untouched")
 
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)

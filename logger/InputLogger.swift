@@ -4,11 +4,13 @@
 // frames with, so events line up with the video without any guessed offset.
 //
 // Privacy: plain typing is logged as {"type":"key"} with no character. Only shortcut
-// combos (a modifier other than Shift held) record their label, e.g. "⌘⇧P".
+// combos (⌘ or ⌃ held) record their label, e.g. "⌘⇧P"; ⌥ alone types characters, so it
+// doesn't count. Nothing is logged while secure input (a password field) is on.
 //
 // Usage: input-logger <out.jsonl>    (stop with Ctrl-C or SIGTERM)
 
 import AppKit
+import Carbon
 import CoreGraphics
 import Foundation
 
@@ -60,7 +62,7 @@ emit([
 
 func keyLabel(_ event: CGEvent) -> String? {
     let flags = event.flags
-    let shortcut = flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate)
+    let shortcut = flags.contains(.maskCommand) || flags.contains(.maskControl)
     let code = event.getIntegerValueField(.keyboardEventKeycode)
     let special: [Int64: String] = [49: "Space", 36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑"]
     if !shortcut {
@@ -99,6 +101,8 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
         emit(["type": "scroll", "t": t, "x": x, "y": y])
     case .keyDown:
         if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { break }
+        // A password field (or any app) has secure input on: log nothing, not even that a key was hit.
+        if IsSecureEventInputEnabled() { break }
         var obj: [String: Any] = ["type": "key", "t": t]
         let (x, y) = norm(event.location)
         obj["x"] = x

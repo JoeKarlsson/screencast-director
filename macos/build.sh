@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Build dist/Screencast Director.app: the app, the director CLI, and (if built) a bundled
-# whisper-cli. Signed with a local identity if there is one, else ad-hoc. Neither is a
-# Developer ID, so other Macs need Open Anyway the first time.
+# whisper-cli. Signed with $DEVELOPER_ID when set (a "Developer ID Application: ..." identity,
+# for notarized releases), else a local identity if there is one, else ad-hoc. Without a
+# Developer ID, other Macs need Open Anyway the first time.
 #
 #   macos/build.sh            # → dist/Screencast Director.app
 #   macos/build.sh --install  # ...and copy it to /Applications
+#   DEVELOPER_ID="Developer ID Application: Name (TEAMID)" macos/build.sh
 set -euo pipefail
 
 INSTALL=0
@@ -35,17 +37,24 @@ plutil -replace CFBundleVersion -string "$(git -C "$ROOT" rev-list --count HEAD)
 # rebuilds; macOS keys them to the signature, and ad-hoc changes it every build. Followspot's
 # identity works too (macOS goes by the certificate, not its name).
 IDENTITY="-"
-for name in "Screencast Director Local Signing" "Followspot Local Signing"; do
-  if security find-certificate -c "$name" >/dev/null 2>&1; then
-    IDENTITY="$name"
-    break
-  fi
-done
+SIGN_FLAGS=(--force --options runtime)
+if [[ -n "${DEVELOPER_ID:-}" ]]; then
+  IDENTITY="$DEVELOPER_ID"
+  # Notarization needs a secure timestamp.
+  SIGN_FLAGS+=(--timestamp)
+else
+  for name in "Screencast Director Local Signing" "Followspot Local Signing"; do
+    if security find-certificate -c "$name" >/dev/null 2>&1; then
+      IDENTITY="$name"
+      break
+    fi
+  done
+fi
 # Inside out: helpers first, then the app that contains them.
 for helper in "$APP/Contents/MacOS/director" "$APP/Contents/Helpers/"*; do
-  [[ -e "$helper" ]] && codesign --force --options runtime --sign "$IDENTITY" "$helper"
+  [[ -e "$helper" ]] && codesign "${SIGN_FLAGS[@]}" --sign "$IDENTITY" "$helper"
 done
-codesign --force --options runtime --entitlements Resources/ScreencastDirector.entitlements --sign "$IDENTITY" "$APP"
+codesign "${SIGN_FLAGS[@]}" --entitlements Resources/ScreencastDirector.entitlements --sign "$IDENTITY" "$APP"
 codesign --verify --deep --strict "$APP"
 echo "Built dist/Screencast Director.app ($VERSION, signed: $IDENTITY)"
 
