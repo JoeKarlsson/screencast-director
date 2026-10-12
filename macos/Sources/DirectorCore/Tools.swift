@@ -54,6 +54,9 @@ public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) asyn
     log("No audio track; skipping transcription.")
     try #"{"segments": []}"#.write(to: dir.appendingPathComponent("transcript.json"), atomically: true, encoding: .utf8)
   }
+  // Loudness feeds pause trimming, normalizing and word-timing refinement; measure it fresh now.
+  try? FileManager.default.removeItem(at: dir.appendingPathComponent("loudness.json"))
+  _ = try? await Analyzer.loudness(Project(dir: dir, source: source), video: source.video)
   log("Measuring screen motion...")
   let motion = try await Analyzer.measureMotion(video)
   try Analyzer.writeMotion(motion, to: dir.appendingPathComponent("motion.json"))

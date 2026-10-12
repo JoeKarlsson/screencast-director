@@ -169,6 +169,16 @@ struct Checks {
       "edit review (got \(review))")
     expect(ep.changesCutsOrZooms(from: buildPlan(p)) && !ep.changesCutsOrZooms(from: ep), "edit changes cuts or zooms")
 
+    // Word timing: silence at a word's edges is trimmed off, never past its midpoint.
+    var lv: [(Double, Double)] = []
+    for i in 0..<60 {
+      let t = Double(i) * 0.05
+      lv.append((t, (t >= 1.0 && t < 1.6) ? -15 : -60))  // loud only from 1.0 to 1.6 s
+    }
+    let refined = WordTiming.refine([Word(text: "hi", start: 0.5, end: 2.5), Word(text: "quiet", start: 2.6, end: 2.9)], levels: lv)
+    expect(abs(refined[0].start - 1.0) < 0.06 && abs(refined[0].end - 1.6) < 0.06, "word edges snap to the loud part")
+    expect(refined[1].start <= 2.75 && refined[1].end >= 2.75, "a silent word keeps its midpoint")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

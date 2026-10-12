@@ -49,6 +49,8 @@ public struct Project {
     let source = try JSONDecoder().decode(Source.self, from: Data(contentsOf: dir.appendingPathComponent("source.json")))
     var p = Project(dir: dir, source: source)
     p.words = loadWords(dir.appendingPathComponent("transcript.json"))
+    // Snap word edges to the measured audio when it's been analyzed (transcript.json stays raw).
+    if let levels = WordTiming.cachedLevels(dir) { p.words = WordTiming.refine(p.words, levels: levels) }
     p.events = loadEvents(dir.appendingPathComponent("events.jsonl"), source: source)
     if let data = try? Data(contentsOf: dir.appendingPathComponent("motion.json")),
       let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]]
