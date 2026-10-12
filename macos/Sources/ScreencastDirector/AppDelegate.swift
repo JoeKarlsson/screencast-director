@@ -31,7 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       backing: .buffered, defer: false)
     window.title = "Screencast Director"
     window.contentView = NSHostingView(rootView: view)
-    window.setFrameAutosaveName("Main")
+    // A launch pointed at another projects folder (the smoke test) leaves the saved window frame alone.
+    if !ProcessInfo.processInfo.arguments.contains("-projectsFolder") { window.setFrameAutosaveName("Main") }
     window.isReleasedWhenClosed = false
     window.center()
     window.makeKeyAndOrderFront(nil)
@@ -46,6 +47,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     hotKeys.onRetake = { [weak self] in self?.markRetake() }
     hotKeys.register()
     NSApp.activate()
+    // `-openProject <folder>` opens a project at launch (macos/smoke-test.sh uses it, along with
+    // `-projectsFolder <folder>` so a test run never sees the real library).
+    let args = ProcessInfo.processInfo.arguments
+    if let i = args.firstIndex(of: "-openProject"), i + 1 < args.count {
+      application(NSApp, open: [URL(fileURLWithPath: args[i + 1])])
+    }
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds a synthetic project (projects/<name>) for end-to-end testing without a real recording.
+# Builds a synthetic project (projects/<name>, or any absolute path) for end-to-end testing
+# without a real recording.
 #   0-4s   speech                       -> keep 1x
 #   4-7s   silence, frozen screen       -> cut
 #   7-10s  typing events, no speech     -> 3x + zoom
@@ -11,7 +12,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 name=${1:-fixture}
-dir="$ROOT/projects/$name"
+case $name in
+  /*) dir=$name ;;
+  *) dir="$ROOT/projects/$name" ;;
+esac
 rm -rf "$dir"; mkdir -p "$dir/.tmp"
 
 say -o "$dir/.tmp/a.aiff" "Welcome. Today I will show you how this works."

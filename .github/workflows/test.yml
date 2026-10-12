@@ -26,4 +26,5 @@ jobs:
       - run: command -v swiftlint || brew install swiftlint
       - run: macos/lint.sh
       - run: macos/test.sh
+      - run: macos/playback-test.sh   # plays a built composition headlessly and fails on black or missing frames
       - run: swift build --package-path macos --product director   # the app target times out type-checking SwiftUI on CI runners
