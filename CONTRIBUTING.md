@@ -6,13 +6,18 @@ Thanks for helping. Bug reports, ideas and pull requests are all welcome.
 
 See [docs/cli.md](docs/cli.md) for the Node CLI and [docs/app.md](docs/app.md) for the macOS app. Both need Apple silicon.
 
-## Tests
+## Tests and linting
 
 ```sh
 npm test            # timeline math and planner rules (TypeScript)
 npm run typecheck
 macos/test.sh       # the same checks in Swift
+
+npm run lint        # ESLint for TypeScript, ShellCheck for the shell scripts
+macos/lint.sh       # SwiftLint (brew install swiftlint shellcheck)
 ```
+
+CI runs all of these. Lint errors fail the build; SwiftLint warnings don't.
 
 `test/make-fixture.sh` builds a synthetic project with speech, idle, typing and motion sections. Its green top bar grows 96 px per source second, so any rendered frame shows which source moment it came from.
 

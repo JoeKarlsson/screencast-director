@@ -16,11 +16,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
 
   swift:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - run: command -v swiftlint || brew install swiftlint
+      - run: macos/lint.sh
       - run: macos/test.sh
       - run: swift build --package-path macos --product director   # the app target times out type-checking SwiftUI on CI runners

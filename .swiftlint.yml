@@ -1,0 +1,32 @@
+# SwiftLint for macos/. Run with macos/lint.sh (it points SwiftLint at the Command Line Tools,
+# since this project builds without Xcode).
+included:
+  - macos/Sources
+  - macos/Tests
+
+disabled_rules:
+  - identifier_name        # short names (x, a, b, dt) are the norm in the timeline and render math
+  - trailing_comma         # multi-line literals end with a comma on purpose
+  - large_tuple            # (start, end, speed)-style tuples are clearer than one-off structs
+  - function_parameter_count
+  - todo
+
+line_length:
+  warning: 180
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true
+
+# Size limits are warnings only: a long SwiftUI view or renderer is normal here.
+function_body_length:
+  warning: 120
+  error: 400
+type_body_length:
+  warning: 500
+  error: 1500
+file_length:
+  warning: 1000
+  error: 2500
+cyclomatic_complexity:
+  warning: 25
+  error: 60

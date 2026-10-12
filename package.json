@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && shellcheck bin/sd logger/build.sh macos/*.sh test/*.sh",
+    "lint:swift": "macos/lint.sh"
   },
   "dependencies": {
     "@remotion/cli": "4.0.529",
@@ -15,9 +17,13 @@
     "remotion": "4.0.529"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "22.18.0",
     "@types/react": "19.1.17",
-    "typescript": "5.9.3"
+    "eslint": "10.11.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1"
   },
   "allowScripts": {
     "esbuild@0.28.1": true
