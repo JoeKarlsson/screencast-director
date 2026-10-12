@@ -73,9 +73,16 @@ final class ProfileStore: ObservableObject {
     alert.accessoryView = field
     alert.addButton(withTitle: "Save")
     alert.addButton(withTitle: "Cancel")
-    guard alert.runModal() == .alertFirstButtonReturn else { return }
-    let name = field.stringValue.trimmingCharacters(in: .whitespaces)
-    guard !name.isEmpty, !name.contains("/") else { return }
-    do { try save(from: plan, as: name) } catch { NSAlert(error: error).runModal() }
+    presentAlert(alert) { [self] response in
+      guard response == .alertFirstButtonReturn else { return }
+      let name = field.stringValue.trimmingCharacters(in: .whitespaces)
+      guard !name.isEmpty, !name.contains("/") else { return }
+      do {
+        try save(from: plan, as: name)
+        Notices.shared.show("Saved the profile \(name).")
+      } catch {
+        Notices.shared.show(error, "Couldn't save the profile")
+      }
+    }
   }
 }

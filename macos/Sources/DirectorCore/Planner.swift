@@ -61,6 +61,7 @@ public func buildSegments(_ p: Project) -> [Segment] {
   var fillers = p.words.filter { Rules.isFiller($0.text) }.map { Interval(start: $0.start - 0.05, end: $0.end + 0.05) }
   fillers += retakeCuts(words: p.words, marks: p.retakes).map { Interval(start: $0.0, end: $0.1) }
   fillers += earlierTakeCuts(words: p.words, script: p.script).map { Interval(start: $0.0, end: $0.1) }
+  fillers += p.paused.map { Interval(start: $0.0, end: $0.1) }
   let speech = merge(
     p.words.filter { !Rules.isFiller($0.text) }.map {
       Interval(start: $0.start - Rules.speechPadBefore, end: $0.end + Rules.speechPadAfter)

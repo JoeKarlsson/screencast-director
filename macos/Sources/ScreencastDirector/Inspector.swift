@@ -639,7 +639,7 @@ struct InspectorView: View {
       do {
         try FileManager.default.copyItem(at: url, to: project.dir.appendingPathComponent(name))
       } catch {
-        NSAlert(error: error).runModal()
+        Notices.shared.show(error)
         return
       }
     }

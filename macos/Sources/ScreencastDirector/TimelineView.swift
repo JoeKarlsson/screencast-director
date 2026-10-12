@@ -497,6 +497,7 @@ struct TimelineView: View {
         HStack(spacing: 5) {
           if let badge, w > 30 {
             Text(badge).font(.system(size: 9, weight: .bold).monospacedDigit())
+              .lineLimit(1).fixedSize()
               .padding(.horizontal, 4).padding(.vertical, 1)
               .background(Capsule().fill(Color.black.opacity(0.25)))
           }

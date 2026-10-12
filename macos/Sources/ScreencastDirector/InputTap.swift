@@ -15,6 +15,8 @@ enum InputTap {
   nonisolated(unsafe) private static var lastMove = 0.0
   nonisolated(unsafe) private static var tap: CFMachPort?
   nonisolated(unsafe) private static var source: CFRunLoopSource?
+  /// While the recording is paused, nothing is logged (the paused stretch gets cut anyway).
+  nonisolated(unsafe) static var paused = false
 
   /// Input Monitoring is needed for keys; without it, start() still logs nothing and returns false.
   static var hasPermission: Bool { CGPreflightListenEventAccess() }
@@ -56,6 +58,7 @@ enum InputTap {
   }
 
   static func stop() {
+    paused = false
     if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
     if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
     tap = nil
@@ -76,6 +79,7 @@ enum InputTap {
 
   private static func handle(_ type: CGEventType, _ event: CGEvent) {
     let t = now()
+    if paused, type != .tapDisabledByTimeout, type != .tapDisabledByUserInput { return }
     switch type {
     case .tapDisabledByTimeout, .tapDisabledByUserInput:
       if let tap { CGEvent.tapEnable(tap: tap, enable: true) }

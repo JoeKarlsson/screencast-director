@@ -12,7 +12,32 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
 {
   @Published private(set) var isRecording = false
   @Published private(set) var startedAt: Date?
+  /// Set when ScreenCaptureKit stops the stream on its own (mic unplugged, window closed, display
+  /// asleep). AppDelegate watches it, saves what was recorded and says what happened.
   @Published var lastError: String?
+  @Published private(set) var isPaused = false
+  /// Mic level, 0...1 (peak, -60...0 dBFS), about 20 times a second.
+  @Published private(set) var micLevel: Float = 0
+  /// Retake marks in this recording.
+  @Published private(set) var retakeCount = 0
+  /// False when Input Monitoring is off, so clicks and typing aren't logged (no auto-zoom).
+  @Published private(set) var loggingInput = true
+
+  /// Recorded time so far, not counting pauses.
+  var elapsed: TimeInterval {
+    guard let startedAt else { return 0 }
+    let now = Date()
+    let paused = pausedSeconds + (pauseStartedAt.map { now.timeIntervalSince($0) } ?? 0)
+    return max(0, now.timeIntervalSince(startedAt) - paused)
+  }
+  private var pausedSeconds: TimeInterval = 0
+  private var pauseStartedAt: Date?
+  /// Paused stretches on the host clock; turned into source seconds in source.json at stop.
+  private var pauseRanges: [(Double, Double)] = []
+  private var pauseHostStart: Double?
+  private var lastLevelPost = 0.0
+  /// The camera session while recording, for the recording widget's preview.
+  var cameraSession: AVCaptureSession? { camSession }
 
   private var stream: SCStream?
   private var writer: AVAssetWriter?
@@ -35,7 +60,8 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
   func start(in root: URL, settings: AppSettings) async throws {
     guard !isRecording else { return }
     let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-    guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }) ?? content.displays.first else {
+    let wanted = settings.displayID != 0 ? CGDirectDisplayID(settings.displayID) : CGMainDisplayID()
+    guard let display = content.displays.first(where: { $0.displayID == wanted }) ?? content.displays.first else {
       throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display to record."])
     }
     let filter: SCContentFilter
@@ -78,7 +104,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     cfg.showsCursor = !cursorHidden
     cfg.queueDepth = 8
     cfg.captureMicrophone = true
-    if !settings.micID.isEmpty { cfg.microphoneCaptureDeviceID = settings.micID }
+    if AppSettings.microphones.contains(where: { $0.uniqueID == settings.micID }) { cfg.microphoneCaptureDeviceID = settings.micID }
 
     let writer = try AVAssetWriter(outputURL: dir.appendingPathComponent("screen.mp4"), fileType: .mp4)
     let v = AVAssetWriterInput(
@@ -107,17 +133,59 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
     try await stream.startCapture()
     self.stream = stream
-    InputTap.start(writingTo: dir.appendingPathComponent("events.jsonl"), capture: captureRect)
+    let logging = InputTap.start(writingTo: dir.appendingPathComponent("events.jsonl"), capture: captureRect)
 
     await MainActor.run {
       isRecording = true
       startedAt = Date()
+      isPaused = false
+      pausedSeconds = 0
+      pauseStartedAt = nil
+      pauseRanges = []
+      pauseHostStart = nil
+      retakeCount = 0
+      loggingInput = logging
+      lastError = nil
     }
   }
 
-  /// Stops everything, writes source.json, and returns the project folder.
-  func stop() async throws -> URL? {
+  /// Pausing keeps the screen recording, so the clock and the input log stay lined up; the paused
+  /// stretch is saved in source.json and the draft cuts it. Input isn't logged while paused.
+  func pause() {
+    guard isRecording, !isPaused else { return }
+    isPaused = true
+    pauseStartedAt = Date()
+    pauseHostStart = InputTap.now()
+    InputTap.paused = true
+  }
+
+  func resume() {
+    guard isRecording, isPaused else { return }
+    isPaused = false
+    if let start = pauseStartedAt { pausedSeconds += Date().timeIntervalSince(start) }
+    if let start = pauseHostStart { pauseRanges.append((start, InputTap.now())) }
+    pauseStartedAt = nil
+    pauseHostStart = nil
+    InputTap.paused = false
+  }
+
+  func markRetake() {
+    guard isRecording, !isPaused else { return }
+    InputTap.markRetake()
+    retakeCount += 1
+  }
+
+  /// Stops and throws the recording away.
+  func cancel() async {
+    guard let dir = try? await stop(discard: true) else { return }
+    try? FileManager.default.removeItem(at: dir)
+  }
+
+  /// Stops everything, writes source.json, and returns the project folder. With `discard`, it
+  /// only shuts the capture down (the caller deletes the folder).
+  func stop(discard: Bool = false) async throws -> URL? {
     guard isRecording, let dir else { return nil }
+    await MainActor.run { resume() }
     InputTap.stop()
     try? await stream?.stopCapture()
     stream = nil
@@ -133,6 +201,16 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
       audioInput?.markAsFinished()
     }
     await writer?.finishWriting()
+    if discard {
+      camSession?.stopRunning()
+      (camSession, camWriter, camInput, camFirstPTS) = (nil, nil, nil, nil)
+      await MainActor.run {
+        isRecording = false
+        startedAt = nil
+        micLevel = 0
+      }
+      return dir
+    }
     if let err = writer?.error { throw err }
 
     var camera: Plan.Camera?
@@ -148,9 +226,12 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
 
     let asset = AVURLAsset(url: dir.appendingPathComponent("screen.mp4"))
     let duration = try await asset.load(.duration).seconds
-    let source = Project.Source(
+    var source = Project.Source(
       video: "screen.mp4", width: size.width, height: size.height, duration: duration, captureStart: firstPTS?.seconds,
       camera: camera, cursorHidden: cursorHidden ? true : nil)
+    if let first = firstPTS?.seconds, !pauseRanges.isEmpty {
+      source.pauses = pauseRanges.map { [max(0, $0.0 - first), min(duration, $0.1 - first)] }.filter { $0[1] > $0[0] }
+    }
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .sortedKeys]
     try enc.encode(source).write(to: dir.appendingPathComponent("source.json"))
@@ -159,6 +240,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     await MainActor.run {
       isRecording = false
       startedAt = nil
+      micLevel = 0
     }
     return dir
   }
@@ -194,11 +276,30 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
       if videoInput?.isReadyForMoreMediaData == true { videoInput?.append(sb) }
     case .microphone:
       // Audio before the first frame would start the file early; drop it.
+      postLevel(sb)
       guard let first = firstPTS, pts >= first else { return }
       if audioInput?.isReadyForMoreMediaData == true { audioInput?.append(sb) }
     default:
       break
     }
+  }
+
+  /// Peak level of a mic buffer, posted to the main thread at most every 50 ms.
+  private func postLevel(_ sb: CMSampleBuffer) {
+    let now = CACurrentMediaTime()
+    guard now - lastLevelPost >= 0.05 else { return }
+    lastLevelPost = now
+    var peak: Float = 0
+    try? sb.withAudioBufferList { list, _ in
+      for buffer in list {
+        guard let data = buffer.mData else { continue }
+        let samples = data.assumingMemoryBound(to: Float.self)
+        for i in 0..<Int(buffer.mDataByteSize) / MemoryLayout<Float>.size { peak = max(peak, abs(samples[i])) }
+      }
+    }
+    let db = 20 * log10(max(peak, 1e-6))
+    let level = max(0, min(1, (db + 60) / 60))
+    DispatchQueue.main.async { self.micLevel = level }
   }
 
   func stream(_ stream: SCStream, didStopWithError error: Error) {

@@ -4,6 +4,27 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Recording
+- A floating recording widget: clock, mic level, camera preview, retake count, and Pause, Restart, Discard and Stop. It never shows up in the recording.
+- Pause while recording. The paused stretch is cut from the draft.
+- A 3-2-1 countdown before recording starts (Settings > Recording; ⌃⌥⌘R during it cancels).
+- New Recording (⌘N) picks the display or window, the mic and the camera before you start. ⌃⌥⌘R still records right away.
+- Record any connected display, not just the main one.
+- If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
+
+### App
+- A menu bar menu: start, pause, retake, restart or discard a recording, pick the display, mic and camera, and open recent recordings.
+- Standard Mac menus and windows: About, Hide, the Window menu, Show/Hide Inspector (⌥⌘I), and Settings split into General, Recording, AI and Sharing tabs.
+- The editor's buttons move to the window toolbar; the project's name and length are in the title.
+- The preview matches the export's shape (vertical, square) on a dark stage, with play, step and a scrubber under it.
+- The library shows a poster frame, length, date and a New or Exported badge. Double-click a name to rename it in place.
+- Errors and confirmations show as banners in the window instead of dialogs that block the app.
+- Ask Claude: a new prompt box with starter ideas and a history of what you asked and what it changed.
+
+### Editing
+- The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
+- The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
+
 ## 0.2.0 (2026-10-12)
 
 The first tagged release. Everything runs on the native Swift engine.

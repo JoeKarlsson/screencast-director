@@ -70,7 +70,7 @@ struct Shortcut {
     .init(group: "Project", keys: "⌘⇧O", title: "Show in Finder", key: .char("o"), modifiers: [.command, .shift]) { p, _ in
       NSWorkspace.shared.activateFileViewerSelecting([p.planURL])
     },
-    .init(group: "Project", keys: "⌘1", title: "Style inspector", key: .char("1"), modifiers: .command) { _, e in e.inspector.tab = .style },
+    .init(group: "Project", keys: "⌘1", title: "Background & frame inspector", key: .char("1"), modifiers: .command) { _, e in e.inspector.tab = .style },
   ]
 
   func matches(_ event: NSEvent) -> Bool {

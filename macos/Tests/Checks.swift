@@ -90,6 +90,16 @@ struct Checks {
     pp.retrimPauses(words: w2, level: .gentle)
     expect(pp.segments.contains { $0.start <= 0.5 && $0.end >= 1.5 }, "gentle gives the pause back")
     expect(!pp.segments.contains { $0.start < 3.2 && $0.end > 3.2 }, "and still keeps the word cut")
+    // A silent stretch recorded while paused stays cut, even at gentle.
+    pp.segments = [Segment(start: 0, end: 0.9, speed: 1), Segment(start: 1.4, end: 2.9, speed: 1)]
+    pp.retrimPauses(words: w2, level: .gentle, paused: [(0.9, 1.4)])
+    expect(!pp.segments.contains { $0.start < 1.1 && $0.end > 1.1 }, "a paused stretch stays cut")
+
+    // Pausing while recording: the draft cuts the paused stretch even when you talk over it.
+    var pz = Project(dir: URL(fileURLWithPath: "/tmp"), source: src)
+    pz.source.pauses = [[1, 2]]
+    pz.words = [Word(text: "Talking", start: 0.2, end: 0.8), Word(text: "through", start: 1.2, end: 1.8), Word(text: "it", start: 2.2, end: 2.6)]
+    expect(!buildSegments(pz).contains { $0.start < 1.5 && $0.end > 1.5 }, "the paused stretch is out of the draft")
 
     // Retake marks: the phrase before the mark goes, the redo after it stays.
     let flub = [

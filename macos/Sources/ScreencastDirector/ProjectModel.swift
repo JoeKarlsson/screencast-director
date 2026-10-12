@@ -12,6 +12,14 @@ enum Selection: Equatable {
   case callout(Int)
 }
 
+/// One request to the AI editor and its reply (streamed in while it runs).
+struct Ask: Identifiable {
+  let id = UUID()
+  let instruction: String
+  var reply = ""
+  var running = true
+}
+
 /// One open project: the plan (with undo), a live preview, a playhead, and the pipeline actions.
 /// Every edit, from the timeline, the inspector or Claude, ends up in plan.json.
 final class ProjectModel: ObservableObject {
@@ -28,6 +36,8 @@ final class ProjectModel: ObservableObject {
   @Published private(set) var previewReady = false
   @Published var instruction = ""
   @Published private(set) var claudeLog = ""
+  /// What you've asked the AI to do in this session, and what it said back.
+  @Published private(set) var asks: [Ask] = []
   @Published private(set) var canUndo = false
   @Published private(set) var canRedo = false
   @Published var showPublish = false
@@ -469,7 +479,7 @@ final class ProjectModel: ObservableObject {
     run("Finding pauses…") { [self] in
       let silences = Analyzer.silences(try await Analyzer.loudness(project, video: video), minLength: 0.2)
       apply {
-        $0.retrimPauses(words: project.words, level: level, silences: silences)
+        $0.retrimPauses(words: project.words, level: level, silences: silences, paused: project.paused)
         $0.pauses = level
       }
       status = "Pauses: \(level.label)"
@@ -576,7 +586,7 @@ final class ProjectModel: ObservableObject {
       let level = AppSettings.shared.pauseLevel
       let fresh = try Project.load(dir)
       let silences = Analyzer.silences(try await Analyzer.loudness(fresh, video: draft.source.video), minLength: 0.2)
-      draft.retrimPauses(words: fresh.words, level: level, silences: silences)
+      draft.retrimPauses(words: fresh.words, level: level, silences: silences, paused: fresh.paused)
       draft.pauses = level
       if draft.camera != nil, let face = try await Publish.faceCenter(project: try Project.load(dir), plan: draft) {
         draft.camera?.x = face.x
@@ -632,26 +642,42 @@ final class ProjectModel: ObservableObject {
 
   func askClaude() {
     let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return }
+    guard !text.isEmpty, !busy else { return }
     claudeLog = ""
+    asks.append(Ask(instruction: text))
     let ai = AISettings.shared
     if ai.provider != .claudeCode {
       run("\(ai.provider.shortName) is editing…") { [self] in
+        defer { finishAsk() }
         guard let plan, let project else { return }
         let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: text, settings: ai)
         apply { $0 = newPlan }
         claudeLog = summary
+        asks[asks.count - 1].reply = summary
         instruction = ""
         status = "Edited by \(ai.provider == .anthropic ? ai.anthropicModel : ai.model). ⌘Z undoes it."
       }
       return
     }
     run("Claude is editing…") { [self] in
+      defer { finishAsk() }
       let code = try await Claude.edit(project: dir, instruction: text) { chunk in
-        Task { @MainActor in self.claudeLog += chunk }
+        Task { @MainActor in
+          self.claudeLog += chunk
+          if !self.asks.isEmpty { self.asks[self.asks.count - 1].reply = self.claudeLog }
+        }
       }
       instruction = ""
       status = code == 0 ? "Claude finished. ⌘Z undoes its edit." : "Claude exited with status \(code)."
+    }
+  }
+
+  private func finishAsk() {
+    guard !asks.isEmpty else { return }
+    asks[asks.count - 1].running = false
+    // On a failure, run() sets the status after this; pick it up on the next turn.
+    DispatchQueue.main.async { [self] in
+      if !asks.isEmpty, asks[asks.count - 1].reply.isEmpty { asks[asks.count - 1].reply = claudeLog.isEmpty ? status : claudeLog }
     }
   }
 }

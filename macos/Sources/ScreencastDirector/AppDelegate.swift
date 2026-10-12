@@ -1,52 +1,54 @@
 import AVKit
 import AppKit
+import Combine
 import DirectorCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+/// Holds the models and runs recording: countdown, the floating widget, stop, restart, discard.
+/// The SwiftUI scenes in App.swift call into it.
+final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+  /// NSApp.delegate is SwiftUI's own object, so views and helpers reach this one here.
+  nonisolated(unsafe) static weak var shared: AppDelegate?
+
   let settings = AppSettings.shared
   lazy var library = Library(settings: settings)
   let recorder = Recorder()
   let hotKeys = HotKeys()
   let setup = SetupModel()
   let editor = EditorUI()
-  var window: NSWindow!
-  var settingsWindow: NSWindow?
-  var statusItem: NSStatusItem!
-  var timer: Timer?
+  lazy var hud = RecordingHUD(recorder: recorder)
+  let countdown = Countdown()
+  let recordSetup = RecordSetup()
+  /// The main window, once SwiftUI has made it.
+  private(set) var window: NSWindow?
+  /// Opens the main window when it's been closed (set from the commands, which have openWindow).
+  var openMainWindow: (() -> Void)?
+  private var cancellables: Set<AnyCancellable> = []
+
+  override init() {
+    super.init()
+    AppDelegate.shared = self
+  }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    buildMenu()
     MainActor.assumeIsolated {
       ExportQueue.shared.onFinished = { NSWorkspace.shared.activateFileViewerSelecting([$0.url]) }
     }
-    let view = MainView(
-      library: library, recorder: recorder, setup: setup, editor: editor,
-      toggleRecording: { [weak self] in self?.toggleRecording() },
-      importVideo: { [weak self] in self?.importVideo() },
-      watchTour: { [weak self] in self?.watchTour() })
-    window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1440, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable],
-      backing: .buffered, defer: false)
-    window.title = "Screencast Director"
-    window.contentView = NSHostingView(rootView: view)
-    // A launch pointed at another projects folder (the smoke test) leaves the saved window frame alone.
-    if !ProcessInfo.processInfo.arguments.contains("-projectsFolder") { window.setFrameAutosaveName("Main") }
-    window.isReleasedWhenClosed = false
-    window.center()
-    window.makeKeyAndOrderFront(nil)
-
-    statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    statusItem.button?.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Record")
-    statusItem.button?.target = self
-    statusItem.button?.action = #selector(toggleRecordingAction)
-
     installKeyMonitor()
     hotKeys.onToggle = { [weak self] in self?.toggleRecording() }
     hotKeys.onRetake = { [weak self] in self?.markRetake() }
     hotKeys.register()
-    NSApp.activate()
+    hud.model.onStop = { [weak self] in self?.toggleRecording() }
+    hud.model.onRestart = { [weak self] in self?.restartRecording() }
+    hud.model.onDiscard = { [weak self] in self?.discardRecording() }
+    recordSetup.onStart = { [weak self] in self?.startRecording() }
+    // ScreenCaptureKit stopped the stream on its own: keep what was recorded and say why.
+    recorder.$lastError.compactMap { $0 }.receive(on: DispatchQueue.main).sink { [weak self] message in
+      guard let self, self.recorder.isRecording else { return }
+      self.stopRecording(reason: "Recording stopped: \(message). What was recorded until then is saved.")
+    }
+    .store(in: &cancellables)
     // `-openProject <folder>` opens a project at launch (macos/smoke-test.sh uses it, along with
     // `-projectsFolder <folder>` so a test run never sees the real library).
     let args = ProcessInfo.processInfo.arguments
@@ -55,9 +57,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  /// Called each time the window's view appears in it.
+  func adopt(_ w: NSWindow) {
+    guard window !== w else { return }
+    window = w
+    w.isReleasedWhenClosed = false
+    w.titlebarSeparatorStyle = .automatic
+    w.toolbarStyle = .unified
+  }
+
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    window.makeKeyAndOrderFront(nil)
+    if !flag { showMain() }
     return true
+  }
+
+  func showMain() {
+    if let window, window.contentView != nil {
+      window.makeKeyAndOrderFront(nil)
+    } else {
+      openMainWindow?()
+    }
+    NSApp.activate()
   }
 
   /// `open -a "Screencast Director" <project folder or video>`, or a drop on the Dock icon.
@@ -68,74 +88,107 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       library.selection = url.standardizedFileURL
       window?.makeKeyAndOrderFront(nil)
     } else {
-      Task { @MainActor in
-        do {
-          let dir = try await library.importVideo(url)
-          library.refresh()
-          library.selection = dir
-          library.current?.analyzeAndPlan()
-        } catch {
-          NSAlert(error: error).runModal()
-        }
-      }
+      importVideo(url)
     }
   }
 
-  @objc func toggleRecordingAction() { toggleRecording() }
-
-  /// ⌃⌥⌘M while recording: the phrase you just said gets cut from the draft; say it again after.
-  @objc func markRetake() {
-    guard recorder.isRecording else { return }
-    InputTap.markRetake()
-    // A short flash in the menu bar, so you know it took.
-    let title = statusItem.button?.title ?? ""
-    statusItem.button?.title = " RETAKE"
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-      if self?.statusItem.button?.title == " RETAKE" { self?.statusItem.button?.title = title }
-    }
-  }
+  // MARK: Recording
 
   func toggleRecording() {
-    Task { @MainActor in
-      do {
-        if recorder.isRecording {
-          timer?.invalidate()
-          statusItem.button?.title = ""
-          statusItem.button?.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Record")
-          guard let dir = try await recorder.stop() else { return }
-          library.refresh()
-          library.selection = dir
-          window.makeKeyAndOrderFront(nil)
-          NSApp.activate()
-          library.current?.analyzeAndPlan { [weak self] in
-            guard let self, self.settings.autoName, dir.lastPathComponent.hasPrefix("Recording ") else { return }
-            self.library.suggestName(dir, autoApply: true)
-          }
-        } else {
-          try await recorder.start(in: settings.projectsURL, settings: settings)
-          statusItem.button?.image = NSImage(systemSymbolName: "stop.circle.fill", accessibilityDescription: "Stop")
-          timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, let start = self.recorder.startedAt else { return }
-            let s = Int(Date().timeIntervalSince(start))
-            self.statusItem.button?.title = String(format: " %d:%02d", s / 60, s % 60)
-          }
-          // Get out of the way of what's being recorded, unless the app itself is the subject.
-          if !settings.showSelfInRecordings { window.orderOut(nil) }
+    if countdown.isRunning {
+      countdown.cancel()
+      showMain()
+    } else if recorder.isRecording {
+      stopRecording()
+    } else {
+      startRecording()
+    }
+  }
+
+  func showRecordSetup() {
+    guard !recorder.isRecording, !countdown.isRunning else { return }
+    recordSetup.show(settings: settings)
+  }
+
+  /// Gets the window out of the way (unless the app itself is being recorded), counts down, records.
+  func startRecording() {
+    guard !recorder.isRecording, !countdown.isRunning else { return }
+    recordSetup.close()
+    if !settings.showSelfInRecordings { window?.orderOut(nil) }
+    let screen = settings.recordedScreen
+    countdown.run(seconds: settings.countdown, on: screen) { [weak self] in
+      guard let self else { return }
+      Task { @MainActor in
+        do {
+          try await self.recorder.start(in: self.settings.projectsURL, settings: self.settings)
+          if self.settings.showRecordingWidget { self.hud.show(on: screen) }
+        } catch {
+          self.showMain()
+          Notices.shared.show(
+            "Recording failed: \(error.localizedDescription) Check System Settings > Privacy & Security: Screen & System Audio Recording, Microphone, Camera and Input Monitoring.",
+            error: true)
         }
-      } catch {
-        let alert = NSAlert(error: error)
-        alert.messageText = "Recording failed"
-        alert.informativeText =
-          "\(error.localizedDescription)\n\nCheck System Settings > Privacy & Security: Screen & System Audio Recording, Microphone, Camera and Input Monitoring."
-        alert.runModal()
       }
     }
   }
+
+  func stopRecording(reason: String? = nil) {
+    hud.hide()
+    Task { @MainActor in
+      do {
+        guard let dir = try await recorder.stop() else { return }
+        library.refresh()
+        library.selection = dir
+        showMain()
+        if let reason { Notices.shared.show(reason, error: true) }
+        library.current?.analyzeAndPlan { [weak self] in
+          guard let self, self.settings.autoName, dir.lastPathComponent.hasPrefix("Recording ") else { return }
+          self.library.suggestName(dir, autoApply: true)
+        }
+      } catch {
+        showMain()
+        Notices.shared.show(error, "Couldn't save the recording")
+      }
+    }
+  }
+
+  /// Throws the take away and starts over, with the countdown.
+  func restartRecording() {
+    hud.hide()
+    Task { @MainActor in
+      await recorder.cancel()
+      startRecording()
+    }
+  }
+
+  func discardRecording() {
+    hud.hide()
+    Task { @MainActor in
+      await recorder.cancel()
+      showMain()
+      Notices.shared.show("Recording discarded.")
+    }
+  }
+
+  /// ⌃⌥⌘M while recording: the phrase you just said gets cut from the draft; say it again after.
+  func markRetake() {
+    recorder.markRetake()
+  }
+
+  // MARK: Import
 
   func importVideo() {
     let panel = NSOpenPanel()
     panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
-    guard panel.runModal() == .OK, let url = panel.url else { return }
+    panel.message = "Pick a screen recording to edit. It's copied into your recordings folder."
+    let open: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+      guard response == .OK, let url = panel.url else { return }
+      self?.importVideo(url)
+    }
+    if let window, window.isVisible { panel.beginSheetModal(for: window, completionHandler: open) } else { open(panel.runModal()) }
+  }
+
+  func importVideo(_ url: URL) {
     Task { @MainActor in
       do {
         let dir = try await library.importVideo(url)
@@ -143,27 +196,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         library.selection = dir
         library.current?.analyzeAndPlan()
       } catch {
-        NSAlert(error: error).runModal()
+        Notices.shared.show(error, "Couldn't import \(url.lastPathComponent)")
       }
     }
   }
 
-  @objc func showSettings() {
-    if settingsWindow == nil {
-      let w = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 600, height: 640), styleMask: [.titled, .closable, .resizable], backing: .buffered,
-        defer: false)
-      w.title = "Settings"
-      w.contentView = NSHostingView(rootView: SettingsView(settings: settings))
-      w.isReleasedWhenClosed = false
-      settingsWindow = w
-    }
-    settingsWindow?.center()
-    settingsWindow?.makeKeyAndOrderFront(nil)
-  }
-
-  @objc func importAction() { importVideo() }
-  @objc func joinAction() { library.promptJoin() }
+  // MARK: Editor keys and menus
 
   var keyMonitor: Any?
   var shortcutsWindow: NSWindow?
@@ -183,12 +221,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   var tourWindow: NSWindow?
 
   /// The bundled tour video, in its own window.
-  @objc func watchTour() {
+  func watchTour() {
     guard let url = Bundle.main.url(forResource: "tour", withExtension: "mp4") else { return }
     let w = tourWindow ?? NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720), styleMask: [.titled, .closable, .resizable],
+      contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720), styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false)
     w.title = "Screencast Director Tour"
+    w.titlebarAppearsTransparent = true
     let view = AVPlayerView()
     view.player = AVPlayer(url: url)
     view.controlsStyle = .floating
@@ -201,9 +240,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     view.player?.play()
   }
 
-  @objc func showShortcuts() {
+  func showShortcuts() {
     if shortcutsWindow == nil {
-      let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+      let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 600), styleMask: [.titled, .closable], backing: .buffered, defer: false)
       w.title = "Keyboard Shortcuts"
       w.contentView = NSHostingView(rootView: ShortcutsView())
       w.isReleasedWhenClosed = false
@@ -214,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   /// Text fields keep their own undo; otherwise ⌘Z undoes plan edits (including Claude's).
-  @objc func undoAction() {
+  func undoAction() {
     if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.undoManager?.canUndo == true {
       text.undoManager?.undo()
     } else {
@@ -222,7 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  @objc func redoAction() {
+  func redoAction() {
     if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.undoManager?.canRedo == true {
       text.undoManager?.redo()
     } else {
@@ -230,59 +269,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  @objc func showSetup() {
+  func showSetup() {
     library.selection = nil
     setup.refresh()
-    window.makeKeyAndOrderFront(nil)
-  }
-  @objc func refreshAction() { library.refresh() }
-
-  private func buildMenu() {
-    let main = NSMenu()
-    let appItem = NSMenuItem()
-    let appMenu = NSMenu()
-    appMenu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",").target = self
-    appMenu.addItem(.separator())
-    appMenu.addItem(withTitle: "Quit Screencast Director", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-    appItem.submenu = appMenu
-    main.addItem(appItem)
-
-    let fileItem = NSMenuItem()
-    let fileMenu = NSMenu(title: "File")
-    let rec = fileMenu.addItem(withTitle: "Start/Stop Recording", action: #selector(toggleRecordingAction), keyEquivalent: "r")
-    rec.keyEquivalentModifierMask = [.control, .option, .command]
-    rec.target = self
-    let retake = fileMenu.addItem(withTitle: "Mark Retake (cut the line I just said)", action: #selector(markRetake), keyEquivalent: "m")
-    retake.keyEquivalentModifierMask = [.control, .option, .command]
-    retake.target = self
-    fileMenu.addItem(withTitle: "Import Video…", action: #selector(importAction), keyEquivalent: "i").target = self
-    fileMenu.addItem(withTitle: "Join Recordings…", action: #selector(joinAction), keyEquivalent: "").target = self
-    fileMenu.addItem(withTitle: "Refresh Library", action: #selector(refreshAction), keyEquivalent: "").target = self
-    fileMenu.addItem(.separator())
-    fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-    fileItem.submenu = fileMenu
-    main.addItem(fileItem)
-
-    let editItem = NSMenuItem()
-    let editMenu = NSMenu(title: "Edit")
-    editMenu.addItem(withTitle: "Undo", action: #selector(undoAction), keyEquivalent: "z").target = self
-    let redo = editMenu.addItem(withTitle: "Redo", action: #selector(redoAction), keyEquivalent: "z")
-    redo.keyEquivalentModifierMask = [.command, .shift]
-    redo.target = self
-    editMenu.addItem(.separator())
-    editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-    editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-    editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-    editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
-    editItem.submenu = editMenu
-    main.addItem(editItem)
-    let helpItem = NSMenuItem()
-    let helpMenu = NSMenu(title: "Help")
-    helpMenu.addItem(withTitle: "Getting Started", action: #selector(showSetup), keyEquivalent: "").target = self
-    helpMenu.addItem(withTitle: "Watch the Tour", action: #selector(watchTour), keyEquivalent: "").target = self
-    helpMenu.addItem(withTitle: "Keyboard Shortcuts", action: #selector(showShortcuts), keyEquivalent: "/").target = self
-    helpItem.submenu = helpMenu
-    main.addItem(helpItem)
-    NSApp.mainMenu = main
+    showMain()
   }
 }

@@ -47,16 +47,41 @@ final class Library: ObservableObject {
     if wasSelected { selection = dest }
   }
 
-  func promptRename(_ url: URL) {
-    let alert = NSAlert()
-    alert.messageText = "Rename Recording"
-    let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-    field.stringValue = url.lastPathComponent
-    alert.accessoryView = field
-    alert.addButton(withTitle: "Rename")
-    alert.addButton(withTitle: "Cancel")
-    guard alert.runModal() == .alertFirstButtonReturn else { return }
-    do { try rename(url, to: field.stringValue) } catch { NSAlert(error: error).runModal() }
+  /// Inline rename in the sidebar: the row turns into a text field.
+  @Published var renaming: URL?
+  @Published var renameText = ""
+
+  func beginRename(_ url: URL) {
+    renameText = url.lastPathComponent
+    renaming = url
+  }
+
+  func commitRename() {
+    guard let url = renaming else { return }
+    renaming = nil
+    do { try rename(url, to: renameText) } catch { Notices.shared.show(error) }
+  }
+
+  /// Duration, date and how far along a recording is, for the sidebar. Cached until refresh().
+  enum Stage { case new, edited, exported }
+  struct Info {
+    let duration: Double
+    let date: Date
+    let stage: Stage
+  }
+  private var infos: [URL: Info] = [:]
+
+  func info(_ url: URL) -> Info {
+    if let i = infos[url] { return i }
+    let fm = FileManager.default
+    let source = (try? Data(contentsOf: url.appendingPathComponent("source.json"))).flatMap { try? JSONDecoder().decode(Project.Source.self, from: $0) }
+    let files = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
+    let stage: Stage =
+      files.contains { $0.hasPrefix("out") && $0.hasSuffix(".mp4") } ? .exported : files.contains("plan.json") ? .edited : .new
+    let i = Info(
+      duration: source?.duration ?? 0, date: (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date(), stage: stage)
+    infos[url] = i
+    return i
   }
 
   /// Asks the AI for a short descriptive name from what was said, keeping the date in front.
@@ -83,12 +108,10 @@ final class Library: ObservableObject {
           try rename(url, to: full)
           status = "Named it \(full)"
         } else {
-          let alert = NSAlert()
-          alert.messageText = "Rename to \"\(full)\"?"
-          alert.addButton(withTitle: "Rename")
-          alert.addButton(withTitle: "Cancel")
-          if alert.runModal() == .alertFirstButtonReturn { try rename(url, to: full) }
           status = ""
+          Notices.shared.show("Suggested name: \(full)", action: "Rename") { [weak self] in
+            do { try self?.rename(url, to: full) } catch { Notices.shared.show(error) }
+          }
         }
       } catch {
         status = "Couldn't suggest a name: \(error.localizedDescription)"
@@ -111,6 +134,7 @@ final class Library: ObservableObject {
   }
 
   func refresh() {
+    infos = [:]
     let root = settings.projectsURL
     try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     let dirs = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.creationDateKey])) ?? []
@@ -135,7 +159,8 @@ final class Library: ObservableObject {
     let alert = NSAlert()
     alert.messageText = "Join Recordings"
     alert.informativeText = "Pick two or more recordings of the same screen size. They're joined oldest first into a new recording; the originals stay as they are."
-    let rows = projects.reversed().map { url -> NSButton in
+    let candidates = Array(projects.reversed())
+    let rows = candidates.map { url -> NSButton in
       let b = NSButton(checkboxWithTitle: url.lastPathComponent, target: nil, action: nil)
       b.state = url == selection ? .on : .off
       return b
@@ -151,10 +176,15 @@ final class Library: ObservableObject {
     alert.accessoryView = scroll
     alert.addButton(withTitle: "Join")
     alert.addButton(withTitle: "Cancel")
-    guard alert.runModal() == .alertFirstButtonReturn else { return }
-    let takes = zip(projects.reversed(), rows).filter { $0.1.state == .on }.map(\.0)
+    presentAlert(alert) { [weak self] response in
+      guard response == .alertFirstButtonReturn, let self else { return }
+      self.join(zip(candidates, rows).filter { $0.1.state == .on }.map(\.0))
+    }
+  }
+
+  private func join(_ takes: [URL]) {
     guard takes.count >= 2 else {
-      status = "Pick at least two recordings to join."
+      Notices.shared.show("Pick at least two recordings to join.")
       return
     }
     let base = "\(takes[0].lastPathComponent) (joined)"
@@ -178,7 +208,7 @@ final class Library: ObservableObject {
         current?.analyzeAndPlan(analyzeFirst: !analyzed)
       } catch {
         status = ""
-        NSAlert(error: error).runModal()
+        Notices.shared.show(error, "Couldn't join the recordings")
       }
     }
   }

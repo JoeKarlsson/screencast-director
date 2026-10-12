@@ -116,7 +116,7 @@ do {
     var plan = try Plan.load(project.planURL)
     let before = Double(planFrames(plan)) / Double(plan.output.fps)
     let levels = try await Analyzer.loudness(project, video: plan.source.video)
-    plan.retrimPauses(words: project.words, level: level, silences: Analyzer.silences(levels, minLength: 0.2))
+    plan.retrimPauses(words: project.words, level: level, silences: Analyzer.silences(levels, minLength: 0.2), paused: project.paused)
     plan.pauses = level
     try plan.write(to: project.planURL)
     let after = Double(planFrames(plan)) / Double(plan.output.fps)

@@ -16,6 +16,9 @@ public struct Project {
     /// Joined recordings: where each take after the first starts (seconds). Cuts and zooms
     /// don't run across these.
     public var joins: [Double]?
+    /// Stretches recorded while paused, as [start, end] seconds. The screen kept recording (so
+    /// the clock and the input log stay lined up), and the draft always cuts them.
+    public var pauses: [[Double]]?
 
     public init(
       video: String, width: Double, height: Double, duration: Double, captureStart: Double?, camera: Plan.Camera?,
@@ -44,6 +47,8 @@ public struct Project {
   public var planURL: URL { dir.appendingPathComponent("plan.json") }
   /// Retake marks (⌃⌥⌘M while recording), in seconds into the video.
   public var retakes: [Double] { events.filter { $0.type == .retake }.map(\.t) }
+  /// Paused stretches (source seconds), always cut.
+  public var paused: [(Double, Double)] { (source.pauses ?? []).compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil } }
   public var name: String { dir.lastPathComponent }
 
   public init(dir: URL, source: Source, words: [Word] = [], events: [InputEvent] = [], motion: [(Double, Double)] = []) {

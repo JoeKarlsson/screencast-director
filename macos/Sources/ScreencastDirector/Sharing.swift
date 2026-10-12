@@ -101,8 +101,13 @@ extension ProjectModel {
     alert.accessoryView = row
     alert.addButton(withTitle: "Export GIF")
     alert.addButton(withTitle: "Cancel")
-    guard alert.runModal() == .alertFirstButtonReturn, let a = Double(from.stringValue), let b = Double(to.stringValue), b > a else { return }
-    let px = [720, 640, 480][max(0, width.indexOfSelectedItem)]
+    presentAlert(alert) { [self] response in
+      guard response == .alertFirstButtonReturn, let a = Double(from.stringValue), let b = Double(to.stringValue), b > a else { return }
+      makeGIF(plan: plan, from: a, to: b, width: [720, 640, 480][max(0, width.indexOfSelectedItem)])
+    }
+  }
+
+  private func makeGIF(plan: Plan, from a: Double, to b: Double, width px: Int) {
     let url = dir.appendingPathComponent(String(format: "%@ %.1f-%.1f.gif", name, a, b))
     let project = self.project
     run("Making a GIF…") { [self] in
@@ -121,14 +126,24 @@ extension ProjectModel {
   /// a thumbnail), uploads it to the Sharing bucket and puts the public link on the clipboard.
   func uploadAndCopyLink() {
     guard let config = SharingSettings.shared.config else {
-      status = "Set up a bucket in Settings > Sharing first."
+      Notices.shared.show("Set up a bucket in Settings > Sharing first.", action: "Open Settings") {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+      }
       return
     }
     let panel = NSOpenPanel()
     panel.directoryURL = FileManager.default.fileExists(atPath: outURL.path) ? outURL : dir
     panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .gif, .png, .jpeg]
     panel.message = "Choose a file to upload and share"
-    guard panel.runModal() == .OK, let file = panel.url else { return }
+    let window = AppDelegate.shared?.window
+    let chosen: (NSApplication.ModalResponse) -> Void = { [self] response in
+      guard response == .OK, let file = panel.url else { return }
+      upload(file, config: config)
+    }
+    if let window { panel.beginSheetModal(for: window, completionHandler: chosen) } else { chosen(panel.runModal()) }
+  }
+
+  private func upload(_ file: URL, config: S3.Config) {
     let key = S3.key(for: file, name: "\(name) \(file.deletingPathExtension().lastPathComponent)")
     run("Uploading \(file.lastPathComponent)…") { [self] in
       let link = try await S3.upload(file, key: key, config: config)

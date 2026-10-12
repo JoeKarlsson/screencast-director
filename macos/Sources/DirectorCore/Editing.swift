@@ -97,8 +97,10 @@ public enum PauseLevel: String, CaseIterable, Codable {
 extension Plan {
   /// Re-cuts the silences at a new level, in either direction. Only "pause cuts" (gaps with no
   /// spoken words) are rewritten; cuts that removed words (retakes, fumbles) stay cut, and
-  /// sped-up segments are left alone.
-  public mutating func retrimPauses(words: [Word], level: PauseLevel, silences: [(Double, Double)]? = nil) {
+  /// sped-up segments are left alone. `paused` stretches (recorded while paused) stay cut too.
+  public mutating func retrimPauses(
+    words: [Word], level: PauseLevel, silences: [(Double, Double)]? = nil, paused: [(Double, Double)] = []
+  ) {
     func hasWords(_ a: Double, _ b: Double) -> Bool { words.contains { $0.start < b - 0.02 && $0.end > a + 0.02 } }
     // A cut was a pause if it was mostly silent (measured), else if it held no transcript words.
     // Whisper stretches word timings across pauses, so the audio is the better judge.
@@ -111,7 +113,9 @@ extension Plan {
     // 1. Undo pause cuts: join neighbors across gaps that were silence.
     var joined: [Segment] = []
     for s in segments.sorted(by: { $0.start < $1.start }) {
-      if var last = joined.last, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1 {
+      if var last = joined.last, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1,
+        !paused.contains(where: { $0.0 < s.start && $0.1 > last.end })
+      {
         last.end = s.end
         joined[joined.count - 1] = last
       } else {

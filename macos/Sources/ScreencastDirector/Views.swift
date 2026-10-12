@@ -1,76 +1,186 @@
 import AVKit
 import AppKit
 import DirectorCore
-import ScreenCaptureKit
 import SwiftUI
 
 // View state lives in ObservableObjects: @State needs Swift macro plugins, which the
 // Command Line Tools don't ship.
 
-final class EditorUI {
+final class EditorUI: ObservableObject {
   let timeline = TimelineUI()
   let inspector = InspectorUI()
+  @Published var showInspector = true
 }
 
 struct MainView: View {
+  let app: AppDelegate
   @ObservedObject var library: Library
   @ObservedObject var recorder: Recorder
   @ObservedObject var setup: SetupModel
-  let editor: EditorUI
-  let toggleRecording: () -> Void
-  let importVideo: () -> Void
-  let watchTour: () -> Void
+  @ObservedObject var editor: EditorUI
 
   var body: some View {
     NavigationSplitView {
-      List(selection: $library.selection) {
-        Section("Recordings") {
-          ForEach(library.filtered, id: \.self) { url in
-            Label(url.lastPathComponent, systemImage: "film").tag(url as URL?)
-              .contextMenu {
-                Button("Rename…") { library.promptRename(url) }
-                Button("Suggest a Name with \(AISettings.shared.provider.shortName)") { library.suggestName(url) }
-                Divider()
-                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-              }
-          }
-        }
-      }
-      .searchable(text: $library.search, placement: .sidebar, prompt: "Search names and what you said")
-      .safeAreaInset(edge: .bottom) {
-        if !library.status.isEmpty {
-          Text(library.status).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10)
-        }
-        Button {
-          library.selection = nil
-        } label: {
-          Label(setup.allRequiredOK ? "Getting Started" : "Finish Setup", systemImage: setup.allRequiredOK ? "questionmark.circle" : "exclamationmark.circle")
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(setup.allRequiredOK ? Color.secondary : Color.orange)
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+      LibrarySidebar(library: library, setup: setup, posters: PosterCache.shared)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
     } detail: {
-      if let project = library.current {
-        EditorView(project: project, editor: editor)
-      } else {
-        SetupView(setup: setup, record: toggleRecording, importVideo: importVideo, watchTour: watchTour)
+      Group {
+        if let project = library.current {
+          EditorView(project: project, editor: editor)
+        } else {
+          SetupView(setup: setup, record: app.showRecordSetup, importVideo: app.importVideo, watchTour: app.watchTour)
+            .navigationTitle("Screencast Director")
+        }
       }
+      .overlay(alignment: .top) { NoticeBanner(notices: Notices.shared) }
     }
     .toolbar {
-      ToolbarItemGroup {
-        Button(action: importVideo) { Label("Import Video…", systemImage: "square.and.arrow.down") }
-          .help("Import a video you already recorded")
-        Button(action: toggleRecording) {
-          Label(recorder.isRecording ? "Stop" : "Record", systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle")
+      ToolbarItem(placement: .navigation) {
+        Button(action: recorder.isRecording ? app.toggleRecording : app.showRecordSetup) {
+          Label {
+            Text(recorder.isRecording ? "Stop" : "Record")
+          } icon: {
+            Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle.fill")
+              .symbolRenderingMode(.palette)
+              .foregroundStyle(.white, Theme.recording)
+          }
         }
-        .help("Start or stop recording (⌃⌥⌘R from any app)")
+        .help(recorder.isRecording ? "Stop recording (⌃⌥⌘R)" : "New recording (⌘N; ⌃⌥⌘R from any app records right away)")
       }
     }
   }
 }
+
+// MARK: Library
+
+/// Recordings with a poster frame, length, date and how far along each one is.
+struct LibrarySidebar: View {
+  @ObservedObject var library: Library
+  @ObservedObject var setup: SetupModel
+  @ObservedObject var posters: PosterCache
+
+  var body: some View {
+    List(selection: $library.selection) {
+      Section("Recordings") {
+        ForEach(library.filtered, id: \.self) { url in
+          row(url).tag(url as URL?)
+            .contextMenu {
+              Button("Rename") { library.beginRename(url) }
+              Button("Suggest a Name with \(AISettings.shared.provider.shortName)") { library.suggestName(url) }
+              Divider()
+              Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+            }
+        }
+      }
+    }
+    .searchable(text: $library.search, placement: .sidebar, prompt: "Search names and what you said")
+    .overlay {
+      if library.filtered.isEmpty {
+        ContentUnavailableView(
+          library.search.isEmpty ? "No Recordings Yet" : "No Matches",
+          systemImage: library.search.isEmpty ? "film.stack" : "magnifyingglass",
+          description: Text(library.search.isEmpty ? "Press ⌘N to record, or import a video." : "Nothing named or said like that."))
+      }
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      VStack(alignment: .leading, spacing: 6) {
+        if !library.status.isEmpty {
+          Text(library.status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        }
+        Button {
+          library.selection = nil
+        } label: {
+          Label(
+            setup.allRequiredOK ? "Getting Started" : "Finish Setup",
+            systemImage: setup.allRequiredOK ? "questionmark.circle" : "exclamationmark.circle.fill")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(setup.allRequiredOK ? Color.secondary : Color.orange)
+      }
+      .padding(12)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private func row(_ url: URL) -> some View {
+    let info = library.info(url)
+    return HStack(spacing: 10) {
+      ZStack {
+        RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08))
+        if let img = posters.images[url] {
+          Image(nsImage: img).resizable().scaledToFill()
+        } else {
+          Image(systemName: "film").foregroundStyle(.tertiary)
+        }
+      }
+      .frame(width: 64, height: 40)
+      .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+      .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Color.primary.opacity(0.1)))
+      .onAppear { posters.load(url) }
+
+      VStack(alignment: .leading, spacing: 2) {
+        if library.renaming == url {
+          TextField("Name", text: $library.renameText)
+            .textFieldStyle(.roundedBorder)
+            .onSubmit(library.commitRename)
+            .onExitCommand { library.renaming = nil }
+        } else {
+          Text(url.lastPathComponent).lineLimit(2).font(.body)
+        }
+        HStack(spacing: 6) {
+          Text(info.duration > 0 ? fmtTime(info.duration) : "–").monospacedDigit()
+          Text(info.date.formatted(.dateTime.month(.abbreviated).day()))
+          stageBadge(info.stage)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
+    }
+    .padding(.vertical, 3)
+    .onTapGesture(count: 2) { library.beginRename(url) }
+    .simultaneousGesture(TapGesture().onEnded { library.selection = url })
+  }
+
+  @ViewBuilder
+  private func stageBadge(_ stage: Library.Stage) -> some View {
+    switch stage {
+    case .new: badge("New", .blue)
+    case .edited: EmptyView()
+    case .exported: badge("Exported", .green)
+    }
+  }
+
+  private func badge(_ text: String, _ color: Color) -> some View {
+    Text(text).font(.caption2.weight(.semibold)).padding(.horizontal, 5).padding(.vertical, 1)
+      .background(Capsule().fill(color.opacity(0.18))).foregroundStyle(color)
+  }
+}
+
+/// Poster frames for the sidebar, made once per recording per launch.
+final class PosterCache: ObservableObject {
+  static let shared = PosterCache()
+  @Published private(set) var images: [URL: NSImage] = [:]
+  private var loading: Set<URL> = []
+
+  func load(_ url: URL) {
+    guard images[url] == nil, !loading.contains(url) else { return }
+    loading.insert(url)
+    let source = (try? Data(contentsOf: url.appendingPathComponent("source.json"))).flatMap { try? JSONDecoder().decode(Project.Source.self, from: $0) }
+    let video = url.appendingPathComponent(source?.video ?? "screen.mp4")
+    let at = min(2, (source?.duration ?? 0) / 3)
+    Task { @MainActor in
+      let gen = AVAssetImageGenerator(asset: AVURLAsset(url: video))
+      gen.appliesPreferredTrackTransform = true
+      gen.maximumSize = CGSize(width: 256, height: 160)
+      if let (cg, _) = try? await gen.image(at: CMTime(seconds: at, preferredTimescale: 600)) {
+        images[url] = NSImage(cgImage: cg, size: .zero)
+      }
+      loading.remove(url)
+    }
+  }
+}
+
+// MARK: Editor
 
 struct PlayerView: NSViewRepresentable {
   let player: AVPlayer
@@ -87,52 +197,130 @@ struct PlayerView: NSViewRepresentable {
 
 struct EditorView: View {
   @ObservedObject var project: ProjectModel
-  let editor: EditorUI
+  @ObservedObject var editor: EditorUI
 
   var body: some View {
-    HSplitView {
+    VStack(spacing: 0) {
+      stage
+      TransportBar(project: project)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+      Divider()
       VStack(spacing: 10) {
-        header
-        PlayerView(player: project.player)
-          .aspectRatio(16 / 9, contentMode: .fit)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .background(Color.black)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-          .onTapGesture(perform: project.togglePlay)
         TimelineView(project: project, ui: editor.timeline)
-        claudeBar
+        ClaudeBar(project: project)
       }
       .padding(12)
-      .frame(minWidth: 560)
+    }
+    .frame(minWidth: 560)
+    .navigationTitle(project.name)
+    .navigationSubtitle(project.status)
+    .inspector(isPresented: $editor.showInspector) {
       InspectorView(project: project, ui: editor.inspector)
     }
+    .toolbar { EditorToolbar(project: project, editor: editor) }
     .sheet(isPresented: $project.showPublish) { PublishView(project: project) }
     .sheet(isPresented: $project.showHistory) { VersionHistoryView(project: project) }
   }
 
-  private var header: some View {
-    HStack(spacing: 10) {
-      Text(project.name).font(.headline).lineLimit(1)
-      Text(project.status).foregroundStyle(.secondary).lineLimit(1)
-      if project.busy { ProgressView().controlSize(.small) }
-      Spacer()
-      Button { project.undo() } label: { Image(systemName: "arrow.uturn.backward") }
-        .disabled(!project.canUndo).help("Undo (⌘Z)")
-      Button { project.redo() } label: { Image(systemName: "arrow.uturn.forward") }
-        .disabled(!project.canRedo).help("Redo (⇧⌘Z)")
+  /// The preview, at the output's shape, on a dark stage.
+  private var stage: some View {
+    let w = project.plan.map { Double($0.output.width) } ?? project.project?.source.width ?? 16
+    let h = project.plan.map { Double($0.output.height) } ?? project.project?.source.height ?? 9
+    return ZStack {
+      LinearGradient(colors: [Color(white: 0.11), Color(white: 0.06)], startPoint: .top, endPoint: .bottom)
+      PlayerView(player: project.player)
+        .aspectRatio(CGFloat(w) / CGFloat(max(h, 1)), contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
+        .padding(20)
+        .onTapGesture(perform: project.togglePlay)
+      if project.busy {
+        VStack {
+          HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(project.status).font(.callout).lineLimit(1)
+          }
+          .padding(.horizontal, 12).padding(.vertical, 7)
+          .glassCard(cornerRadius: 16)
+          .environment(\.colorScheme, .dark)
+          Spacer()
+        }
+        .padding(.top, 12)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .layoutPriority(1)
+  }
+}
+
+/// Play, step and scrub, under the preview.
+struct TransportBar: View {
+  @ObservedObject var project: ProjectModel
+
+  var body: some View {
+    let total = Double(max(project.totalOutFrames - 1, 1))
+    let fps = Double(project.fps)
+    HStack(spacing: 12) {
+      HStack(spacing: 4) {
+        icon("backward.end.fill", "Go to start (⌘←)", action: project.goToStart)
+        Button(action: project.togglePlay) {
+          Image(systemName: project.isPlaying ? "pause.fill" : "play.fill")
+            .font(.system(size: 15, weight: .semibold))
+            .frame(width: 34, height: 28)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Play/Pause (Space; J/K/L to shuttle)")
+        .accessibilityLabel(project.isPlaying ? "Pause" : "Play")
+        icon("forward.end.fill", "Go to end (⌘→)", action: project.goToEnd)
+      }
+      Text(fmtTime(project.outFrame / fps)).monospacedDigit()
+        .frame(width: 56, alignment: .trailing)
+      Slider(value: Binding(get: { min(project.outFrame, total) }, set: { project.seek(outFrame: $0) }), in: 0...total)
+        .controlSize(.small)
+        .disabled(!project.hasPlan)
+      Text(fmtTime(Double(project.totalOutFrames) / fps)).monospacedDigit().foregroundStyle(.secondary)
+        .frame(width: 56, alignment: .leading)
+    }
+    .font(.system(.callout, design: .rounded))
+  }
+
+  private func icon(_ symbol: String, _ help: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: symbol).font(.system(size: 11)).frame(width: 24, height: 24).contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(.secondary)
+    .help(help)
+  }
+}
+
+struct EditorToolbar: ToolbarContent {
+  @ObservedObject var project: ProjectModel
+  @ObservedObject var editor: EditorUI
+
+  var body: some ToolbarContent {
+    ToolbarItemGroup(placement: .primaryAction) {
+      ControlGroup {
+        Button { project.undo() } label: { Label("Undo", systemImage: "arrow.uturn.backward") }
+          .disabled(!project.canUndo).help("Undo (⌘Z)")
+        Button { project.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
+          .disabled(!project.canRedo).help("Redo (⇧⌘Z)")
+      }
       Menu {
         Button("Re-analyze (keep my edits)") { project.analyzeAndPlan() }
         Button("Start Over from a Fresh Draft") { project.analyzeAndPlan(force: true) }
         Button("Version History…") { project.showHistory = true }
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.planURL]) }
-      } label: { Image(systemName: "ellipsis.circle") }
-        .menuIndicator(.hidden)
-        .fixedSize()
+      } label: { Label("More", systemImage: "ellipsis.circle") }
+        .help("Re-analyze, version history, Show in Finder")
       if project.hasPlan {
-        Button("Publish…") { project.openPublish() }
+        Button { project.openPublish() } label: { Label("Publish", systemImage: "megaphone") }
           .disabled(project.busy)
           .help("Captions (SRT), chapters, a YouTube description draft and thumbnails")
+        ExportQueueButton(queue: ExportQueue.shared)
         Menu {
           Button("Export Current Format") { project.export() }
           Divider()
@@ -143,161 +331,108 @@ struct EditorView: View {
           Button("GIF (for docs)…") { project.exportGIF() }.disabled(project.busy)
           Button("Upload and Copy Link…") { project.uploadAndCopyLink() }.disabled(project.busy)
         } label: {
-          Text("Export")
+          Label("Export", systemImage: "square.and.arrow.up")
         } primaryAction: {
           project.export()
         }
-        .menuStyle(.borderedButton)
-        .fixedSize()
-        ExportQueueButton(queue: ExportQueue.shared)
+        .help("Export the video (⌘⇧E); the arrow has formats, GIF and upload")
       } else {
-        Button("Analyze") { project.analyzeAndPlan() }
-          .buttonStyle(.borderedProminent)
+        Button { project.analyzeAndPlan() } label: { Label("Analyze", systemImage: "wand.and.stars") }
           .disabled(project.busy)
       }
-    }
-  }
-
-  private var claudeBar: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack {
-        Image(systemName: "sparkles").foregroundStyle(.orange)
-        TextField("Ask \(AISettings.shared.provider.shortName) to edit: \"cut my retakes, zoom in when I mention the config, side-by-side for the intro\"", text: $project.instruction)
-          .textFieldStyle(.roundedBorder)
-          .onSubmit(project.askClaude)
-        Button("Ask \(AISettings.shared.provider.shortName)", action: project.askClaude)
-          .disabled(project.busy || !project.hasPlan || project.instruction.isEmpty)
-      }
-      if !project.claudeLog.isEmpty {
-        ScrollView {
-          Text(project.claudeLog).font(.callout).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxHeight: 90)
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
-      }
+      Button { editor.showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
+        .help("Show or hide the inspector (⌥⌘I)")
     }
   }
 }
 
-struct SettingsView: View {
-  @ObservedObject var settings: AppSettings
+// MARK: AI editing
+
+/// Ask the AI for an edit: a glass prompt box, starter ideas, and what you asked and what it did.
+struct ClaudeBar: View {
+  @ObservedObject var project: ProjectModel
   @ObservedObject var ai = AISettings.shared
-  @ObservedObject var ui = SettingsUI()
+
+  static let ideas = [
+    "Cut my retakes", "Tighten the pauses", "Zoom in when I click", "Side by side for the intro", "Add a title at the start",
+  ]
 
   var body: some View {
-    Form {
-      Section("AI editing") {
-        Picker("Provider", selection: $ai.provider) {
-          ForEach(AIProvider.allCases) { Text($0.label).tag($0) }
-        }
-        switch ai.provider {
-        case .claudeCode:
-          Text(Claude.executable.map { "Uses \($0.path) and your Claude login. It can check frames while it edits." }
-            ?? "Install Claude Code from claude.com/claude-code, or pick an API provider.")
-            .font(.caption).foregroundStyle(.secondary)
-        case .anthropic:
-          TextField("Model", text: $ai.anthropicModel)
-          SecureField("API key", text: Binding(get: { ai.key(for: .anthropic) }, set: { ai.setKey($0, for: .anthropic) }))
-          Text("Stored in your Keychain. Refusals fall back automatically to Anthropic's recommended model.")
-            .font(.caption).foregroundStyle(.secondary)
-        case .openAICompatible:
-          Picker("Endpoint", selection: Binding(get: { EndpointPreset.all.first { $0.baseURL == ai.baseURL }?.id ?? "custom" },
-            set: { id in if let p = EndpointPreset.all.first(where: { $0.id == id }) { ai.baseURL = p.baseURL } })) {
-            ForEach(EndpointPreset.all) { Text($0.name).tag($0.id) }
-            Text("Custom").tag("custom")
+    VStack(alignment: .leading, spacing: 8) {
+      if !project.asks.isEmpty { history }
+      HStack(spacing: 10) {
+        Image(systemName: "sparkles").foregroundStyle(Theme.ai).font(.system(size: 15, weight: .semibold))
+        TextField("Ask \(ai.provider.shortName) to edit…", text: $project.instruction, axis: .vertical)
+          .textFieldStyle(.plain)
+          .lineLimit(1...4)
+          .onSubmit(project.askClaude)
+        if project.busy && project.asks.last?.running == true {
+          ProgressView().controlSize(.small)
+        } else {
+          Button(action: project.askClaude) {
+            Image(systemName: "arrow.up.circle.fill").font(.system(size: 22))
+              .foregroundStyle(project.instruction.isEmpty ? Color.secondary.opacity(0.5) : Theme.ai)
           }
-          TextField("Base URL", text: $ai.baseURL)
-          TextField("Model", text: $ai.model, prompt: Text(EndpointPreset.all.first { $0.baseURL == ai.baseURL }?.modelHint ?? "model name"))
-          SecureField("API key (blank for Ollama)", text: Binding(get: { ai.key(for: .openAICompatible) }, set: { ai.setKey($0, for: .openAICompatible) }))
+          .buttonStyle(.plain)
+          .disabled(project.busy || !project.hasPlan || project.instruction.isEmpty)
+          .help("Ask \(ai.provider.shortName) (Return). ⌘Z undoes its edit.")
+          .accessibilityLabel("Ask \(ai.provider.shortName)")
         }
-        if ai.provider != .claudeCode {
-          Toggle("Double-check AI edits", isOn: $ai.doubleCheck)
-          Text("After an edit that changes cuts or zooms, a second request checks zoom targets and cut edges.")
-            .font(.caption).foregroundStyle(.secondary)
-        }
-        HStack {
-          Button("Test") {
-            ui.testResult = "Testing…"
-            Task { @MainActor in ui.testResult = await APIEditor.test(ai) }
+      }
+      .padding(.horizontal, 14)
+      .padding(.vertical, 9)
+      .glassCard(cornerRadius: 20)
+      if project.asks.isEmpty && project.instruction.isEmpty && project.hasPlan {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 6) {
+            ForEach(Self.ideas, id: \.self) { idea in
+              Button(idea) { project.instruction = idea }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+            }
           }
-          Text(ui.testResult).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
       }
-      SharingSection()
-      Picker("Microphone", selection: $settings.micID) {
-        Text("System default").tag("")
-        ForEach(AppSettings.microphones, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
-      }
-      Picker("Profile for new recordings", selection: Binding(get: { ProfileStore.shared.defaultName }, set: { ProfileStore.shared.defaultName = $0 })) {
-        ForEach(ProfileStore.shared.names, id: \.self) { Text($0).tag($0) }
-      }
-      Toggle("Record camera (for split screen and the camera bubble)", isOn: $settings.useCamera)
-      Picker("Camera", selection: $settings.cameraID) {
-        ForEach(AppSettings.cameras, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
-      }
-      .disabled(!settings.useCamera)
-      Picker("Frame rate", selection: $settings.fps) {
-        Text("30 fps").tag(30)
-        Text("60 fps").tag(60)
-      }
-      Toggle("Name new recordings from what you said", isOn: $settings.autoName)
-      Toggle("Draw a smooth cursor (records without the real one)", isOn: $settings.smoothCursor)
-      Picker("Pause trimming for new recordings", selection: $settings.pauseLevel) {
-        ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
-      }
-      CapturePicker(settings: settings, list: CaptureWindows.shared)
-      Toggle("Show this app in recordings (for recording a tour of it)", isOn: $settings.showSelfInRecordings)
-      LabeledContent("Recordings folder") { Text(settings.projectsFolder).lineLimit(1).truncationMode(.middle) }
-    }
-    .formStyle(.grouped)
-    // A grouped Form has no height of its own; without this the window collapses to its title bar.
-    .frame(width: 600, height: 640)
-  }
-}
-
-final class SettingsUI: ObservableObject {
-  @Published var testResult = ""
-}
-
-/// Windows that can be recorded on their own, refreshed each time Settings shows the picker.
-final class CaptureWindows: ObservableObject {
-  static let shared = CaptureWindows()
-  @Published private(set) var windows: [(id: Int, label: String)] = []
-
-  func refresh() {
-    Task { @MainActor in
-      guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true) else { return }
-      windows = content.windows
-        .filter { $0.isOnScreen && $0.windowLayer == 0 && $0.frame.width > 200 && $0.frame.height > 150 }
-        .filter { $0.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier }
-        .map { w in
-          let app = w.owningApplication?.applicationName ?? "Window"
-          let title = (w.title ?? "").isEmpty ? "" : ": \(w.title!)"
-          return (Int(w.windowID), String("\(app)\(title)".prefix(70)))
-        }
-        .sorted { $0.label < $1.label }
     }
   }
-}
 
-struct CapturePicker: View {
-  @ObservedObject var settings: AppSettings
-  @ObservedObject var list: CaptureWindows
-
-  var body: some View {
-    Picker("Record", selection: Binding(get: { settings.captureWindowID }, set: { id in
-      settings.captureWindowID = id
-      settings.captureWindowLabel = list.windows.first { $0.id == id }?.label ?? ""
-    })) {
-      Text("Whole display").tag(0)
-      if settings.captureWindowID != 0, !list.windows.contains(where: { $0.id == settings.captureWindowID }) {
-        Text(settings.captureWindowLabel).tag(settings.captureWindowID)
+  private var history: some View {
+    ScrollViewReader { scroll in
+      ScrollView {
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(project.asks) { ask in
+            VStack(alignment: .leading, spacing: 4) {
+              HStack {
+                Spacer(minLength: 40)
+                Text(ask.instruction)
+                  .padding(.horizontal, 10).padding(.vertical, 6)
+                  .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor.opacity(0.2)))
+              }
+              if !ask.reply.isEmpty || ask.running {
+                HStack(alignment: .top, spacing: 6) {
+                  Image(systemName: "sparkles").foregroundStyle(Theme.ai).font(.caption)
+                  Text(ask.reply.isEmpty ? "Working…" : ask.reply)
+                    .foregroundStyle(ask.reply.isEmpty ? .secondary : .primary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+              }
+            }
+            .font(.callout)
+            .id(ask.id)
+          }
+        }
+        .padding(10)
       }
-      ForEach(list.windows, id: \.id) { Text($0.label).tag($0.id) }
+      .frame(maxHeight: 120)
+      .card(padding: 0)
+      .onChange(of: project.asks.last?.reply) { _, _ in
+        if let id = project.asks.last?.id { scroll.scrollTo(id, anchor: .bottom) }
+      }
     }
-    .onAppear { list.refresh() }
-    .help("A single window records sharper and smaller than the whole display; clicks are measured inside it.")
   }
 }
 
