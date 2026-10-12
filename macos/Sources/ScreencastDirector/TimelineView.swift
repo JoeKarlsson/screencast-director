@@ -18,6 +18,11 @@ final class TimelineUI: ObservableObject {
   @Published var hover: Selection?
   /// The source time a dragged edge is snapped to, drawn as a guide line.
   @Published var snap: Double?
+  /// What's scrolled into view; only the filmstrip observes it.
+  let viewport = TimelineViewport()
+  /// The ranges of the last AI edit, flashed over every track, and the flash's fading opacity.
+  @Published var flashRanges: [(Double, Double)] = []
+  @Published var flashOpacity: Double = 0
 }
 
 private enum Track: CaseIterable {
@@ -127,8 +132,15 @@ struct TimelineView: View {
         GeometryReader { geo in
           HStack(spacing: 0) {
             labels
-            ScrollView(.horizontal) {
-              tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, plan.source.duration * ui.pxPerSec), height: Track.total)
+            ScrollViewReader { proxy in
+              ScrollView(.horizontal) {
+                tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, plan.source.duration * ui.pxPerSec), height: Track.total)
+              }
+              .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }) { _, r in ui.viewport.update(r) }
+              .onChange(of: project.aiChange?.id) { _, id in
+                guard id != nil, let ranges = project.aiChange?.ranges else { return }
+                flash(ranges, proxy)
+              }
             }
           }
           .onAppear {
@@ -143,6 +155,48 @@ struct TimelineView: View {
         .frame(height: Track.total + 14)
       }
     }
+  }
+
+  /// Show the AI edit's ranges at full glow, scroll the first into view, then fade out.
+  private func flash(_ ranges: [(Double, Double)], _ proxy: ScrollViewProxy) {
+    ui.flashRanges = ranges
+    ui.flashOpacity = 1
+    DispatchQueue.main.async {
+      if let first = ranges.min(by: { $0.0 < $1.0 }) {
+        let v = ui.viewport.visible
+        if x(first.0) < v.minX || x(first.1) > v.maxX {
+          withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(Self.flashAnchor, anchor: .center) }
+        }
+      }
+      withAnimation(.easeOut(duration: 2)) { ui.flashOpacity = 0 }
+    }
+  }
+
+  private static let flashAnchor = "aiFlash"
+
+  /// A glow over every track at each range the last AI edit changed. Fades on its own.
+  private var aiFlash: some View {
+    let first = ui.flashRanges.min(by: { $0.0 < $1.0 })
+    return ZStack(alignment: .topLeading) {
+      // Invisible target for scrolling to the first range.
+      if let first {
+        Color.clear
+          .frame(width: max(1, min(x(first.1) - x(first.0), ui.width)), height: 1)
+          .id(Self.flashAnchor)
+          .padding(.leading, x(first.0))
+      }
+      ForEach(Array(ui.flashRanges.enumerated()), id: \.offset) { _, r in
+        let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+        shape.fill(Theme.ai.opacity(0.22))
+          .overlay(shape.strokeBorder(Theme.ai, lineWidth: 1.5))
+          .shadow(color: Theme.ai.opacity(0.9), radius: 8)
+          .frame(width: max(4, x(r.1) - x(r.0)), height: Track.total)
+          .offset(x: x(r.0))
+      }
+      .opacity(ui.flashOpacity)
+    }
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
   }
 
   // MARK: Toolbar
@@ -320,6 +374,7 @@ struct TimelineView: View {
           .offset(x: x(s) - 0.5, y: Track.ruler.height)
           .allowsHitTesting(false)
       }
+      aiFlash
       playhead
     }
   }
@@ -483,8 +538,19 @@ struct TimelineView: View {
     let limits = bounds ?? 0...(project.plan?.source.duration ?? 0)
     let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
     let base = selected ? 1 : hovered ? 0.85 : 0.7
+    let film = track == .clips ? filmstrip(start: start, end: end) : nil
     return shape
       .fill(color.opacity(striped ? base * 0.6 : base))
+      .overlay {
+        // Frames under a tint of the track color, so the bar still reads as a clip.
+        if let film {
+          ZStack {
+            film
+            shape.fill(color.opacity(selected ? 0.3 : hovered ? 0.4 : 0.5))
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
+          }
+        }
+      }
       .overlay(shape.fill(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .top, endPoint: .center)))
       .overlay {
         if striped { Hatch(spacing: 7).stroke(Color.white.opacity(0.22), lineWidth: 2).clipShape(shape) }
@@ -506,6 +572,7 @@ struct TimelineView: View {
           }
         }
         .foregroundStyle(.white)
+        .shadow(color: .black.opacity(film == nil ? 0 : 0.6), radius: 1.5)
         .padding(.horizontal, 7)
       }
       .clipShape(shape)
@@ -549,6 +616,16 @@ struct TimelineView: View {
         if selected { handle(sel: sel, start: start, end: end, left: false, limits: limits, commit: commit) }
       }
       .offset(x: x(start), y: track.y)
+  }
+
+  /// The source recording's frames for a clip bar, or nil without a plan.
+  private func filmstrip(start: Double, end: Double) -> EquatableView<Filmstrip>? {
+    guard let src = project.plan?.source, src.height > 0 else { return nil }
+    let cache = FilmstripCache.shared(dir: project.dir, video: src.video, duration: src.duration)
+    return Filmstrip(
+      cache: cache, viewport: ui.viewport, start: start, end: end, pxPerSec: ui.pxPerSec, height: Track.clips.height,
+      aspect: src.width / src.height
+    ).equatable()
   }
 
   private func handle(
