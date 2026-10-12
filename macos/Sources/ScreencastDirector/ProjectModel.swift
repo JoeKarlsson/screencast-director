@@ -23,7 +23,7 @@ final class ProjectModel: ObservableObject {
   @Published private(set) var outFrame = 0.0
   @Published private(set) var isPlaying = false
   @Published var selection: Selection?
-  @Published private(set) var status = ""
+  @Published var status = ""
   @Published private(set) var busy = false
   @Published private(set) var previewReady = false
   @Published var instruction = ""
@@ -551,7 +551,7 @@ final class ProjectModel: ObservableObject {
 
   // MARK: Pipeline
 
-  private func run(_ label: String, _ work: @escaping () async throws -> Void) {
+  func run(_ label: String, _ work: @escaping () async throws -> Void) {
     guard !busy else { return }
     busy = true
     status = label

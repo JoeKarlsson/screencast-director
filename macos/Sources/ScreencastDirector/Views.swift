@@ -139,6 +139,9 @@ struct EditorView: View {
           ForEach(ExportPreset.all, id: \.id) { p in Button(p.name) { project.export([p]) } }
           Divider()
           Button("All of the Above") { project.export(ExportPreset.all.map { Optional($0) }) }
+          Divider()
+          Button("GIF (for docs)…") { project.exportGIF() }.disabled(project.busy)
+          Button("Upload and Copy Link…") { project.uploadAndCopyLink() }.disabled(project.busy)
         } label: {
           Text("Export")
         } primaryAction: {
@@ -221,6 +224,7 @@ struct SettingsView: View {
           Text(ui.testResult).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
       }
+      SharingSection()
       Picker("Microphone", selection: $settings.micID) {
         Text("System default").tag("")
         ForEach(AppSettings.microphones, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }

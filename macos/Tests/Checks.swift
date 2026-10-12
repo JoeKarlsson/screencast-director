@@ -238,6 +238,26 @@ struct Checks {
     expect(!buildSegments(jp).contains { $0.start < 6 && $0.end > 6 }, "segments split at a join")
     expect(!buildZooms(jp).contains { $0.start < 6 && $0.end > 6 }, "zooms end at a join")
 
+    // SigV4 against AWS's published examples. Signing key: the IAM docs' example key derivation.
+    let kSigning = SigV4.signingKey(secret: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", day: "20120215", region: "us-east-1", service: "iam")
+    expect(
+      kSigning.withUnsafeBytes { SigV4.hex(Array($0)) } == "f4780e2d9f65fa895f9c67b32ce1baf0b0d8a43505a000a1a9e090d414db404d",
+      "SigV4 signing key matches AWS's example")
+    // S3 "GET Object" example from the Authorization-header SigV4 docs.
+    let emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    let get = SigV4.sign(
+      method: "GET", url: URL(string: "https://examplebucket.s3.amazonaws.com/test.txt")!, headers: ["Range": "bytes=0-9"],
+      payloadHash: emptyHash, date: Date(timeIntervalSince1970: 1_369_353_600), accessKey: "AKIAIOSFODNN7EXAMPLE",
+      secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", region: "us-east-1", service: "s3")
+    expect(get.signature == "f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41", "S3 GET example signature (\(get.signature))")
+    expect(
+      get.headers["authorization"]
+        == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",
+      "S3 GET example Authorization header")
+    let s3c = S3.Config(endpoint: URL(string: "http://192.168.0.202:9000/")!, bucket: "videos", accessKey: "a", secretKey: "b")
+    expect(S3.objectURL(s3c, key: "my demo/clip 1.gif").absoluteString == "http://192.168.0.202:9000/videos/my%20demo/clip%201.gif", "object URL")
+    expect(S3.key(for: URL(fileURLWithPath: "/x/out.MP4"), name: "2026-10-12 Demo: Take #2", date: Date(timeIntervalSince1970: 5)) == "2026-10-12-demo-take-2-5.mp4", "upload key")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

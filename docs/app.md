@@ -61,6 +61,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 - **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed), and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Style tab, choose a default in Settings, or save any video's look as a profile. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos.
 - **Intro and outro cards:** full-frame title cards (about 2.5 s) before and after the video, in the profile's background, title font, accent color, logo and brackets. Switch them on in the Style tab and edit the title, subtitle and length. A profile can switch them on for every video: its `look.intro` / `look.outro` take `enabled`, `duration`, `title` (`{title}` is the recording's name), `subtitle` and `logo` (default: the watermark), and **Save This Look as a Profile** saves the current video's cards. The video itself starts after the intro, so captions, zooms, SRT and chapters all shift with it. Audio is silent during the cards.
 - **Formats:** 16:9, 9:16, 1:1 or 4:5 at 720p to 4K. Vertical, square and feed crop the screen and pan to follow zooms and clicks, with the camera stacked below.
+- **GIF (for docs)** in the Export menu renders the selected clip, zoom or title (or any range you type, in output seconds) as a 720, 640 or 480 px GIF at 12 fps, from the same compositor as the video, and saves it next to the recording.
+- **Upload and Copy Link** puts a file from the recording's folder (an export, a GIF, a thumbnail) in an S3-compatible bucket and copies its public link. Set it up in **Settings > Sharing**: endpoint (for example a MinIO server such as `http://192.168.0.202:9000`), region, bucket, access and secret keys (stored in the Keychain), and the public URL the bucket is served from. Uploads are SigV4-signed PUTs, so AWS S3, MinIO, Cloudflare R2 and Backblaze B2 all work. `director upload <file>` does the same with `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and optional `S3_REGION` / `S3_PUBLIC_BASE`.
 - **Export** renders the current format or any preset (YouTube 4K and 1080p; Shorts, Reels and TikTok; Square; Feed) to its own file without changing the plan. Exports run in the background, one at a time, so you can keep editing: each renders the edit as it was when you queued it. The button next to Export shows the queue, with progress and Cancel.
 
 ## AI editing (Settings > AI editing)
@@ -95,7 +97,7 @@ They follow Screen Studio's defaults. ⌘/ lists them all.
 
 ## Headless
 
-`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore`, `profile`, `join` and `gif` without the UI:
+`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore`, `profile`, `join`, `gif` and `upload` without the UI:
 
 ```sh
 director render <project-dir> --preset vertical

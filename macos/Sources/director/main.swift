@@ -29,6 +29,8 @@ let usage = """
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
+    director upload   <file>                        S3-compatible PUT; prints the public URL (S3_* env vars)
+    director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
 
@@ -48,7 +50,10 @@ func planFor(_ project: Project) throws -> Plan {
   guard i + 1 < args.count, let preset = ExportPreset.all.first(where: { $0.id == args[i + 1] }) else { fail(usage) }
   return preset.applied(to: plan)
 }
-let flags: Set<String> = ["--preset", "--title"]
+let flags: Set<String> = ["--preset", "--title", "--from", "--to", "--width", "--fps"]
+func number(_ flag: String) -> Double? {
+  args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
+}
 let positional = args.enumerated().filter { i, a in !flags.contains(a) && (i == 0 || !flags.contains(args[i - 1])) }.map(\.element)
 
 func stillFrame(_ project: Project, _ plan: Plan, frame: Int, to out: URL) async throws {
@@ -135,6 +140,26 @@ do {
     try plan.write(to: project.planURL)
     let after = Double(planFrames(plan)) / Double(plan.output.fps)
     print("\(args[0]) \(fmtTime(a))-\(fmtTime(b)): \(fmtTime(before)) -> \(fmtTime(after))")
+  case "gif":
+    let project = try Project.load(dir)
+    let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.gif")
+    let built = try await buildComposition(project: project, plan: try planFor(project))
+    let opts = GIF.Options(from: number("--from"), to: number("--to"), width: Int(number("--width") ?? 720), fps: Int(number("--fps") ?? 12))
+    let started = Date()
+    let frames = try await GIF.export(built, to: out, options: opts)
+    let size = (try? FileManager.default.attributesOfItem(atPath: out.path)[.size] as? Int) ?? 0
+    print(String(format: "Wrote %@: %d frames, %.1f MB in %.1fs", out.path, frames, Double(size) / 1e6, Date().timeIntervalSince(started)))
+  case "upload":
+    // args[1] is the file here, not a project folder.
+    let env = ProcessInfo.processInfo.environment
+    guard let endpoint = env["S3_ENDPOINT"].flatMap(URL.init(string:)), let bucket = env["S3_BUCKET"],
+      let access = env["S3_ACCESS_KEY"], let secret = env["S3_SECRET_KEY"]
+    else { fail("upload needs S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY and S3_SECRET_KEY (S3_REGION, S3_PUBLIC_BASE optional)") }
+    let config = S3.Config(
+      endpoint: endpoint, region: env["S3_REGION"] ?? "us-east-1", bucket: bucket, accessKey: access, secretKey: secret,
+      publicBase: env["S3_PUBLIC_BASE"])
+    let url = try await S3.upload(dir, key: S3.key(for: dir, name: dir.deletingPathExtension().lastPathComponent), config: config)
+    print(url.absoluteString)
   case "join":
     guard positional.count >= 4 else { fail(usage) }
     let takes = positional.dropFirst(2).map { URL(fileURLWithPath: $0).standardizedFileURL }

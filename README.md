@@ -41,6 +41,7 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 - **Sound:** voice normalizing, volume and a limiter.
 - **Profiles:** your look (background, fonts, colors, logo, frame), full bleed or padded.
 - **Intro and outro cards** in your profile's fonts, colors and logo.
+- **Sharing:** GIFs for docs, and upload to any S3-compatible bucket with the link copied.
 - **AI:** Claude Code (your Claude login, no key), the Anthropic API, or any OpenAI-compatible endpoint.
 - **Library:** search by name or by what you said, let Claude name recordings, and join takes into one.
 
