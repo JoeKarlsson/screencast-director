@@ -59,6 +59,24 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 ## Profiles and formats
 
 - **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed), and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Style tab, choose a default in Settings, or save any video's look as a profile. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos.
+- **Make your own profile:** the app starts with one, Personal. Style a video the way you like and use **Save This Look as a Profile**, or make a folder in Profiles (**Open Profiles Folder** in the inspector's Background & Frame tab) with a `profile.json`. Paths are relative to that folder, and every `look` field is optional:
+
+  ```json
+  {
+    "name": "My Brand",
+    "style": { "background": ["#0f2027", "#2c7da0"], "padding": 0.06, "radius": 14, "transition": 0.8 },
+    "look": {
+      "fontFiles": ["fonts/Inter-Medium.ttf", "fonts/Inter-Bold.ttf"],
+      "captionFont": "Inter-Medium", "titleFont": "Inter-Bold",
+      "captionText": "#FFFFFF", "captionHighlight": "#8AB4F8", "captionBackground": "#111111", "captionBackgroundOpacity": 0.9,
+      "titleText": "#111111", "titleBackground": "#8AB4F8", "accent": "#8AB4F8", "cameraBorder": "#8AB4F8",
+      "frame": "brackets",
+      "watermark": { "image": "logo.png", "corner": "bottomRight", "height": 0.03, "opacity": 0.9 }
+    }
+  }
+  ```
+
+  Fonts are named by their PostScript names. Profiles stay on your Mac: they aren't part of this repo or the app, so a company's fonts and logos never ship with it.
 - **Intro and outro cards:** full-frame title cards (about 2.5 s) before and after the video, in the profile's background, title font, accent color, logo and brackets. Switch them on in the Style tab and edit the title, subtitle and length. A profile can switch them on for every video: its `look.intro` / `look.outro` take `enabled`, `duration`, `title` (`{title}` is the recording's name), `subtitle` and `logo` (default: the watermark), and **Save This Look as a Profile** saves the current video's cards. The video itself starts after the intro, so captions, zooms, SRT and chapters all shift with it. Audio is silent during the cards.
 - **Formats:** 16:9, 9:16, 1:1 or 4:5 at 720p to 4K. Vertical, square and feed crop the screen and pan to follow zooms and clicks, with the camera stacked below.
 - **GIF (for docs)** in the Export menu renders the selected clip, zoom or title (or any range you type, in output seconds) as a 720, 640 or 480 px GIF at 12 fps, from the same compositor as the video, and saves it next to the recording.

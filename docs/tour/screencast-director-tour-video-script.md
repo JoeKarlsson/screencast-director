@@ -11,7 +11,7 @@
 ## Before you record
 
 - Settings > General: **Profile** set to Personal Dark. Settings > Recording: **Show this app in recordings** on.
-- Move any work profiles out of `~/Library/Application Support/Screencast Director/Profiles/` for the take, so the Profile menu only lists Personal and Personal Dark. Put them back after.
+- Move any private or work profiles out of `~/Library/Application Support/Screencast Director/Profiles/` for the take, so the Profile menu only lists ones you're happy to show. Put them back after.
 - The library should hold only recordings you're happy to show. `publish-demo` (already in Personal Dark) is the sample recording; open it once first so its preview is loaded.
 - Start the take from the menu bar or ⌘N. Don't press ⌃⌥⌘R during the take: it stops it.
 
