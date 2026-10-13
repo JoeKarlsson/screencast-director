@@ -31,6 +31,12 @@ On first launch, **Getting Started** shows which permissions are missing, gives 
 4. **Or ask:** "cut my retakes and zoom in when I mention the config." ⌘Z undoes it.
 5. **Export or publish:** 16:9, 9:16, square or 4:5, up to 4K, plus captions, chapters, a description draft and thumbnails.
 
+| The editor | Ask Claude to change the edit |
+|---|---|
+| ![Playing a recording, then clicking a clip, a layout and a title on the timeline, with the inspector switching to each one](docs/media/ui-editor.gif) | ![Typing a request into the Ask Claude box, Claude editing, then the edit landing on the timeline (the wait is sped up)](docs/media/ui-ask.gif) |
+| **Restore a cut, change a speed** | **Export any shape** |
+| ![Clicking a dashed cut and pressing Restore, then setting a clip to 2x so it turns striped](docs/media/ui-timeline.gif) | ![Opening the Export menu, hovering every format, then rendering Shorts in the background](docs/media/ui-export.gif) |
+
 
 ## Features
 
