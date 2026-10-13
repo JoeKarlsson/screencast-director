@@ -34,6 +34,8 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 
 ## Edit
 
+![Clicking a dashed cut and pressing Restore, then setting a clip to 2x so it turns striped](media/ui-timeline.gif)
+
 - **Ask the AI** in plain language. The preview reloads when `plan.json` changes.
 - **Timeline tracks:** Clips (blue is real time, orange is sped up, dashed is cut; click a cut to restore it), Audio, Words, Zoom, Layout and Titles. Drag on the ruler to scrub. Select a bar and drag its handles to trim it; drag zooms, layouts and titles to move them.
 - **Inspector:** the Selection tab sets clip speed, zoom level and focus (drag on a frame of the recording), a layout's mode, or a title's text. The Style tab sets split screen, background, padding, corners, zoom speed, captions, overlays and output size.
@@ -43,6 +45,8 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 - **Camera motion:** zooms start moving about 0.3 s before the zoom begins and settle on a longer, softer tail. While the camera pans, the screen is motion blurred in the direction of travel (capped, and only during moves).
 
 ## Camera, sound and pauses
+
+![The Camera inspector: dragging the camera zoom, Center on My Face, the color presets, then switching to side by side](media/ui-camera.gif)
 
 - **Camera framing:** new recordings center the camera on your face (Vision face detection across the footage, with enough zoom to pan). In the Style tab, drag the focus point, change the zoom, or press **Center on My Face**.
 - **Camera color:** exposure, contrast, saturation and warmth, with Natural, Warm, Punchy, Cool and Bright presets.
@@ -57,6 +61,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 **File > Join Recordings…** joins two or more takes (same screen size, oldest first) into a new recording with a fresh draft edit: one `screen.mp4`, a `camera.mp4` when every take has a camera, and the transcript, clicks, loudness and motion shifted onto the joined clock. Videos are copied without re-encoding when possible, and the originals are untouched. No cut or zoom runs across a join (`source.json` lists them in `joins`).
 
 ## Profiles and formats
+
+![Clicking through background swatches and dragging the padding and corner sliders](media/ui-profiles.gif)
 
 - **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed), and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Style tab, choose a default in Settings, or save any video's look as a profile. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos.
 - **Make your own profile:** the app starts with one, Personal. Style a video the way you like and use **Save This Look as a Profile**, or make a folder in Profiles (**Open Profiles Folder** in the inspector's Background & Frame tab) with a `profile.json`. Paths are relative to that folder, and every `look` field is optional:
@@ -85,6 +91,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 
 ## AI editing (Settings > AI editing)
 
+![The AI provider menu: Claude Code, the Anthropic API, or any OpenAI-compatible API](media/ui-ai-provider.gif)
+
 - **Claude Code** (default): uses your Claude login, so no API key. After an edit that changes zooms or cuts, it must run `director review`, render a still at the middle of every zoom and just after every cut it changed, look at them, and fix bad framing or mid-word cuts (one fix round) before replying.
 - **Anthropic API:** your key, stored in the Keychain.
 - **Any OpenAI-compatible endpoint:** OpenRouter, OpenAI, a gateway such as LiteLLM, or Ollama. Fill in the base URL, model and an optional key.
@@ -92,6 +100,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 The API providers send the timeline, transcript and plan in one request and get back the whole updated plan. With **Double-check AI edits** on (the default), an edit that changed zooms or cuts gets a second request with what's said and clicked during each zoom and any cut that splits a word, asking for corrections.
 
 ## Publish
+
+![Opening Publish and making captions, chapters and thumbnails from the clearest smiling camera frames](media/ui-publish.gif)
 
 **Publish…** in the editor writes into `publish/` in the recording's folder:
 
