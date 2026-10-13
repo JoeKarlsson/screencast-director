@@ -2,7 +2,7 @@ import AppKit
 import DirectorCore
 import SwiftUI
 
-/// Editor keyboard shortcuts. Defaults match Screen Studio's (read from its action table), so the
+/// Editor keyboard shortcuts. Defaults match Screen Studio's, so the
 /// same muscle memory works: Space, J/K/L, arrows, C to split, Backspace to remove, S for speed,
 /// 1-4 for camera layouts, = and - for zoom level. Z (add zoom) and T (add title) are our own,
 /// since Screen Studio has no default key for those.
