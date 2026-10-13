@@ -49,6 +49,11 @@ Each release lists what changed for people using the app or the CLI. The version
 - Pinch or ⌥-scroll to zoom the timeline around the pointer; the zoom slider and ⌘= / ⌘- keep the playhead in place. The timeline follows the playhead while playing, clicking an empty spot moves the playhead, and ⌥← / ⌥→ nudge the selected item a frame.
 - A strip under the scrubber shows the finished video's shape: real-time clips in blue, sped-up parts in orange, titles as ticks and zooms underlined.
 - Transport buttons have VoiceOver labels.
+- Select several items: ⇧- or ⌘-click bars, drag a box over empty track space, or ⌘A. Drag any of them, or press ⌥← / ⌥→, to move them together; ⌫ removes them all.
+- Markers: M drops one at the playhead, ; and ' jump between them, and you can name them in the inspector. The AI sees them, so "zoom in after the intro marker" works.
+- In and out: I and O mark a range, then cut it, speed it up, zoom it, title it, annotate it or ask the AI about it from the timeline toolbar. ⌥X clears it.
+- Output time: a timeline toggle lays the timeline out like the finished video. Cuts collapse, sped-up clips shrink to their real length, and the ruler counts output time; editing works the same.
+- Clicking any empty spot on the timeline now moves the playhead (only the top strip of the tracks responded before).
 - The trim cursor no longer gets stuck after deselecting a bar.
 - Fixed a hang at the end of an AI edit: pipeline steps now run on the main thread, so they never update the window from the background.
 - Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).
@@ -63,6 +68,8 @@ Each release lists what changed for people using the app or the CLI. The version
 - Annotations on the screen that follow zooms: spotlight, box with a label, arrow, highlighter and privacy blur.
 - Caption styles: karaoke (a box slides behind the word being said), word pop, and bold outlined captions.
 - Styled cuts: blur, dip, flash, punch in and whip pan.
+- Crossfades: a cut can dissolve between the two clips (a quarter second each side) without changing the video's length.
+- B-roll: show a picture or clip over part of the video, inside the screen card or over the whole frame, with the same entrances and exits. The B-roll button copies the file into the project's broll/ folder.
 
 ### Security
 - Headless Claude edits no longer load your personal Claude Code settings either, so your own allow rules can't let an edit run commands beyond the three `director` checks.

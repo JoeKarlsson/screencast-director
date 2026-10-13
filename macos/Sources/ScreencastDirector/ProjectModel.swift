@@ -11,6 +11,16 @@ enum Selection: Equatable {
   case layout(Int)
   case callout(Int)
   case annotation(Int)
+  case marker(Int)
+  case insert(Int)
+
+  /// Items that can be dragged or nudged in time (clips are trimmed, cuts restored).
+  var movable: Bool {
+    switch self {
+    case .zoom, .layout, .callout, .annotation, .marker, .insert: return true
+    default: return false
+    }
+  }
 }
 
 /// One request to the AI editor and its reply (streamed in while it runs), the steps it took,
@@ -64,6 +74,11 @@ final class ProjectModel: ObservableObject {
   }
   @Published private(set) var isPlaying = false
   @Published var selection: Selection?
+  /// More items selected with ⇧/⌘-click or a drag box, besides `selection` (which the inspector shows).
+  @Published var multi: [Selection] = []
+  /// An in/out range (I and O), in source seconds: cut, zoom, title or ask the AI about a stretch.
+  @Published var inPoint: Double?
+  @Published var outPoint: Double?
   @Published var status = ""
   @Published private(set) var busy = false
   @Published private(set) var previewReady = false
@@ -285,8 +300,11 @@ final class ProjectModel: ObservableObject {
     case .layout(let i) where i >= p.layouts.count: selection = nil
     case .callout(let i) where i >= p.callouts.count: selection = nil
     case .annotation(let i) where i >= p.annotationList.count: selection = nil
+    case .marker(let i) where i >= p.markerList.count: selection = nil
+    case .insert(let i) where i >= p.insertList.count: selection = nil
     default: break
     }
+    multi = multi.filter { Self.exists($0, in: p) }
     plan = p
     pendingWrite?.cancel()
     pendingWrite = nil
@@ -325,19 +343,280 @@ final class ProjectModel: ObservableObject {
       cutTranscriptSelection()
       return
     }
-    guard let selection else { return }
+    let items = selectedItems
+    guard !items.isEmpty else { return }
     apply { p in
-      switch selection {
-      case .segment(let i) where p.segments.indices.contains(i): p.segments.remove(at: i)
-      case .zoom(let i) where p.zooms.indices.contains(i): p.zooms.remove(at: i)
-      case .layout(let i) where p.layouts.indices.contains(i): p.layouts.remove(at: i)
-      case .callout(let i) where p.callouts.indices.contains(i): p.callouts.remove(at: i)
-      case .annotation(let i) where p.annotationList.indices.contains(i): p.annotationList.remove(at: i)
-      case .gap(let g): p.restore(g)
-      default: break
+      // Clips are cut and cuts restored by time (indices shift as the clips change); the rest are
+      // removed by index, last first.
+      var cuts: [Range<Double>] = [], restores: [Gap] = []
+      var zooms: [Int] = [], layouts: [Int] = [], callouts: [Int] = [], marks: [Int] = [], markers: [Int] = [], inserts: [Int] = []
+      for s in items {
+        switch s {
+        case .segment(let i) where p.segments.indices.contains(i): cuts.append(p.segments[i].start..<p.segments[i].end)
+        case .gap(let g): restores.append(g)
+        case .zoom(let i): zooms.append(i)
+        case .layout(let i): layouts.append(i)
+        case .callout(let i): callouts.append(i)
+        case .annotation(let i): marks.append(i)
+        case .marker(let i): markers.append(i)
+        case .insert(let i): inserts.append(i)
+        default: break
+        }
+      }
+      var insertList = p.insertList
+      for i in inserts.sorted(by: >) where insertList.indices.contains(i) { insertList.remove(at: i) }
+      p.insertList = insertList
+      for i in zooms.sorted(by: >) where p.zooms.indices.contains(i) { p.zooms.remove(at: i) }
+      for i in layouts.sorted(by: >) where p.layouts.indices.contains(i) { p.layouts.remove(at: i) }
+      for i in callouts.sorted(by: >) where p.callouts.indices.contains(i) { p.callouts.remove(at: i) }
+      var annotationList = p.annotationList
+      for i in marks.sorted(by: >) where annotationList.indices.contains(i) { annotationList.remove(at: i) }
+      p.annotationList = annotationList
+      var markerList = p.markerList
+      for i in markers.sorted(by: >) where markerList.indices.contains(i) { markerList.remove(at: i) }
+      p.markerList = markerList
+      for g in restores { p.restore(g) }
+      for r in cuts { p.cut(range: r) }
+    }
+    selection = nil
+    multi = []
+  }
+
+  // MARK: Selecting several items
+
+  /// Everything selected on the timeline: the inspector's item first.
+  var selectedItems: [Selection] { (selection.map { [$0] } ?? []) + multi }
+
+  func isSelected(_ s: Selection) -> Bool { selection == s || multi.contains(s) }
+
+  /// A click selects one item; ⇧/⌘-click adds it to (or takes it out of) the selection.
+  func select(_ s: Selection, adding: Bool) {
+    guard adding else {
+      selection = s
+      multi = []
+      return
+    }
+    if selection == s {
+      selection = multi.first
+      if !multi.isEmpty { multi.removeFirst() }
+    } else if let i = multi.firstIndex(of: s) {
+      multi.remove(at: i)
+    } else if selection == nil {
+      selection = s
+    } else {
+      multi.append(s)
+    }
+  }
+
+  /// A drag box selects what it touches (added to the selection with ⇧).
+  func select(_ items: [Selection], adding: Bool) {
+    var all = adding ? selectedItems : []
+    for s in items where !all.contains(s) { all.append(s) }
+    selection = all.first
+    multi = Array(all.dropFirst())
+  }
+
+  static func exists(_ s: Selection, in p: Plan) -> Bool {
+    switch s {
+    case .segment(let i): return p.segments.indices.contains(i)
+    case .zoom(let i): return p.zooms.indices.contains(i)
+    case .layout(let i): return p.layouts.indices.contains(i)
+    case .callout(let i): return p.callouts.indices.contains(i)
+    case .annotation(let i): return p.annotationList.indices.contains(i)
+    case .marker(let i): return p.markerList.indices.contains(i)
+    case .insert(let i): return p.insertList.indices.contains(i)
+    case .gap(let g): return p.gaps.contains(g)
+    }
+  }
+
+  /// The source range of a selected item (a marker is a point).
+  func timeRange(_ s: Selection) -> (Double, Double)? {
+    guard let p = plan, Self.exists(s, in: p) else { return nil }
+    switch s {
+    case .segment(let i): return (p.segments[i].start, p.segments[i].end)
+    case .zoom(let i): return (p.zooms[i].start, p.zooms[i].end)
+    case .layout(let i): return (p.layouts[i].start, p.layouts[i].end)
+    case .callout(let i): return (p.callouts[i].start, p.callouts[i].end)
+    case .annotation(let i): return (p.annotationList[i].start, p.annotationList[i].end)
+    case .marker(let i): return (p.markerList[i].t, p.markerList[i].t)
+    case .insert(let i): return (p.insertList[i].start, p.insertList[i].end)
+    case .gap(let g): return (g.start, g.end)
+    }
+  }
+
+  /// Moves every selected zoom, layout, title, annotation and marker by `delta` seconds, as far as
+  /// the group can go without leaving the recording, and keeps them selected.
+  func moveSelected(by delta: Double, coalesce: String? = nil) {
+    guard let plan else { return }
+    let items = selectedItems.filter(\.movable)
+    guard !items.isEmpty else { return }
+    let ranges = items.compactMap(timeRange)
+    guard let lo = ranges.map(\.0).min(), let hi = ranges.map(\.1).max() else { return }
+    let d = min(max(delta, -lo), plan.source.duration - hi)
+    guard abs(d) > 1e-9 else { return }
+    var moved: [(Selection, Any)] = []
+    apply(coalesce: coalesce) { p in
+      var marks = p.annotationList, pins = p.markerList, clips = p.insertList
+      for s in items {
+        switch s {
+        case .zoom(let i) where p.zooms.indices.contains(i):
+          p.zooms[i].start += d
+          p.zooms[i].end += d
+          moved.append((s, p.zooms[i]))
+        case .layout(let i) where p.layouts.indices.contains(i):
+          p.layouts[i].start += d
+          p.layouts[i].end += d
+          moved.append((s, p.layouts[i]))
+        case .callout(let i) where p.callouts.indices.contains(i):
+          p.callouts[i].start += d
+          p.callouts[i].end += d
+          moved.append((s, p.callouts[i]))
+        case .annotation(let i) where marks.indices.contains(i):
+          marks[i].start += d
+          marks[i].end += d
+          moved.append((s, marks[i]))
+        case .marker(let i) where pins.indices.contains(i):
+          pins[i].t += d
+          moved.append((s, pins[i]))
+        case .insert(let i) where clips.indices.contains(i):
+          clips[i].start += d
+          clips[i].end += d
+          moved.append((s, clips[i]))
+        default: break
+        }
+      }
+      p.annotationList = marks
+      p.markerList = pins
+      p.insertList = clips
+    }
+    // normalize() re-sorts, so find each moved item again.
+    guard let now = self.plan else { return }
+    let found: [Selection] = moved.compactMap { s, value in
+      switch (s, value) {
+      case (.zoom, let z as Zoom): return now.zooms.firstIndex(of: z).map { .zoom($0) }
+      case (.layout, let l as LayoutRange): return now.layouts.firstIndex(of: l).map { .layout($0) }
+      case (.callout, let c as Callout): return now.callouts.firstIndex(of: c).map { .callout($0) }
+      case (.annotation, let a as Annotation): return now.annotationList.firstIndex(of: a).map { .annotation($0) }
+      case (.marker, let m as Marker): return now.markerList.firstIndex(of: m).map { .marker($0) }
+      case (.insert, let c as Insert): return now.insertList.firstIndex(of: c).map { .insert($0) }
+      default: return nil
       }
     }
-    self.selection = nil
+    let keep = selectedItems.filter { !$0.movable }
+    select(found + keep, adding: false)
+  }
+
+  /// ⌘A: every zoom, layout, title and annotation (the things that move as a group).
+  func selectAllItems() {
+    guard let p = plan else { return }
+    let all: [Selection] =
+      p.zooms.indices.map { .zoom($0) } + p.layouts.indices.map { .layout($0) } + p.callouts.indices.map { .callout($0) }
+      + p.annotationList.indices.map { .annotation($0) }
+    select(all, adding: false)
+  }
+
+  // MARK: B-roll
+
+  /// Asks for a picture or video, copies it into the project's broll/ folder, and shows it from the
+  /// playhead (3 s for a picture, up to 5 s of a clip).
+  func addInsert() {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.image, .movie]
+    panel.message = "Pick a picture or clip to show over the video"
+    let start = playheadSrc
+    let done: (NSApplication.ModalResponse) -> Void = { [self] response in
+      guard response == .OK, let url = panel.url else { return }
+      do {
+        let file = try copyIntoProject(url, folder: "broll")
+        Task { @MainActor in
+          var length = 3.0
+          if !Insert(start: 0, end: 1, file: file).isImage, let d = try? await AVURLAsset(url: dir.appendingPathComponent(file)).load(.duration) {
+            length = min(5, max(0.5, d.seconds))
+          }
+          guard let plan else { return }
+          let ins = Insert(start: start, end: min(plan.source.duration, start + length), file: file)
+          apply { $0.insertList.append(ins) }
+          if let i = self.plan?.insertList.firstIndex(of: ins) { select(.insert(i), adding: false) }
+        }
+      } catch {
+        Notices.shared.show(error, "Couldn't add the B-roll")
+      }
+    }
+    if let window = AppDelegate.shared?.window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
+  }
+
+  /// Copies a file into a project subfolder (a new name if one's taken) and returns its plan path.
+  private func copyIntoProject(_ url: URL, folder: String) throws -> String {
+    let fm = FileManager.default
+    let target = dir.appendingPathComponent(folder)
+    try fm.createDirectory(at: target, withIntermediateDirectories: true)
+    let base = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
+    var name = url.lastPathComponent, n = 2
+    while fm.fileExists(atPath: target.appendingPathComponent(name).path) {
+      name = "\(base) \(n).\(ext)"
+      n += 1
+    }
+    try fm.copyItem(at: url, to: target.appendingPathComponent(name))
+    return "\(folder)/\(name)"
+  }
+
+  // MARK: Markers
+
+  /// M: a marker at the playhead.
+  func addMarker() {
+    let t = playheadSrc
+    let m = Marker(t: t)
+    apply { $0.markerList.append(m) }
+    if let i = plan?.markerList.firstIndex(of: m) { select(.marker(i), adding: false) }
+    status = "Marker at \(fmtTime(t)). Name it in the inspector."
+  }
+
+  /// ; and ': the previous or next marker.
+  func jumpMarker(_ step: Int) {
+    let t = playheadSrc
+    let pins = plan?.markerList ?? []
+    let target = step > 0 ? pins.first { $0.t > t + 0.05 } : pins.last { $0.t < t - 0.05 }
+    if let target { seek(src: target.t) }
+  }
+
+  // MARK: In and out
+
+  /// The marked range, when both ends are set the right way round.
+  var markedRange: Range<Double>? {
+    guard let a = inPoint, let b = outPoint, b > a + 0.05 else { return nil }
+    return a..<b
+  }
+
+  /// I: the range starts at the playhead.
+  func markIn() {
+    inPoint = playheadSrc
+    if let o = outPoint, o <= playheadSrc { outPoint = nil }
+  }
+
+  /// O: the range ends at the playhead.
+  func markOut() {
+    outPoint = playheadSrc
+    if let i = inPoint, i >= playheadSrc { inPoint = nil }
+  }
+
+  func clearInOut() {
+    inPoint = nil
+    outPoint = nil
+  }
+
+  func cutMarked() {
+    guard let r = markedRange else { return }
+    apply { $0.cut(range: r) }
+    status = "Cut \(fmtTime(r.upperBound - r.lowerBound)). ⌘Z puts it back."
+    clearInOut()
+  }
+
+  /// Speeds up the marked range (talking stays muted when sped up, so this is for typing and waiting).
+  func speedMarked(_ speed: Double) {
+    guard let r = markedRange else { return }
+    apply { $0.setSpeed(range: r, speed: speed) }
+    status = "\(fmtTime(r.upperBound - r.lowerBound)) at \(speed.formatted())×"
+    clearInOut()
   }
 
   func restore(_ gap: Gap) {
@@ -383,38 +662,12 @@ final class ProjectModel: ObservableObject {
       start: t, end: min(plan.source.duration, end ?? t + 2.5), kind: kind, x: min(max(f.x - w / 2, 0), 1 - w), y: min(max(f.y - h / 2, 0), 1 - h),
       w: w, h: h)
     apply { $0.annotationList.append(a) }
-    if let i = self.plan?.annotationList.firstIndex(of: a) { selection = .annotation(i) }
+    if let i = self.plan?.annotationList.firstIndex(of: a) { select(.annotation(i), adding: false) }
   }
 
   /// ⌥← and ⌥→: moves the selected zoom, layout, title or annotation by whole frames.
   func nudgeSelection(frames n: Double) {
-    guard let selection, let plan else { return }
-    let d = n / Double(fps)
-    /// How far a range can move by d without leaving the recording.
-    func delta(_ s: Double, _ e: Double) -> Double { min(max(d, -s), plan.source.duration - e) }
-    apply(coalesce: "nudge") { p in
-      switch selection {
-      case .zoom(let i) where p.zooms.indices.contains(i):
-        let k = delta(p.zooms[i].start, p.zooms[i].end)
-        p.zooms[i].start += k
-        p.zooms[i].end += k
-      case .layout(let i) where p.layouts.indices.contains(i):
-        let k = delta(p.layouts[i].start, p.layouts[i].end)
-        p.layouts[i].start += k
-        p.layouts[i].end += k
-      case .callout(let i) where p.callouts.indices.contains(i):
-        let k = delta(p.callouts[i].start, p.callouts[i].end)
-        p.callouts[i].start += k
-        p.callouts[i].end += k
-      case .annotation(let i) where p.annotationList.indices.contains(i):
-        var marks = p.annotationList
-        let k = delta(marks[i].start, marks[i].end)
-        marks[i].start += k
-        marks[i].end += k
-        p.annotationList = marks
-      default: break
-      }
-    }
+    moveSelected(by: n / Double(fps), coalesce: "nudge")
   }
 
   // MARK: Transcript editing
@@ -472,38 +725,47 @@ final class ProjectModel: ObservableObject {
     seek(src: words[end].start)
   }
 
-  /// Zooms in while the selected words are said, toward a click in that stretch (else the last one).
-  func zoomOnTranscriptSelection() {
-    guard let r = transcriptRange, let plan else { return }
+  /// The range the next "over a range" action uses: selected words, else the in/out range.
+  var actionRange: Range<Double>? { transcriptRange ?? markedRange }
+
+  private func doneWithRange() {
+    if transcriptSel != nil { transcriptSel = nil } else { clearInOut() }
+  }
+
+  /// Zooms in over the selected words (or in/out range), toward a click in it (else the last one).
+  func zoomOverRange() {
+    guard let r = actionRange, let plan else { return }
     let clicks = project?.clicks ?? []
     let inside = clicks.last { $0.t >= r.lowerBound - 1 && $0.t <= r.upperBound && (0...1).contains($0.x) && (0...1).contains($0.y) }
     let f = inside.map { (x: $0.x, y: $0.y) } ?? zoomFocus(at: r.upperBound, clicks: clicks)
     let z = Zoom(
       start: r.lowerBound, end: min(plan.source.duration, max(r.upperBound, r.lowerBound + 1.5)), x: f.x, y: f.y, scale: 1.8,
-      note: "from transcript")
+      note: transcriptSel != nil ? "from transcript" : "from in/out")
     apply { $0.zooms.append(z) }
-    if let i = self.plan?.zooms.firstIndex(of: z) { selection = .zoom(i) }
-    transcriptSel = nil
+    if let i = self.plan?.zooms.firstIndex(of: z) { select(.zoom(i), adding: false) }
+    doneWithRange()
   }
 
-  /// Shows the selected words as a title (or lower third, slate, chapter) while they're said.
-  func titleFromTranscriptSelection(style: String) {
-    guard let r = transcriptRange, let sel = transcriptSel, let plan else { return }
-    var text = words[sel].prefix(8).map(\.text).joined(separator: " ").trimmingCharacters(in: .punctuationCharacters)
+  /// A title (or lower third, slate, chapter) over the range, worded from what's said in it.
+  func titleOverRange(style: String) {
+    guard let r = actionRange, let plan else { return }
+    let said = words.filter { $0.start < r.upperBound && $0.end > r.lowerBound }
+    var text = said.prefix(8).map(\.text).joined(separator: " ").trimmingCharacters(in: .punctuationCharacters)
+    if text.isEmpty { text = "Title" }
     if let first = text.first { text = first.uppercased() + text.dropFirst() }
     let c = Callout(
       start: r.lowerBound, end: min(plan.source.duration, max(r.upperBound, r.lowerBound + 2)), text: text,
       style: style == "title" ? nil : style, subtitle: style == "chapter" ? "Part 1" : nil)
     apply { $0.callouts.append(c) }
-    if let i = self.plan?.callouts.firstIndex(of: c) { selection = .callout(i) }
-    transcriptSel = nil
+    if let i = self.plan?.callouts.firstIndex(of: c) { select(.callout(i), adding: false) }
+    doneWithRange()
   }
 
-  /// Adds an annotation over the selected words' stretch, around a click in it (else the last one).
-  func annotateTranscriptSelection(_ kind: String) {
-    guard let r = transcriptRange else { return }
+  /// An annotation over the range, around a click in it (else the last one).
+  func annotateRange(_ kind: String) {
+    guard let r = actionRange else { return }
     addAnnotation(kind, from: r.lowerBound, to: max(r.upperBound, r.lowerBound + 1.5))
-    transcriptSel = nil
+    doneWithRange()
   }
 
   func restoreTranscriptSelection() {
@@ -872,8 +1134,22 @@ final class ProjectModel: ObservableObject {
         lines.append("Selected annotation #\(i): \(a.kind) source \(fmtTime(a.start))-\(fmtTime(a.end))")
       case .gap(let g):
         lines.append("Selected cut: source \(fmtTime(g.start))-\(fmtTime(g.end))")
+      case .insert(let i) where plan.insertList.indices.contains(i):
+        let c = plan.insertList[i]
+        lines.append("Selected B-roll #\(i): \(c.file) source \(fmtTime(c.start))-\(fmtTime(c.end))")
+      case .marker(let i) where plan.markerList.indices.contains(i):
+        let m = plan.markerList[i]
+        lines.append("Selected marker #\(i) at source \(fmtTime(m.t))\(m.label.map { " \"\($0)\"" } ?? "")")
       default: break
       }
+    }
+    if !multi.isEmpty {
+      let ranges = multi.compactMap(timeRange).map { "\(fmtTime($0.0))-\(fmtTime($0.1))" }
+      lines.append("Also selected: \(multi.count) more item(s) at source \(ranges.joined(separator: ", "))")
+    }
+    if let r = markedRange {
+      let text = words.filter { $0.start < r.upperBound && $0.end > r.lowerBound }.map(\.text).joined(separator: " ")
+      lines.append("In/out range: source \(fmtTime(r.lowerBound))-\(fmtTime(r.upperBound))\(text.isEmpty ? "" : " \"\(text)\"")")
     }
     return lines.joined(separator: "\n")
   }

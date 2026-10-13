@@ -78,6 +78,24 @@ extension Plan {
       }.filter { $0.end - $0.start >= 0.2 && kinds.contains($0.kind) }.sorted { $0.start < $1.start }
       annotations = kept.isEmpty ? nil : kept
     }
+    if let list = inserts {
+      let kept: [Insert] = list.map { a in
+        var a = a
+        a.start = max(0, a.start)
+        a.end = min(dur, a.end)
+        if let f = a.from { a.from = max(0, f) }
+        return a
+      }.filter { $0.end - $0.start >= 0.2 && !$0.file.isEmpty }.sorted { $0.start < $1.start }
+      inserts = kept.isEmpty ? nil : kept
+    }
+    if let m = markers {
+      let kept: [Marker] = m.map { k in
+        var k = k
+        k.t = min(max(k.t, 0), dur)
+        return k
+      }.sorted { $0.t < $1.t }
+      markers = kept.isEmpty ? nil : kept
+    }
   }
 
   /// Moves one edge of segment `i`, keeping it inside its neighbors.
@@ -197,6 +215,15 @@ extension Plan {
 
   /// Puts back the cut parts of a source time range at real-time speed. Parts already in the edit
   /// (at any speed) stay as they are.
+  /// Plays a source range at `speed`, splitting clips at its edges. Cut parts stay cut.
+  public mutating func setSpeed(range: Range<Double>, speed: Double) {
+    _ = split(at: range.lowerBound)
+    _ = split(at: range.upperBound)
+    for i in segments.indices where segments[i].start >= range.lowerBound - 1e-6 && segments[i].end <= range.upperBound + 1e-6 {
+      segments[i].speed = speed
+    }
+  }
+
   public mutating func restore(range: Range<Double>) {
     for g in gaps where g.end > range.lowerBound && g.start < range.upperBound {
       segments.append(Segment(start: max(g.start, range.lowerBound), end: min(g.end, range.upperBound), speed: 1, note: "restored"))
@@ -255,6 +282,7 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
     diff(old.segments, new.segments) { ($0.start, $0.end) } + diff(old.zooms, new.zooms) { ($0.start, $0.end) }
     + diff(old.layouts, new.layouts) { ($0.start, $0.end) } + diff(old.callouts, new.callouts) { ($0.start, $0.end) }
     + diff(old.annotations ?? [], new.annotations ?? []) { ($0.start, $0.end) }
+    + diff(old.inserts ?? [], new.inserts ?? []) { ($0.start, $0.end) }
   var merged: [(Double, Double)] = []
   for r in all.sorted(by: { $0.0 < $1.0 }) {
     if let last = merged.last, r.0 <= last.1 {

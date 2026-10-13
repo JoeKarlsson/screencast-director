@@ -146,22 +146,22 @@ struct TranscriptView: View {
             Button { project.cutTranscriptSelection() } label: { Label("Cut", systemImage: "scissors") }
               .help("Remove these words from the video (⌫)")
           }
-          Button { project.zoomOnTranscriptSelection() } label: { Label("Zoom", systemImage: "plus.magnifyingglass") }
+          Button { project.zoomOverRange() } label: { Label("Zoom", systemImage: "plus.magnifyingglass") }
             .help("Zoom in while these words are said, toward where you clicked")
           Menu {
             ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
-              Button { project.titleFromTranscriptSelection(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
+              Button { project.titleOverRange(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
             }
           } label: {
             Label("Title", systemImage: "textformat")
           } primaryAction: {
-            project.titleFromTranscriptSelection(style: "title")
+            project.titleOverRange(style: "title")
           }
           .fixedSize()
           .help("Show these words as a title while they're said; the arrow has lower thirds, slates and chapters")
           Menu {
             ForEach(ChoiceTiles.annotationKinds, id: \.name) { k in
-              Button { project.annotateTranscriptSelection(k.name) } label: { Label(k.label, systemImage: k.icon) }
+              Button { project.annotateRange(k.name) } label: { Label(k.label, systemImage: k.icon) }
             }
           } label: {
             Label("Annotate", systemImage: "scribble")

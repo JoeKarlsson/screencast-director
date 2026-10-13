@@ -126,7 +126,9 @@ enum APIEditor {
     - `callouts`: {start, end, text, style?, subtitle?, enter?, exit?}; style title (2-5 words at the top, default) | lower-third (name + subtitle) | slate (full-screen opener or wrap) | chapter (section card, subtitle is the small label).
     - `annotations` (optional): {start, end, kind, x, y, w, h, text?, enter?, exit?}; a 0..1 screen rectangle (top-left x/y) that follows zooms. kind spotlight | box | arrow | highlight | blur (hides secrets).
     - `enter`/`exit`: {preset, seconds?, ease?}; presets fade, fade-up, slide-up, slide-down, slide-left, slide-right, pop, zoom, blur, wipe, words, typewriter, none. Omit to use the motion style.
-    - `segments[i].transition` (optional): the cut into segment i: blur | dip | flash | punch | whip. Only at section changes.
+    - `inserts` (optional, B-roll): {start, end, file, from?, placement?, fit?, enter?, exit?}; file is a picture or clip already in the project (broll/), never invent one; placement screen | full; fit fill | fit.
+    - `markers` (optional): {t, label?}, the user's named points; use them when the user refers to one, leave them alone otherwise.
+    - `segments[i].transition` (optional): the cut into segment i: crossfade | blur | dip | flash | punch | whip. Only at section changes.
     - `style.motion`: smooth | snappy | cinematic | bouncy | classic. Eases: smooth, snappy, cinematic, spring, bouncy, linear, ease-in, ease-out, ease-in-out, spring(0.7), cubic-bezier(a,b,c,d). `captions.style`: pill | karaoke | pop | bold.
     - Keep it tasteful: one overlay at a time, annotations only where the narration points at something.
     - In the timeline, `click@... on "Settings"` is the text under the pointer (OCR, may be misread); use it to find the moment the narration refers to.

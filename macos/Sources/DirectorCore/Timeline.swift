@@ -84,6 +84,34 @@ public func outToSrc(_ mapped: [MappedSegment], _ f: Double, fps: Int) -> Double
   return nil
 }
 
+/// A crossfade at a cut: for `half` frames on each side of output frame `f`, the screen dissolves
+/// between the two clips. The other clip's frames there are "handles": the next clip's source just
+/// before it starts (before the cut), and the previous clip's source just after it ends (after).
+public struct Crossfade: Equatable {
+  public var f: Int
+  public var half: Int
+  public var prev: MappedSegment
+  public var next: MappedSegment
+}
+
+/// Crossfades for the plan's cuts that ask for one, a quarter second each side (less for short clips).
+public func crossfades(_ mapped: [MappedSegment], fps: Int) -> [Crossfade] {
+  zip(mapped, mapped.dropFirst()).compactMap { prev, next in
+    guard next.transition == "crossfade" else { return nil }
+    let half = min(Int((0.25 * Double(fps)).rounded()), prev.frames / 2, next.frames / 2)
+    return half >= 2 ? Crossfade(f: next.outStart, half: half, prev: prev, next: next) : nil
+  }
+}
+
+/// How much of the handle shows at output frame `f` (0 is none), for the dissolve.
+public func crossfadeMix(_ fades: [Crossfade], frame f: Int) -> Double? {
+  guard let c = fades.first(where: { f >= $0.f - $0.half && f < $0.f + $0.half }) else { return nil }
+  // 0 to 0.5 approaching the cut (the next clip fades in), 0.5 back to 0 after it (the previous fades out).
+  let x = f < c.f ? Double(f - (c.f - c.half)) / Double(c.half) : 1 - Double(f - c.f) / Double(c.half)
+  let eased = x * x * (3 - 2 * x)
+  return 0.5 * eased
+}
+
 /// Averages a step function under a Hann window, turning steps into eased transitions
 /// and back-to-back zooms into pans.
 public func smooth(_ f: Int, halfWidth: Int, _ sample: (Int) -> [Double]) -> [Double] {

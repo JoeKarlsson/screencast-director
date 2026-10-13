@@ -106,6 +106,21 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
           a.text.map { "\"\($0)\"" } ?? "", a.note ?? ""))
     }
   }
+  if let list = plan.inserts, !list.isEmpty {
+    out.append("")
+    out.append("## Inserts (B-roll)")
+    for (i, a) in list.enumerated() {
+      out.append(
+        line(
+          "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : "in the screen")",
+          a.fit == "fit" ? "fit" : "", a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
+    }
+  }
+  if let marks = plan.markers, !marks.isEmpty {
+    out.append("")
+    out.append("## Markers (the user's named points)")
+    for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
+  }
   if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
   return out.joined(separator: "\n")
 }

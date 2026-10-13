@@ -16,8 +16,16 @@ public final class Scene: @unchecked Sendable {
   let chips: [(f: Double, label: String)]
   let callouts: [(s: Double, e: Double, c: Callout)]
   let annotations: [(s: Double, e: Double, a: Annotation)]
+  /// B-roll in output frames, with its index in plan.inserts (the compositor's key for its frames).
+  public let inserts: [(s: Double, e: Double, a: Insert, index: Int)]
+  /// Pictures for picture inserts, loaded once.
+  let insertImages: [Int: CIImage]
+  /// The project folder, for files the plan names relative to it.
+  public let dir: URL?
   /// Styled cuts: the output frame of each cut and how it looks.
   let cuts: [(f: Double, kind: String)]
+  /// Cuts that dissolve between clips (a second screen track carries the other clip's frames).
+  public let fades: [Crossfade]
   let motion: MotionStyle
   /// The eased camera and layouts (nil in the classic style, which smooths with a window instead).
   let camSteps: EasedSteps?
@@ -53,8 +61,11 @@ public final class Scene: @unchecked Sendable {
   /// Click times (source), for the cursor's press pulse.
   let clickTimes: [Double]
 
-  public init(plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = []) {
+  public init(
+    plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil
+  ) {
     self.plan = plan
+    self.dir = dir
     self.words = words
     pointer =
       plan.cursor?.hidden == true
@@ -95,7 +106,19 @@ public final class Scene: @unchecked Sendable {
       let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
       return e > s ? (s, e, a) : nil
     }
+    inserts = plan.insertList.enumerated().compactMap { i, a in
+      let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
+      return e > s ? (s, e, a, i) : nil
+    }
+    var images: [Int: CIImage] = [:]
+    for ins in inserts where ins.a.isImage {
+      if let url = Scene.fileURL(ins.a.file, dir: dir), let img = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) {
+        images[ins.index] = img
+      }
+    }
+    insertImages = images
     cuts = m.dropFirst().compactMap { seg in seg.transition.map { (Double(seg.outStart), $0) } }
+    fades = crossfades(m, fps: fps)
     let maxWords = plan.captions.style == "bold" ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
     pages = plan.captions.enabled ? Scene.captionPages(words, m, fps: fps, maxWords: maxWords) : []
     motion = MotionStyle.named(plan.style.motion)
@@ -161,7 +184,21 @@ public final class Scene: @unchecked Sendable {
   static let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
 
   /// Composes one output frame. `screen`/`camera` are the decoded source frames (camera may be absent).
-  public func render(frame f: Int, screen: CIImage?, camera: CIImage?) -> CIImage {
+  /// A plan path: absolute, or relative to the project folder.
+  public static func fileURL(_ path: String, dir: URL?) -> URL? {
+    if path.hasPrefix("/") { return URL(fileURLWithPath: path) }
+    return dir?.appendingPathComponent(path)
+  }
+
+  public func render(
+    frame f: Int, screen screenA: CIImage?, camera: CIImage?, handle: CIImage? = nil, insertFrames: [Int: CIImage] = [:]
+  ) -> CIImage {
+    // Inside a crossfade, dissolve the screen toward the other clip before laying out the frame.
+    var screen = screenA
+    if let a = screenA, let b = handle, let mix = crossfadeMix(fades, frame: f), mix > 0.001 {
+      let target = b.transformed(by: CGAffineTransform(scaleX: a.extent.width / max(1, b.extent.width), y: a.extent.height / max(1, b.extent.height)))
+      screen = a.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: target, kCIInputTimeKey: mix]).cropped(to: a.extent)
+    }
     if f < introFrames, let c = plan.intro {
       return card(c, look.intro, logo: introLogo, frame: f, length: introFrames, intro: true)
     }
@@ -190,12 +227,14 @@ public final class Scene: @unchecked Sendable {
       let blur = cameraMotion(f, box: b, cam: cam, base: base)
       image = screenCard(screen, box: b, cam: cam, blur: blur).composited(over: image)
       image = privacyBlurs(image, frame: Double(f), screen: b, cam: cam)
+      image = broll(image, frame: Double(f), full: false, box: b, frames: insertFrames)
     }
     let cb = boxes.cam
     if let camera, plan.camera != nil, cb.opacity > 0.01 {
       image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
       image = cameraCard(camera, box: cb).composited(over: image)
     }
+    image = broll(image, frame: Double(f), full: true, box: b, frames: insertFrames)
     if let overlay = overlays(frame: Double(f), screen: b, cam: cam, camBox: camera != nil && plan.camera != nil ? cb : nil) {
       image = overlay.composited(over: image)
     }
@@ -753,6 +792,37 @@ public final class Scene: @unchecked Sendable {
     ctx.addPath(tri)
     ctx.fillPath()
     ctx.restoreGState()
+  }
+
+  /// B-roll showing at this frame: in the screen card (`full` false) or over the whole frame.
+  func broll(_ image: CIImage, frame f: Double, full: Bool, box b: Box, frames: [Int: CIImage]) -> CIImage {
+    var out = image
+    for ins in inserts where ins.a.isFull == full && f >= ins.s && f < ins.e {
+      guard let src = insertImages[ins.index] ?? frames[ins.index] else { continue }
+      let pose = Motion.pose(
+        frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: ins.a.enter ?? Motion(preset: "fade", seconds: 0.3, ease: "smooth"),
+        exit: ins.a.exit ?? Motion(preset: "fade", seconds: 0.25, ease: "ease-in"), style: motion)
+      guard pose.visible else { continue }
+      let rect = full ? CGRect(x: 0, y: 0, width: W, height: H) : ciRect(b)
+      let radius = full ? 0 : b.r
+      let fill = ins.a.fit != "fit"
+      let iw = src.extent.width, ih = src.extent.height
+      guard iw > 0, ih > 0 else { continue }
+      let k = fill ? max(rect.width / iw, rect.height / ih) : min(rect.width / iw, rect.height / ih)
+      var placed = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
+      placed = placed.transformed(by: CGAffineTransform(translationX: rect.midX - iw * k / 2, y: rect.midY - ih * k / 2))
+      if !fill {
+        // Letterbox on black so the screen doesn't show around a fitted picture.
+        placed = placed.composited(over: CIImage(color: CIColor(red: 0.04, green: 0.04, blue: 0.05)).cropped(to: rect))
+      }
+      if abs(pose.scale - 1) > 0.001 || abs(pose.dx) + abs(pose.dy) > 0.001 {
+        let t = CGAffineTransform(translationX: -rect.midX, y: -rect.midY).concatenating(CGAffineTransform(scaleX: pose.scale, y: pose.scale))
+          .concatenating(CGAffineTransform(translationX: rect.midX + pose.dx * rect.width, y: rect.midY - pose.dy * rect.height))
+        placed = placed.transformed(by: t)
+      }
+      out = masked(placed, rect, radius: radius, opacity: min(1, pose.opacity)).composited(over: out)
+    }
+    return out
   }
 
   /// Blurs the parts of the screen covered by blur annotations (passwords, emails), following zooms.

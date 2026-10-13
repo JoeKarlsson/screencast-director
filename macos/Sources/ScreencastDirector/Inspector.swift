@@ -200,6 +200,51 @@ struct InspectorView: View {
 
   @ViewBuilder
   private func selectionPane(_ plan: Plan) -> some View {
+    if !project.multi.isEmpty {
+      multiPane
+    } else {
+      singlePane(plan)
+    }
+  }
+
+  /// Several items selected: what they are, and what you can do with them together.
+  private var multiPane: some View {
+    let items = project.selectedItems
+    func count(_ kind: String) -> Int {
+      items.filter {
+        switch ($0, kind) {
+        case (.segment, "clip"), (.gap, "cut"), (.zoom, "zoom"), (.layout, "layout"), (.callout, "title"), (.annotation, "annotation"),
+          (.marker, "marker"), (.insert, "B-roll"):
+          return true
+        default: return false
+        }
+      }.count
+    }
+    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll"].compactMap { k -> String? in
+      let n = count(k)
+      return n == 0 ? nil : "\(n) \(k)\(n == 1 ? "" : "s")"
+    }
+    return VStack(alignment: .leading, spacing: 14) {
+      itemHeader("\(items.count) Selected", "square.stack.3d.up", Theme.accent, parts.joined(separator: ", "))
+      InspectorSection("Together", detail: "Drag any of them to move them all; ⌥← and ⌥→ nudge by a frame. ⇧-click adds or removes one.") {
+        HStack(spacing: 8) {
+          Button { project.nudgeSelection(frames: -Double(project.fps) / 2) } label: { Label("½ s Earlier", systemImage: "arrow.left").frame(maxWidth: .infinity) }
+            .disabled(!items.contains(where: \.movable))
+          Button { project.nudgeSelection(frames: Double(project.fps) / 2) } label: { Label("½ s Later", systemImage: "arrow.right").frame(maxWidth: .infinity) }
+            .disabled(!items.contains(where: \.movable))
+        }
+        Button {
+          project.instruction = "For the selected items: "
+        } label: {
+          Label("Ask AI About These", systemImage: "sparkles").frame(maxWidth: .infinity)
+        }
+      }
+      removeButton("Remove All")
+    }
+  }
+
+  @ViewBuilder
+  private func singlePane(_ plan: Plan) -> some View {
     switch project.selection {
     case .segment(let i) where plan.segments.indices.contains(i):
       let s = plan.segments[i]
@@ -311,6 +356,61 @@ struct InspectorView: View {
         MotionPicker(title: "In", motion: bindItem("calloutIn\(i)", \.callouts, i, \.enter), fallback: motion.enter)
         MotionPicker(title: "Out", motion: bindItem("calloutOut\(i)", \.callouts, i, \.exit), fallback: motion.exit)
         previewButton(c.start)
+      }
+      removeButton()
+    case .insert(let i) where plan.insertList.indices.contains(i):
+      let c = plan.insertList[i]
+      itemHeader("B-roll", "photo.on.rectangle", Theme.broll, range(c.start, c.end))
+      InspectorSection((c.file as NSString).lastPathComponent, detail: c.isImage ? "A picture." : "A clip, played at real time and muted.") {
+        Picker("Where", selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement)) {
+          Text("In the screen").tag(String?.none)
+          Text("Full frame").tag(String?.some("full"))
+        }
+        .pickerStyle(.segmented)
+        Picker("Fit", selection: bindItem("insertFit\(i)", \.insertList, i, \.fit)) {
+          Text("Fill").tag(String?.none)
+          Text("Show all").tag(String?.some("fit"))
+        }
+        .pickerStyle(.segmented)
+        if !c.isImage {
+          slider(
+            "Start at",
+            Binding(
+              get: { project.plan.flatMap { $0.insertList.indices.contains(i) ? $0.insertList[i].from : nil } ?? 0 },
+              set: { v in
+                project.apply(coalesce: "insertFrom\(i)") {
+                  guard $0.insertList.indices.contains(i) else { return }
+                  var list = $0.insertList
+                  list[i].from = (v * 10).rounded() / 10
+                  $0.insertList = list
+                }
+              }), 0...30, "\((c.from ?? 0).formatted()) s")
+        }
+      }
+      InspectorSection("Animation") {
+        MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: Motion(preset: "fade", seconds: 0.3, ease: "smooth"))
+        MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: Motion(preset: "fade", seconds: 0.25, ease: "ease-in"))
+        previewButton(c.start)
+      }
+      removeButton()
+    case .marker(let i) where plan.markerList.indices.contains(i):
+      let m = plan.markerList[i]
+      itemHeader("Marker", "flag", Theme.accent, fmtTime(m.t))
+      InspectorSection("Name", detail: "A note to yourself, or to the AI: \"zoom in after the intro marker\". ; and ' jump between markers.") {
+        TextField(
+          "Intro ends",
+          text: Binding(
+            get: { project.plan.flatMap { $0.markerList.indices.contains(i) ? $0.markerList[i].label : nil } ?? "" },
+            set: { v in
+              project.apply(coalesce: "markerLabel\(i)") {
+                guard $0.markerList.indices.contains(i) else { return }
+                var pins = $0.markerList
+                pins[i].label = v.isEmpty ? nil : v
+                $0.markerList = pins
+              }
+            })
+        )
+        .textFieldStyle(.roundedBorder)
       }
       removeButton()
     case .annotation(let i) where plan.annotationList.indices.contains(i):

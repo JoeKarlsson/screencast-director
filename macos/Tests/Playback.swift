@@ -104,9 +104,12 @@ struct Playback {
       try JSONEncoder().encode(source).write(to: dir.appendingPathComponent("source.json"))
       let project = try Project.load(dir)
       var plan = buildPlan(project)
-      // A cut, a speed change and a zoom, so the timeline mapping and the camera both run.
-      plan.segments = [Segment(start: 0, end: 1.5, speed: 1), Segment(start: 2, end: 4, speed: 2)]
+      // A crossfade cut, a speed change and a zoom, so the timeline mapping, the camera and the
+      // crossfade handle track (an extra video track, which must end with the others) all run.
+      plan.segments = [Segment(start: 0, end: 1.5, speed: 1), Segment(start: 2, end: 4, speed: 2, transition: "crossfade")]
       plan.zooms = [Zoom(start: 0.5, end: 1.4, x: 0.3, y: 0.3, scale: 2)]
+      // A B-roll clip (the recording itself) adds another video track that has to end with the rest.
+      plan.inserts = [Insert(start: 0.6, end: 1.2, file: "screen.mp4", placement: "full")]
       let box = ResultBox<BuiltComposition>()
       let sem = DispatchSemaphore(value: 0)
       let planCopy = plan

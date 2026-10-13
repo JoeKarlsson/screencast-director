@@ -53,6 +53,7 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
   items(\.zooms, kind: "zoom", { "zoom \($0.scale.formatted())× at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.layouts, kind: "layout", { "\($0.mode.rawValue) layout at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.callouts, kind: "title", { "\($0.style ?? "title") “\($0.text)”" }, { ($0.start, $0.end) })
+  items(\.insertList, kind: "insert", { "B-roll \(($0.file as NSString).lastPathComponent) at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.annotationList, kind: "annotation", { "\($0.kind)\($0.text.map { " “\($0)”" } ?? "") at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   var look = old
   look.segments = new.segments
@@ -60,6 +61,7 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
   look.layouts = new.layouts
   look.callouts = new.callouts
   look.annotations = new.annotations
+  look.inserts = new.inserts
   if look != new {
     let was = old
     out.append(
@@ -71,6 +73,7 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
         p.layouts = keep.layouts
         p.callouts = keep.callouts
         p.annotations = keep.annotations
+        p.inserts = keep.inserts
       })
   }
   return out.sorted { ($0.range?.0 ?? .infinity) < ($1.range?.0 ?? .infinity) }
@@ -81,6 +84,18 @@ extension Plan {
   public var annotationList: [Annotation] {
     get { annotations ?? [] }
     set { annotations = newValue.isEmpty ? nil : newValue }
+  }
+
+  /// `inserts` as a plain list (empty when there are none).
+  public var insertList: [Insert] {
+    get { inserts ?? [] }
+    set { inserts = newValue.isEmpty ? nil : newValue }
+  }
+
+  /// `markers` as a plain list (empty when there are none), kept in time order.
+  public var markerList: [Marker] {
+    get { markers ?? [] }
+    set { markers = newValue.isEmpty ? nil : newValue.sorted { $0.t < $1.t } }
   }
 
   /// A copy with only these segments differing from an empty edit, for changedRanges.

@@ -21,7 +21,7 @@ public struct Segment: Codable, Equatable {
   }
 
   public static let transitions: [(name: String, label: String)] = [
-    ("blur", "Blur"), ("dip", "Dip"), ("flash", "Flash"), ("punch", "Punch In"), ("whip", "Whip"),
+    ("crossfade", "Crossfade"), ("blur", "Blur"), ("dip", "Dip"), ("flash", "Flash"), ("punch", "Punch In"), ("whip", "Whip"),
   ]
 }
 
@@ -94,6 +94,52 @@ public struct Callout: Codable, Equatable {
   public static let styles: [(name: String, label: String)] = [
     ("title", "Title"), ("lower-third", "Lower Third"), ("slate", "Slate"), ("chapter", "Chapter"),
   ]
+}
+
+/// B-roll: a video clip or picture shown over part of the recording, inside the screen card or
+/// over the whole frame. Times are source seconds of the main recording, as everywhere.
+public struct Insert: Codable, Equatable {
+  public var start: Double
+  public var end: Double
+  /// A file in the project folder (the app copies picked files into broll/).
+  public var file: String
+  /// Seconds into a video file to start from (default 0). Clips play at real time and muted.
+  public var from: Double?
+  /// "screen" (in the screen card, the default) or "full" (the whole frame, under captions).
+  public var placement: String?
+  /// "fill" (crop to fill, the default) or "fit" (show it all).
+  public var fit: String?
+  public var enter: Motion?
+  public var exit: Motion?
+  public var note: String?
+  public init(
+    start: Double, end: Double, file: String, from: Double? = nil, placement: String? = nil, fit: String? = nil, enter: Motion? = nil,
+    exit: Motion? = nil, note: String? = nil
+  ) {
+    self.start = start
+    self.end = end
+    self.file = file
+    self.from = from
+    self.placement = placement
+    self.fit = fit
+    self.enter = enter
+    self.exit = exit
+    self.note = note
+  }
+
+  public static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "gif", "webp", "tiff", "tif", "bmp"]
+  public var isImage: Bool { Insert.imageExtensions.contains((file as NSString).pathExtension.lowercased()) }
+  public var isFull: Bool { placement == "full" }
+}
+
+/// A named point on the timeline (source seconds): a note to yourself or the AI ("intro ends").
+public struct Marker: Codable, Equatable {
+  public var t: Double
+  public var label: String?
+  public init(t: Double, label: String? = nil) {
+    self.t = t
+    self.label = label
+  }
 }
 
 /// A mark on the recorded screen that moves with zooms: a spotlight, box, arrow, highlight or
@@ -199,6 +245,10 @@ public struct Plan: Codable, Equatable {
   public var callouts: [Callout]
   /// Spotlights, boxes, arrows, highlights and blurs on the screen.
   public var annotations: [Annotation]?
+  /// Named points on the timeline.
+  public var markers: [Marker]?
+  /// B-roll clips and pictures.
+  public var inserts: [Insert]?
   /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
   public var look: Look?
   /// How hard silences were cut (nil: the planner's normal level).

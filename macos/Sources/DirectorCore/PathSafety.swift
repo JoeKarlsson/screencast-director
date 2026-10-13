@@ -52,6 +52,14 @@ public enum PathSafety {
       if let old = previous.camera?.video { plan.camera?.video = old } else { plan.camera = nil }
     }
     if !safe(plan.music?.file, previous.music?.file, "music.file") { plan.music = previous.music }
+    if let list = plan.inserts {
+      let known = Set((previous.inserts ?? []).map(\.file))
+      let kept = list.filter { known.contains($0.file) || path($0.file, isInside: project) }
+      if kept.count != list.count {
+        reverted.append("inserts.file")
+        plan.inserts = kept.isEmpty ? nil : kept
+      }
+    }
     if !safe(plan.intro?.logo, previous.intro?.logo, "intro.logo") { plan.intro?.logo = previous.intro?.logo }
     if !safe(plan.outro?.logo, previous.outro?.logo, "outro.logo") { plan.outro?.logo = previous.outro?.logo }
     if plan.look != nil {

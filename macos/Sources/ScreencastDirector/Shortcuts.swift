@@ -36,10 +36,10 @@ struct Shortcut {
     .init(group: "Playback", keys: "⌘←", title: "Go to start", key: .code(123), modifiers: .command) { p, _ in p.goToStart() },
     .init(group: "Playback", keys: "⌘→", title: "Go to end", key: .code(124), modifiers: .command) { p, _ in p.goToEnd() },
     .init(group: "Timeline", keys: "⌘=", title: "Zoom timeline in", key: .char("="), modifiers: .command) { p, e in
-      e.timeline.zoom(by: 1.4, around: p.playheadSrc)
+      e.timeline.zoom(by: 1.4, around: e.timeline.outputTime ? p.outFrame / Double(p.fps) : p.playheadSrc)
     },
     .init(group: "Timeline", keys: "⌘-", title: "Zoom timeline out", key: .char("-"), modifiers: .command) { p, e in
-      e.timeline.zoom(by: 1 / 1.4, around: p.playheadSrc)
+      e.timeline.zoom(by: 1 / 1.4, around: e.timeline.outputTime ? p.outFrame / Double(p.fps) : p.playheadSrc)
     },
     // Clips
     .init(group: "Clips", keys: "C", title: "Split at playhead", key: .char("c"), modifiers: []) { p, _ in p.splitAtPlayhead() },
@@ -52,6 +52,7 @@ struct Shortcut {
     .init(group: "Clips", keys: "S", title: "Change clip speed", key: .char("s"), modifiers: []) { p, _ in p.cycleSpeed() },
     .init(group: "Clips", keys: "Esc", title: "Deselect", key: .code(53), modifiers: []) { p, _ in
       p.selection = nil
+      p.multi = []
       p.transcriptSel = nil
     },
     .init(group: "Project", keys: "⌥⌘T", title: "Show or hide the transcript", key: .char("t"), modifiers: [.command, .option]) { _, e in
@@ -72,6 +73,15 @@ struct Shortcut {
     .init(group: "Camera layout", keys: "4", title: "Side by side", key: .char("4"), modifiers: []) { p, _ in p.setLayoutMode(.side) },
     // Other
     .init(group: "Titles", keys: "T", title: "Add title at playhead", key: .char("t"), modifiers: []) { p, _ in p.addCallout() },
+    .init(group: "Markers and ranges", keys: "M", title: "Add a marker at the playhead", key: .char("m"), modifiers: []) { p, _ in p.addMarker() },
+    .init(group: "Markers and ranges", keys: ";", title: "Previous marker", key: .char(";"), modifiers: []) { p, _ in p.jumpMarker(-1) },
+    .init(group: "Markers and ranges", keys: "'", title: "Next marker", key: .char("'"), modifiers: []) { p, _ in p.jumpMarker(1) },
+    .init(group: "Markers and ranges", keys: "I", title: "Mark in", key: .char("i"), modifiers: []) { p, _ in p.markIn() },
+    .init(group: "Markers and ranges", keys: "O", title: "Mark out", key: .char("o"), modifiers: []) { p, _ in p.markOut() },
+    .init(group: "Markers and ranges", keys: "⌥X", title: "Clear in and out", key: .char("x"), modifiers: .option) { p, _ in p.clearInOut() },
+    .init(group: "Timeline", keys: "⌘A", title: "Select every zoom, layout, title and annotation", key: .char("a"), modifiers: .command) { p, _ in
+      p.selectAllItems()
+    },
     .init(group: "Titles", keys: "A", title: "Add a box at playhead", key: .char("a"), modifiers: []) { p, _ in p.addAnnotation("box") },
     .init(group: "Timeline", keys: "⌥←", title: "Nudge selection back a frame", key: .code(123), modifiers: .option) { p, _ in
       p.nudgeSelection(frames: -1)

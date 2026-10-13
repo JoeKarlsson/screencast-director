@@ -6,6 +6,8 @@ import SwiftUI
 final class TimelineUI: ObservableObject {
   @Published var pxPerSec: Double = 60
   @Published var fitted = false
+  /// Lay the timeline out in output time: cuts collapse and sped-up clips draw at their real length.
+  @Published var outputTime = false
   /// Visible width of the track area, for Fit.
   var width: CGFloat = 800
 
@@ -14,6 +16,10 @@ final class TimelineUI: ObservableObject {
   }
   /// A drag in progress: which item and its live range, drawn instead of the saved one.
   @Published var drag: (sel: Selection, start: Double, end: Double)?
+  /// Dragging several selected items: how far they've moved so far (seconds).
+  @Published var groupShift: Double?
+  /// A drag box over empty track space, selecting what it touches.
+  @Published var marquee: CGRect?
   /// The bar under the pointer.
   @Published var hover: Selection?
   /// The source time a dragged edge is snapped to, drawn as a guide line.
@@ -55,7 +61,8 @@ final class TimelineUI: ObservableObject {
     DispatchQueue.main.async { self.scroll.scrollTo(x: max(0, t * new - onScreen)) }
   }
 
-  /// Scrolls a page when the playhead runs off the right edge while playing.
+  /// Scrolls a page when the playhead runs off the right edge while playing. `t` is a position
+  /// along the axis (source or output seconds, by mode).
   func follow(_ t: Double) {
     let x = t * pxPerSec, v = viewport.visible
     if x > v.maxX - 24 || x < v.minX { scroll.scrollTo(x: max(0, x - 40)) }
@@ -63,7 +70,7 @@ final class TimelineUI: ObservableObject {
 }
 
 private enum Track: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles, marks
+  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll
 
   var height: CGFloat {
     switch self {
@@ -84,6 +91,7 @@ private enum Track: CaseIterable {
     case .layouts: return "Layout"
     case .titles: return "Titles"
     case .marks: return "Marks"
+    case .broll: return "B-roll"
     }
   }
   var icon: String {
@@ -96,6 +104,7 @@ private enum Track: CaseIterable {
     case .layouts: return "rectangle.split.2x1"
     case .titles: return "textformat"
     case .marks: return "scribble"
+    case .broll: return "photo.on.rectangle"
     }
   }
   var color: Color {
@@ -108,6 +117,7 @@ private enum Track: CaseIterable {
     case .layouts: return Theme.layout
     case .titles: return Theme.title
     case .marks: return Theme.mark
+    case .broll: return Theme.broll
     }
   }
   var y: CGFloat {
@@ -146,14 +156,43 @@ private struct PlayheadOffset: ViewModifier {
   /// Passed as values (not read from ui/project) so a timeline zoom or a new plan redraws the line.
   let pxPerSec: Double
   let mapped: [MappedSegment]
+  let outputTime: Bool
 
   func body(content: Content) -> some View {
     let total = Double(max(project.totalOutFrames - 1, 0))
-    let src = outToSrc(mapped, min(playhead.frame, total), fps: project.fps) ?? 0
-    return content.offset(x: src * pxPerSec - 6)
+    let frame = min(playhead.frame, total)
+    let axis = outputTime ? frame / Double(project.fps) : outToSrc(mapped, frame, fps: project.fps) ?? 0
+    return content.offset(x: axis * pxPerSec - 6)
       .onChange(of: playhead.frame) { _, _ in
-        if project.isPlaying { ui.follow(project.playheadSrc) }
+        if project.isPlaying { ui.follow(axis) }
       }
+  }
+}
+
+/// A marker's flag: a pole with a pennant.
+private struct MarkerFlag: Shape {
+  func path(in r: CGRect) -> Path {
+    var p = Path()
+    p.addRect(CGRect(x: r.minX, y: r.minY, width: 1.5, height: r.height))
+    p.move(to: CGPoint(x: r.minX + 1.5, y: r.minY))
+    p.addLine(to: CGPoint(x: r.maxX, y: r.minY + r.height * 0.3))
+    p.addLine(to: CGPoint(x: r.minX + 1.5, y: r.minY + r.height * 0.6))
+    p.closeSubpath()
+    return p
+  }
+}
+
+/// An in or out bracket: [ or ].
+private struct InOutBracket: Shape {
+  let left: Bool
+  func path(in r: CGRect) -> Path {
+    var p = Path()
+    let edge = left ? r.minX : r.maxX, tip = left ? r.maxX : r.minX
+    p.move(to: CGPoint(x: tip, y: r.minY))
+    p.addLine(to: CGPoint(x: edge, y: r.minY))
+    p.addLine(to: CGPoint(x: edge, y: r.maxY))
+    p.addLine(to: CGPoint(x: tip, y: r.maxY))
+    return p
   }
 }
 
@@ -194,18 +233,18 @@ struct TimelineView: View {
             labels
             ScrollViewReader { proxy in
               ScrollView(.horizontal) {
-                tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, plan.source.duration * ui.pxPerSec), height: Track.total)
+                tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, axisLength * ui.pxPerSec), height: Track.total)
                   .onContinuousHover { phase in
                     if case .active(let p) = phase { ui.pointerTime = p.x / ui.pxPerSec } else { ui.pointerTime = nil }
                   }
               }
               .scrollPosition($ui.scroll)
-              .gesture(
+              .simultaneousGesture(
                 MagnifyGesture()
                   .onChanged { v in
                     let base = ui.pinchBase ?? ui.pxPerSec
                     ui.pinchBase = base
-                    ui.zoom(by: base * v.magnification / ui.pxPerSec, around: ui.pointerTime ?? project.playheadSrc)
+                    ui.zoom(by: base * v.magnification / ui.pxPerSec, around: ui.pointerTime ?? axis(project.playheadSrc))
                   }
                   .onEnded { _ in ui.pinchBase = nil })
               .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }) { _, r in ui.viewport.update(r) }
@@ -218,7 +257,7 @@ struct TimelineView: View {
           .onAppear {
             ui.width = geo.size.width - Self.headerWidth
             if !ui.fitted {
-              ui.fit(plan.source.duration)
+              ui.fit(axisLength)
               ui.fitted = true
             }
           }
@@ -281,8 +320,9 @@ struct TimelineView: View {
           isGap ? "Restore" : "Delete", isGap ? "arrow.uturn.backward" : "trash",
           help: isGap ? "Restore the selected cut (⌫)" : "Cut the selected clip, or remove the selected zoom, layout or title (⌫)",
           action: project.deleteSelection)
-          .disabled(project.selection == nil)
+          .disabled(project.selectedItems.isEmpty)
       }
+      if project.markedRange != nil { rangeActions }
       toolGroup {
         iconButton("Zoom", "plus.magnifyingglass", help: "Add a zoom at the playhead, aimed at the last click (Z)", action: project.addZoom)
         Menu {
@@ -324,12 +364,13 @@ struct TimelineView: View {
         .frame(width: 28, height: 22)
         .accessibilityLabel("Annotate")
         .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
+        iconButton("B-roll", "photo.on.rectangle", help: "Show a picture or clip over the video from the playhead", action: project.addInsert)
       }
       Spacer(minLength: 4)
       HStack(spacing: 6) {
         Image(systemName: "minus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
         Slider(
-          value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: project.playheadSrc) }), in: 4...400)
+          value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: axis(project.playheadSrc)) }), in: 4...400)
           .accessibilityLabel("Timeline zoom")
           .controlSize(.small)
           .frame(minWidth: 60, maxWidth: 120)
@@ -337,13 +378,63 @@ struct TimelineView: View {
         Image(systemName: "plus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
       }
       toolGroup {
-        iconButton("Fit", "arrow.left.and.right", help: "Fit the whole recording") {
-          ui.fit(project.plan?.source.duration ?? 1)
+        Toggle(isOn: Binding(get: { ui.outputTime }, set: { on in
+          ui.outputTime = on
+          ui.fit(axisLength(on))
+        })) {
+          Image(systemName: "rectangle.compress.vertical").frame(width: 28, height: 22)
+        }
+        .toggleStyle(.button)
+        .buttonStyle(.borderless)
+        .accessibilityLabel("Output time")
+        .help(ui.outputTime ? "Showing the finished video's length; click for the whole recording" : "Show the finished video's length: cuts collapse, sped-up clips shrink")
+        iconButton("Fit", "arrow.left.and.right", help: "Fit the whole timeline") {
+          ui.fit(axisLength)
         }
       }
     }
     .font(.system(size: 13))
     .disabled(!project.hasPlan)
+  }
+
+  /// What to do with the in/out range: cut, speed up, zoom, title, annotate, or clear it.
+  private var rangeActions: some View {
+    toolGroup {
+      Text("In/Out").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.accent).padding(.horizontal, 6)
+      iconButton("Cut range", "scissors.badge.ellipsis", help: "Cut the in/out range", action: project.cutMarked)
+      Menu {
+        ForEach([1.5, 2, 3, 4, 8], id: \.self) { s in Button("\(s.formatted())×") { project.speedMarked(s) } }
+      } label: {
+        Image(systemName: "hare")
+      }
+      .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
+      .accessibilityLabel("Speed up range")
+      .help("Speed up the range (sped-up parts are muted, so use it for typing and waiting)")
+      iconButton("Zoom range", "plus.magnifyingglass", help: "Zoom in over the range", action: project.zoomOverRange)
+      Menu {
+        ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
+          Button { project.titleOverRange(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
+        }
+      } label: {
+        Image(systemName: "textformat")
+      } primaryAction: {
+        project.titleOverRange(style: "title")
+      }
+      .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
+      .accessibilityLabel("Title over range")
+      .help("A title over the range, worded from what's said")
+      Menu {
+        ForEach(ChoiceTiles.annotationKinds, id: \.name) { k in
+          Button { project.annotateRange(k.name) } label: { Label(k.label, systemImage: k.icon) }
+        }
+      } label: {
+        Image(systemName: "scribble")
+      }
+      .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
+      .accessibilityLabel("Annotate range")
+      .help("An annotation over the range")
+      iconButton("Clear range", "xmark", help: "Clear the in/out range (⌥X)", action: project.clearInOut)
+    }
   }
 
   /// A borderless icon button of the toolbar's standard size.
@@ -396,12 +487,41 @@ struct TimelineView: View {
 
   // MARK: Tracks
 
-  private func x(_ t: Double) -> CGFloat { CGFloat(t * ui.pxPerSec) }
+  /// A source time's position along the axis, in seconds: itself, or its output time in output mode.
+  private func axis(_ t: Double) -> Double {
+    ui.outputTime ? srcToOutClamped(project.mapped, t, fps: project.fps) / Double(project.fps) : t
+  }
+
+  private func x(_ t: Double) -> CGFloat { CGFloat(axis(t) * ui.pxPerSec) }
+
+  /// The source time at a point along the axis (in output mode, a card or the end snaps to the
+  /// nearest kept moment).
+  private func time(atX px: CGFloat) -> Double {
+    let a = max(0, Double(px) / ui.pxPerSec)
+    let duration = project.plan?.source.duration ?? 0
+    guard ui.outputTime else { return min(a, duration) }
+    let mapped = project.mapped
+    let f = a * Double(project.fps)
+    if let t = outToSrc(mapped, f, fps: project.fps) { return t }
+    guard let first = mapped.first, let last = mapped.last else { return 0 }
+    return f < Double(first.outStart) ? first.start : last.end
+  }
+
+  /// How long the axis is, in seconds.
+  private var axisLength: Double { axisLength(ui.outputTime) }
+
+  private func axisLength(_ output: Bool) -> Double {
+    output ? Double(project.totalOutFrames) / Double(project.fps) : project.plan?.source.duration ?? 1
+  }
 
   private func range(_ sel: Selection, _ start: Double, _ end: Double) -> (Double, Double) {
     if let d = ui.drag, d.sel == sel { return (d.start, d.end) }
+    if let shift = ui.groupShift, sel.movable, project.isSelected(sel) { return (start + shift, end + shift) }
     return (start, end)
   }
+
+  /// ⇧ or ⌘ held: clicks and drag boxes add to the selection.
+  private var adding: Bool { !NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty }
 
   @ViewBuilder
   private func tracks(_ plan: Plan) -> some View {
@@ -409,8 +529,10 @@ struct TimelineView: View {
       lanes
       ruler(plan)
       // Clips: kept segments, and cuts you can restore.
-      ForEach(Array(plan.gaps.enumerated()), id: \.offset) { _, g in
-        gap(g)
+      if !ui.outputTime {
+        ForEach(Array(plan.gaps.enumerated()), id: \.offset) { _, g in
+          gap(g)
+        }
       }
       ForEach(Array(plan.segments.enumerated()), id: \.offset) { i, s in
         let sel = Selection.segment(i)
@@ -438,7 +560,7 @@ struct TimelineView: View {
           }
           // normalize() re-sorts, so find the moved item again.
           if let j = project.plan?.zooms.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.selection = .zoom(j)
+            project.select(.zoom(j), adding: false)
           }
         }
       }
@@ -453,7 +575,7 @@ struct TimelineView: View {
           }
           // normalize() re-sorts, so find the moved item again.
           if let j = project.plan?.layouts.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.selection = .layout(j)
+            project.select(.layout(j), adding: false)
           }
         }
       }
@@ -468,7 +590,7 @@ struct TimelineView: View {
           }
           // normalize() re-sorts, so find the moved item again.
           if let j = project.plan?.callouts.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.selection = .callout(j)
+            project.select(.callout(j), adding: false)
           }
         }
       }
@@ -483,9 +605,35 @@ struct TimelineView: View {
             $0.annotationList[i].end = e
           }
           if let j = project.plan?.annotationList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.selection = .annotation(j)
+            project.select(.annotation(j), adding: false)
           }
         }
+      }
+      ForEach(Array(plan.insertList.enumerated()), id: \.offset) { i, c in
+        let sel = Selection.insert(i)
+        let (a, b) = range(sel, c.start, c.end)
+        let name = (c.file as NSString).lastPathComponent
+        bar(sel: sel, start: a, end: b, track: .broll, color: Theme.broll, label: c.isFull ? "\(name) · full" : name, movable: true) { s, e in
+          project.apply {
+            guard $0.insertList.indices.contains(i) else { return }
+            var list = $0.insertList
+            list[i].start = s
+            list[i].end = e
+            $0.insertList = list
+          }
+          if let j = project.plan?.insertList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
+            project.select(.insert(j), adding: false)
+          }
+        }
+      }
+      inOutBand(plan)
+      markers(plan)
+      if let m = ui.marquee {
+        Rectangle().fill(Theme.accent.opacity(0.12))
+          .overlay(Rectangle().strokeBorder(Theme.accent.opacity(0.8), lineWidth: 1))
+          .frame(width: m.width, height: m.height)
+          .offset(x: m.minX, y: m.minY)
+          .allowsHitTesting(false)
       }
       if let s = ui.snap {
         Rectangle().fill(Color.primary.opacity(0.8))
@@ -508,14 +656,116 @@ struct TimelineView: View {
           .offset(y: t.y)
       }
     }
-    .frame(maxWidth: .infinity, alignment: .topLeading)
+    // Offsets don't grow a ZStack, so give it the tracks' full height to catch clicks everywhere.
+    .frame(maxWidth: .infinity, minHeight: Track.total, alignment: .topLeading)
     .contentShape(Rectangle())
     .onTapGesture(coordinateSpace: .local) { loc in
-      project.selection = nil
+      if !adding {
+        project.selection = nil
+        project.multi = []
+      }
       project.player.pause()
-      project.seek(src: min(max(0, loc.x / ui.pxPerSec), project.plan?.source.duration ?? 0))
+      project.seek(src: time(atX: loc.x))
     }
+    // Simultaneous, or the tap above claims every press and the box never starts.
+    .simultaneousGesture(
+      DragGesture(minimumDistance: 4, coordinateSpace: .local)
+        .onChanged { v in
+          let a = v.startLocation, b = v.location
+          ui.marquee = CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(b.x - a.x), height: abs(b.y - a.y))
+        }
+        .onEnded { _ in
+          if let m = ui.marquee, let plan = project.plan { project.select(items(in: m, plan), adding: adding) }
+          ui.marquee = nil
+        }
+    )
     .accessibilityHidden(true)
+  }
+
+  /// The items whose bars a drag box touches.
+  private func items(in box: CGRect, _ plan: Plan) -> [Selection] {
+    func hits(_ track: Track, _ s: Double, _ e: Double) -> Bool {
+      box.intersects(CGRect(x: x(s), y: track.y, width: max(3, x(e) - x(s)), height: track.height))
+    }
+    var out: [Selection] = []
+    for (i, s) in plan.segments.enumerated() where hits(.clips, s.start, s.end) { out.append(.segment(i)) }
+    for (i, z) in plan.zooms.enumerated() where hits(.zooms, z.start, z.end) { out.append(.zoom(i)) }
+    for (i, l) in plan.layouts.enumerated() where hits(.layouts, l.start, l.end) { out.append(.layout(i)) }
+    for (i, c) in plan.callouts.enumerated() where hits(.titles, c.start, c.end) { out.append(.callout(i)) }
+    for (i, m) in plan.annotationList.enumerated() where hits(.marks, m.start, m.end) { out.append(.annotation(i)) }
+    for (i, c) in plan.insertList.enumerated() where hits(.broll, c.start, c.end) { out.append(.insert(i)) }
+    return out
+  }
+
+  /// The in/out range: a band over the tracks and brackets in the ruler.
+  @ViewBuilder
+  private func inOutBand(_ plan: Plan) -> some View {
+    if project.inPoint != nil || project.outPoint != nil {
+      let a = project.inPoint ?? 0, b = project.outPoint ?? plan.source.duration
+      ZStack(alignment: .topLeading) {
+        Rectangle().fill(Theme.accent.opacity(0.1))
+          .frame(width: max(1, x(b) - x(a)), height: Track.total - Track.ruler.height)
+          .offset(x: x(a), y: Track.ruler.height)
+        if let i = project.inPoint {
+          InOutBracket(left: true).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: Track.total - 2).offset(x: x(i), y: 1)
+        }
+        if let o = project.outPoint {
+          InOutBracket(left: false).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: Track.total - 2).offset(x: x(o) - 6, y: 1)
+        }
+      }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+    }
+  }
+
+  /// Marker flags in the ruler (click to jump and select, drag to move) and a faint line below each.
+  private func markers(_ plan: Plan) -> some View {
+    ZStack(alignment: .topLeading) {
+      ForEach(Array(plan.markerList.enumerated()), id: \.offset) { i, m in
+        let sel = Selection.marker(i)
+        let (t, _) = range(sel, m.t, m.t)
+        let selected = project.isSelected(sel)
+        Rectangle().fill(Theme.accent.opacity(0.35))
+          .frame(width: 1, height: Track.total - Track.ruler.height)
+          .offset(x: x(t), y: Track.ruler.height)
+          .allowsHitTesting(false)
+        HStack(spacing: 3) {
+          MarkerFlag().fill(selected ? Color.white : Theme.accent).frame(width: 9, height: 12)
+          if let label = m.label, !label.isEmpty, ui.pxPerSec > 8 {
+            Text(label).font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent).lineLimit(1).fixedSize()
+          }
+        }
+        .contentShape(Rectangle())
+        .offset(x: x(t), y: 0)
+        .onTapGesture {
+          project.select(sel, adding: adding)
+          project.seek(src: m.t)
+        }
+        .simultaneousGesture(
+          DragGesture(minimumDistance: 2)
+            .onChanged { v in
+              var nt = time(atX: x(m.t) + v.translation.width)
+              nt += snapShift([nt], excluding: sel, start: m.t, end: m.t)
+              ui.drag = (sel, nt, nt)
+            }
+            .onEnded { _ in
+              ui.snap = nil
+              guard let d = ui.drag, d.sel == sel else { return }
+              ui.drag = nil
+              project.select(sel, adding: false)
+              project.moveSelected(by: d.start - m.t)
+            }
+        )
+        .help("Marker\(m.label.map { ": \($0)" } ?? "") at \(fmtTime(m.t)). Click to jump, drag to move, ⌫ to remove.")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Marker \(m.label ?? "") at \(fmtTime(m.t))")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+          project.select(sel, adding: false)
+          project.seek(src: m.t)
+        }
+      }
+    }
   }
 
   /// The playhead: a grip in the ruler and a line through the tracks. The ruler handles dragging it.
@@ -530,7 +780,8 @@ struct TimelineView: View {
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
     .frame(width: 12, height: Track.total, alignment: .top)
-    .modifier(PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped))
+    .modifier(
+      PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped, outputTime: ui.outputTime))
     .allowsHitTesting(false)
   }
 
@@ -538,9 +789,10 @@ struct TimelineView: View {
     let pps = ui.pxPerSec
     let step: Double = pps > 120 ? 1 : pps > 40 ? 5 : pps > 12 ? 10 : 30
     let minor = step / (step == 1 ? 4 : 5)
+    let length = axisLength
     return Canvas { ctx, size in
       var i = 0
-      while Double(i) * minor <= plan.source.duration {
+      while Double(i) * minor <= length {
         let t = Double(i) * minor
         let px = t * pps
         let major = i % Int((step / minor).rounded()) == 0
@@ -561,7 +813,7 @@ struct TimelineView: View {
     .gesture(
       DragGesture(minimumDistance: 0).onChanged { v in
         project.player.pause()
-        project.seek(src: min(max(0, v.location.x / pps), plan.source.duration))
+        project.seek(src: time(atX: v.location.x))
       }
     )
     .help("Click or drag to move the playhead")
@@ -574,6 +826,7 @@ struct TimelineView: View {
     let mapped = project.mapped
     let fps = project.fps
     let h = Track.audio.height
+    let output = ui.outputTime
     return Canvas { ctx, size in
       guard !levels.isEmpty else { return }
       // One bar per 2 px column, from the loudest 50 ms sample in it.
@@ -585,9 +838,17 @@ struct TimelineView: View {
         let db = chunk.map(\.1).max() ?? -90
         let v = max(0, min(1, (db + 55) / 50))
         let barH = max(1, v * (h - 6))
-        let kept = srcToOut(mapped, t, fps: fps) != nil
-        let w = max(1, Double(step) * 0.05 * pps - 0.6)
-        let rect = CGRect(x: t * pps, y: (h - barH) / 2, width: w, height: barH)
+        let out = srcToOut(mapped, t, fps: fps)
+        let kept = out != nil
+        if output && !kept {
+          i += step
+          continue
+        }
+        // In output time a sped-up stretch is drawn narrower, at its real length.
+        let speed = output ? (mapped.first { t >= $0.start && t < $0.end }?.speed ?? 1) : 1
+        let w = max(1, Double(step) * 0.05 * pps / speed - 0.6)
+        let px = output ? (out ?? 0) / Double(fps) * pps : t * pps
+        let rect = CGRect(x: px, y: (h - barH) / 2, width: w, height: barH)
         ctx.fill(
           Path(roundedRect: rect, cornerRadius: min(w, barH) / 2),
           with: .color(kept ? Theme.audio.opacity(0.8) : Color.secondary.opacity(0.25)))
@@ -604,13 +865,16 @@ struct TimelineView: View {
     let ws = project.project?.words ?? []
     let mapped = project.mapped
     let fps = project.fps
+    let output = ui.outputTime
     return Canvas { ctx, size in
       guard pps >= 10 else { return }
       var lastEnd: CGFloat = -1000
       for w in ws {
-        let px = w.start * pps
+        let out = srcToOut(mapped, w.start, fps: fps)
+        if output && out == nil { continue }
+        let px = output ? (out ?? 0) / Double(fps) * pps : w.start * pps
         guard px > lastEnd + 2 else { continue }
-        let kept = srcToOut(mapped, w.start, fps: fps) != nil
+        let kept = out != nil
         let text = ctx.resolve(Text(w.text).font(.system(size: 9)).foregroundColor(kept ? .primary.opacity(0.85) : .secondary.opacity(0.5)))
         let sz = text.measure(in: CGSize(width: 400, height: 20))
         ctx.draw(text, at: CGPoint(x: px + 2, y: 9), anchor: .leading)
@@ -625,7 +889,7 @@ struct TimelineView: View {
   /// A cut: hatched and dashed, selectable so it can be restored.
   private func gap(_ g: Gap) -> some View {
     let sel = Selection.gap(g)
-    let selected = project.selection == sel
+    let selected = project.isSelected(sel)
     let hovered = ui.hover == sel
     let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
     return shape.fill(Color.primary.opacity(hovered ? 0.07 : 0.035))
@@ -639,8 +903,8 @@ struct TimelineView: View {
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("Cut at \(fmtTime(g.start))")
       .accessibilityAddTraits(.isButton)
-      .accessibilityAction { project.selection = sel }
-      .onTapGesture { project.selection = sel }
+      .accessibilityAction { project.select(sel, adding: false) }
+      .onTapGesture { project.select(sel, adding: adding) }
       .onHover { setHover(sel, $0) }
       .help("Cut: select it and press ⌫ to restore")
       .offset(x: x(g.start), y: Track.clips.y)
@@ -657,14 +921,16 @@ struct TimelineView: View {
     badge: String? = nil, striped: Bool = false, movable: Bool, bounds: ClosedRange<Double>? = nil,
     commit: @escaping (Double, Double) -> Void
   ) -> some View {
-    let selected = project.selection == sel
+    let selected = project.isSelected(sel)
+    // Trim handles only when this is the one selected item.
+    let trimmable = project.selection == sel && project.multi.isEmpty
     let hovered = ui.hover == sel
     let w = max(3, x(end) - x(start))
-    let pps = ui.pxPerSec
     let limits = bounds ?? 0...(project.plan?.source.duration ?? 0)
     let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
     let base = selected ? 1 : hovered ? 0.85 : 0.7
-    let film = track == .clips ? filmstrip(start: start, end: end) : nil
+    // The filmstrip tiles a source-time grid, so it's off in output time.
+    let film = track == .clips && !ui.outputTime ? filmstrip(start: start, end: end) : nil
     return shape
       .fill(color.opacity(striped ? base * 0.6 : base))
       .overlay {
@@ -709,37 +975,50 @@ struct TimelineView: View {
       .accessibilityLabel("\(track.label) \([badge, label].compactMap { $0 }.joined(separator: " ")) at \(fmtTime(start))")
       .accessibilityAddTraits(.isButton)
       .accessibilityAction {
-        project.selection = sel
+        project.select(sel, adding: false)
         project.seek(src: start)
       }
       .onTapGesture(coordinateSpace: .local) { loc in
-        project.selection = sel
-        project.seek(src: start + loc.x / pps)
+        let add = adding
+        project.select(sel, adding: add)
+        if !add { project.seek(src: time(atX: x(start) + loc.x)) }
       }
       .onHover { setHover(sel, $0) }
-      .gesture(
+      .simultaneousGesture(
         DragGesture(minimumDistance: 3)
           .onChanged { v in
             guard movable else { return }
-            project.selection = sel
+            if project.isSelected(sel), !project.multi.isEmpty {
+              // Several items selected: they all move together, snapping on this bar's edges.
+              var shift = time(atX: x(start) + v.translation.width) - start
+              shift += snapShift([start + shift, end + shift], excluding: sel, start: start, end: end)
+              ui.groupShift = shift
+              return
+            }
+            if !project.isSelected(sel) { project.select(sel, adding: false) }
             let len = end - start
             let clamp = { (s: Double) in min(max(limits.lowerBound, s), limits.upperBound - len) }
-            var s = clamp(start + v.translation.width / pps)
+            var s = clamp(time(atX: x(start) + v.translation.width))
             s = clamp(s + snapShift([s, s + len], excluding: sel, start: start, end: end))
             ui.drag = (sel, s, s + len)
           }
           .onEnded { _ in
             ui.snap = nil
+            if let shift = ui.groupShift {
+              ui.groupShift = nil
+              project.moveSelected(by: shift)
+              return
+            }
             guard movable, let d = ui.drag, d.sel == sel else { return }
             ui.drag = nil
             commit(d.start, d.end)
           }
       )
       .overlay(alignment: .leading) {
-        if selected { handle(sel: sel, start: start, end: end, left: true, limits: limits, commit: commit) }
+        if trimmable { handle(sel: sel, start: start, end: end, left: true, limits: limits, commit: commit) }
       }
       .overlay(alignment: .trailing) {
-        if selected { handle(sel: sel, start: start, end: end, left: false, limits: limits, commit: commit) }
+        if trimmable { handle(sel: sel, start: start, end: end, left: false, limits: limits, commit: commit) }
       }
       .offset(x: x(start), y: track.y)
   }
@@ -758,7 +1037,6 @@ struct TimelineView: View {
     sel: Selection, start: Double, end: Double, left: Bool, limits: ClosedRange<Double>,
     commit: @escaping (Double, Double) -> Void
   ) -> some View {
-    let pps = ui.pxPerSec
     return Capsule().fill(Color.white)
       .frame(width: 4)
       .padding(.vertical, 6)
@@ -767,10 +1045,10 @@ struct TimelineView: View {
       .contentShape(Rectangle().inset(by: -3))
       // A pointer style, not push/pop: a handle that vanishes under the pointer can't leave it stuck.
       .pointerStyle(.columnResize)
-      .gesture(
+      .highPriorityGesture(
         DragGesture(minimumDistance: 1)
           .onChanged { v in
-            var t = (left ? start : end) + v.translation.width / pps
+            var t = time(atX: x(left ? start : end) + v.translation.width)
             t += snapShift([t], excluding: sel, start: start, end: end)
             ui.drag =
               left
@@ -798,6 +1076,9 @@ struct TimelineView: View {
     for l in p.layouts { ts += [l.start, l.end] }
     for c in p.callouts { ts += [c.start, c.end] }
     for m in p.annotationList { ts += [m.start, m.end] }
+    ts += p.markerList.map(\.t)
+    for c in p.insertList { ts += [c.start, c.end] }
+    ts += [project.inPoint, project.outPoint].compactMap { $0 }
     return ts.filter { abs($0 - start) > 1e-9 && abs($0 - end) > 1e-9 || $0 == project.playheadSrc }
   }
 

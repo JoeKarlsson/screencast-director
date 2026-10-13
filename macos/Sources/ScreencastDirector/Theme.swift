@@ -13,6 +13,7 @@ enum Theme {
   static let layout = Color.teal
   static let title = Color.orange
   static let mark = Color.pink
+  static let broll = Color.indigo
   static let recording = Color.red
   static let ai = Color.orange
 

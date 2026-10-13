@@ -385,6 +385,35 @@ struct Checks {
     let missing = missingScriptLines(["Hello and welcome, everyone", "This part is cut"], words: scriptWords, plan: sp)
     expect(missing == ["This part is cut"], "a line whose only take is cut is missing (\(missing))")
 
+    // Speeding up a range splits the clips at its edges.
+    var fast = buildPlan(p)
+    fast.segments = [Segment(start: 0, end: 10, speed: 1)]
+    fast.setSpeed(range: 2..<5, speed: 4)
+    expect(fast.segments.map { [$0.start, $0.end, $0.speed] } == [[0, 2, 1], [2, 5, 4], [5, 10, 1]], "range sped up (\(fast.segments))")
+    // Markers are kept in order and inside the recording.
+    var pins = buildPlan(p)
+    pins.markers = [Marker(t: 50, label: "end"), Marker(t: 3), Marker(t: -1)]
+    pins.normalize()
+    expect(pins.markerList.map(\.t) == [0, 3, pins.source.duration], "markers sorted and clamped (\(pins.markerList.map(\.t)))")
+
+    // Crossfades: a quarter second each side, peaking at an even mix on the cut.
+    let xm = mapSegments([Segment(start: 0, end: 4, speed: 1), Segment(start: 8, end: 12, speed: 1, transition: "crossfade")], fps: fps)
+    let xf = crossfades(xm, fps: fps)
+    expect(xf.count == 1 && xf[0].f == 120 && xf[0].half == 8, "one crossfade at the cut (\(xf.map { ($0.f, $0.half) }))")
+    expect(crossfadeMix(xf, frame: 111) == nil && crossfadeMix(xf, frame: 128) == nil, "no mix outside the crossfade")
+    let mixes = (112..<128).compactMap { crossfadeMix(xf, frame: $0) }
+    expect(mixes.count == 16 && abs(mixes.max()! - 0.5) < 0.05 && mixes.first! < 0.05, "mix rises to an even blend at the cut")
+    let shortClip = mapSegments([Segment(start: 0, end: 4, speed: 1), Segment(start: 8, end: 8.1, speed: 1, transition: "crossfade")], fps: fps)
+    expect(crossfades(shortClip, fps: fps).isEmpty, "too short a clip for a crossfade skips it")
+
+    // An AI edit can't point B-roll at a file outside the project.
+    var brollOld = buildPlan(p)
+    brollOld.inserts = [Insert(start: 1, end: 3, file: "broll/ok.png")]
+    var brollNew = brollOld
+    brollNew.inserts = [Insert(start: 1, end: 3, file: "broll/ok.png"), Insert(start: 4, end: 6, file: "/Users/someone/secret.png")]
+    let (brollSafe, brollReverted) = PathSafety.sanitize(brollNew, previous: brollOld, project: URL(fileURLWithPath: "/tmp/sd-proj"))
+    expect(brollSafe.insertList.map(\.file) == ["broll/ok.png"] && brollReverted == ["inserts.file"], "outside B-roll dropped (\(brollReverted))")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }
