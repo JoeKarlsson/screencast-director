@@ -19,7 +19,7 @@ esac
 rm -rf "$dir"; mkdir -p "$dir/.tmp"
 
 say -o "$dir/.tmp/a.aiff" "Welcome. Today I will show you how this works."
-say -o "$dir/.tmp/b.aiff" "Now I click the search box and press command K to open the palette."
+say -o "$dir/.tmp/b.aiff" "Now I click the blue box and press a keyboard shortcut."
 say -o "$dir/.tmp/c.aiff" "And that is the whole demo. Thanks for watching."
 
 ffmpeg -hide_banner -loglevel error -y \

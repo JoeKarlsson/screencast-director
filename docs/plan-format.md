@@ -8,7 +8,7 @@ Each project folder holds the recording and a `plan.json` that describes the edi
   "zooms": [{ "start": 6.4, "end": 10.6, "x": 0.75, "y": 0.29, "scale": 2 }],
   "defaultLayout": "pip",                       // screen | pip | side | camera
   "layouts": [{ "start": 0, "end": 4, "mode": "camera" }],
-  "callouts": [{ "start": 10, "end": 11.5, "text": "Open the palette" }],
+  "callouts": [{ "start": 10, "end": 11.5, "text": "Open Settings" }],
   "captions": { "enabled": true, "maxWords": 7 },
   "style": { "background": ["#1d2b64", "#f8cdda"], "padding": 0.06, "radius": 14, "transition": 0.8 }
 }
