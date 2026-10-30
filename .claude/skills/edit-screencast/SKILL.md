@@ -7,11 +7,21 @@ description: Edit a recorded screencast in this repo by changing its plan.json (
 
 Arguments: a project name (folder under `projects/`), plus optional instructions.
 
+## Plan rules that are easy to break
+
+- All plan times are **source seconds** (positions in `screen.mp4`), never output seconds.
+- `segments` must be ascending and non-overlapping. Anything not covered is cut.
+- Segments with `speed > 1` render muted. Never speed up a segment where the user is talking.
+- Zooms that touch hand off as a pan; a gap shorter than `style.transition` reads as a quick out-and-in.
+- `zoom.x`/`zoom.y` are 0..1 fractions of the recorded screen; scale 1.4 to 2.2 looks natural.
+- `sd plan` refuses to overwrite an existing `plan.json` (it may hold edits); `--force` regenerates.
+
 ## 1. Get the project ready
 
 - If `projects/<name>/transcript.json` is missing, run `bin/sd analyze <name>`.
 - If `plan.json` is missing, run `bin/sd plan <name>`. Never pass `--force` on a plan that may hold edits unless the user asks to start over.
-- Run `bin/sd describe <name>` and read `plan.json`. Read `CLAUDE.md` for the plan rules.
+- Run `bin/sd describe <name>` and read `plan.json`.
+- Project files: `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, `out.mp4`.
 
 ## 2. Edit pass
 
@@ -31,7 +41,8 @@ Apply the user's instructions first. Then make a quality pass unless they asked 
 ## 3. Verify before rendering
 
 - Run `bin/sd describe <name>` again and read it as a viewer would: does every cut land between sentences? Is any narration sped up?
-- Render stills at the moments you changed (command in `CLAUDE.md`) and look at them: zoom framing, callout text, layout.
+- Spot-check frames instead of rendering the whole video: render stills at the moments you changed and look at them (zoom framing, callout text, layout):
+  `macos/.build/release/director still projects/<name> <frame> /tmp/f.png` (`still` writes only inside the project, e.g. `.checks/`, or a temp folder, and never through a symlink)
 
 ## 4. Render and report
 
