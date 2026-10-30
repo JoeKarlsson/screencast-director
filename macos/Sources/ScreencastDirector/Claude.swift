@@ -3,8 +3,15 @@ import Foundation
 
 /// Runs Claude Code headless (`claude -p`) in a project folder to edit its plan.json.
 enum Claude {
-  /// GUI apps don't get the shell's PATH, so ask a login shell where `claude` is.
+  /// GUI apps don't get the shell's PATH, so ask a login shell where `claude` is, then try the
+  /// installers' usual folders (a PATH set in .zshrc never reaches a non-interactive shell).
   static let executable: URL? = {
+    loginShellClaude() ?? ["~/.local/bin/claude", "~/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+      .map { URL(fileURLWithPath: NSString(string: $0).expandingTildeInPath) }
+      .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+  }()
+
+  private static func loginShellClaude() -> URL? {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/bin/zsh")
     p.arguments = ["-lc", "command -v claude"]
@@ -16,7 +23,7 @@ enum Claude {
     let path = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return path.isEmpty ? nil : URL(fileURLWithPath: path)
-  }()
+  }
 
   /// The bundled `director` CLI (Contents/MacOS/director), or the one next to a `swift run` build.
   static var director: URL {

@@ -86,6 +86,8 @@ struct LibrarySidebar: View {
               Button("Suggest a Name with \(AISettings.shared.provider.shortName)") { library.suggestName(url) }
               Divider()
               Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+              Divider()
+              Button("Move to Trash…") { library.promptDelete(url) }
             }
         }
       } header: {

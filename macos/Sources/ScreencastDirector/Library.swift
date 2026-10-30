@@ -63,6 +63,10 @@ final class Library: ObservableObject {
     let clean = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard !clean.isEmpty, clean != url.lastPathComponent else { return }
+    // Analysis and exports write into the folder by path; moving it under them fails the write.
+    if current?.dir == url, current?.busy == true {
+      throw NSError(domain: "Library", code: 2, userInfo: [NSLocalizedDescriptionKey: "\(url.lastPathComponent) is still working. Rename it once it's done."])
+    }
     let dest = url.deletingLastPathComponent().appendingPathComponent(clean)
     guard !FileManager.default.fileExists(atPath: dest.path) else {
       throw NSError(domain: "Library", code: 1, userInfo: [NSLocalizedDescriptionKey: "There's already a recording called \(clean)."])
@@ -73,6 +77,30 @@ final class Library: ObservableObject {
     transcripts[url] = nil
     refresh()
     if wasSelected { selection = dest }
+  }
+
+  /// Asks, then moves a recording's folder to the Trash (so Finder's Put Back can restore it).
+  func promptDelete(_ url: URL) {
+    if current?.dir == url, current?.busy == true {
+      Notices.shared.show("\(url.lastPathComponent) is still working. Wait for it to finish, or stop it, before deleting.")
+      return
+    }
+    let alert = NSAlert()
+    alert.messageText = "Move “\(url.lastPathComponent)” to the Trash?"
+    alert.informativeText = "The recording, its edit and its exports go to the Trash. You can put it back from there."
+    alert.addButton(withTitle: "Move to Trash")
+    alert.addButton(withTitle: "Cancel")
+    presentAlert(alert) { [weak self] response in
+      guard response == .alertFirstButtonReturn, let self else { return }
+      if self.selection == url { self.selection = nil }
+      do {
+        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+      } catch {
+        Notices.shared.show(error, "Couldn't move \(url.lastPathComponent) to the Trash")
+      }
+      self.transcripts[url] = nil
+      self.refresh()
+    }
   }
 
   /// Inline rename in the sidebar: the row turns into a text field.
