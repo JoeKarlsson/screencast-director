@@ -10,9 +10,18 @@ final class TimelineUI: ObservableObject {
   @Published var outputTime = true
   /// Visible width of the track area, for Fit.
   var width: CGFloat = 800
+  /// How long the axis is (seconds); zooming all the way out shows all of it.
+  var axisSeconds: Double = 60
+  var minPxPerSec: Double { min(4, (width - 20) / max(axisSeconds, 1)) }
+
+  /// Whether the zoom is where Fit puts it for this width and length.
+  func isFitted(width: CGFloat, seconds: Double) -> Bool {
+    abs(pxPerSec - min(400, (width - 20) / max(seconds, 1))) < 0.01
+  }
 
   func fit(_ duration: Double) {
-    pxPerSec = min(400, max(4, (width - 20) / max(duration, 1)))
+    axisSeconds = duration
+    pxPerSec = min(400, max(minPxPerSec, (width - 20) / max(duration, 1)))
   }
   /// A drag in progress: which item and its live range, drawn instead of the saved one.
   @Published var drag: (sel: Selection, start: Double, end: Double)?
@@ -53,7 +62,7 @@ final class TimelineUI: ObservableObject {
   /// Zooms the timeline, keeping source time `t` where it is on screen.
   func zoom(by factor: Double, around t: Double) {
     let old = pxPerSec
-    let new = min(400, max(4, old * factor))
+    let new = min(400, max(minPxPerSec, old * factor))
     guard abs(new - old) > 0.01 else { return }
     let onScreen = t * old - viewport.visible.minX
     pxPerSec = new
@@ -256,12 +265,22 @@ struct TimelineView: View {
           }
           .onAppear {
             ui.width = geo.size.width - Self.headerWidth
+            ui.axisSeconds = axisLength
             if !ui.fitted {
               ui.fit(axisLength)
               ui.fitted = true
             }
           }
-          .onChange(of: geo.size.width) { _, w in ui.width = w - Self.headerWidth }
+          // Still showing the whole timeline when the width or length changes (the first fit runs
+          // before the inspector opens and before the edit's length is known): keep showing all of it.
+          .onChange(of: geo.size.width) { _, w in
+            let wasFitted = ui.isFitted(width: ui.width, seconds: ui.axisSeconds)
+            ui.width = w - Self.headerWidth
+            if wasFitted { ui.fit(axisLength) }
+          }
+          .onChange(of: axisLength) { _, l in
+            if ui.isFitted(width: ui.width, seconds: ui.axisSeconds) { ui.fit(l) } else { ui.axisSeconds = l }
+          }
         }
         .frame(height: Track.total + 14)
       }
@@ -370,7 +389,7 @@ struct TimelineView: View {
       HStack(spacing: 6) {
         Image(systemName: "minus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
         Slider(
-          value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: axis(project.playheadSrc)) }), in: 4...400)
+          value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: axis(project.playheadSrc)) }), in: ui.minPxPerSec...400)
           .accessibilityLabel("Timeline zoom")
           .controlSize(.small)
           .frame(minWidth: 60, maxWidth: 120)
