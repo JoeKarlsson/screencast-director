@@ -17,6 +17,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - An unanalyzed recording shows a labeled Analyze button in the toolbar and in the inspector.
 - The X on a banner is easier to hit. Before, only a click right on the X closed it.
 - Move a recording to the Trash from its right-click menu in the sidebar or on Home.
+- Claude edits can run `director describe`, `still` and `review` again. The app's path has spaces, so the quoted command Claude ran didn't match its allow rule and was blocked.
 - Claude Code is found when it is installed in ~/.local/bin and only .zshrc adds that folder to PATH. Before, the app said Claude Code wasn't installed.
 - Renaming a recording while it's analyzing or exporting waits until it's done, then renames it, even if you've clicked away to another recording. Before, the rename broke the analysis with "The folder motion.json doesn't exist".
 - Getting Started plays a short demo in place of the 3-minute tour.

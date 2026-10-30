@@ -84,7 +84,9 @@ enum Claude {
       throw NSError(
         domain: "Claude", code: 1, userInfo: [NSLocalizedDescriptionKey: "Claude Code isn't installed (no `claude` on your PATH)."])
     }
-    let dir = director.path
+    // Quoted, since the app's path has spaces. Claude quotes the path in the command it runs, and
+    // the allow rules below match the command's text, so the rules and the prompt use this same form.
+    let dir = "'\(director.path)'"
     let system = editPrompt.replacingOccurrences(of: "{{DIRECTOR}}", with: dir)
     let planURL = project.appendingPathComponent("plan.json")
     let before = try? Plan.load(planURL)
