@@ -3,6 +3,7 @@ import CoreImage
 import CoreText
 import Foundation
 import ImageIO
+import Vision
 
 /// Everything about the look of each output frame: the native counterpart of src/Screencast.tsx.
 /// Built once per plan; `render` is called by the compositor for every frame.
@@ -231,7 +232,10 @@ public final class Scene: @unchecked Sendable {
     }
     let cb = boxes.cam
     if let camera, plan.camera != nil, cb.opacity > 0.01 {
-      image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
+      // A cutout has no shape to cast a shadow from.
+      if plan.camera?.cutout != true {
+        image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
+      }
       image = cameraCard(camera, box: cb).composited(over: image)
     }
     image = broll(image, frame: Double(f), full: true, box: b, frames: insertFrames)
@@ -373,7 +377,9 @@ public final class Scene: @unchecked Sendable {
   }
 
   func cameraCard(_ src0: CIImage, box b: Box) -> CIImage {
-    let src = Scene.graded(src0, plan.camera?.grade)
+    var src = Scene.graded(src0, plan.camera?.grade)
+    let cutout = plan.camera?.cutout == true
+    if cutout { src = Scene.personCutout(src) }
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
     let k = max(b.w / cw, b.h / ch) * max(1, cam?.zoom ?? 1)
@@ -386,7 +392,28 @@ public final class Scene: @unchecked Sendable {
     tx = min(r.minX, max(tx, r.maxX - cw * k))
     ty = min(r.minY, max(ty, r.maxY - ch * k))
     let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
-    return masked(placed, r, radius: b.r, opacity: b.opacity)
+    return masked(placed, r, radius: cutout ? 0 : b.r, opacity: b.opacity)
+  }
+
+  /// The person in a camera frame with the background made clear (Vision person segmentation).
+  /// When Vision fails or finds no one, the result is empty: the camera disappears for that frame
+  /// rather than showing the background it was asked to remove.
+  static func personCutout(_ src: CIImage) -> CIImage {
+    let req = VNGeneratePersonSegmentationRequest()
+    req.qualityLevel = .balanced
+    req.outputPixelFormat = kCVPixelFormatType_OneComponent8
+    let origin = src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY))
+    do {
+      try VNImageRequestHandler(ciImage: origin).perform([req])
+    } catch {
+      return CIImage.empty()
+    }
+    guard let buffer = req.results?.first?.pixelBuffer else { return CIImage.empty() }
+    var mask = CIImage(cvPixelBuffer: buffer)
+    mask = mask.transformed(by: CGAffineTransform(
+      scaleX: origin.extent.width / mask.extent.width, y: origin.extent.height / mask.extent.height))
+      .transformed(by: CGAffineTransform(translationX: src.extent.minX, y: src.extent.minY))
+    return src.applyingFilter("CIBlendWithMask", parameters: ["inputBackgroundImage": CIImage.empty(), "inputMaskImage": mask])
   }
 
   // MARK: Overlays (CoreGraphics + CoreText, drawn in top-left coordinates)
@@ -398,7 +425,8 @@ public final class Scene: @unchecked Sendable {
     let shownCallouts = callouts.filter { f >= $0.s && f < $0.e }
     let shownMarks = b.opacity > 0.01 ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
     let ripples = clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
-    let border = camBox.map { $0.opacity > 0.01 } ?? false
+    // A cutout has no shape to outline.
+    let border = plan.camera?.cutout != true && (camBox.map { $0.opacity > 0.01 } ?? false)
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
     let pointerAt = b.opacity > 0.01 ? cursorPosition(frame: f) : nil

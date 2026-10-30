@@ -198,6 +198,17 @@ public struct Plan: Codable, Equatable {
     public var zoom: Double?
     /// Color grading for the camera.
     public var grade: Grade?
+    /// The picture-in-picture bubble: its size (fraction of the frame's short side, nil is 0.24)
+    /// and corner (one of `Plan.Camera.corners`, nil is bottom right; landscape only).
+    public var bubbleSize: Double?
+    public var bubbleCorner: String?
+    /// Cut the person out of the camera's background instead of showing the camera in a shape.
+    public var cutout: Bool?
+
+    public static let defaultBubbleSize = 0.24
+    public static let corners: [(name: String, label: String)] = [
+      ("topLeft", "Top Left"), ("topRight", "Top Right"), ("bottomLeft", "Bottom Left"), ("bottomRight", "Bottom Right"),
+    ]
     public init(video: String, offset: Double) {
       self.video = video
       self.offset = offset

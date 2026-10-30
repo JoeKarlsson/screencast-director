@@ -619,6 +619,22 @@ struct InspectorView: View {
           Label("Center on My Face", systemImage: "face.smiling").frame(maxWidth: .infinity)
         }
       }
+      InspectorSection("Bubble", detail: "How big the camera is while you demo, and which corner it sits in.") {
+        slider("Size", Binding(get: { project.plan?.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize }, set: { v in
+          project.apply(coalesce: "bubbleSize") { $0.camera?.bubbleSize = (v * 100).rounded() / 100 }
+        }), 0.12...0.5, "\(Int((plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
+        LabeledContent("Corner") {
+          Picker("Corner", selection: Binding(get: { project.plan?.camera?.bubbleCorner ?? "bottomRight" }, set: { v in
+            project.apply { $0.camera?.bubbleCorner = v == "bottomRight" ? nil : v }
+          })) {
+            ForEach(Plan.Camera.corners, id: \.name) { Text($0.label).tag($0.name) }
+          }
+          .labelsHidden()
+        }
+        Toggle("Cut out background (just you, no circle)", isOn: Binding(get: { project.plan?.camera?.cutout == true }, set: { on in
+          project.apply { $0.camera?.cutout = on ? true : nil }
+        }))
+      }
       InspectorSection("Color", detail: "Start from a preset, then fine-tune.") {
         FlowLayout(spacing: 6, lineSpacing: 6) {
           ForEach(Grade.presets, id: \.name) { preset in

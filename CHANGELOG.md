@@ -46,6 +46,8 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Camera > Bubble sets the camera bubble's size and which corner it sits in while you demo.
+- Cut out background: show just you over the screen, with no circle, using on-device person segmentation. In a bottom corner the cutout stands on the frame's edge.
 - Pause trimming drops clips stranded between cuts: anything under a second, or under two seconds and mostly silence. The cut runs on to where you start talking again, instead of flickering through a stray word or a sliver of silence.
 - In a narrated recording, the draft cuts silent scrolling and pointing longer than 3 seconds instead of keeping it at 1.5x. Shorter moves, and recordings with no narration, still play at 1.5x.
 - Playback no longer redraws the whole editor 30 times a second; only the playhead, clock and current transcript word follow it.

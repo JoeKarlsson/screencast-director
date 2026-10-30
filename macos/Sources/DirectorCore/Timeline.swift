@@ -261,7 +261,7 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   if H > W * 1.05 {
     // Portrait: screen on top, camera stacked under it, captions below that.
     let captionSpace = H * 0.16
-    let bubble = (W * 0.34).rounded()
+    let bubble = (W * 0.34 * (plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize) / Plan.Camera.defaultBubbleSize).rounded()
     let screenArea = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad - captionSpace)
     let s = fit(screenArea, aspect: aspect)
     let screenTop = box((s.x, pad + (screenArea.h - s.h) * 0.3, s.w, s.h), r: r)
@@ -289,8 +289,13 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
 
   let s = fit(full, aspect: aspect)
   let screenFull = Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1)
-  let bubble = (min(W, H) * 0.24).rounded()
-  let pipCam = Box(x: W - edge - bubble, y: H - edge - bubble, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
+  let bubble = (min(W, H) * (plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize)).rounded()
+  let corner = plan.camera?.bubbleCorner ?? "bottomRight"
+  // A cutout in a bottom corner stands on the frame's bottom edge instead of floating above it.
+  let bottomY = plan.camera?.cutout == true ? H - bubble : H - edge - bubble
+  let pipCam = Box(
+    x: corner.hasSuffix("Left") ? edge : W - edge - bubble, y: corner.hasPrefix("top") ? edge : bottomY,
+    w: bubble, h: bubble, r: bubble / 2, opacity: 1)
 
   switch mode {
   case .screen:
