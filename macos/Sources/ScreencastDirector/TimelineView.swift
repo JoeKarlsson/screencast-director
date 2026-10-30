@@ -7,7 +7,7 @@ final class TimelineUI: ObservableObject {
   @Published var pxPerSec: Double = 60
   @Published var fitted = false
   /// Lay the timeline out in output time: cuts collapse and sped-up clips draw at their real length.
-  @Published var outputTime = false
+  @Published var outputTime = true
   /// Visible width of the track area, for Fit.
   var width: CGFloat = 800
 
@@ -929,8 +929,7 @@ struct TimelineView: View {
     let limits = bounds ?? 0...(project.plan?.source.duration ?? 0)
     let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
     let base = selected ? 1 : hovered ? 0.85 : 0.7
-    // The filmstrip tiles a source-time grid, so it's off in output time.
-    let film = track == .clips && !ui.outputTime ? filmstrip(start: start, end: end) : nil
+    let film = track == .clips ? filmstrip(start: start, end: end, barX: x(start), barW: w) : nil
     return shape
       .fill(color.opacity(striped ? base * 0.6 : base))
       .overlay {
@@ -1024,11 +1023,11 @@ struct TimelineView: View {
   }
 
   /// The source recording's frames for a clip bar, or nil without a plan.
-  private func filmstrip(start: Double, end: Double) -> EquatableView<Filmstrip>? {
+  private func filmstrip(start: Double, end: Double, barX: CGFloat, barW: CGFloat) -> EquatableView<Filmstrip>? {
     guard let src = project.plan?.source, src.height > 0 else { return nil }
     let cache = FilmstripCache.shared(dir: project.dir, video: src.video, duration: src.duration)
     return Filmstrip(
-      cache: cache, viewport: ui.viewport, start: start, end: end, pxPerSec: ui.pxPerSec, height: Track.clips.height,
+      cache: cache, viewport: ui.viewport, start: start, end: end, barX: barX, barW: barW, height: Track.clips.height,
       aspect: src.width / src.height
     ).equatable()
   }

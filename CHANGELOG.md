@@ -14,6 +14,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
+- The timeline starts in output time, so cuts close up and sped-up clips draw at their real length. Clips show their frames in both modes; the toggle by Fit switches back to the whole recording.
 - An unanalyzed recording shows a labeled Analyze button in the toolbar and in the inspector.
 - The X on a banner is easier to hit. Before, only a click right on the X closed it.
 - Move a recording to the Trash from its right-click menu in the sidebar or on Home.
@@ -44,6 +45,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Pause trimming drops clips stranded between cuts: anything under a second, or under two seconds and mostly silence. The cut runs on to where you start talking again, instead of flickering through a stray word or a sliver of silence.
 - In a narrated recording, the draft cuts silent scrolling and pointing longer than 3 seconds instead of keeping it at 1.5x. Shorter moves, and recordings with no narration, still play at 1.5x.
 - Playback no longer redraws the whole editor 30 times a second; only the playhead, clock and current transcript word follow it.
 - A Claude Code edit is one undo step, however many times it saved the plan, and timeline edits wait until it finishes.

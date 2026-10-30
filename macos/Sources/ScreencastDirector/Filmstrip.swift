@@ -145,32 +145,34 @@ final class TimelineViewport: ObservableObject {
 struct Filmstrip: View, Equatable {
   @ObservedObject var cache: FilmstripCache
   @ObservedObject var viewport: TimelineViewport
+  /// The clip's source range, drawn across the bar at `barX` (timeline points) that is `barW` wide.
+  /// In output time a sped-up clip's bar is shorter than its source range, so frames spread to fit.
   let start: Double
   let end: Double
-  let pxPerSec: Double
+  let barX: CGFloat
+  let barW: CGFloat
   let height: CGFloat
   /// Width / height of the recording.
   let aspect: Double
 
   static func == (a: Filmstrip, b: Filmstrip) -> Bool {
     a.cache === b.cache && a.viewport === b.viewport && a.start == b.start && a.end == b.end
-      && a.pxPerSec == b.pxPerSec && a.height == b.height && a.aspect == b.aspect
+      && a.barX == b.barX && a.barW == b.barW && a.height == b.height && a.aspect == b.aspect
   }
 
   var body: some View {
-    let barX = CGFloat(start * pxPerSec)
-    let barW = max(3, CGFloat((end - start) * pxPerSec))
+    let secondsPerPoint = (end - start) / Double(barW)
     let lo = max(barX, viewport.range.lowerBound)
     let hi = min(barX + barW, viewport.range.upperBound)
     let tileW = max(8, height * CGFloat(min(3, max(0.4, aspect))))
-    let step = cache.step(forTileSeconds: Double(tileW) / pxPerSec)
+    let step = cache.step(forTileSeconds: Double(tileW) * secondsPerPoint)
     let first = Int((lo / tileW).rounded(.down))
     let last = Int((hi / tileW).rounded(.up))
     let tiles: [(x: CGFloat, key: Int)] =
       hi > lo
       ? (first..<max(first, last)).map { i in
         let x = CGFloat(i) * tileW
-        return (x, cache.key(Double(x + tileW / 2) / pxPerSec, step: step))
+        return (x, cache.key(start + Double(x + tileW / 2 - barX) * secondsPerPoint, step: step))
       } : []
     cache.request(tiles.map(\.key))
     let version = cache.version

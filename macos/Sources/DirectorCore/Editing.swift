@@ -187,7 +187,28 @@ extension Plan {
       if s.end - cursor > 0.04 { out.append(Segment(start: cursor, end: s.end, speed: 1, note: s.note)) }
     }
     segments = out
+    dropSlivers(silences: silences ?? [])
     normalize()
+  }
+
+  /// Drops clips left stranded between cuts: under `Rules.minClip` seconds of output, or under
+  /// `Rules.minQuietClip` and mostly silence. They play as a jarring flicker, so the cut runs on to
+  /// where speech resumes. Clips that play back to back count as one.
+  public mutating func dropSlivers(silences: [(Double, Double)]) {
+    var islands: [[Segment]] = []
+    for s in segments.sorted(by: { $0.start < $1.start }) {
+      if let last = islands.last?.last, s.start - last.end < 0.01 { islands[islands.count - 1].append(s) } else { islands.append([s]) }
+    }
+    guard islands.count > 1 else { return }
+    func isSliver(_ island: [Segment]) -> Bool {
+      let output = island.reduce(0.0) { $0 + ($1.end - $1.start) / $1.speed }
+      if output < Rules.minClip { return true }
+      guard output < Rules.minQuietClip else { return false }
+      let a = island[0].start, b = island[island.count - 1].end
+      let quiet = silences.reduce(0.0) { $0 + max(0, min($1.1, b) - max($1.0, a)) }
+      return quiet >= 0.7 * (b - a)
+    }
+    segments = islands.filter { !isSliver($0) }.flatMap { $0 }
   }
 }
 

@@ -63,6 +63,11 @@ struct Checks {
     let ms = buildSegments(mp)
     expect(!ms.contains { $0.start < 4 && $0.end > 4 }, "long silent mouse cut when narrated")
     expect(ms.contains { $0.start <= 8 && $0.end >= 8 && $0.speed == 1.5 }, "short silent mouse kept at 1.5x")
+    var sl = buildPlan(p)
+    sl.segments = [Segment(start: 0, end: 3, speed: 1), Segment(start: 4, end: 4.5, speed: 1), Segment(start: 5, end: 6.5, speed: 1),
+      Segment(start: 7, end: 7.6, speed: 1), Segment(start: 7.6, end: 8.4, speed: 1), Segment(start: 9, end: 12, speed: 1)]
+    sl.dropSlivers(silences: [(5, 6.5)])
+    expect(sl.segments.map(\.start) == [0, 7, 7.6, 9], "slivers dropped; back-to-back clips count together")
     var silentDemo = mp
     silentDemo.words = []
     expect(buildSegments(silentDemo).contains { $0.start <= 4 && $0.end >= 4 && $0.speed == 1.5 }, "no narration: mouse kept at 1.5x")
@@ -90,15 +95,16 @@ struct Checks {
 
     // Pause trimming: tight cuts a 1 s pause, gentle keeps it, and a cut with words stays cut.
     var pp = buildPlan(p)
-    let w2 = [Word(text: "one", start: 0, end: 0.5), Word(text: "two", start: 1.5, end: 2), Word(text: "oops", start: 3, end: 3.4),
-      Word(text: "three", start: 4, end: 4.5)]
-    pp.segments = [Segment(start: 0, end: 2.9, speed: 1), Segment(start: 3.6, end: 5, speed: 1)]
+    // Word-long clips are over a second, so dropping slivers doesn't take them.
+    let w2 = [Word(text: "one", start: 0, end: 1), Word(text: "two", start: 2, end: 3), Word(text: "oops", start: 4, end: 4.6),
+      Word(text: "three", start: 5.5, end: 6.5)]
+    pp.segments = [Segment(start: 0, end: 3.8, speed: 1), Segment(start: 4.8, end: 7, speed: 1)]
     pp.retrimPauses(words: w2, level: .tight)
-    expect(pp.segments.count >= 3 && !pp.segments.contains { $0.start < 1.0 && $0.end > 1.0 }, "tight cuts the 1 s pause")
-    expect(!pp.segments.contains { $0.start < 3.2 && $0.end > 3.2 }, "the cut word stays cut")
+    expect(pp.segments.count >= 3 && !pp.segments.contains { $0.start < 1.5 && $0.end > 1.5 }, "tight cuts the 1 s pause")
+    expect(!pp.segments.contains { $0.start < 4.3 && $0.end > 4.3 }, "the cut word stays cut")
     pp.retrimPauses(words: w2, level: .gentle)
-    expect(pp.segments.contains { $0.start <= 0.5 && $0.end >= 1.5 }, "gentle gives the pause back")
-    expect(!pp.segments.contains { $0.start < 3.2 && $0.end > 3.2 }, "and still keeps the word cut")
+    expect(pp.segments.contains { $0.start <= 1 && $0.end >= 2 }, "gentle gives the pause back")
+    expect(!pp.segments.contains { $0.start < 4.3 && $0.end > 4.3 }, "and still keeps the word cut")
     // A silent stretch recorded while paused stays cut, even at gentle.
     pp.segments = [Segment(start: 0, end: 0.9, speed: 1), Segment(start: 1.4, end: 2.9, speed: 1)]
     pp.retrimPauses(words: w2, level: .gentle, paused: [(0.9, 1.4)])

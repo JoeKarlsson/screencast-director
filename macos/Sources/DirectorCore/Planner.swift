@@ -18,6 +18,8 @@ public enum Rules {
   static let typingSpeed = 3.0
   static let mouseSpeed = 1.5
   static let maxSilentMouse = 3.0
+  static let minClip = 1.0
+  static let minQuietClip = 2.0
   static let screenSpeed = 4.0
   static let minSpedUp = 1.5
   public static let motionThreshold = 0.25
