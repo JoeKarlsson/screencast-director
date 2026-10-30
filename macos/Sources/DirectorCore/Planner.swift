@@ -3,7 +3,7 @@ import Foundation
 // The first-draft edit.
 //   speech            -> 1x (filler words cut)
 //   typing, no speech -> 3x
-//   mouse, no speech  -> 1.5x
+//   mouse, no speech  -> 1.5x (cut past 3 s when the recording has narration: dead air)
 //   screen changing   -> 4x
 //   nothing happening -> cut
 // Zooms follow clusters of clicks and typing.
@@ -17,6 +17,7 @@ public enum Rules {
   static let idleKeep = 0.1
   static let typingSpeed = 3.0
   static let mouseSpeed = 1.5
+  static let maxSilentMouse = 3.0
   static let screenSpeed = 4.0
   static let minSpedUp = 1.5
   public static let motionThreshold = 0.25
@@ -87,12 +88,14 @@ public func buildSegments(_ p: Project) -> [Segment] {
     t += b
   }
 
+  // In a narrated recording, a long silent stretch of scrolling or pointing is waiting, not showing.
+  let narrated = !speech.isEmpty
   var segments: [Segment] = []
   for r in runs {
     let len = r.end - r.start
     var speed = 1.0
     switch r.label {
-    case .idle where len >= Rules.minIdleCut:
+    case .idle where len >= Rules.minIdleCut, .mouse where narrated && len > Rules.maxSilentMouse:
       // Keep a sliver on each side so cuts don't feel clipped.
       if r.start > 0 { segments.append(Segment(start: r.start, end: r.start + Rules.idleKeep, speed: 1, note: "idle")) }
       if r.end < dur { segments.append(Segment(start: r.end - Rules.idleKeep, end: r.end, speed: 1, note: "idle")) }

@@ -57,6 +57,15 @@ struct Checks {
     expect(at(3.5) == nil, "idle cut")
     expect(at(6)?.speed == 3, "typing sped up")
     expect(at(10.2)?.speed == 1, "speech kept at the end")
+    var mp = p
+    mp.events = (0..<12).map { InputEvent(t: 2.5 + Double($0) * 0.25, type: .move, x: 0.5, y: 0.5) }
+      + (0..<8).map { InputEvent(t: 7.5 + Double($0) * 0.2, type: .move, x: 0.5, y: 0.5) }
+    let ms = buildSegments(mp)
+    expect(!ms.contains { $0.start < 4 && $0.end > 4 }, "long silent mouse cut when narrated")
+    expect(ms.contains { $0.start <= 8 && $0.end >= 8 && $0.speed == 1.5 }, "short silent mouse kept at 1.5x")
+    var silentDemo = mp
+    silentDemo.words = []
+    expect(buildSegments(silentDemo).contains { $0.start <= 4 && $0.end >= 4 && $0.speed == 1.5 }, "no narration: mouse kept at 1.5x")
 
     var q = Project(dir: URL(fileURLWithPath: "/tmp"), source: src)
     q.events = [InputEvent(t: 2, type: .click, x: 0.2, y: 0.2), InputEvent(t: 3, type: .click, x: 0.8, y: 0.8)]

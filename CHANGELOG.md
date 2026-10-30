@@ -44,6 +44,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- In a narrated recording, the draft cuts silent scrolling and pointing longer than 3 seconds instead of keeping it at 1.5x. Shorter moves, and recordings with no narration, still play at 1.5x.
 - Playback no longer redraws the whole editor 30 times a second; only the playhead, clock and current transcript word follow it.
 - A Claude Code edit is one undo step, however many times it saved the plan, and timeline edits wait until it finishes.
 - Dragging a slider saves the plan once you pause instead of on every tick.
