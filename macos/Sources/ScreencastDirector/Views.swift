@@ -469,8 +469,9 @@ struct EditorToolbar: ToolbarContent {
         }
         .help("Export the video (⌘⇧E); the arrow has formats, GIF and upload")
       } else {
-        Button { project.analyzeAndPlan() } label: { Label("Analyze", systemImage: "wand.and.stars") }
+        Button { project.analyzeAndPlan() } label: { Label("Analyze", systemImage: "wand.and.stars").labelStyle(.titleAndIcon) }
           .disabled(project.busy)
+          .help("Transcribe, measure motion and draft the edit")
       }
       Button { withAnimation(.snappy) { editor.showTranscript.toggle() } } label: { Label("Transcript", systemImage: "text.quote") }
         .help("Edit by text: select words to cut them or add a zoom, title or annotation (⌥⌘T)")

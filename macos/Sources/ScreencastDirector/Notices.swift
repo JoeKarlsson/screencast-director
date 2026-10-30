@@ -51,8 +51,11 @@ struct NoticeBanner: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
           }
-          Button(action: notices.dismiss) { Image(systemName: "xmark").font(.caption.weight(.bold)) }
-            .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss")
+          // A plain button only takes clicks on its glyph, so give the small X a real target.
+          Button(action: notices.dismiss) {
+            Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 24, height: 24).contentShape(Rectangle())
+          }
+          .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

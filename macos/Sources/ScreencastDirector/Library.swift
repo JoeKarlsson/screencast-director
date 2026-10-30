@@ -63,8 +63,7 @@ final class Library: ObservableObject {
     let clean = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard !clean.isEmpty, clean != url.lastPathComponent else { return }
-    // Analysis and exports write into the folder by path; moving it under them fails the write.
-    if current?.dir == url, current?.busy == true {
+    if isWorking(url) {
       throw NSError(domain: "Library", code: 2, userInfo: [NSLocalizedDescriptionKey: "\(url.lastPathComponent) is still working. Rename it once it's done."])
     }
     let dest = url.deletingLastPathComponent().appendingPathComponent(clean)
@@ -81,7 +80,7 @@ final class Library: ObservableObject {
 
   /// Asks, then moves a recording's folder to the Trash (so Finder's Put Back can restore it).
   func promptDelete(_ url: URL) {
-    if current?.dir == url, current?.busy == true {
+    if isWorking(url) {
       Notices.shared.show("\(url.lastPathComponent) is still working. Wait for it to finish, or stop it, before deleting.")
       return
     }
@@ -207,9 +206,20 @@ final class Library: ObservableObject {
       }
   }
 
+  /// Projects left while still analyzing or exporting; their work keeps running after `close()`.
+  private var leftWorking: [ProjectModel] = []
+
+  /// Whether a recording's folder is being written by analysis or an export, open or not.
+  /// Moving the folder then would fail the write.
+  func isWorking(_ url: URL) -> Bool {
+    leftWorking.removeAll { !$0.busy }
+    return ([current].compactMap { $0 } + leftWorking).contains { $0.dir == url && $0.busy }
+  }
+
   private func open(_ url: URL?) {
     // Leaving a project: its edit date and export badge may have changed.
     if let old = current?.dir { infos[old] = nil }
+    if let old = current, old.busy { leftWorking.append(old) }
     current?.close()
     current = url.map { ProjectModel(dir: $0) }
   }

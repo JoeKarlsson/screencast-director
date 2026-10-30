@@ -14,9 +14,11 @@ Each release lists what changed for people using the app or the CLI. The version
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
+- An unanalyzed recording shows a labeled Analyze button in the toolbar and in the inspector.
+- The X on a banner is easier to hit. Before, only a click right on the X closed it.
 - Move a recording to the Trash from its right-click menu in the sidebar or on Home.
 - Claude Code is found when it is installed in ~/.local/bin and only .zshrc adds that folder to PATH. Before, the app said Claude Code wasn't installed.
-- A recording can't be renamed while it's analyzing or exporting. Renaming it then failed the analysis with "The folder motion.json doesn't exist".
+- A recording can't be renamed while it's analyzing or exporting. That includes a recording you clicked away from while it was still working. Renaming it then failed the analysis with "The folder motion.json doesn't exist".
 - Getting Started plays a short demo in place of the 3-minute tour.
 - A new look: the app's indigo accent throughout, and a refreshed icon in the layered glass style.
 - The start page is a gallery of your recordings with a big New Recording button. Setup folds away once everything's ready, and first-timers see how it works.

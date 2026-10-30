@@ -83,6 +83,10 @@ struct InspectorView: View {
             pane(plan)
           } else {
             emptyState("waveform.badge.magnifyingglass", "Not analyzed yet", "Analyze the recording to start editing.")
+            Button { project.analyzeAndPlan() } label: { Label("Analyze", systemImage: "wand.and.stars") }
+              .buttonStyle(.borderedProminent)
+              .disabled(project.busy)
+              .frame(maxWidth: .infinity)
           }
         }
         .padding(14)
