@@ -64,7 +64,9 @@ final class Library: ObservableObject {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard !clean.isEmpty, clean != url.lastPathComponent else { return }
     if isWorking(url) {
-      throw NSError(domain: "Library", code: 2, userInfo: [NSLocalizedDescriptionKey: "\(url.lastPathComponent) is still working. Rename it once it's done."])
+      pendingRenames[url] = clean
+      Notices.shared.show("\(url.lastPathComponent) is still working. It'll be renamed to \(clean) when it's done.")
+      return
     }
     let dest = url.deletingLastPathComponent().appendingPathComponent(clean)
     guard !FileManager.default.fileExists(atPath: dest.path) else {
@@ -144,6 +146,8 @@ final class Library: ObservableObject {
 
   /// Asks the AI for a short descriptive name from what was said, keeping the date in front.
   func suggestName(_ url: URL, autoApply: Bool = false) {
+    // A rename the user queued wins over the automatic name.
+    if autoApply, pendingRenames[url] != nil { return }
     let obj = (try? Data(contentsOf: url.appendingPathComponent("transcript.json")))
       .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
     let text = String(((obj?["text"] as? String) ?? "").prefix(6000))
@@ -208,6 +212,13 @@ final class Library: ObservableObject {
 
   /// Projects left while still analyzing or exporting; their work keeps running after `close()`.
   private var leftWorking: [ProjectModel] = []
+  /// Renames asked for while a recording was working, applied when its work finishes.
+  private var pendingRenames: [URL: String] = [:]
+
+  private func applyPendingRename(_ url: URL) {
+    guard let name = pendingRenames.removeValue(forKey: url) else { return }
+    do { try rename(url, to: name) } catch { Notices.shared.show(error, "Couldn't rename \(url.lastPathComponent)") }
+  }
 
   /// Whether a recording's folder is being written by analysis or an export, open or not.
   /// Moving the folder then would fail the write.
@@ -222,6 +233,7 @@ final class Library: ObservableObject {
     if let old = current, old.busy { leftWorking.append(old) }
     current?.close()
     current = url.map { ProjectModel(dir: $0) }
+    current?.onFinishedWork = { [weak self] dir in self?.applyPendingRename(dir) }
   }
 
   /// Asks which recordings to join (oldest first), then makes a new project from them and drafts

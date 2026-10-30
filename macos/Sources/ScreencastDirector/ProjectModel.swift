@@ -1015,6 +1015,8 @@ final class ProjectModel: ObservableObject {
 
   /// The running pipeline step, so Stop can cancel it.
   private var task: Task<Void, Never>?
+  /// Called with `dir` when a step ends (done, failed or stopped); the library applies queued renames.
+  var onFinishedWork: ((URL) -> Void)?
 
   func run(_ label: String, _ work: @escaping @MainActor () async throws -> Void) {
     guard !busy else { return }
@@ -1033,6 +1035,7 @@ final class ProjectModel: ObservableObject {
       }
       busy = false
       task = nil
+      onFinishedWork?(dir)
     }
   }
 
