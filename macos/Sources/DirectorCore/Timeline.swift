@@ -245,6 +245,36 @@ public func insets(_ plan: Plan) -> Insets {
   return Insets(margin: m, bracket: t, safe: full && brackets ? m + t + m * 0.6 : m, fullBleed: full)
 }
 
+/// The bubble's corner radius for its shape (a cutout has no shape).
+func bubbleRadius(_ plan: Plan, size: Double) -> Double {
+  if plan.camera?.cutout == true { return 0 }
+  switch plan.camera?.bubbleShape {
+  case "square": return 0
+  case "rounded": return size * 0.18
+  default: return size / 2
+  }
+}
+
+/// Where the landscape bubble's center sits, as fractions of the output frame: the plan's position,
+/// or the bottom-right corner inset by the padding.
+public func bubblePlacement(_ plan: Plan) -> (x: Double, y: Double) {
+  if let x = plan.camera?.bubbleX, let y = plan.camera?.bubbleY { return (x, y) }
+  return bubbleCorner("bottomRight", plan: plan)
+}
+
+/// The center of a bubble tucked into a corner ("topLeft" ... "bottomRight"): inset by the
+/// padding, except a cutout in a bottom corner, which stands on the frame's bottom edge.
+public func bubbleCorner(_ corner: String, plan: Plan) -> (x: Double, y: Double) {
+  let W = Double(plan.output.width), H = Double(plan.output.height)
+  let ins = insets(plan)
+  let edge = ins.fullBleed ? ins.safe : plan.style.padding * min(W, H)
+  let bubble = (min(W, H) * (plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize)).rounded()
+  let x = corner.hasSuffix("Left") ? edge + bubble / 2 : W - edge - bubble / 2
+  let bottom = plan.camera?.cutout == true ? H - bubble / 2 : H - edge - bubble / 2
+  let y = corner.hasPrefix("top") ? edge + bubble / 2 : bottom
+  return (x / W, y / H)
+}
+
 public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let W = Double(plan.output.width), H = Double(plan.output.height)
   let pad = plan.style.padding * min(W, H)
@@ -290,12 +320,10 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let s = fit(full, aspect: aspect)
   let screenFull = Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1)
   let bubble = (min(W, H) * (plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize)).rounded()
-  let corner = plan.camera?.bubbleCorner ?? "bottomRight"
-  // A cutout in a bottom corner stands on the frame's bottom edge instead of floating above it.
-  let bottomY = plan.camera?.cutout == true ? H - bubble : H - edge - bubble
+  let place = bubblePlacement(plan)
   let pipCam = Box(
-    x: corner.hasSuffix("Left") ? edge : W - edge - bubble, y: corner.hasPrefix("top") ? edge : bottomY,
-    w: bubble, h: bubble, r: bubble / 2, opacity: 1)
+    x: min(max(0, place.x * W - bubble / 2), W - bubble), y: min(max(0, place.y * H - bubble / 2), H - bubble),
+    w: bubble, h: bubble, r: bubbleRadius(plan, size: bubble), opacity: 1)
 
   switch mode {
   case .screen:

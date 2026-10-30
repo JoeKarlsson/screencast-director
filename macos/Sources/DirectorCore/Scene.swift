@@ -233,7 +233,7 @@ public final class Scene: @unchecked Sendable {
     let cb = boxes.cam
     if let camera, plan.camera != nil, cb.opacity > 0.01 {
       // A cutout has no shape to cast a shadow from.
-      if plan.camera?.cutout != true {
+      if plan.camera?.cutout != true, plan.camera?.bubbleShadow != false {
         image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
       }
       image = cameraCard(camera, box: cb).composited(over: image)
@@ -392,7 +392,7 @@ public final class Scene: @unchecked Sendable {
     tx = min(r.minX, max(tx, r.maxX - cw * k))
     ty = min(r.minY, max(ty, r.maxY - ch * k))
     let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
-    return masked(placed, r, radius: cutout ? 0 : b.r, opacity: b.opacity)
+    return masked(placed, r, radius: b.r, opacity: b.opacity)
   }
 
   /// The person in a camera frame with the background made clear (Vision person segmentation).
@@ -426,7 +426,7 @@ public final class Scene: @unchecked Sendable {
     let shownMarks = b.opacity > 0.01 ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
     let ripples = clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
     // A cutout has no shape to outline.
-    let border = plan.camera?.cutout != true && (camBox.map { $0.opacity > 0.01 } ?? false)
+    let border = plan.camera?.cutout != true && plan.camera?.bubbleBorder != false && (camBox.map { $0.opacity > 0.01 } ?? false)
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
     let pointerAt = b.opacity > 0.01 ? cursorPosition(frame: f) : nil

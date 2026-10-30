@@ -18,6 +18,59 @@ final class EditorUI: ObservableObject {
   /// The project whose preview has loaded. Only the first load gets the loading cover;
   /// the rebuild after each edit keeps showing the previous frame.
   @Published var frameShownFor: URL?
+  /// How far the camera bubble has been dragged in the preview (points), until the drag ends.
+  let bubbleDrag = BubbleDragUI()
+}
+
+final class BubbleDragUI: ObservableObject {
+  @Published var offset: CGSize?
+}
+
+/// Over the preview: a handle on the camera bubble while the bubble is showing, to drag it anywhere.
+/// An outline follows the pointer; the plan changes once, when the drag ends.
+struct BubbleDragger: View {
+  @ObservedObject var project: ProjectModel
+  @ObservedObject var playhead: Playhead
+  @ObservedObject var drag: BubbleDragUI
+
+  var body: some View {
+    GeometryReader { geo in
+      if let plan = project.plan, plan.camera != nil, plan.output.height <= plan.output.width, showingBubble(plan) {
+        let k = geo.size.width / Double(plan.output.width)
+        let b = layoutBoxes(.pip, plan: plan).cam
+        let d = drag.offset ?? .zero
+        let shape = RoundedRectangle(cornerRadius: min(b.r, b.w / 2) * k, style: .continuous)
+        shape
+          .fill(Color.white.opacity(0.001))
+          .overlay(shape.strokeBorder(Color.white.opacity(drag.offset == nil ? 0 : 0.9), style: StrokeStyle(lineWidth: 2, dash: [6, 4])))
+          .frame(width: b.w * k, height: b.h * k)
+          .position(x: (b.x + b.w / 2) * k + d.width, y: (b.y + b.h / 2) * k + d.height)
+          .pointerStyle(.grabIdle)
+          .gesture(
+            DragGesture(minimumDistance: 2)
+              .onChanged { v in drag.offset = v.translation }
+              .onEnded { v in
+                drag.offset = nil
+                let start = bubblePlacement(plan)
+                let x = min(1, max(0, start.x + v.translation.width / geo.size.width))
+                let y = min(1, max(0, start.y + v.translation.height / geo.size.height))
+                project.apply { p in
+                  p.camera?.bubbleX = (x * 1000).rounded() / 1000
+                  p.camera?.bubbleY = (y * 1000).rounded() / 1000
+                }
+              }
+          )
+          .help("Drag to move the camera bubble")
+      }
+    }
+  }
+
+  /// Whether the layout at the playhead shows the bubble.
+  private func showingBubble(_ plan: Plan) -> Bool {
+    _ = playhead.frame
+    let t = project.playheadSrc
+    return (plan.layouts.last { $0.start <= t && t < $0.end }?.mode ?? plan.defaultLayout) == .pip
+  }
 }
 
 struct MainView: View {
@@ -279,6 +332,7 @@ struct EditorView: View {
       PlayerView(player: project.player)
         .aspectRatio(aspect, contentMode: .fit)
         .overlay { if loading { loadingCover.transition(.opacity) } }
+        .overlay { if !loading { BubbleDragger(project: project, playhead: project.playhead, drag: editor.bubbleDrag) } }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
         .padding(20)

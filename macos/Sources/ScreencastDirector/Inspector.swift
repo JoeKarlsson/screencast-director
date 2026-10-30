@@ -619,19 +619,63 @@ struct InspectorView: View {
           Label("Center on My Face", systemImage: "face.smiling").frame(maxWidth: .infinity)
         }
       }
-      InspectorSection("Bubble", detail: "How big the camera is while you demo, and which corner it sits in.") {
+      InspectorSection("Bubble", detail: "The camera while you demo. Drag it anywhere in the preview, or set it here.") {
+        let cam = plan.camera
+        let place = bubblePlacement(plan)
         slider("Size", Binding(get: { project.plan?.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize }, set: { v in
           project.apply(coalesce: "bubbleSize") { $0.camera?.bubbleSize = (v * 100).rounded() / 100 }
-        }), 0.12...0.5, "\(Int((plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
-        LabeledContent("Corner") {
-          Picker("Corner", selection: Binding(get: { project.plan?.camera?.bubbleCorner ?? "bottomRight" }, set: { v in
-            project.apply { $0.camera?.bubbleCorner = v == "bottomRight" ? nil : v }
-          })) {
-            ForEach(Plan.Camera.corners, id: \.name) { Text($0.label).tag($0.name) }
+        }), 0.12...0.6, "\(Int((cam?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
+        slider("Across", Binding(get: { project.plan.map { bubblePlacement($0).x } ?? place.x }, set: { v in
+          project.apply(coalesce: "bubbleMove") { p in
+            let y = bubblePlacement(p).y
+            p.camera?.bubbleX = (v * 1000).rounded() / 1000
+            p.camera?.bubbleY = y
           }
+        }), 0...1, "\(Int(place.x * 100))%")
+        slider("Down", Binding(get: { project.plan.map { bubblePlacement($0).y } ?? place.y }, set: { v in
+          project.apply(coalesce: "bubbleMove") { p in
+            let x = bubblePlacement(p).x
+            p.camera?.bubbleX = x
+            p.camera?.bubbleY = (v * 1000).rounded() / 1000
+          }
+        }), 0...1, "\(Int(place.y * 100))%")
+        LabeledContent("Corner") {
+          HStack(spacing: 4) {
+            ForEach(
+              [("topLeft", "arrow.up.left"), ("topRight", "arrow.up.right"), ("bottomLeft", "arrow.down.left"), ("bottomRight", "arrow.down.right")],
+              id: \.0
+            ) { corner, symbol in
+              Button {
+                project.apply { p in
+                  let c = bubbleCorner(corner, plan: p)
+                  p.camera?.bubbleX = c.x
+                  p.camera?.bubbleY = c.y
+                }
+              } label: { Image(systemName: symbol).frame(width: 22) }
+              .help("Move the bubble to the \(corner.replacingOccurrences(of: "top", with: "top ").replacingOccurrences(of: "bottom", with: "bottom ").lowercased()) corner")
+            }
+          }
+          .controlSize(.small)
+        }
+        LabeledContent("Shape") {
+          Picker("Shape", selection: Binding(get: { project.plan?.camera?.bubbleShape ?? "circle" }, set: { v in
+            project.apply { $0.camera?.bubbleShape = v == "circle" ? nil : v }
+          })) {
+            ForEach(Plan.Camera.shapes, id: \.name) { Text($0.label).tag($0.name) }
+          }
+          .pickerStyle(.segmented)
           .labelsHidden()
         }
-        Toggle("Cut out background (just you, no circle)", isOn: Binding(get: { project.plan?.camera?.cutout == true }, set: { on in
+        .disabled(cam?.cutout == true)
+        Toggle("Border", isOn: Binding(get: { project.plan?.camera?.bubbleBorder != false }, set: { on in
+          project.apply { $0.camera?.bubbleBorder = on ? nil : false }
+        }))
+        .disabled(cam?.cutout == true)
+        Toggle("Shadow", isOn: Binding(get: { project.plan?.camera?.bubbleShadow != false }, set: { on in
+          project.apply { $0.camera?.bubbleShadow = on ? nil : false }
+        }))
+        .disabled(cam?.cutout == true)
+        Toggle("Cut out background (just you, no shape)", isOn: Binding(get: { project.plan?.camera?.cutout == true }, set: { on in
           project.apply { $0.camera?.cutout = on ? true : nil }
         }))
       }
