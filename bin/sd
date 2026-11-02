@@ -44,6 +44,13 @@ capture_start() { sed -nE 's/.*Stream #0:0: Video:.* start ([0-9.]+).*/\1/p' "$1
 # three places: source.json's camera.offset.
 camera_offset() { awk -v s="$1" -v c="$2" 'BEGIN { printf "%.3f", s - c }'; }
 
+# remux <dir> <name>: <name>.mkv to a faststart <name>.mp4, then removes the .mkv. Two commands, not
+# `ffmpeg && rm`, so a failed remux stops sd (set -e ignores a failure inside an && list).
+remux() {
+  ffmpeg -hide_banner -loglevel error -i "$1/$2.mkv" -c copy -movflags +faststart "$1/$2.mp4"
+  rm "$1/$2.mkv"
+}
+
 write_source() { # dir video [captureStart] [cameraVideo cameraOffset]
   local dir=$1 video=$2 start=${3:-} cam=${4:-} off=${5:-0}
   local w h d
@@ -100,11 +107,11 @@ cmd_record() {
   trap - INT TERM
 
   [ -s "$dir/screen.mkv" ] || { tail -5 "$dir/.ffmpeg-screen.log" >&2; die "screen recording failed (log: $dir/.ffmpeg-screen.log)"; }
-  ffmpeg -hide_banner -loglevel error -i "$dir/screen.mkv" -c copy -movflags +faststart "$dir/screen.mp4" && rm "$dir/screen.mkv"
+  remux "$dir" screen
   local start cam_video="" cam_off=0
   start=$(capture_start "$dir/.ffmpeg-screen.log")
   if [ $camera = 1 ] && [ -s "$dir/camera.mkv" ]; then
-    ffmpeg -hide_banner -loglevel error -i "$dir/camera.mkv" -c copy -movflags +faststart "$dir/camera.mp4" && rm "$dir/camera.mkv"
+    remux "$dir" camera
     cam_video=camera.mp4
     cam_off=$(camera_offset "$start" "$(capture_start "$dir/.ffmpeg-camera.log")")
   fi
@@ -164,7 +171,7 @@ cmd_auto() {
   cmd_render "$1"
 }
 
-# Sourced (test/sd-test.sh), it only defines the functions.
+# Sourced (macos/cli-test.sh), it only defines the functions.
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 cmd=${1:-help}; shift || true
 case $cmd in

@@ -241,5 +241,11 @@ printf '%s\n' '{"type":"meta","clock":"uptime_raw","t":51234.5}' '{"type":"click
 # shellcheck disable=SC2031
 check "a click on the host clock lands 7 s into the recording" grep -q "0:07.0" <<<"$("$DIRECTOR" describe "$TMP/recorded")"
 
+mkdir "$TMP/broken"
+printf 'not a video' >"$TMP/broken/camera.mkv"
+# shellcheck disable=SC2016  # expanded by the inner bash
+expect_error "a failed remux stops sd record" "camera.mkv" bash -c 'source "$1"; remux "$2" camera; echo kept going' _ "$SD" "$TMP/broken"
+check "a failed remux keeps the .mkv" test -f "$TMP/broken/camera.mkv"
+
 [[ "$failures" == 0 ]] || { echo "$failures CLI check(s) failed" >&2; exit 1; }
 echo "CLI checks passed"
