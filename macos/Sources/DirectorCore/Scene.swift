@@ -382,9 +382,17 @@ public final class Scene: @unchecked Sendable {
     if cutout { src = Scene.personCutout(src) }
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
-    let k = max(b.w / cw, b.h / ch) * max(1, cam?.zoom ?? 1)
+    // A cutout bubble has no edge to show, so it widens to the camera's shape around its center
+    // and skips the framing zoom: the whole person shows, standing on the box's bottom edge,
+    // instead of the box's sides and the zoom slicing off the shoulders and arms.
+    var r = ciRect(b)
+    var zoom = max(1, cam?.zoom ?? 1)
+    if cutout, r.width < r.height * cw / ch {
+      r = r.insetBy(dx: (r.width - r.height * cw / ch) / 2, dy: 0)
+      zoom = 1
+    }
+    let k = max(r.width / cw, r.height / ch) * zoom
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
-    let r = ciRect(b)
     // Keep the framing point centered, clamped so the camera image always covers the box.
     let fx = cam?.x ?? 0.5, fy = cam?.y ?? 0.5
     var tx = r.midX - fx * cw * k
