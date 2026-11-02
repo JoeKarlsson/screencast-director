@@ -9,6 +9,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Pause while recording. The paused stretch is cut from the draft.
 - A 3-2-1 countdown before recording starts (Settings > Recording; ⌃⌥⌘R during it cancels).
 - New Recording (⌘N) picks the display or window, the mic and the camera before you start. ⌃⌥⌘R still records right away.
+- New Recording shows a live camera preview and a mic level meter, and reads the camera's white balance: whether the picture runs warm, cool, green or magenta, what to change for neutral, and the camera Warmth that would neutralize it in the edit.
 - Record any connected display, not just the main one.
 - The recording widget floats above full-screen apps and other floating windows, and the arrow on its right shrinks it to just the clock and Stop.
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.

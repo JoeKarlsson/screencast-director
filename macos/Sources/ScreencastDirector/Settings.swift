@@ -71,6 +71,11 @@ final class AppSettings: ObservableObject {
     AppSettings.cameras.first { $0.uniqueID == cameraID } ?? AppSettings.cameras.first
   }
 
+  /// The mic a recording uses: the picked one if it's connected, otherwise the system default.
+  var microphoneDevice: AVCaptureDevice? {
+    AppSettings.microphones.first { $0.uniqueID == micID } ?? AVCaptureDevice.default(for: .audio)
+  }
+
   /// The screen being recorded: the picked display, or the one holding the picked window.
   var recordedScreen: NSScreen? {
     let id = displayID != 0 ? CGDirectDisplayID(displayID) : CGMainDisplayID()

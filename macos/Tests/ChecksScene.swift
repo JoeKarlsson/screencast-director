@@ -269,6 +269,30 @@ func sceneDrawingChecks() {
     }
   }
 
+  // White balance pre-flight: a gray wall with a skin-colored face, read before recording. The
+  // face is ignored (skin is warm in any light), and the suggested Warmth undoes the cast.
+  let room = CGRect(x: 0, y: 0, width: 320, height: 180)
+  let face = CIImage(color: CIColor(red: 0.85, green: 0.6, blue: 0.48)).cropped(to: CGRect(x: 110, y: 30, width: 100, height: 120))
+  let wall = face.composited(over: CIImage(color: CIColor(red: 0.55, green: 0.55, blue: 0.55)).cropped(to: room))
+  let balanced = WhiteBalance.measure(wall)
+  expect(balanced?.isNeutral == true && balanced?.advice == "Looks neutral.", "a gray wall reads as neutral (\(String(describing: balanced)))")
+  for (cast, word) in [(0.4, "Runs warm"), (-0.4, "Runs cool")] {
+    let filmed = Scene.graded(wall, Grade(warmth: cast))
+    let reading = WhiteBalance.measure(filmed)
+    let fixed = reading.flatMap { WhiteBalance.measure(Scene.graded(filmed, Grade(warmth: $0.fixWarmth))) }
+    expect(
+      (reading?.fixWarmth ?? 0) * cast < 0 && reading?.advice.contains(word) == true && reading?.advice.contains("in the edit neutralizes") == true
+        && fixed?.isNeutral == true,
+      "a \(cast) Warmth cast is read as \(word), and its suggested Warmth neutralizes it (\(String(describing: reading)), after: \(String(describing: fixed)))")
+  }
+  let redLamp = WhiteBalance.measure(Scene.graded(Scene.graded(wall, Grade(warmth: 1)), Grade(warmth: 1)))
+  expect(
+    redLamp?.fixWarmth == -1 && redLamp?.advice.contains("Too strong") == true && redLamp?.advice.contains("in the edit neutralizes") == false,
+    "a cast past Warmth's range says the edit can't fully undo it, not to set Warmth -1 (\(String(describing: redLamp)))")
+  let fluorescent = WhiteBalance.measure(wall.applyingFilter("CIColorMatrix", parameters: ["inputGVector": CIVector(x: 0, y: 1.2, z: 0, w: 0)]))
+  expect((fluorescent?.tint ?? 0) > WhiteBalance.Reading.tintTolerance && fluorescent?.advice.contains("green") == true, "a green cast is read as green (\(String(describing: fluorescent)))")
+  expect(WhiteBalance.measure(CIImage(color: .black).cropped(to: room)) == nil, "a black frame (lens cap, no light) has nothing to judge")
+
   // Cutout with no one in the frame: the background is removed, so nothing of the camera shows.
   let empty = Scene.personCutout(green)
   let leftOver = empty.extent.isEmpty ? [0.0, 0, 0] : pixel(empty.composited(over: CIImage(color: .black).cropped(to: green.extent)), x: 640, y: 360)
