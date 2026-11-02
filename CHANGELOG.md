@@ -15,6 +15,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### App
 - Zooming the timeline all the way out shows the whole timeline, however long the video is, and it stays fitted when the window or the edit's length changes.
+- When the timeline is zoomed out too far to read words, the Words row marks where you speak instead of going blank.
 - The timeline starts in output time, so cuts close up and sped-up clips draw at their real length. Clips show their frames in both modes; the toggle by Fit switches back to the whole recording.
 - An unanalyzed recording shows a labeled Analyze button in the toolbar and in the inspector.
 - The X on a banner is easier to hit. Before, only a click right on the X closed it.
