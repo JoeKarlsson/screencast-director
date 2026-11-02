@@ -109,6 +109,20 @@ private enum Track: CaseIterable {
     default: return 24
     }
   }
+  /// The track an item's bar sits on (nil for markers, which sit in the ruler).
+  static func of(_ s: Selection) -> Track? {
+    switch s {
+    case .segment, .gap: return .clips
+    case .zoom: return .zooms
+    case .layout: return .layouts
+    case .callout: return .titles
+    case .annotation: return .marks
+    case .insert: return .broll
+    case .animation: return .animations
+    case .sfx: return .sounds
+    case .marker: return nil
+    }
+  }
   var label: String {
     switch self {
     case .ruler: return ""
@@ -767,21 +781,12 @@ struct TimelineView: View {
     .accessibilityHidden(true)
   }
 
-  /// The items whose bars a drag box touches.
+  /// The items whose bars a drag box touches (markers sit in the ruler, outside the box's reach).
   private func items(in box: CGRect, _ plan: Plan) -> [Selection] {
-    func hits(_ track: Track, _ s: Double, _ e: Double) -> Bool {
-      box.intersects(CGRect(x: x(s), y: track.y, width: max(3, x(e) - x(s)), height: track.height))
+    plan.allItems.filter { s in
+      guard let track = Track.of(s), let (a, b) = plan.timeRange(of: s) else { return false }
+      return box.intersects(CGRect(x: x(a), y: track.y, width: max(3, x(b) - x(a)), height: track.height))
     }
-    var out: [Selection] = []
-    for (i, s) in plan.segments.enumerated() where hits(.clips, s.start, s.end) { out.append(.segment(i)) }
-    for (i, z) in plan.zooms.enumerated() where hits(.zooms, z.start, z.end) { out.append(.zoom(i)) }
-    for (i, l) in plan.layouts.enumerated() where hits(.layouts, l.start, l.end) { out.append(.layout(i)) }
-    for (i, c) in plan.callouts.enumerated() where hits(.titles, c.start, c.end) { out.append(.callout(i)) }
-    for (i, m) in plan.annotationList.enumerated() where hits(.marks, m.start, m.end) { out.append(.annotation(i)) }
-    for (i, c) in plan.insertList.enumerated() where hits(.broll, c.start, c.end) { out.append(.insert(i)) }
-    for (i, a) in plan.animationList.enumerated() where hits(.animations, a.start, a.end) { out.append(.animation(i)) }
-    for (i, e) in (plan.sfx ?? []).enumerated() where hits(.sounds, e.t, e.t) { out.append(.sfx(i)) }
-    return out
   }
 
   /// The in/out range: a band over the tracks and brackets in the ruler.
@@ -855,7 +860,7 @@ struct TimelineView: View {
           DragGesture(minimumDistance: 2)
             .onChanged { v in
               var nt = time(atX: x(e.t) + v.translation.width)
-              nt += snapShift([nt], excluding: sel, start: e.t, end: e.t)
+              nt += snapShift([nt], start: e.t, end: e.t)
               ui.drag = (sel, nt, nt)
             }
             .onEnded { _ in
@@ -916,7 +921,7 @@ struct TimelineView: View {
           DragGesture(minimumDistance: 2)
             .onChanged { v in
               var nt = time(atX: x(m.t) + v.translation.width)
-              nt += snapShift([nt], excluding: sel, start: m.t, end: m.t)
+              nt += snapShift([nt], start: m.t, end: m.t)
               ui.drag = (sel, nt, nt)
             }
             .onEnded { _ in
@@ -1169,7 +1174,7 @@ struct TimelineView: View {
             if project.isSelected(sel), !project.multi.isEmpty {
               // Several items selected: they all move together, snapping on this bar's edges.
               var shift = time(atX: x(start) + v.translation.width) - start
-              shift += snapShift([start + shift, end + shift], excluding: sel, start: start, end: end)
+              shift += snapShift([start + shift, end + shift], start: start, end: end)
               ui.groupShift = shift
               return
             }
@@ -1177,7 +1182,7 @@ struct TimelineView: View {
             let len = end - start
             let clamp = { (s: Double) in min(max(limits.lowerBound, s), limits.upperBound - len) }
             var s = clamp(time(atX: x(start) + v.translation.width))
-            s = clamp(s + snapShift([s, s + len], excluding: sel, start: start, end: end))
+            s = clamp(s + snapShift([s, s + len], start: start, end: end))
             ui.drag = (sel, s, s + len)
           }
           .onEnded { _ in
@@ -1227,7 +1232,7 @@ struct TimelineView: View {
         DragGesture(minimumDistance: 1)
           .onChanged { v in
             var t = time(atX: x(left ? start : end) + v.translation.width)
-            t += snapShift([t], excluding: sel, start: start, end: end)
+            t += snapShift([t], start: start, end: end)
             ui.drag =
               left
               ? (sel, min(max(limits.lowerBound, t), end - 0.1), end)
@@ -1244,33 +1249,25 @@ struct TimelineView: View {
 
   // MARK: Snapping
 
-  /// Edges a dragged item can snap to: the playhead, the ends of the recording, and every other
-  /// item's start and end (its own saved edges excluded).
-  private func snapTargets(excluding sel: Selection, start: Double, end: Double) -> [Double] {
+  /// Edges a dragged item can snap to: the playhead, the ends of the recording, the in/out points,
+  /// and every item's start and end (the dragged item's saved edges excluded).
+  private func snapTargets(start: Double, end: Double) -> [Double] {
     guard let p = project.plan else { return [] }
-    var ts = [project.playheadSrc, 0, p.source.duration]
-    for s in p.segments { ts += [s.start, s.end] }
-    for z in p.zooms { ts += [z.start, z.end] }
-    for l in p.layouts { ts += [l.start, l.end] }
-    for c in p.callouts { ts += [c.start, c.end] }
-    for m in p.annotationList { ts += [m.start, m.end] }
-    ts += p.markerList.map(\.t)
-    for c in p.insertList { ts += [c.start, c.end] }
-    for a in p.animationList { ts += [a.start, a.end] }
-    ts += [project.inPoint, project.outPoint].compactMap { $0 }
+    var ts = [project.playheadSrc, 0, p.source.duration] + [project.inPoint, project.outPoint].compactMap { $0 }
+    for s in p.allItems { if let (a, b) = p.timeRange(of: s) { ts += [a, b] } }
     return ts.filter { abs($0 - start) > 1e-9 && abs($0 - end) > 1e-9 || $0 == project.playheadSrc }
   }
 
   /// The shift that lands the nearest of `edges` on a target within `snapDistance` points (0 when
   /// none is close, or while ⌘ is held). Sets or clears the guide line.
-  private func snapShift(_ edges: [Double], excluding sel: Selection, start: Double, end: Double) -> Double {
+  private func snapShift(_ edges: [Double], start: Double, end: Double) -> Double {
     guard !NSEvent.modifierFlags.contains(.command) else {
       ui.snap = nil
       return 0
     }
     let tolerance = Double(Self.snapDistance) / ui.pxPerSec
     var best: (shift: Double, at: Double)?
-    for t in snapTargets(excluding: sel, start: start, end: end) {
+    for t in snapTargets(start: start, end: end) {
       for e in edges where abs(t - e) <= tolerance && abs(t - e) < abs(best?.shift ?? .infinity) {
         best = (t - e, t)
       }

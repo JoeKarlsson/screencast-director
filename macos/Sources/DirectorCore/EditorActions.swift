@@ -79,7 +79,7 @@ extension Plan {
     case .marker(let i): return markerList.indices.contains(i)
     case .insert(let i): return insertList.indices.contains(i)
     case .animation(let i): return animationList.indices.contains(i)
-    case .sfx(let i): return (sfx ?? []).indices.contains(i)
+    case .sfx(let i): return sfxList.indices.contains(i)
     case .gap(let g): return gaps.contains(g)
     }
   }
@@ -96,15 +96,18 @@ extension Plan {
     case .marker(let i): return (markerList[i].t, markerList[i].t)
     case .insert(let i): return (insertList[i].start, insertList[i].end)
     case .animation(let i): return (animationList[i].start, animationList[i].end)
-    case .sfx(let i): return (sfx![i].t, sfx![i].t)
+    case .sfx(let i): return (sfxList[i].t, sfxList[i].t)
     case .gap(let g): return (g.start, g.end)
     }
   }
 
-  /// ⌘A: every zoom, layout, title and annotation (the things that move as a group).
-  public var allMovableItems: [Selection] {
-    zooms.indices.map { .zoom($0) } + layouts.indices.map { .layout($0) } + callouts.indices.map { .callout($0) }
-      + annotationList.indices.map { .annotation($0) }
+  /// Every item on the timeline, track by track (cuts aren't items). A new kind of timed item gets
+  /// a `Selection` case and a line here, and ⌘A, snapping, the drag box and GIF export pick it up.
+  public var allItems: [Selection] {
+    segments.indices.map { .segment($0) } + zooms.indices.map { .zoom($0) } + layouts.indices.map { .layout($0) }
+      + callouts.indices.map { .callout($0) } + annotationList.indices.map { .annotation($0) }
+      + markerList.indices.map { .marker($0) } + insertList.indices.map { .insert($0) }
+      + animationList.indices.map { .animation($0) } + sfxList.indices.map { .sfx($0) }
   }
 
   /// Deletes the selected items: clips are cut and cuts restored by time (indices shift as the

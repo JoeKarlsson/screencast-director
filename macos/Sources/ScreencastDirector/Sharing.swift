@@ -74,21 +74,13 @@ struct SharingSection: View {
 }
 
 extension ProjectModel {
-  /// The output range (seconds) of the selected clip, zoom or title, or nil for the whole video.
+  /// The output range (seconds) of the selected item, or nil for the whole video (nothing
+  /// selected, or a cut or point item that plays for no time).
   var selectedOutputRange: (Double, Double)? {
-    guard let plan, let selection else { return nil }
-    let fps = Double(plan.output.fps)
-    func range(_ a: Double, _ b: Double) -> (Double, Double) {
-      (srcToOutClamped(mapped, a, fps: plan.output.fps) / fps, srcToOutClamped(mapped, b, fps: plan.output.fps, before: true) / fps)
-    }
-    switch selection {
-    case .segment(let i) where plan.segments.indices.contains(i): return range(plan.segments[i].start, plan.segments[i].end)
-    case .zoom(let i) where plan.zooms.indices.contains(i): return range(plan.zooms[i].start, plan.zooms[i].end)
-    case .callout(let i) where plan.callouts.indices.contains(i): return range(plan.callouts[i].start, plan.callouts[i].end)
-    case .annotation(let i) where plan.annotationList.indices.contains(i):
-      return range(plan.annotationList[i].start, plan.annotationList[i].end)
-    default: return nil
-    }
+    guard let plan, let selection, let (a, b) = plan.timeRange(of: selection) else { return nil }
+    let fps = plan.output.fps
+    let start = srcToOutClamped(mapped, a, fps: fps) / Double(fps), end = srcToOutClamped(mapped, b, fps: fps, before: true) / Double(fps)
+    return end > start ? (start, end) : nil
   }
 
   /// Export > GIF (for docs): asks for a range (the selection, else the whole video) and writes a

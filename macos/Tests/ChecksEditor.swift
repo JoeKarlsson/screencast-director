@@ -40,7 +40,12 @@ func editorActionChecks() {
   expect(!base.has(.gap(Gap(start: 3, end: 4))), "a gap that isn't a cut doesn't exist")
   expect(base.timeRange(of: .zoom(1))! == (5, 7) && base.timeRange(of: .marker(0))! == (4, 4) && base.timeRange(of: .sfx(0))! == (6, 6), "time ranges")
   expect(base.timeRange(of: .callout(5)) == nil, "no range for a stale selection")
-  expect(base.allMovableItems == [.zoom(0), .zoom(1), .zoom(2), .callout(0)], "⌘A picks zooms, layouts, titles and annotations")
+  let segs = base.segments.indices.map { Selection.segment($0) }
+  expect(
+    base.allItems == segs + [.zoom(0), .zoom(1), .zoom(2), .callout(0), .marker(0), .marker(1), .sfx(0)],
+    "every item, track by track (\(base.allItems))")
+  expect(base.allItems.filter(\.movable) == [.zoom(0), .zoom(1), .zoom(2), .callout(0), .marker(0), .marker(1), .sfx(0)], "⌘A picks every movable item, markers and sounds too")
+  expect(base.allItems.allSatisfy { base.timeRange(of: $0) != nil }, "every item has a time range")
 
   // Delete: several kinds at once, by index last first; a clip is cut and a cut restored by time.
   var del = base

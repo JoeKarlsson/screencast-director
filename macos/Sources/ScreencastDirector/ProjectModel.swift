@@ -338,18 +338,7 @@ final class ProjectModel: ObservableObject {
   /// dragging doesn't write the file and its history snapshot on every tick.
   private func commit(_ p: Plan, deferWrite: Bool = false) {
     // Drop a selection the new plan doesn't have before publishing it, so views never see both.
-    switch selection {
-    case .segment(let i) where i >= p.segments.count: selection = nil
-    case .zoom(let i) where i >= p.zooms.count: selection = nil
-    case .layout(let i) where i >= p.layouts.count: selection = nil
-    case .callout(let i) where i >= p.callouts.count: selection = nil
-    case .annotation(let i) where i >= p.annotationList.count: selection = nil
-    case .marker(let i) where i >= p.markerList.count: selection = nil
-    case .insert(let i) where i >= p.insertList.count: selection = nil
-    case .animation(let i) where i >= p.animationList.count: selection = nil
-    case .sfx(let i) where i >= (p.sfx ?? []).count: selection = nil
-    default: break
-    }
+    if let s = selection, !p.has(s) { selection = nil }
     multi = multi.filter { p.has($0) }
     plan = p
     pendingWrite?.cancel()
@@ -435,7 +424,7 @@ final class ProjectModel: ObservableObject {
   /// ⌘A: every zoom, layout, title and annotation (the things that move as a group).
   func selectAllItems() {
     guard let p = plan else { return }
-    select(p.allMovableItems, adding: false)
+    select(p.allItems.filter(\.movable), adding: false)
   }
 
   // MARK: B-roll
