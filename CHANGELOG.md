@@ -12,6 +12,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Record any connected display, not just the main one.
 - The recording widget floats above full-screen apps and other floating windows, and the arrow on its right shrinks it to just the clock and Stop.
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
+- `sd plan` (and `director plan`) on a recording that hasn't been analyzed says to run `sd analyze` first, instead of writing a draft that cuts the whole video.
 
 ### App
 - Plan the edit in the script. An `## Edit plan` in the header of the Followspot script you record with (zooms, annotations, callouts, animations, sound effects, punch-ins, layouts, each tied to the words you say) shows up in `describe`, and Claude applies it when it edits.

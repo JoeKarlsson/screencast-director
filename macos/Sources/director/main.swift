@@ -83,6 +83,10 @@ do {
     if FileManager.default.fileExists(atPath: project.planURL.path), args.dropFirst(2).first != "--force" {
       fail("\(project.planURL.path) exists (it may hold edits). Pass --force to regenerate it.")
     }
+    // With nothing to go on, every stretch reads as idle and the draft cuts the whole recording.
+    if project.words.isEmpty && project.motion.isEmpty && project.events.isEmpty {
+      fail("\(dir.path) has no transcript, screen motion or input events yet. Run `director analyze` (sd analyze) first.")
+    }
     let plan = buildPlan(project)
     try plan.write(to: project.planURL)
     print("wrote \(project.planURL.path): \(plan.segments.count) segments, \(plan.zooms.count) zooms")

@@ -40,6 +40,10 @@ need_project() { [ -f "$1/source.json" ] || die "no project at $1 (run sd record
 # Host-clock start time of the first video frame, from ffmpeg's avfoundation input log.
 capture_start() { sed -nE 's/.*Stream #0:0: Video:.* start ([0-9.]+).*/\1/p' "$1" | head -1; }
 
+# How much later the screen's first frame came than the camera's (screen start - camera start), to
+# three places: source.json's camera.offset.
+camera_offset() { awk -v s="$1" -v c="$2" 'BEGIN { printf "%.3f", s - c }'; }
+
 write_source() { # dir video [captureStart] [cameraVideo cameraOffset]
   local dir=$1 video=$2 start=${3:-} cam=${4:-} off=${5:-0}
   local w h d
@@ -102,7 +106,7 @@ cmd_record() {
   if [ $camera = 1 ] && [ -s "$dir/camera.mkv" ]; then
     ffmpeg -hide_banner -loglevel error -i "$dir/camera.mkv" -c copy -movflags +faststart "$dir/camera.mp4" && rm "$dir/camera.mkv"
     cam_video=camera.mp4
-    cam_off=$(awk -v a="$(capture_start "$dir/.ffmpeg-camera.log")" -v b="$start" 'BEGIN { printf "%.3f", b - a }')
+    cam_off=$(camera_offset "$start" "$(capture_start "$dir/.ffmpeg-camera.log")")
   fi
   write_source "$dir" screen.mp4 "$start" "$cam_video" "$cam_off"
   echo "Saved $dir. Next: sd auto $name   (or sd analyze/plan, then ask Claude to edit plan.json)"
@@ -160,6 +164,8 @@ cmd_auto() {
   cmd_render "$1"
 }
 
+# Sourced (test/sd-test.sh), it only defines the functions.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 cmd=${1:-help}; shift || true
 case $cmd in
   devices|record|import|analyze|plan|describe|render|auto) "cmd_$cmd" "$@" ;;
