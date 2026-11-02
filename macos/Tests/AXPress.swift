@@ -7,13 +7,14 @@ import Foundation
 //
 //   axpress <pid> help|description <text>   press the first button whose help or description matches
 //                                           (text ending in * is a prefix); prints "pressed" or "missing"
-//   axpress <pid> focus-field               focus the first text field; prints "focused" or "missing"
-//   axpress <pid> field-value               print the first text field's text
+//   axpress <pid> focus-field <placeholder>  focus the text field with that placeholder (* for a prefix);
+//                                           prints "focused" or "missing"
+//   axpress <pid> field-value <placeholder>  print that text field's text
 //   axpress <pid> click-title               a real mouse click on the middle of the first window's title bar
 
 let args = CommandLine.arguments
 func usage() -> Never {
-  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text> | focus-field | field-value | click-title\n".utf8))
+  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title\n".utf8))
   exit(2)
 }
 guard args.count >= 3, let pid = pid_t(args[1]) else { usage() }
@@ -34,8 +35,15 @@ func first(_ element: AXUIElement, depth: Int = 0, where test: (AXUIElement) -> 
   return nil
 }
 
-func isTextField(_ e: AXUIElement) -> Bool {
-  [kAXTextFieldRole, kAXTextAreaRole].contains(attribute(e, kAXRoleAttribute) as String? ?? "")
+func matches(_ value: String, _ wanted: String) -> Bool {
+  wanted.hasSuffix("*") ? value.hasPrefix(String(wanted.dropLast())) : value == wanted
+}
+
+func textField(_ placeholder: String) -> AXUIElement? {
+  first(app) { e in
+    [kAXTextFieldRole, kAXTextAreaRole].contains(attribute(e, kAXRoleAttribute) as String? ?? "")
+      && matches(attribute(e, kAXPlaceholderValueAttribute) as String? ?? "", placeholder)
+  }
 }
 
 func check(_ result: AXError, _ what: String) {
@@ -52,7 +60,7 @@ case "help", "description":
   let wanted = args[3]
   let button = first(app) { e in
     guard attribute(e, kAXRoleAttribute) as String? == kAXButtonRole, let v: String = attribute(e, name) else { return false }
-    return wanted.hasSuffix("*") ? v.hasPrefix(String(wanted.dropLast())) : v == wanted
+    return matches(v, wanted)
   }
   guard let button else {
     print("missing")
@@ -61,14 +69,15 @@ case "help", "description":
   check(AXUIElementPerformAction(button, kAXPressAction as CFString), "pressing")
   print("pressed")
 case "focus-field":
-  guard let field = first(app, where: isTextField) else {
+  guard args.count == 4 else { usage() }
+  guard let field = textField(args[3]) else {
     print("missing")
     exit(0)
   }
   check(AXUIElementSetAttributeValue(field, kAXFocusedAttribute as CFString, kCFBooleanTrue), "focusing")
   print("focused")
 case "field-value":
-  guard let field = first(app, where: isTextField) else { usage() }
+  guard args.count == 4, let field = textField(args[3]) else { usage() }
   print(attribute(field, kAXValueAttribute) as String? ?? "")
 case "click-title":
   guard let windows: [AXUIElement] = attribute(app, kAXWindowsAttribute), let window = windows.first,

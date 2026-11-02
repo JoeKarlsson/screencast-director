@@ -46,7 +46,20 @@ last_speed() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["
 original="$(segments)"
 [[ "$(last_speed)" == 1 ]] || fail "fixture plan changed: expected the last clip at 1x"
 
-"$APP/Contents/MacOS/ScreencastDirector" -projectsFolder "$TMP" -openProject "$PROJECT" >"$TMP/app.log" 2>&1 &
+# A stand-in Claude for the AI edit steps: "fail" exits with an error the way a signed-out Claude does,
+# "hang" keeps editing until it's stopped.
+cat >"$TMP/claude" <<SH
+#!/bin/bash
+case "\$(cat "$TMP/claude-mode")" in
+  fail) echo "Not signed in. Run claude to log in." >&2; exit 1 ;;
+  hang) echo \$\$ >"$TMP/claude.pid"; exec sleep 60 ;;
+esac
+SH
+chmod +x "$TMP/claude"
+echo fail >"$TMP/claude-mode"
+
+"$APP/Contents/MacOS/ScreencastDirector" -projectsFolder "$TMP" -openProject "$PROJECT" -claudePath "$TMP/claude" -ai.provider claudeCode \
+  >"$TMP/app.log" 2>&1 &
 PID=$!
 echo "launched test instance, PID $PID"
 
@@ -127,7 +140,7 @@ echo "ok: ⌘Z restored the original plan"
 
 # 4b. Clicking outside the Claude box gives the shortcuts back: with the box focused, a click on the
 # title bar takes focus out of it, so S speeds up the selected clip instead of typing an s.
-[[ "$("$AXPRESS" "$PID" focus-field)" == focused ]] || fail "no Claude box to focus"
+[[ "$("$AXPRESS" "$PID" focus-field "Ask *")" == focused ]] || fail "no Claude box to focus"
 sleep 0.5
 front
 [[ "$("$AXPRESS" "$PID" click-title)" == clicked ]] || fail "couldn't click the title bar"
@@ -137,8 +150,8 @@ sleep 0.6
 front
 ax 'key code 1' >/dev/null # S
 for _ in $(seq 1 20); do [[ "$(last_speed)" != 1 ]] && break; sleep 0.2; done
-[[ "$(last_speed)" != 1 ]] || fail "after clicking outside the Claude box, S still went to the box (it holds \"$("$AXPRESS" "$PID" field-value)\")"
-[[ -z "$("$AXPRESS" "$PID" field-value)" ]] || fail "S typed into the Claude box after clicking outside it"
+[[ "$(last_speed)" != 1 ]] || fail "after clicking outside the Claude box, S still went to the box (it holds \"$("$AXPRESS" "$PID" field-value "Ask *")\")"
+[[ -z "$("$AXPRESS" "$PID" field-value "Ask *")" ]] || fail "S typed into the Claude box after clicking outside it (it holds \"$("$AXPRESS" "$PID" field-value "Ask *")\")"
 echo "ok: clicking outside the Claude box gave S back to the timeline"
 front
 ax 'key code 6 using command down' >/dev/null # ⌘Z
@@ -196,10 +209,33 @@ for _ in $(seq 1 20); do [[ "$(music_file)" == music/advertime.m4a ]] && break; 
 [[ -s "$PROJECT/music/advertime.m4a" ]] || fail "choosing Advertime didn't copy it into the project's music folder"
 echo "ok: the music picker set Advertime as the music and copied it into the project"
 
-# 8. Quit: stop the test instance by PID only.
-kill "$PID"
+# 8. An AI edit where Claude fails before saying anything closes out with its error, not "editing…".
+ask() {
+  [[ "$("$AXPRESS" "$PID" focus-field "Ask *")" == focused ]] || fail "no Claude box to type in"
+  front
+  ax "keystroke \"$1\"" >/dev/null
+  [[ "$("$AXPRESS" "$PID" description "Ask *")" == pressed ]] || fail "no send button in the Claude box"
+}
+last_reply() { python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); print(a[-1]["reply"] if a else "")' "$PROJECT/.history/asks.json" 2>/dev/null || true; }
+echo fail >"$TMP/claude-mode"
+ask "zoom in"
+for _ in $(seq 1 150); do [[ "$(last_reply)" == *"Not signed in"* ]] && break; sleep 0.2; done
+[[ "$(last_reply)" == *"exit status 1"*"Not signed in"* ]] || fail "a failed edit didn't close out with Claude's error (reply: $(last_reply))"
+echo "ok: a failed edit closed out with Claude's error"
+
+# 9. Quitting while Claude is still editing stops it and records that, then the test instance quits.
+echo hang >"$TMP/claude-mode"
+ask "tighten the intro"
+for _ in $(seq 1 150); do [[ -s "$TMP/claude.pid" ]] && break; sleep 0.2; done
+claude_pid="$(cat "$TMP/claude.pid" 2>/dev/null)" || fail "the stand-in Claude never started"
+kill -0 "$claude_pid" 2>/dev/null || fail "the stand-in Claude isn't running"
+front
+ax 'key code 12 using command down' >/dev/null # ⌘Q
 for _ in $(seq 1 50); do kill -0 "$PID" 2>/dev/null || break; sleep 0.1; done
-kill -0 "$PID" 2>/dev/null && fail "test instance didn't quit"
+kill -0 "$PID" 2>/dev/null && fail "test instance didn't quit on ⌘Q"
 PID=""
-echo "ok: test instance quit"
+sleep 0.5
+kill -0 "$claude_pid" 2>/dev/null && { kill "$claude_pid"; fail "quitting left Claude running"; }
+[[ "$(last_reply)" == *"Stopped when the app quit"* ]] || fail "the stopped edit wasn't recorded (reply: $(last_reply))"
+echo "ok: quitting stopped Claude, recorded it, and the test instance quit"
 echo "smoke test passed"

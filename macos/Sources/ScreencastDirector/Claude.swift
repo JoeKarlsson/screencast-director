@@ -5,8 +5,10 @@ import Foundation
 enum Claude {
   /// GUI apps don't get the shell's PATH, so ask a login shell where `claude` is, then try the
   /// installers' usual folders (a PATH set in .zshrc never reaches a non-interactive shell).
+  /// `-claudePath <file>` points it elsewhere, so the smoke test can run a stand-in Claude.
   static let executable: URL? = {
-    loginShellClaude() ?? ["~/.local/bin/claude", "~/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+    if let path = UserDefaults.standard.string(forKey: "claudePath") { return URL(fileURLWithPath: path) }
+    return loginShellClaude() ?? ["~/.local/bin/claude", "~/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
       .map { URL(fileURLWithPath: NSString(string: $0).expandingTildeInPath) }
       .first { FileManager.default.isExecutableFile(atPath: $0.path) }
   }()
