@@ -392,23 +392,12 @@ public final class Scene: @unchecked Sendable {
     var src = Scene.graded(src0, plan.camera?.grade)
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
-    var r = ciRect(b)
-    var zoom = max(1, cam?.zoom ?? 1)
-    // The cutout is for the bubble over the screen; the full camera keeps the room behind the
-    // speaker. As the box grows from the bubble to the full camera, the background fades back in.
-    // A cutout bubble has no edge to show, so it widens to the camera's shape around its center
-    // and skips the framing zoom: the whole person shows, standing on the box's bottom edge,
-    // instead of the box's sides and the zoom slicing off the shoulders and arms.
     let cut = cutoutWeight(b)
     if cut > 0 {
       let person = Scene.personCutout(src)
       src = cut < 1 ? src.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: person, kCIInputTimeKey: cut]) : person
-      let wide = max(r.width, r.height * cw / ch)
-      r = r.insetBy(dx: (r.width - (r.width + (wide - r.width) * cut)) / 2, dy: 0)
-      zoom += (1 - zoom) * cut
     }
-    // A punch-in snaps tighter for its whole span, with no ease, like a cut to a closer shot.
-    if let punch = punchIns.last(where: { f >= $0.s && f < $0.e }) { zoom *= max(1, punch.scale) }
+    let (r, zoom) = cameraFraming(b, frame: f, cameraWidth: cw, cameraHeight: ch)
     let k = max(r.width / cw, r.height / ch) * zoom
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
     // Keep the framing point centered, clamped so the camera image always covers the box.
@@ -419,6 +408,26 @@ public final class Scene: @unchecked Sendable {
     ty = min(r.minY, max(ty, r.maxY - ch * k))
     let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
     return masked(placed, r, radius: b.r, opacity: b.opacity)
+  }
+
+  /// Where the camera picture goes and how far it's zoomed, for a camera box at an output frame.
+  /// The cutout is for the bubble over the screen; the full camera keeps the room behind the
+  /// speaker, so as the box grows from the bubble to the full camera, the background fades back in.
+  /// A cutout bubble has no edge to show, so it widens to the camera's shape around its center
+  /// and skips the framing zoom: the whole person shows, standing on the box's bottom edge,
+  /// instead of the box's sides and the zoom slicing off the shoulders and arms.
+  func cameraFraming(_ b: Box, frame f: Double, cameraWidth cw: Double, cameraHeight ch: Double) -> (rect: CGRect, zoom: Double) {
+    var r = ciRect(b)
+    var zoom = max(1, plan.camera?.zoom ?? 1)
+    let cut = cutoutWeight(b)
+    if cut > 0 {
+      let wide = max(r.width, r.height * cw / ch)
+      r = r.insetBy(dx: (r.width - (r.width + (wide - r.width) * cut)) / 2, dy: 0)
+      zoom += (1 - zoom) * cut
+    }
+    // A punch-in snaps tighter for its whole span, with no ease, like a cut to a closer shot.
+    if let punch = punchIns.last(where: { f >= $0.s && f < $0.e }) { zoom *= max(1, punch.scale) }
+    return (r, zoom)
   }
 
   /// How far the camera box is from the full camera toward the bubble (0 full camera, 1 bubble),

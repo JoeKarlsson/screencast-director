@@ -1,3 +1,4 @@
+import CoreImage
 import Foundation
 
 // Plain-swiftc checks for DirectorCore (Swift Testing and XCTest need Xcode). Run: macos/test.sh
@@ -8,6 +9,15 @@ func expect(_ ok: Bool, _ what: String, line: Int = #line) {
     failures += 1
     print("FAIL line \(line): \(what)")
   }
+}
+
+/// One pixel's red, green and blue (0...1) at a point in Core Image coordinates (bottom-left origin).
+func pixel(_ image: CIImage, x: Double, y: Double) -> [Double] {
+  var px = [UInt8](repeating: 0, count: 4)
+  CIContext().render(
+    image, toBitmap: &px, rowBytes: 4, bounds: CGRect(x: x, y: y, width: 1, height: 1), format: .RGBA8,
+    colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+  return px.prefix(3).map { Double($0) / 255 }
 }
 
 @main
@@ -622,6 +632,73 @@ struct Checks {
     let (attachedClean, attachedReverted) = PathSafety.sanitize(
       { var p = attached; p.callouts[0].sound = Sound(file: "/etc/passwd"); return p }(), previous: attached, project: URL(fileURLWithPath: "/tmp/fx-project"))
     expect(attachedClean.callouts[0].sound == nil && attachedReverted == ["sound.file"], "an attached sound outside the project is removed")
+
+    // Attached sounds on annotations and animation beats: each plays when its mark or beat appears
+    // (an unknown beat at the animation's start), moves with it, and is removed when it points outside.
+    var marked = attached
+    marked.callouts = []
+    var mark = Annotation(start: 4, end: 6, kind: "box", x: 0.1, y: 0.1, w: 0.2, h: 0.2, text: "here")
+    mark.sound = Sound(file: "sfx/ding.m4a")
+    marked.annotations = [mark]
+    var beats = Animation(start: 8, end: 12, template: "hub", data: .object([:]), cues: ["hub": 9.5])
+    beats.sounds = ["start": Sound(file: "sfx/whoosh.m4a"), "hub": Sound(file: "sfx/pop.m4a", gainDB: -4), "nope": Sound(file: "sfx/x.m4a")]
+    marked.animations = [beats]
+    let markedFx = marked.soundEffects
+    expect(markedFx.map(\.t) == [4, 8, 8, 9.5], "annotation and beat sounds play when they appear (\(markedFx.map(\.t)))")
+    expect(markedFx.first { $0.t == 9.5 }?.file == "sfx/pop.m4a" && markedFx.first { $0.t == 9.5 }?.gainDB == -4, "a beat's sound keeps its level")
+    marked.annotations?[0].start = 5
+    marked.animations?[0].move(by: 2)
+    expect(marked.soundEffects.map(\.t) == [5, 10, 10, 11.5], "sounds move with their mark and animation")
+    var markedEvil = marked
+    markedEvil.annotations?[0].sound = Sound(file: "/etc/passwd")
+    markedEvil.animations?[0].sounds?["hub"] = Sound(file: "/etc/hosts")
+    let (markedClean, markedReverted) = PathSafety.sanitize(markedEvil, previous: marked, project: URL(fileURLWithPath: "/tmp/fx-project"))
+    expect(
+      markedClean.annotations?[0].sound == nil && markedClean.animations?[0].sounds?["hub"] == nil
+        && markedClean.animations?[0].sounds?["start"] != nil && markedReverted == ["sound.file"],
+      "outside sounds on marks and beats are removed, the rest kept")
+
+    // Camera punch-ins: the camera snaps tighter for the punch's span only, and describe lists them.
+    var punchPlan = buildPlan(p)
+    punchPlan.intro = nil
+    punchPlan.outro = nil
+    punchPlan.segments = [Segment(start: 0, end: 12, speed: 1)]
+    punchPlan.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+    punchPlan.camera?.zoom = 1.2
+    punchPlan.camera?.punchIns = [PunchIn(start: 2, end: 4, scale: 2, note: "the reveal")]
+    let punchScene = Scene(plan: punchPlan, words: [], clicks: [], shortcuts: [])
+    let pipCam = layoutBoxes(.pip, plan: punchPlan).cam, fullCam = layoutBoxes(.camera, plan: punchPlan).cam
+    let zoomAt = { (f: Double) in punchScene.cameraFraming(pipCam, frame: f, cameraWidth: 1280, cameraHeight: 720).zoom }
+    expect(zoomAt(59) == 1.2 && abs(zoomAt(60) - 2.4) < 1e-9 && abs(zoomAt(119) - 2.4) < 1e-9 && zoomAt(120) == 1.2, "a punch-in snaps in and out with no ease")
+    let punchText = describe(p, punchPlan)
+    expect(punchText.contains("## Camera punch-ins") && punchText.contains("src 0:02.0-0:04.0 2x") && punchText.contains("the reveal"), "describe lists punch-ins")
+
+    // Cutout: the bubble cuts out the background, widens to the camera's shape and drops the framing
+    // zoom (no sliced-off shoulders); the full camera keeps the room and the zoom.
+    var cutPlan = punchPlan
+    cutPlan.camera?.punchIns = nil
+    cutPlan.camera?.cutout = true
+    let cutScene = Scene(plan: cutPlan, words: [], clicks: [], shortcuts: [])
+    expect(cutScene.cutoutWeight(fullCam) == 0 && cutScene.cutoutWeight(pipCam) == 1 && punchScene.cutoutWeight(pipCam) == 0, "only a cutout bubble cuts out")
+    let bubble = cutScene.cameraFraming(pipCam, frame: 0, cameraWidth: 1280, cameraHeight: 720)
+    let pipRect = cutScene.ciRect(pipCam)
+    expect(
+      abs(bubble.rect.width - pipRect.height * 16 / 9) < 0.5 && abs(bubble.rect.midX - pipRect.midX) < 0.5 && bubble.rect.height == pipRect.height
+        && bubble.zoom == 1, "a cutout bubble widens around its center to the camera's shape (\(bubble.rect) from \(pipRect))")
+    let room = cutScene.cameraFraming(fullCam, frame: 0, cameraWidth: 1280, cameraHeight: 720)
+    expect(room.rect == cutScene.ciRect(fullCam) && room.zoom == 1.2, "the full camera keeps its box and framing zoom")
+
+    // Chapter cards: the scrim (72% black, blended in linear light) takes a white screen to about 0.57
+    // in sRGB, so the title reads over a busy screen; the old 45% scrim left it at about 0.77.
+    var scrimPlan = punchPlan
+    scrimPlan.camera = nil
+    let whiteScreen = CIImage(color: .white).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    let bare = Scene(plan: scrimPlan, words: [], clicks: [], shortcuts: []).render(frame: 90, screen: whiteScreen, camera: nil)
+    scrimPlan.callouts = [Callout(start: 1, end: 5, text: "Chapter one", style: "chapter")]
+    let carded = Scene(plan: scrimPlan, words: [], clicks: [], shortcuts: []).render(frame: 90, screen: whiteScreen, camera: nil)
+    let spotX = Double(scrimPlan.output.width) * 0.3, spotY = Double(scrimPlan.output.height) * 0.3
+    let bareGreen = pixel(bare, x: spotX, y: spotY)[1], cardGreen = pixel(carded, x: spotX, y: spotY)[1]
+    expect(bareGreen > 0.5 && cardGreen < 0.65, "the chapter scrim darkens the screen (\(bareGreen) to \(cardGreen))")
 
     let mutedMap = mapSegments([Segment(start: 0, end: 2, speed: 1), Segment(start: 2, end: 10, speed: 8)], fps: fps)
     let mutedPages = Scene.captionPages(
