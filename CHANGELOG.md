@@ -84,6 +84,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
 - Sound effects: `sfx` in plan.json plays a whoosh, pop or ding at a moment in the recording, at full volume over the voice. Ask Claude to add them; the Audio tab lists them and removes them, and `describe` shows where each lands (or that it's cut).
+- Captions skip words in sped-up stretches. Those play muted, so their words showed up on screen without being heard.
 
 ### Motion
 - A video that opens (or ends) on the full camera starts and stays there, instead of easing in from the bubble over the first frames.

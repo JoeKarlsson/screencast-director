@@ -176,7 +176,10 @@ public final class Scene: @unchecked Sendable {
     var pages: [Page] = []
     var lastEnd = -Double.infinity
     for w in words {
-      guard let startF = srcToOut(mapped, w.start, fps: fps) else { continue }
+      // Sped-up segments play muted (Composition), so their words are never heard.
+      guard let startF = srcToOut(mapped, w.start, fps: fps),
+        mapped.first(where: { w.start >= $0.start && w.start < $0.end }).map({ $0.speed <= 1.01 }) ?? true
+      else { continue }
       let endF = srcToOut(mapped, max(w.start, w.end - 0.001), fps: fps) ?? startF + 3
       let pause = w.start - lastEnd > 0.8
       if pages.isEmpty || pause || pages[pages.count - 1].words.count >= maxWords {
