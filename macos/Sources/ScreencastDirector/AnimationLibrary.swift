@@ -25,11 +25,9 @@ enum AnimationLibrary {
     return map
   }()
 
-  /// Logo names, alphabetically, with aliases of the same file (ChatGPT for OpenAI) shown once.
-  static let logoNames: [String] = {
-    var seen = Set<String>()
-    return logoFiles.keys.sorted().filter { seen.insert(logoFiles[$0]!).inserted }
-  }()
+  /// Logo names, alphabetically. Aliases of one file (ChatGPT and OpenAI) both stay, so a plan that
+  /// names either one finds its entry in the pickers.
+  static let logoNames: [String] = logoFiles.keys.sorted()
 
   private static var images: [String: NSImage] = [:]
 
