@@ -156,6 +156,20 @@ struct Checks {
       ---
       """)
     expect(script == ["Click the record button to start", "Then talk through your demo like normal"], "script lines skip directions and headers")
+    let editPlan = scriptEditPlan("""
+      # Title
+      ## Edit plan (Screencast Director)
+
+      **Sounds needed:** ding
+      - at "Click the record button": zoom on Record · sfx ding
+      ## Read-aloud flags
+      None.
+      ---
+      Click the record button to start.
+      ---
+      """)
+    expect(editPlan == ["**Sounds needed:** ding", "- at \"Click the record button\": zoom on Record · sfx ding"], "edit plan read from the header only")
+    expect(scriptEditPlan("## Edit plan\n- zoom\n").isEmpty, "no header rule, no edit plan")
     let takes = [
       Word(text: "Click", start: 0, end: 0.3), Word(text: "the", start: 0.35, end: 0.5), Word(text: "record", start: 0.55, end: 0.9),
       Word(text: "button", start: 0.95, end: 1.3), Word(text: "to", start: 1.35, end: 1.5), Word(text: "start", start: 1.55, end: 2.0),

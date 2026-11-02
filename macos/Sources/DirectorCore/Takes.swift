@@ -45,6 +45,24 @@ func tokens(_ s: String) -> [String] {
   s.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
 }
 
+/// The `## Edit plan` section of a script's header (above the first `---`): the edit the user
+/// planned while writing, one line per moment, each anchored on spoken words. Empty when absent.
+public func scriptEditPlan(_ markdown: String) -> [String] {
+  let all = markdown.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+  // A header exists only when a script follows it between two `---` lines.
+  guard let rule = all.firstIndex(of: "---"), all[(rule + 1)...].contains("---") else { return [] }
+  var lines: [String] = []
+  var inPlan = false
+  for line in all[..<rule] {
+    if line.hasPrefix("#") {
+      inPlan = line.lowercased().hasPrefix("## edit plan")
+      continue
+    }
+    if inPlan && !line.isEmpty { lines.append(line) }
+  }
+  return lines
+}
+
 /// The spoken lines of a teleprompter script: Markdown headings, `**Label:**` lines, `*[...]*`
 /// and `[...]` stage directions are skipped; paragraphs are split into sentences. A header block
 /// above a `---` line (as in the script writer's format) is skipped too.

@@ -25,7 +25,7 @@ Arguments: a project name (folder under `projects/`), plus optional instructions
 
 ## 2. Edit pass
 
-Apply the user's instructions first. Then make a quality pass unless they asked for only a specific change:
+Apply the user's instructions first. If the project's `script.md` has an `## Edit plan` in its header (`describe` prints it), apply it too unless the user asked for one specific change: each line anchors an effect on quoted spoken words, so find them in `transcript.json` (the last kept take) and add the zoom, annotation, callout, animation (via `/animate`), sfx, punch-in, layout, transition, speed-up or insert it asks for. Use only `sfx/` and `broll/` files that exist, matched by name, and list any the plan names that are missing, plus any line whose words were never said or are cut. The format is in `video-script-writer`'s `references/edit-plan.md` in the CData skills repo (`~/Documents/dev/cdata/skills`). Then make a quality pass unless they asked for only a specific change:
 
 - **Retakes:** when the speaker says a sentence, stumbles, and says it again, keep only the last clean take. Look for repeated phrases in the transcript and for "sorry", "let me try that again", "wait".
 - **Dead air:** gaps over ~0.6 s with nothing on screen should be cut; leave about 0.1 s on each side.

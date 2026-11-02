@@ -14,6 +14,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
+- Plan the edit in the script. An `## Edit plan` in the header of the Followspot script you record with (zooms, annotations, callouts, animations, sound effects, punch-ins, layouts, each tied to the words you say) shows up in `describe`, and Claude applies it when it edits.
 - Space plays and pauses even after you've sent a Claude edit (the box keeps focus but is empty), and clicking the preview or timeline takes focus out of a text field so the shortcuts work again.
 - Zooming the timeline (slider, pinch, ⌥-scroll, ⌘= / ⌘-) keeps the playhead where it is, and centers it if it was scrolled out of view, instead of drifting ahead while you drag the slider.
 - An AI edit no longer shows "Claude is editing…" forever. Each reply goes to the request it answers, an edit that fails says why (Claude Code's own error, like being signed out), and one that finishes silently says so. Quitting the app stops a Claude edit still running instead of leaving it changing your plan in the background. Old edits stuck this way now say they didn't finish.

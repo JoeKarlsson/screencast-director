@@ -72,6 +72,11 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
       for l in missing.prefix(12) { out.append("  - \"\(l)\"") }
     }
   }
+  if !project.editPlan.isEmpty {
+    out.append("")
+    out.append("## Edit plan (script.md header: the edit the user planned; each quote is spoken words to find in the transcript)")
+    for l in project.editPlan { out.append("  " + l) }
+  }
 
   out.append("")
   out.append("## Zooms")

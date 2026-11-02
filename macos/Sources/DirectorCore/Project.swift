@@ -43,6 +43,8 @@ public struct Project {
   /// Spoken lines of the teleprompter script (script.md, copied from Followspot when you record
   /// with it open). Empty when there's no script.
   public var script: [String] = []
+  /// The script header's edit plan (`scriptEditPlan`): effects the user planned before recording.
+  public var editPlan: [String] = []
 
   public var planURL: URL { dir.appendingPathComponent("plan.json") }
   /// Retake marks (⌃⌥⌘M while recording), in seconds into the video.
@@ -73,6 +75,7 @@ public struct Project {
     }
     if let md = try? String(contentsOf: dir.appendingPathComponent("script.md"), encoding: .utf8) {
       p.script = scriptLines(md)
+      p.editPlan = scriptEditPlan(md)
     }
     return p
   }
