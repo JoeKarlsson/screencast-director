@@ -236,7 +236,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
   /// The bundled tour video, in its own window.
   func watchTour() {
-    guard let url = Bundle.main.url(forResource: "tour", withExtension: "mp4") else { return }
+    guard let url = Bundle.main.url(forResource: "tour", withExtension: "mp4") else {
+      Notices.shared.show("The tour video is missing from the app. Reinstall it to watch the tour.", error: true)
+      return
+    }
     let w = tourWindow ?? NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720), styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false)

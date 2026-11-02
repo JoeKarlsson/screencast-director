@@ -46,7 +46,8 @@ public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) asyn
   try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
 
   let wav = work.appendingPathComponent("audio.wav")
-  if try await Analyzer.extractAudio(video, to: wav) {
+  let hasAudio = try await Analyzer.extractAudio(video, to: wav)
+  if hasAudio {
     guard let cli = Tools.whisperCLI, let model = Tools.model else { throw AnalyzerError.whisperMissing }
     log("Transcribing with \(model.lastPathComponent)...")
     try Analyzer.transcribe(wav: wav, whisperCLI: cli, model: model, to: dir.appendingPathComponent("transcript.json"))
@@ -56,7 +57,7 @@ public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) asyn
   }
   // Loudness feeds pause trimming, normalizing and word-timing refinement; measure it fresh now.
   try? FileManager.default.removeItem(at: dir.appendingPathComponent("loudness.json"))
-  _ = try? await Analyzer.loudness(Project(dir: dir, source: source), video: source.video)
+  if hasAudio { _ = try await Analyzer.loudness(Project(dir: dir, source: source), video: source.video) }
   log("Measuring screen motion...")
   let motion = try await Analyzer.measureMotion(video)
   try Analyzer.writeMotion(motion, to: dir.appendingPathComponent("motion.json"))

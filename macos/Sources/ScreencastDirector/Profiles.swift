@@ -36,11 +36,16 @@ final class ProfileStore: ObservableObject {
       .map(\.lastPathComponent).sorted()
   }
 
-  func load(_ name: String) -> Profile? {
-    try? Profile.load(root.appendingPathComponent(name))
+  func load(_ name: String) throws -> Profile {
+    try Profile.load(root.appendingPathComponent(name))
   }
 
-  var defaultProfile: Profile? { load(defaultName) }
+  /// The default profile, or nil when there's no profile by that name. One that's there but can't
+  /// be read throws, so a broken profile.json isn't silently skipped.
+  func defaultProfile() throws -> Profile? {
+    let file = root.appendingPathComponent(defaultName).appendingPathComponent("profile.json")
+    return FileManager.default.fileExists(atPath: file.path) ? try load(defaultName) : nil
+  }
 
   /// Saves a video's current look and style as a profile (asset paths stay absolute).
   func save(from plan: Plan, as name: String) throws {

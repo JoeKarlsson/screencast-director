@@ -84,13 +84,18 @@ enum Keychain {
     return String(data: data, encoding: .utf8)
   }
 
+  /// Saves a key, and says so in the banner when the Keychain refuses it (the key isn't kept).
   static func set(_ value: String, for account: String) {
     delete(account)
     let q: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account,
       kSecValueData as String: Data(value.utf8),
     ]
-    SecItemAdd(q as CFDictionary, nil)
+    let status = SecItemAdd(q as CFDictionary, nil)
+    if status != errSecSuccess {
+      let why = SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)"
+      Task { @MainActor in Notices.shared.show("Couldn't save the key to the Keychain: \(why)", error: true) }
+    }
   }
 
   static func delete(_ account: String) {
@@ -103,12 +108,14 @@ enum AIError: LocalizedError {
   case http(Int, String)
   case refused(String)
   case noPlan(String)
+  case badPlan(Error, String)
   case notConfigured(String)
   var errorDescription: String? {
     switch self {
     case .http(let code, let body): return "HTTP \(code): \(body.prefix(300))"
     case .refused(let why): return "The model declined: \(why)"
-    case .noPlan(let reply): return "The reply had no valid plan JSON. It said: \(reply.prefix(300))"
+    case .noPlan(let reply): return "The reply had no plan JSON. It said: \(reply.prefix(300))"
+    case .badPlan(let error, let reply): return "The reply's plan JSON doesn't read as a plan (\(error)). It said: \(reply.prefix(300))"
     case .notConfigured(let what): return what
     }
   }
@@ -181,10 +188,12 @@ enum APIEditor {
       \(String(decoding: try enc.encode(edited), as: UTF8.self))
       ```
       """
-    guard let checked = try? safe(parse(try await send(system: instructions, user: review, settings: settings)), plan, project) else {
-      return (summary, edited)
+    do {
+      let checked = safe(try parse(try await send(system: instructions, user: review, settings: settings)), plan, project)
+      return (summary + "\nDouble-check: " + checked.0, checked.1)
+    } catch {
+      return (summary + "\nDouble-check failed, so this is the unchecked edit: \(error.localizedDescription)", edited)
     }
-    return (summary + "\nDouble-check: " + checked.0, checked.1)
   }
 
   /// Puts back any file path the model pointed outside the project (see PathSafety) and says so.
@@ -206,7 +215,8 @@ enum APIEditor {
     guard let fence = reply.range(of: "```json") ?? reply.range(of: "```") else { throw AIError.noPlan(reply) }
     let afterFence = reply[fence.upperBound...]
     let body = afterFence.range(of: "```").map { afterFence[..<$0.lowerBound] } ?? afterFence
-    guard let plan = try? JSONDecoder().decode(Plan.self, from: Data(body.utf8)) else { throw AIError.noPlan(reply) }
+    let plan: Plan
+    do { plan = try JSONDecoder().decode(Plan.self, from: Data(body.utf8)) } catch { throw AIError.badPlan(error, reply) }
     let summary = reply[..<fence.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
     return (summary, plan)
   }
@@ -298,11 +308,17 @@ enum AIText {
       p.currentDirectoryURL = scratch
       let out = Pipe()
       p.standardOutput = out
-      p.standardError = Pipe()
+      // stderr goes to a file: an unread pipe could fill and stall claude, and its message is the error.
+      let errURL = scratch.appendingPathComponent("stderr.txt")
+      FileManager.default.createFile(atPath: errURL.path, contents: nil)
+      p.standardError = try FileHandle(forWritingTo: errURL)
       try p.run()
       let data = out.fileHandleForReading.readDataToEndOfFile()
       p.waitUntilExit()
-      guard p.terminationStatus == 0 else { throw AIError.http(Int(p.terminationStatus), "claude exited with an error") }
+      guard p.terminationStatus == 0 else {
+        let err = (try? String(contentsOf: errURL, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        throw AIError.http(Int(p.terminationStatus), err.isEmpty ? "claude exited with an error" : err)
+      }
       return String(decoding: data, as: UTF8.self)
     }
   }

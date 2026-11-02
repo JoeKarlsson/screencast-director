@@ -121,16 +121,7 @@ struct Playback {
       var titled = Callout(start: 0.25, end: 0.9, text: "Step 1", style: "chapter")
       titled.sound = Sound(file: "beep.caf")
       plan.callouts = [titled]
-      let box = ResultBox<BuiltComposition>()
-      let sem = DispatchSemaphore(value: 0)
-      let planCopy = plan
-      Task.detached {
-        do { box.value = try await buildComposition(project: project, plan: planCopy) } catch { box.error = error }
-        sem.signal()
-      }
-      while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
-      if let e = box.error { throw e }
-      built = box.value
+      built = try composition(project, plan)
     } catch {
       print("FAIL: couldn't build the fixture or composition: \(error)")
       exit(1)
@@ -189,16 +180,7 @@ struct Playback {
       var plan = built.scene.plan
       plan.intro = Card(duration: 1, title: "Intro")
       plan.outro = Card(duration: 1, title: "Outro")
-      let box = ResultBox<BuiltComposition>()
-      let sem = DispatchSemaphore(value: 0)
-      let planCopy = plan
-      Task.detached {
-        do { box.value = try await buildComposition(project: project, plan: planCopy) } catch { box.error = error }
-        sem.signal()
-      }
-      while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
-      if let e = box.error { throw e }
-      let carded = box.value!
+      let carded = try composition(project, plan)
       expect(carded.scene.frameCount == 135, "cards add 30 frames each (got \(carded.scene.frameCount))")
       let end = carded.videoComposition.instructions.last!.timeRange.end
       for t in carded.asset.tracks {
@@ -239,16 +221,7 @@ struct Playback {
       plan.outro = nil
       plan.inserts = nil
       plan.segments = [0.1, 0.7, 1.3, 1.9, 2.5, 3.1].map { Segment(start: $0, end: $0 + 0.51, speed: 1) }
-      let box = ResultBox<BuiltComposition>()
-      let sem = DispatchSemaphore(value: 0)
-      let planCopy = plan
-      Task.detached {
-        do { box.value = try await buildComposition(project: project, plan: planCopy) } catch { box.error = error }
-        sem.signal()
-      }
-      while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
-      if let e = box.error { throw e }
-      let synced = box.value!
+      let synced = try composition(project, plan)
       let fps = Double(plan.output.fps)
       let starts = synced.scene.mapped.map { Double($0.outStart) / fps }
       let cam = synced.asset.tracks(withMediaType: .video).last!
@@ -260,12 +233,45 @@ struct Playback {
       expect(false, "camera sync composition: \(error)")
     }
 
+    // A B-roll file or music track that's missing fails the build with its name, instead of
+    // quietly leaving it out of the video.
+    do {
+      let project = try Project.load(dir)
+      var plan = built.scene.plan
+      plan.inserts = [Insert(start: 0.2, end: 0.8, file: "broll/gone.mp4")]
+      do {
+        _ = try composition(project, plan)
+        expect(false, "a missing B-roll file fails the composition")
+      } catch {
+        expect("\(error.localizedDescription)".contains("broll/gone.mp4"), "the missing B-roll is named (\(error.localizedDescription))")
+      }
+      plan.inserts = nil
+      plan.music = Music(file: "music/gone.m4a")
+      expect((try? composition(project, plan)) == nil, "a missing music track fails the composition")
+    } catch {
+      expect(false, "missing-file compositions: \(error)")
+    }
+
     if failures > 0 {
       print("\(failures) playback check(s) failed")
       exit(1)
     }
     print("playback checks passed")
   }
+}
+
+/// Builds a composition off the main thread, running the main run loop while it works (AVFoundation
+/// calls back on it).
+func composition(_ project: Project, _ plan: Plan) throws -> BuiltComposition {
+  let box = ResultBox<BuiltComposition>()
+  let sem = DispatchSemaphore(value: 0)
+  Task.detached {
+    do { box.value = try await buildComposition(project: project, plan: plan) } catch { box.error = error }
+    sem.signal()
+  }
+  while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+  if let e = box.error { throw e }
+  return box.value!
 }
 
 final class ResultBox<T>: @unchecked Sendable {

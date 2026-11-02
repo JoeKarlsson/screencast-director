@@ -21,10 +21,12 @@ public struct BuiltComposition {
 public enum CompositionError: LocalizedError {
   case noVideo(String)
   case noAudio(String)
+  case missingFile(String)
   public var errorDescription: String? {
     switch self {
     case .noVideo(let f): return "\(f) has no video track."
-    case .noAudio(let f): return "Sound effect \(f) has no audio track."
+    case .noAudio(let f): return "\(f) has no audio track."
+    case .missingFile(let f): return "\(f) isn't in the project folder."
     }
   }
 }
@@ -52,6 +54,10 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     if let track = try? await cleanAsset?.loadTracks(withMediaType: .audio).first { srcAudio = track }
   }
   let audioEnd = try await srcAudio?.load(.timeRange).end ?? screenDuration
+  // Measured voice loudness, for normalizing and music ducking (nothing to measure without audio).
+  let voiceLevels =
+    srcAudio != nil && (plan.audio?.normalize == true || plan.music != nil)
+    ? try await Analyzer.loudness(project, video: plan.source.video) : []
 
   let vTrack = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)!
   let aTrack = srcAudio != nil ? comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) : nil
@@ -89,8 +95,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   // phrase (from measured loudness), laid over output frames.
   let gainDB = plan.audio?.gainDB ?? 0
   var curveDB: [Double] = []
-  if plan.audio?.normalize == true {
-    let levels = try await Analyzer.loudness(project, video: plan.source.video)
+  if plan.audio?.normalize == true, !voiceLevels.isEmpty {
+    let levels = voiceLevels
     let curve = AudioGain.levelingCurve(levels)
     let step = curve.count > 1 ? curve[1].t - curve[0].t : 0.05
     let fallback = AudioGain.normalizeGain(levels)
@@ -176,9 +182,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   var insertFills: [(AVMutableCompositionTrack, AVAssetTrack)] = []
   var insertAssets: [AVURLAsset] = []
   for ins in scene.inserts where !ins.a.isImage {
-    guard let url = Scene.fileURL(ins.a.file, dir: project.dir) else { continue }
+    guard let url = Scene.fileURL(ins.a.file, dir: project.dir), FileManager.default.fileExists(atPath: url.path) else {
+      throw CompositionError.missingFile(ins.a.file)
+    }
     let asset = AVURLAsset(url: url)
-    guard let src = try? await asset.loadTracks(withMediaType: .video).first, let dur = try? await asset.load(.duration) else { continue }
+    guard let src = try await asset.loadTracks(withMediaType: .video).first else { throw CompositionError.noVideo(ins.a.file) }
+    let dur = try await asset.load(.duration)
     insertAssets.append(asset)
     let from = min(ins.a.from ?? 0, max(0, dur.seconds - 0.1))
     let length = min((ins.e - ins.s) / Double(fps), dur.seconds - from)
@@ -206,7 +215,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     try AudioLibrary(.music).freezeMissing([music.file], project: project.dir)
     let url = music.file.hasPrefix("/") ? URL(fileURLWithPath: music.file) : project.dir.appendingPathComponent(music.file)
     musicAsset = AVURLAsset(url: url)
-    if let musicAsset, let src = try? await musicAsset.loadTracks(withMediaType: .audio).first {
+    if let musicAsset {
+      guard let src = try await musicAsset.loadTracks(withMediaType: .audio).first else { throw CompositionError.noAudio(music.file) }
       let range = try await src.load(.timeRange)
       let mTrack = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)!
       // Loop the track to the end of the video; the trim below cuts the last pass to length.
@@ -215,9 +225,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
         try insert(mTrack, range, of: src, at: at, "music")
         at = CMTimeAdd(at, range.duration)
       }
-      let levels = (try? await Analyzer.loudness(project, video: plan.source.video)) ?? []
       let p = AVMutableAudioMixInputParameters(track: mTrack)
-      MusicDuck.apply(music, to: p, speech: MusicDuck.speech(levels: levels, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+      MusicDuck.apply(music, to: p, speech: MusicDuck.speech(levels: voiceLevels, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
       musicParams = p
     }
   }

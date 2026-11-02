@@ -176,7 +176,8 @@ final class Library: ObservableObject {
           }
         }
       } catch {
-        status = "Couldn't suggest a name: \(error.localizedDescription)"
+        status = ""
+        Notices.shared.show(error, "Couldn't suggest a name")
       }
     }
   }

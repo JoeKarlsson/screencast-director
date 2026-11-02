@@ -134,14 +134,26 @@ final class ProjectModel: ObservableObject {
   // MARK: Loading and the preview
 
   private func loadFromDisk() {
-    project = try? Project.load(dir)
-    guard let data = try? Data(contentsOf: planURL), let p = try? JSONDecoder().decode(Plan.self, from: data) else {
+    do { project = try Project.load(dir) } catch {
+      project = nil
+      Notices.shared.show(error, "Couldn't read \(dir.lastPathComponent)")
+    }
+    func showRecordingOnly(_ why: String) {
       plan = nil
-      status = "Not analyzed yet."
+      status = why
       if let src = project?.source {
         player.replaceCurrentItem(with: AVPlayerItem(url: dir.appendingPathComponent(src.video)))
       }
-      return
+    }
+    guard FileManager.default.fileExists(atPath: planURL.path) else { return showRecordingOnly("Not analyzed yet.") }
+    let data: Data, p: Plan
+    do {
+      data = try Data(contentsOf: planURL)
+      p = try JSONDecoder().decode(Plan.self, from: data)
+    } catch {
+      // A bad hand or AI edit: say so, rather than looking like a recording that was never analyzed.
+      Notices.shared.show(error, "Couldn't read plan.json")
+      return showRecordingOnly("plan.json can't be read.")
     }
     lastPlanData = data
     plan = p
@@ -839,8 +851,9 @@ final class ProjectModel: ObservableObject {
 
   /// Makes an earlier version current. Undoable, and the version it replaces goes into history.
   func restoreVersion(_ url: URL) {
-    guard let old = try? Plan.load(url) else {
-      status = "Couldn't read that version."
+    let old: Plan
+    do { old = try Plan.load(url) } catch {
+      Notices.shared.show(error, "Couldn't read that version")
       return
     }
     apply { $0 = old }
@@ -1102,7 +1115,7 @@ final class ProjectModel: ObservableObject {
       defer { done?() }
       if analyzeFirst { try await analyze(dir) { msg in Task { @MainActor in self.status = msg } } }
       var draft = buildPlan(try Project.load(dir))
-      ProfileStore.shared.defaultProfile?.apply(to: &draft, name: name)
+      try ProfileStore.shared.defaultProfile()?.apply(to: &draft, name: name)
       let level = AppSettings.shared.pauseLevel
       let fresh = try Project.load(dir)
       let silences = Analyzer.silences(try await Analyzer.loudness(fresh, video: draft.source.video), minLength: 0.2)
@@ -1158,7 +1171,11 @@ final class ProjectModel: ObservableObject {
   }
 
   func applyProfile(_ name: String) {
-    guard let profile = ProfileStore.shared.load(name) else { return }
+    let profile: Profile
+    do { profile = try ProfileStore.shared.load(name) } catch {
+      Notices.shared.show(error, "Couldn't read the profile \(name)")
+      return
+    }
     let title = self.name
     apply { profile.apply(to: &$0, name: title) }
     status = "Applied profile \(name)"
