@@ -159,15 +159,17 @@ public final class Scene: @unchecked Sendable {
       edges.insert(l.startF)
       edges.insert(l.endF)
     }
+    // The video opens in whatever layout covers its first frame, and a range running to the last
+    // frame stays put: no layout change eases in at frame 0 or out at the end.
     var changes: [EasedSteps.Change] = []
-    var current = mode(-1)
-    for f in edges.sorted() {
+    var current = mode(0)
+    for f in edges.sorted() where f > 0 && f < Double(frames) {
       let m = mode(f)
       guard m != current else { continue }
       current = m
       changes.append(.init(at: f - dur / 2, to: boxes[m]!, frames: dur, ease: style.ease))
     }
-    return EasedSteps(initial: boxes[mode(-1)]!, changes: changes)
+    return EasedSteps(initial: boxes[mode(0)]!, changes: changes)
   }
 
   static func captionPages(_ words: [Word], _ mapped: [MappedSegment], fps: Int, maxWords: Int) -> [Page] {
@@ -451,14 +453,14 @@ public final class Scene: @unchecked Sendable {
   func overlays(frame f: Double, screen b: Box, cam: CameraState, camBox: Box?) -> CIImage? {
     let fps = Double(plan.output.fps)
     let page = pages.first { f >= $0.startF && f < $0.endF + fps * 0.4 }
-    // Screen marks (cursor, clicks, key chips, annotations) belong to the screen, not to an animation over it.
+    // Screen marks (cursor, clicks, key chips, annotations, the camera border) belong under an animation.
     let covered = fullFrameCovers(f)
     let chip = covered ? nil : chips.last { f >= $0.f && f < $0.f + fps * 1.2 }
     let shownCallouts = callouts.filter { f >= $0.s && f < $0.e }
     let shownMarks = b.opacity > 0.01 && !covered ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
     let ripples = covered ? [] : clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
-    // A cutout has no shape to outline.
-    let border = plan.camera?.cutout != true && plan.camera?.bubbleBorder != false && (camBox.map { $0.opacity > 0.01 } ?? false)
+    // A cutout has no shape to outline, and a full-frame animation hides the bubble it would outline.
+    let border = !covered && plan.camera?.cutout != true && plan.camera?.bubbleBorder != false && (camBox.map { $0.opacity > 0.01 } ?? false)
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
     let pointerAt = b.opacity > 0.01 && !covered ? cursorPosition(frame: f) : nil

@@ -526,6 +526,16 @@ struct Checks {
     expect(ss.insertPose(partA, frame: partA.s).opacity < 0.5 && ss.insertPose(partB, frame: partB.e - 1).opacity < 0.5, "outer edges still fade")
     expect(ss.fullFrameCovers(partA.e - 1) && !ss.fullFrameCovers(partA.s), "screen marks hide only while fully covered")
 
+    // A camera range on the first and last frames holds there: no ease in at 0 or out at the end.
+    var opener = buildPlan(p)
+    opener.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+    opener.defaultLayout = .pip
+    let cameraBoxes = layoutBoxes(.camera, plan: opener)
+    let full = cameraBoxes.screen.vec + cameraBoxes.cam.vec
+    let openerSteps = Scene.layoutSteps(opener, [OutLayout(startF: 0, endF: 60, mode: .camera), OutLayout(startF: 200, endF: 300, mode: .camera)], frames: 300, style: MotionStyle.named(nil))
+    expect(openerSteps.at(0) == full && openerSteps.at(299) == full, "full camera from the first frame to the last")
+    expect(openerSteps.at(130) != full, "the middle still eases to pip")
+
     // Full camera over a demo is flagged.
     var hide = p
     hide.source.camera = nil
