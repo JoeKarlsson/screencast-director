@@ -10,8 +10,21 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - run: brew install swiftlint shellcheck
+        with:
+          fetch-depth: 0   # check-tests.sh reads every commit in the push
+      - name: Every feat/fix commit has a test
+        env:
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A new branch or a force push has no usable "before"; check the pushed commit alone.
+          if [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            macos/check-tests.sh HEAD
+          else
+            macos/check-tests.sh "$BEFORE..HEAD"
+          fi
+      - run: brew install swiftlint shellcheck ffmpeg
       - run: macos/lint.sh
       - run: macos/test.sh
       - run: macos/playback-test.sh   # plays a built composition headlessly and fails on black or missing frames
       - run: swift build --package-path macos --product director   # the app target times out type-checking SwiftUI on CI runners
+      - run: macos/animate-test.sh    # renders every animation template through director animate (offscreen WebKit)
