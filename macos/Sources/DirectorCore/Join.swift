@@ -141,21 +141,18 @@ public enum Join {
     // loudness.json and motion.json: [[t, value]] samples, shifted. Written only when every take
     // has them; otherwise analysis measures the joined video.
     for file in ["loudness.json", "motion.json"] {
-      var merged: [[Double]] = []
+      var merged: [(Double, Double)] = []
       var complete = true
       for (p, start) in zip(projects, starts) {
-        guard let data = try? Data(contentsOf: p.dir.appendingPathComponent(file)),
-          let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]]
-        else {
+        guard let samples = try SampleSeries.read(p.dir.appendingPathComponent(file)) else {
           complete = false
           break
         }
         let end = starts.first(where: { $0 > start }) ?? total
-        merged += arr.filter { $0.count == 2 && $0[0] + start < end }.map { [$0[0] + start, $0[1]] }
+        merged += samples.filter { $0.0 + start < end }.map { ($0.0 + start, $0.1) }
       }
       guard complete else { continue }
-      let body = merged.map { String(format: "[%.3f, %.3f]", $0[0], $0[1]) }.joined(separator: ", ")
-      try "[\(body)]\n".write(to: out.appendingPathComponent(file), atomically: true, encoding: .utf8)
+      try SampleSeries.write(merged, to: out.appendingPathComponent(file), decimals: 3)
     }
 
     // script.md: each take's script, in order.

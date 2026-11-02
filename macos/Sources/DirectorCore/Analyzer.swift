@@ -67,11 +67,6 @@ public enum Analyzer {
     return samples
   }
 
-  public static func writeMotion(_ samples: [(Double, Double)], to url: URL) throws {
-    let body = samples.map { String(format: "[%.2f, %.3f]", $0.0, $0.1) }.joined(separator: ", ")
-    try "[\(body)]\n".write(to: url, atomically: true, encoding: .utf8)
-  }
-
   /// Writes the first audio track as 16 kHz mono 16-bit WAV (what whisper.cpp wants). Returns false if there's no audio.
   public static func extractAudio(_ url: URL, to wav: URL) async throws -> Bool {
     let asset = AVURLAsset(url: url)
@@ -151,9 +146,8 @@ extension Analyzer {
   /// (Whisper's word timings run straight through short pauses). Cached in loudness.json.
   public static func loudness(_ project: Project, video: String) async throws -> [(Double, Double)] {
     let cache = project.dir.appendingPathComponent("loudness.json")
-    if let data = try? Data(contentsOf: cache), let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]] {
-      return arr.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
-    }
+    // A cache that can't be read is measured again (and rewritten) rather than failing.
+    if let cached = try? SampleSeries.read(cache) { return cached }
     let wav = project.dir.appendingPathComponent(".render/loudness.wav")
     try FileManager.default.createDirectory(at: wav.deletingLastPathComponent(), withIntermediateDirectories: true)
     guard try await extractAudio(project.dir.appendingPathComponent(video), to: wav) else { return [] }
@@ -173,8 +167,7 @@ extension Analyzer {
       out.append((Double(i) / 16000, 20 * log10(max(rms, 1e-6))))
       i += 800
     }
-    let body = out.map { String(format: "[%.2f, %.1f]", $0.0, $0.1) }.joined(separator: ", ")
-    try "[\(body)]\n".write(to: cache, atomically: true, encoding: .utf8)
+    try SampleSeries.write(out, to: cache, decimals: 1)
     return out
   }
 

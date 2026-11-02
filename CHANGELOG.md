@@ -34,6 +34,9 @@ Each release lists what changed for people using the app or the CLI. The version
 - Export > GIF with a layout, B-roll or animation selected exports that stretch, instead of the whole video.
 - Dragging an item on the timeline snaps to sound effects.
 - The preview and export no longer re-read the camera's LUT file for every frame.
+- Add Music File opens as a sheet instead of blocking the app, copies the track into the project's music/ folder like the library does, and keeps the music's volume settings.
+- `describe` warns, in a Fonts section, about a font file that can't be read and about a title, caption or chip font that isn't installed, instead of silently drawing another font.
+- A recording whose motion.json or loudness.json is corrupt says so when it opens, instead of planning as if there were no motion.
 - Errors that used to pass silently now show in the banner: a plan.json that can't be read (it used to look like a recording that was never analyzed), a broken profile, a key the Keychain wouldn't save, a failed AI double-check, a missing B-roll or music file (they used to drop out of the video), a failed loudness measurement (normalizing and music ducking used to switch off), and Claude's own error text when a YouTube description fails. Errors that showed as "Publish error 2" now say what went wrong.
 - Claude edits can run `director describe`, `still` and `review` again. The app's path has spaces, so the quoted command Claude ran didn't match its allow rule and was blocked.
 - Claude Code is found when it is installed in ~/.local/bin and only .zshrc adds that folder to PATH. Before, the app said Claude Code wasn't installed.

@@ -109,6 +109,21 @@ private func projectFileChecks() {
   write("source.json", "{")
   expect((try? Project.load(dir)) == nil, "a broken source.json fails to load")
 
+  // motion.json and loudness.json: [[t, value]] samples round-trip; a missing file is nil and one
+  // that isn't a list of pairs throws (so a project with a broken motion.json says so instead of planning without it).
+  do {
+    let series = dir.appendingPathComponent("series-check.json")
+    try SampleSeries.write([(0, -40), (0.05, -12.34)], to: series, decimals: 1)
+    let back = try SampleSeries.read(series)
+    expect(back?.map { [$0.0, $0.1] } == [[0, -40], [0.05, -12.3]], "samples round-trip at the given precision (\(String(describing: back)))")
+    expect(try SampleSeries.read(dir.appendingPathComponent("no-such.json")) == nil, "a missing series file reads as nil")
+    try Data(#"{"t": 1}"#.utf8).write(to: series)
+    expect((try? SampleSeries.read(series)) == nil, "a series file that isn't a list of pairs throws")
+    try fm.removeItem(at: series)
+  } catch {
+    expect(false, "sample series: \(error)")
+  }
+
   // A picked file: copied into its folder under a free name, or used where it is when it's already
   // in the project.
   do {

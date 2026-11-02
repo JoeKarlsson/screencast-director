@@ -147,7 +147,7 @@ struct Media {
     let moving = motion.filter { $0.0 > 2.1 }.map(\.1)
     expect(still < 0.5, "a still screen measures no motion (max \(still))")
     expect(!moving.isEmpty && moving.allSatisfy { $0 > 1 }, "a growing bar measures motion (\(moving.prefix(3)))")
-    try Analyzer.writeMotion(motion, to: dir.appendingPathComponent("motion.json"))
+    try SampleSeries.write(motion, to: dir.appendingPathComponent("motion.json"), decimals: 3)
     try writeSource(dir, width: 640, height: 360, duration: 4)
     let loaded = try Project.load(dir)
     expect(loaded.motion.count == motion.count && abs((loaded.motion.last?.1 ?? 0) - (motion.last?.1 ?? 0)) < 0.001, "motion.json loads back")
@@ -182,7 +182,7 @@ struct Media {
     try FileManager.default.removeItem(at: video)
     let cached = try await Analyzer.loudness(loaded, video: "screen.mp4")
     expect(cached.count == levels.count && abs(cached[10].1 - levels[10].1) < 0.06, "loudness is read back from loudness.json")
-    expect(WordTiming.cachedLevels(dir)?.count == levels.count, "word timing finds the cached levels")
+    expect((try? WordTiming.cachedLevels(dir))??.count == levels.count, "word timing finds the cached levels")
   }
 
   /// analyze() on a recording with no audio (no whisper needed) and text under a click.

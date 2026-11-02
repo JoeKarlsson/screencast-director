@@ -66,13 +66,9 @@ public struct Project {
     var p = Project(dir: dir, source: source)
     p.words = loadWords(dir.appendingPathComponent("transcript.json"))
     // Snap word edges to the measured audio when it's been analyzed (transcript.json stays raw).
-    if let levels = WordTiming.cachedLevels(dir) { p.words = WordTiming.refine(p.words, levels: levels) }
+    if let levels = try WordTiming.cachedLevels(dir) { p.words = WordTiming.refine(p.words, levels: levels) }
     p.events = loadEvents(dir.appendingPathComponent("events.jsonl"), source: source)
-    if let data = try? Data(contentsOf: dir.appendingPathComponent("motion.json")),
-      let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]]
-    {
-      p.motion = arr.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
-    }
+    if let motion = try SampleSeries.read(dir.appendingPathComponent("motion.json")) { p.motion = motion }
     if let md = try? String(contentsOf: dir.appendingPathComponent("script.md"), encoding: .utf8) {
       p.script = scriptLines(md)
       p.editPlan = scriptEditPlan(md)

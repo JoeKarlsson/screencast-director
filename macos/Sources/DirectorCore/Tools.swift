@@ -60,7 +60,7 @@ public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) asyn
   if hasAudio { _ = try await Analyzer.loudness(Project(dir: dir, source: source), video: source.video) }
   log("Measuring screen motion...")
   let motion = try await Analyzer.measureMotion(video)
-  try Analyzer.writeMotion(motion, to: dir.appendingPathComponent("motion.json"))
+  try SampleSeries.write(motion, to: dir.appendingPathComponent("motion.json"), decimals: 3)
   try await readScreenText(dir, log: log)
 }
 

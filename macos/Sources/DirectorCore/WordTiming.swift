@@ -32,10 +32,7 @@ public enum WordTiming {
   }
 
   /// Cached loudness levels for a project, if `loudness.json` exists.
-  static func cachedLevels(_ dir: URL) -> [(Double, Double)]? {
-    guard let data = try? Data(contentsOf: dir.appendingPathComponent("loudness.json")),
-      let arr = try? JSONSerialization.jsonObject(with: data) as? [[Double]]
-    else { return nil }
-    return arr.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+  static func cachedLevels(_ dir: URL) throws -> [(Double, Double)]? {
+    try SampleSeries.read(dir.appendingPathComponent("loudness.json"))
   }
 }
