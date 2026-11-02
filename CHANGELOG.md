@@ -55,6 +55,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- An intro or outro card written into plan.json or a profile without `"enabled"` now shows. Before, it was silently left off; `"enabled": false` still switches one off.
 - Saving an unchanged plan no longer adds a copy to its history. plan.json now keeps its keys in a fixed order, so a save that changes nothing writes the same file, and the 30 saved versions are real edits.
 - Times just under ten seconds or a minute read correctly in the timeline description and the editor's status line (59.97 s was "0:60.0", 9.97 s was "0:010.0").
 - Screen motion is measured every 0.1 s as intended. Rounding skipped about one sample in seven, so short bursts of screen activity could be missed when the draft decided what to speed up.

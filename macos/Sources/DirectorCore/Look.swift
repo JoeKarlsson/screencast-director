@@ -64,7 +64,8 @@ public struct Card: Codable, Equatable {
     self.logo = logo
   }
 
-  public var isOn: Bool { enabled ?? false }
+  /// A card is shown unless it says "enabled": false, so one written into plan.json or a profile by hand shows up.
+  public var isOn: Bool { enabled ?? true }
   public var seconds: Double { max(0.5, duration ?? Card.defaultDuration) }
 
   /// Replaces "{title}" with the recording's name.

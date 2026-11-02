@@ -147,6 +147,18 @@ private func projectFileChecks() {
   } catch {
     expect(false, "profile load: \(error)")
   }
+  // A card written by hand without "enabled" shows; only "enabled": false switches it off.
+  let handCard = try? JSONDecoder().decode(Card.self, from: Data(#"{"title":"Hi"}"#.utf8))
+  let offCard = try? JSONDecoder().decode(Card.self, from: Data(#"{"title":"Hi","enabled":false}"#.utf8))
+  expect(handCard?.isOn == true && offCard?.isOn == false, "a card is on unless it says enabled: false")
+  var handPlan = plan
+  handPlan.intro = handCard
+  expect(cardFrames(handPlan).intro == 75, "a hand-written intro takes its 2.5 s")
+  var handLook = Look()
+  handLook.outro = handCard
+  var profiled = plan
+  Profile(name: "Hand", style: plan.style, look: handLook).apply(to: &profiled, name: "Demo")
+  expect(profiled.outro?.title == "Hi", "a profile's hand-written card is applied")
   expect((try? Profile.load(dir.appendingPathComponent("missing"))) == nil, "a folder without profile.json fails to load")
 
   // A profile's voice, camera and layout defaults: its LUT resolves against the folder, and applying it
