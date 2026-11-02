@@ -74,13 +74,10 @@ final class TimelineUI: ObservableObject {
     let old = pxPerSec
     let new = min(400, max(minPxPerSec, old * factor))
     guard abs(new - old) > 0.01 else { return }
-    let visibleWidth = viewport.visible.width
-    let left = pendingScrollX ?? viewport.visible.minX
-    var onScreen = t * old - left
-    if onScreen < 0 || onScreen > visibleWidth { onScreen = visibleWidth / 2 }
+    let x = timelineZoomScroll(
+      around: t, from: old, to: new, scrollX: pendingScrollX ?? viewport.visible.minX, visibleWidth: viewport.visible.width,
+      minContentWidth: Double(width), axisSeconds: axisSeconds)
     pxPerSec = new
-    let maxX = max(0, max(Double(width), axisSeconds * new) - visibleWidth)
-    let x = min(maxX, max(0, t * new - onScreen))
     pendingScrollX = x
     // After the wider content lays out.
     DispatchQueue.main.async { self.scroll.scrollTo(x: x) }
@@ -1044,14 +1041,9 @@ struct TimelineView: View {
       // Zoomed out too far for readable labels: mark where words are spoken instead.
       guard pps >= 10 else {
         let barH: CGFloat = 4
-        for w in ws {
-          let out = srcToOut(mapped, w.start, fps: fps)
-          if output && out == nil { continue }
-          let px = output ? (out ?? 0) / Double(fps) * pps : w.start * pps
-          let rect = CGRect(x: px, y: (size.height - barH) / 2, width: max(1, (w.end - w.start) * pps), height: barH)
-          ctx.fill(
-            Path(roundedRect: rect, cornerRadius: 1),
-            with: .color(out != nil ? Color.primary.opacity(0.45) : Color.secondary.opacity(0.2)))
+        for m in speechMarks(ws, mapped: mapped, fps: fps, pxPerSec: pps, outputTime: output) {
+          let rect = CGRect(x: m.x, y: (size.height - barH) / 2, width: m.width, height: barH)
+          ctx.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(m.kept ? Color.primary.opacity(0.45) : Color.secondary.opacity(0.2)))
         }
         return
       }

@@ -1432,8 +1432,7 @@ final class ProjectModel: ObservableObject {
         } else if result.status != 0 {
           status = "Claude Code stopped with an error."
           // Its own words say why (signed out, rate limited, a crash); they used to be thrown away.
-          outcome = "Claude Code stopped with an error (exit status \(result.status))"
-            + (result.errors.isEmpty ? "." : ":\n\(result.errors.split(separator: "\n").suffix(8).joined(separator: "\n"))")
+          outcome = claudeErrorOutcome(status: result.status, errors: result.errors)
         } else {
           status = "Claude finished. ⌘Z undoes its edit."
           outcome = "Claude finished without saying anything."
@@ -1450,12 +1449,7 @@ final class ProjectModel: ObservableObject {
   private func finishAsk(_ n: Int, _ outcome: String) {
     guard asks.indices.contains(n) else { return }
     asks[n].running = false
-    let failed = outcome.hasPrefix("Claude Code stopped with an error") || outcome.hasPrefix("Couldn't") || outcome.contains("couldn't make")
-    if asks[n].reply.isEmpty {
-      asks[n].reply = outcome
-    } else if failed {
-      asks[n].reply += "\n\n" + outcome
-    }
+    asks[n].reply = closingReply(asks[n].reply, outcome: outcome)
     saveAsks()
     // Claude Code writes plan.json itself and the watcher picks it up within a second; compare then.
     let old = planBeforeAsk

@@ -214,8 +214,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
       guard let self, event.window === self.window, let project = self.library.current, project.hasPlan else { return event }
       if let text = event.window?.firstResponder as? NSText {
-        let isPlainSpace = event.keyCode == 49 && event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty
-        guard isPlainSpace, text.string.isEmpty else { return event }
+        let modified = !event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty
+        guard shortcutTakesKeyInTextField(keyCode: event.keyCode, hasModifiers: modified, fieldText: text.string) else { return event }
       }
       guard let shortcut = Shortcut.all.first(where: { $0.matches(event) }) else { return event }
       shortcut.action(project, self.editor)

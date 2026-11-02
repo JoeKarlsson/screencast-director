@@ -2,6 +2,8 @@ import CoreImage
 import Foundation
 
 // Plain-swiftc checks for DirectorCore (Swift Testing and XCTest need Xcode). Run: macos/test.sh
+// One long list of checks by design, so the body-length rules don't apply here.
+// swiftlint:disable function_body_length type_body_length
 
 var failures = 0
 func expect(_ ok: Bool, _ what: String, line: Int = #line) {
@@ -518,7 +520,7 @@ struct Checks {
     recued.cues = ["hub": 12]
     expect(recued.clipPath(out1080, dir: nil) != anim.clipPath(out1080, dir: nil), "a new beat renders a new clip")
     expect(anim.clipPath(Plan.Output(width: 1080, height: 1920, fps: 30), dir: nil) != anim.clipPath(out1080, dir: nil), "another size renders a new clip")
-    let roundTrip = try! JSONDecoder().decode(Animation.self, from: JSONEncoder().encode(anim))
+    let roundTrip = try? JSONDecoder().decode(Animation.self, from: JSONEncoder().encode(anim))
     expect(roundTrip == anim, "animations round-trip through JSON")
     var animPlan = buildPlan(p)
     animPlan.animations = [anim]
@@ -699,6 +701,81 @@ struct Checks {
     let spotX = Double(scrimPlan.output.width) * 0.3, spotY = Double(scrimPlan.output.height) * 0.3
     let bareGreen = pixel(bare, x: spotX, y: spotY)[1], cardGreen = pixel(carded, x: spotX, y: spotY)[1]
     expect(bareGreen > 0.5 && cardGreen < 0.65, "the chapter scrim darkens the screen (\(bareGreen) to \(cardGreen))")
+
+    // Timeline zoom keeps the playhead where it is on screen, centers it when it's out of view, and
+    // stays inside the content; zooming again from where the last zoom asked (a slider drag) doesn't drift.
+    let zoomX = timelineZoomScroll(around: 50, from: 10, to: 20, scrollX: 300, visibleWidth: 800, minContentWidth: 800, axisSeconds: 120)
+    expect(zoomX == 800, "the playhead stays 200 pt from the left (scrolled to \(zoomX))")
+    let hiddenX = timelineZoomScroll(around: 50, from: 10, to: 20, scrollX: 0, visibleWidth: 400, minContentWidth: 400, axisSeconds: 120)
+    expect(hiddenX == 800, "an off-screen playhead lands centered (scrolled to \(hiddenX))")
+    expect(timelineZoomScroll(around: 119, from: 10, to: 5, scrollX: 400, visibleWidth: 800, minContentWidth: 800, axisSeconds: 120) == 0, "zooming out clamps to the content")
+    var dragX = 300.0, dragPx = 10.0
+    for _ in 0..<20 {
+      dragX = timelineZoomScroll(around: 50, from: dragPx, to: dragPx * 1.1, scrollX: dragX, visibleWidth: 800, minContentWidth: 800, axisSeconds: 120)
+      dragPx *= 1.1
+    }
+    expect(abs(50 * dragPx - dragX - 200) < 1e-6, "a slider drag keeps the playhead in place (\(50 * dragPx - dragX) pt)")
+
+    // Zoomed-out Words row: a mark per word, faint where it's cut, and none for cut words on the output axis.
+    let markMap = mapSegments([Segment(start: 0, end: 2, speed: 1), Segment(start: 4, end: 6, speed: 1)], fps: fps)
+    let markWords = [Word(text: "kept", start: 0.5, end: 1), Word(text: "cut", start: 3, end: 3.2), Word(text: "later", start: 4.5, end: 5)]
+    let srcMarks = speechMarks(markWords, mapped: markMap, fps: fps, pxPerSec: 4, outputTime: false)
+    expect(srcMarks == [SpeechMark(x: 2, width: 2, kept: true), SpeechMark(x: 12, width: 1, kept: false), SpeechMark(x: 18, width: 2, kept: true)], "source-axis speech marks (\(srcMarks))")
+    let outMarks = speechMarks(markWords, mapped: markMap, fps: fps, pxPerSec: 4, outputTime: true)
+    expect(outMarks.map(\.x) == [2, 10], "output-axis speech marks skip cut words (\(outMarks.map(\.x)))")
+
+    // Space reaches the editor from an empty text field only; typing a space and ⌘/⇧ keys stay with the field.
+    expect(shortcutTakesKeyInTextField(keyCode: 49, hasModifiers: false, fieldText: ""), "Space plays from the empty Claude box")
+    expect(!shortcutTakesKeyInTextField(keyCode: 49, hasModifiers: false, fieldText: "zoom in"), "Space types into a field with text")
+    expect(!shortcutTakesKeyInTextField(keyCode: 49, hasModifiers: true, fieldText: ""), "⌘Space and ⇧Space stay with the field")
+    expect(!shortcutTakesKeyInTextField(keyCode: 1, hasModifiers: false, fieldText: ""), "other keys stay with the field")
+
+    // AI edits close out: silence becomes the outcome, a failure is added after what Claude said,
+    // a normal finish keeps Claude's words, and the error carries the end of stderr.
+    let signedOut = claudeErrorOutcome(status: 1, errors: (1...12).map { "line \($0)" }.joined(separator: "\n"))
+    expect(signedOut.hasPrefix("Claude Code stopped with an error (exit status 1):\nline 5\n") && signedOut.hasSuffix("line 12"), "the error keeps the last 8 lines of stderr")
+    expect(claudeErrorOutcome(status: 2, errors: "") == "Claude Code stopped with an error (exit status 2).", "an error with no stderr")
+    expect(closingReply("", outcome: "Claude finished without saying anything.") == "Claude finished without saying anything.", "a silent finish says so")
+    expect(closingReply("Zoomed in.", outcome: signedOut) == "Zoomed in.\n\n" + signedOut, "a failure after a reply is added to it")
+    expect(closingReply("Zoomed in.", outcome: "OpenAI couldn't make the edit: timeout").hasSuffix("timeout"), "an API failure is added too")
+    expect(closingReply("Zoomed in.", outcome: "Claude finished without saying anything.") == "Zoomed in.", "a normal finish keeps the reply")
+    // A Claude that exits before the app starts waiting still wakes the wait (it used to hang on "editing").
+    let early = ExitSignal()
+    early.fire()
+    let woke = DispatchSemaphore(value: 0)
+    Task.detached {
+      await early.wait()
+      woke.signal()
+    }
+    expect(woke.wait(timeout: .now() + 2) == .success, "an exit before the wait is still noticed")
+    let late = ExitSignal()
+    let wokeLate = DispatchSemaphore(value: 0)
+    Task.detached {
+      await late.wait()
+      wokeLate.signal()
+    }
+    expect(wokeLate.wait(timeout: .now() + 0.2) == .timedOut, "the wait holds until the exit")
+    late.fire()
+    expect(wokeLate.wait(timeout: .now() + 2) == .success, "an exit after the wait wakes it")
+    let tail = TailBuffer(limit: 10)
+    tail.append(Data("0123456789".utf8))
+    tail.append(Data("abcde\n".utf8))
+    expect(tail.text == "6789abcde", "stderr keeps its last bytes (\(tail.text))")
+
+    // Logo pickers list aliases (OpenAI and ChatGPT), so every logo a template starts with has an entry.
+    let bundledLogos = AnimationSources(project: lib, builtIn: templateDir.deletingLastPathComponent()).logos()
+    expect(bundledLogos["OpenAI"] != nil && bundledLogos["ChatGPT"] != nil, "both names of one logo are listed")
+    for t in templates {
+      let named = t.fields.flatMap { f -> [String] in
+        switch f.type {
+        case "logo": return t.data[path: f.key]?.string.map { [$0] } ?? []
+        case "logos": return t.data[path: f.key]?.strings ?? []
+        default: return []
+        }
+      }
+      let missing = named.filter { bundledLogos[$0] == nil }
+      expect(missing.isEmpty, "\(t.name): every starting logo is in the picker (missing \(missing))")
+    }
 
     let mutedMap = mapSegments([Segment(start: 0, end: 2, speed: 1), Segment(start: 2, end: 10, speed: 8)], fps: fps)
     let mutedPages = Scene.captionPages(
