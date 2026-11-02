@@ -253,10 +253,20 @@ func sceneDrawingChecks() {
   var cube = "TITLE \"invert\"\n# comment\nLUT_3D_SIZE 2\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1\n"
   for b in 0..<2 { for g in 0..<2 { for r in 0..<2 { cube += "\(1 - r) \(1 - g) \(1 - b)\n" } } }
   try? cube.write(to: lutDir.appendingPathComponent("luts/invert.cube"), atomically: true, encoding: .utf8)
-  let inverted = pixel(Scene.graded(CIImage(color: CIColor(red: 0.2, green: 0.5, blue: 0.8)).cropped(to: mid.extent), Grade(lut: "luts/invert.cube"), dir: lutDir), x: 4, y: 4)
+  func lutScene(_ path: String) -> Scene {
+    var p = base
+    p.camera = Plan.Camera(video: "camera.mov", offset: 0)
+    p.camera?.grade = Grade(lut: path)
+    return Scene(plan: p, words: [], clicks: [], shortcuts: [], dir: lutDir)
+  }
+  let invertScene = lutScene("luts/invert.cube")
+  // Read once when the scene is built, so deleting the file afterwards doesn't change frames.
+  try? FileManager.default.removeItem(at: lutDir.appendingPathComponent("luts/invert.cube"))
+  let inverted = pixel(Scene.graded(CIImage(color: CIColor(red: 0.2, green: 0.5, blue: 0.8)).cropped(to: mid.extent), Grade(lut: "luts/invert.cube"), lut: invertScene.cameraLUT), x: 4, y: 4)
   expect(near(inverted, [0.8, 0.5, 0.2], 0.04), "a LUT recolors the camera (\(inverted))")
-  let missing = pixel(Scene.graded(mid, Grade(lut: "luts/gone.cube"), dir: lutDir), x: 4, y: 4)
-  expect(near(missing, [0.4, 0.4, 0.4], 0.01), "a missing LUT leaves the picture alone (\(missing))")
+  let goneScene = lutScene("luts/gone.cube")
+  let missing = pixel(Scene.graded(mid, Grade(lut: "luts/gone.cube"), lut: goneScene.cameraLUT), x: 4, y: 4)
+  expect(goneScene.cameraLUT == nil && near(missing, [0.4, 0.4, 0.4], 0.01), "a missing LUT leaves the picture alone (\(missing))")
   for (bad, why) in [
     ("LUT_1D_SIZE 2\n0 0 0\n1 1 1\n", "1D"), ("LUT_3D_SIZE 2\n0 0 0\n", "needs 8"), ("0 0 0\n", "no LUT_3D_SIZE"),
     ("LUT_3D_SIZE 2\nDOMAIN_MAX 2 2 2\n", "0...1 domain"), ("LUT_3D_SIZE 2\nred green blue\n", "unreadable"),

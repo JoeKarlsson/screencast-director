@@ -26,6 +26,9 @@ public final class Scene: @unchecked Sendable {
   let insertImages: [Int: CIImage]
   /// The project folder, for files the plan names relative to it.
   public let dir: URL?
+  /// The camera grade's LUT, read once here rather than on every frame. A LUT that can't be read
+  /// is skipped (`describe` warns about it, and the app checks it when it's chosen).
+  let cameraLUT: CubeLUT?
   /// Styled cuts: the output frame of each cut and how it looks.
   let cuts: [(f: Double, kind: String)]
   /// Cuts that dissolve between clips (a second screen track carries the other clip's frames).
@@ -71,6 +74,7 @@ public final class Scene: @unchecked Sendable {
     self.plan = plan
     self.dir = dir
     self.words = words
+    cameraLUT = plan.camera?.grade?.lut.flatMap { Scene.fileURL($0, dir: dir) }.flatMap { try? CubeLUT.load($0) }
     pointer =
       plan.cursor?.hidden == true
       ? [] : cursorPath.filter { (-0.05...1.05).contains($0.x) && (-0.05...1.05).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
@@ -371,9 +375,8 @@ public final class Scene: @unchecked Sendable {
     return masked(placed, ciRect(b), radius: b.r, opacity: b.opacity)
   }
 
-  /// The camera picture through the plan's grade. A LUT that can't be read is skipped here
-  /// (`describe` warns about it, and the app checks it when it's chosen).
-  static func graded(_ img: CIImage, _ g: Grade?, dir: URL? = nil) -> CIImage {
+  /// The camera picture through the plan's grade, then `lut` (the grade's LUT, loaded by the caller).
+  static func graded(_ img: CIImage, _ g: Grade?, lut: CubeLUT? = nil) -> CIImage {
     guard let g else { return img }
     var out = img
     if let e = g.exposure, e != 0 { out = out.applyingFilter("CIExposureAdjust", parameters: ["inputEV": e]) }
@@ -393,12 +396,12 @@ public final class Scene: @unchecked Sendable {
         "CITemperatureAndTint",
         parameters: ["inputNeutral": CIVector(x: 6500, y: 0), "inputTargetNeutral": CIVector(x: 6500 - w * 2500, y: 0)])
     }
-    if let path = g.lut, let url = fileURL(path, dir: dir), let lut = try? CubeLUT.load(url) { out = lut.apply(to: out) }
+    if let lut { out = lut.apply(to: out) }
     return out.cropped(to: img.extent)
   }
 
   func cameraCard(_ src0: CIImage, box b: Box, frame f: Double) -> CIImage {
-    var src = Scene.graded(src0, plan.camera?.grade, dir: dir)
+    var src = Scene.graded(src0, plan.camera?.grade, lut: cameraLUT)
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
     let cut = cutoutWeight(b)
