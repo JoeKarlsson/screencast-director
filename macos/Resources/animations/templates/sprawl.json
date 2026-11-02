@@ -1,0 +1,39 @@
+{
+  "name": "sprawl",
+  "title": "One at a Time",
+  "summary": "One thing wired to many apps one at a time, each with its own costs, until it tangles into a mess. Pair it with Hub for the fix.",
+  "length": 26,
+  "fields": [
+    { "key": "title", "label": "Heading", "type": "text" },
+    { "key": "highlight", "label": "Highlighted words", "type": "text", "help": "Part of the heading that gets the highlighter." },
+    { "key": "center.logo", "label": "Center logo", "type": "logo" },
+    { "key": "center.label", "label": "Center label", "type": "text" },
+    { "key": "apps", "label": "Apps", "type": "logos", "max": 8 },
+    { "key": "extraApps", "label": "More apps (on “many”)", "type": "logos", "max": 4 },
+    { "key": "questions", "label": "Notes", "type": "texts", "max": 3 },
+    { "key": "costs", "label": "Costs per app", "type": "texts", "max": 3 },
+    { "key": "fewCount", "label": "Apps left on “few”", "type": "number", "max": 8 }
+  ],
+  "cues": [
+    { "key": "apps", "label": "Apps pop in", "at": 0.6 },
+    { "key": "q1", "label": "Note 1", "at": 5.75 },
+    { "key": "q2", "label": "Note 2", "at": 7.15 },
+    { "key": "q3", "label": "Note 3", "at": 9.1 },
+    { "key": "cost1", "label": "Cost 1", "at": 11.6 },
+    { "key": "cost2", "label": "Cost 2", "at": 13.5 },
+    { "key": "cost3", "label": "Cost 3", "at": 15.8 },
+    { "key": "few", "label": "Down to a few", "at": 19.6 },
+    { "key": "many", "label": "Up to many", "at": 22.95 },
+    { "key": "circle", "label": "Circle the mess", "at": 24.6 }
+  ],
+  "data": {
+    "title": "Hooking up apps one at a time",
+    "highlight": "one at a time",
+    "center": { "logo": "OpenAI", "label": "your agent" },
+    "apps": ["Salesforce", "Slack", "Jira", "Snowflake", "Zendesk", "HubSpot", "Stripe", "Shopify"],
+    "extraApps": ["QuickBooks", "Xero", "Asana", "Google Ads"],
+    "questions": ["Its own plugin?", "An MCP server?", "…or nothing?"],
+    "costs": ["sign-ins", "sets of permissions", "places to check"],
+    "fewCount": 2
+  }
+}

@@ -32,6 +32,8 @@ final class InspectorUI: ObservableObject {
     }
   }
   @Published var tab: Tab = .selection
+  /// An app typed into an animation's app list, before Return adds it.
+  @Published var newAnimationApp = ""
   @Published var thumbnail: NSImage?
   @Published var cameraThumbnail: NSImage?
   var thumbnailFor: Double = -1
@@ -399,31 +401,9 @@ struct InspectorView: View {
       removeButton()
     case .animation(let i) where plan.animationList.indices.contains(i):
       let a = plan.animationList[i]
-      itemHeader("Animation", "sparkles", Theme.broll, range(a.start, a.end))
-      InspectorSection(
-        a.note ?? a.template,
-        detail: "The \"\(a.template)\" template, full frame. Ask Claude to change its text, logos or beats; it re-renders by itself."
-      ) {
-        if project.animating, plan.animationsToRender(dir: project.dir).contains(where: { $0.index == i }) {
-          Label("Rendering…", systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
-        }
-        ForEach((a.cues ?? [:]).sorted { $0.value < $1.value }, id: \.key) { name, t in
-          Button {
-            project.seek(src: t)
-          } label: {
-            HStack {
-              Text(name).font(.caption.monospaced())
-              Spacer()
-              Text(project.words.first { $0.end > t }.map { "“\($0.text)” " } ?? "").font(.caption).foregroundStyle(.secondary)
-              Text(fmtTime(t)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          .help("Jump to this beat")
-        }
-        previewButton(a.start)
-      }
+      itemHeader(a.note ?? "Animation", "sparkles", Theme.animation, range(a.start, a.end))
+      AnimationEditor(project: project, ui: ui, i: i)
+      previewButton(a.start)
       removeButton()
     case .marker(let i) where plan.markerList.indices.contains(i):
       let m = plan.markerList[i]

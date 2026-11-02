@@ -1,0 +1,37 @@
+{
+  "name": "hub",
+  "title": "One Hub",
+  "summary": "One connection to a hub that fans out to many apps, with one of each cost. The answer to One at a Time.",
+  "length": 17,
+  "fields": [
+    { "key": "title", "label": "Heading", "type": "text" },
+    { "key": "highlight", "label": "Highlighted words", "type": "text", "help": "Part of the heading that gets the highlighter." },
+    { "key": "center.logo", "label": "Left logo", "type": "logo" },
+    { "key": "center.label", "label": "Left label", "type": "text" },
+    { "key": "hub.logo", "label": "Hub logo", "type": "logo" },
+    { "key": "hub.label", "label": "Hub label", "type": "text" },
+    { "key": "link", "label": "Tag on the line", "type": "text" },
+    { "key": "apps", "label": "Apps", "type": "logos", "max": 12 },
+    { "key": "more", "label": "Label for the rest", "type": "text", "help": "Leave empty for no field of extra logos." },
+    { "key": "costs", "label": "Costs, once each", "type": "texts", "max": 3 }
+  ],
+  "cues": [
+    { "key": "hub", "label": "Hub appears", "at": 1.4 },
+    { "key": "link", "label": "Tag on the line", "at": 3.6 },
+    { "key": "apps", "label": "Apps fan out", "at": 4.4 },
+    { "key": "more", "label": "The rest fill in", "at": 6.3 },
+    { "key": "cost1", "label": "Cost 1", "at": 7.9 },
+    { "key": "cost2", "label": "Cost 2", "at": 9.8 },
+    { "key": "cost3", "label": "Cost 3", "at": 14.3 }
+  ],
+  "data": {
+    "title": "One plugin for all of them",
+    "highlight": "plugin",
+    "center": { "logo": "OpenAI", "label": "your agent" },
+    "hub": { "logo": "CData", "label": "Connect AI" },
+    "link": "1 plugin",
+    "apps": ["Salesforce", "Slack", "Jira", "Snowflake", "Zendesk", "HubSpot", "Stripe", "Shopify", "QuickBooks", "Xero", "Asana", "Google Ads"],
+    "more": "+ hundreds more",
+    "costs": ["sign-in", "set of permissions", "log"]
+  }
+}

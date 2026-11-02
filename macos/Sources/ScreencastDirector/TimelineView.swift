@@ -79,7 +79,7 @@ final class TimelineUI: ObservableObject {
 }
 
 private enum Track: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll
+  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations
 
   var height: CGFloat {
     switch self {
@@ -101,6 +101,7 @@ private enum Track: CaseIterable {
     case .titles: return "Titles"
     case .marks: return "Marks"
     case .broll: return "B-roll"
+    case .animations: return "Animations"
     }
   }
   var icon: String {
@@ -114,6 +115,7 @@ private enum Track: CaseIterable {
     case .titles: return "textformat"
     case .marks: return "scribble"
     case .broll: return "photo.on.rectangle"
+    case .animations: return "sparkles"
     }
   }
   var color: Color {
@@ -127,6 +129,7 @@ private enum Track: CaseIterable {
     case .titles: return Theme.title
     case .marks: return Theme.mark
     case .broll: return Theme.broll
+    case .animations: return Theme.animation
     }
   }
   var y: CGFloat {
@@ -384,6 +387,19 @@ struct TimelineView: View {
         .accessibilityLabel("Annotate")
         .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
         iconButton("B-roll", "photo.on.rectangle", help: "Show a picture or clip over the video from the playhead", action: project.addInsert)
+        Menu {
+          ForEach(AnimationLibrary.templates, id: \.name) { t in
+            Button { project.addAnimation(t) } label: { Text("\(t.title): \(t.summary)") }
+          }
+        } label: {
+          Image(systemName: "sparkles")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 28, height: 22)
+        .accessibilityLabel("Animate")
+        .help("Add an animation over the in/out range, the selected words, or from the playhead")
       }
       Spacer(minLength: 4)
       HStack(spacing: 6) {
@@ -645,12 +661,12 @@ struct TimelineView: View {
           }
         }
       }
-      // Animations ride the B-roll track: they play full frame over the video like a full B-roll clip.
       ForEach(Array(plan.animationList.enumerated()), id: \.offset) { i, an in
         let sel = Selection.animation(i)
         let (a, b) = range(sel, an.start, an.end)
-        let label = "✦ \(an.note ?? an.template)\(project.animating && plan.animationsToRender(dir: project.dir).contains { $0.index == i } ? " · rendering…" : "")"
-        bar(sel: sel, start: a, end: b, track: .broll, color: Theme.broll, label: label, striped: true, movable: true) { s, e in
+        let rendering = project.animating && plan.animationsToRender(dir: project.dir).contains { $0.index == i }
+        let label = "\(an.note ?? AnimationLibrary.template(an.template)?.title ?? an.template)\(rendering ? " · rendering…" : "")"
+        bar(sel: sel, start: a, end: b, track: .animations, color: Theme.animation, label: label, striped: rendering, movable: true) { s, e in
           project.apply {
             guard $0.animationList.indices.contains(i) else { return }
             var list = $0.animationList
@@ -736,7 +752,7 @@ struct TimelineView: View {
     for (i, c) in plan.callouts.enumerated() where hits(.titles, c.start, c.end) { out.append(.callout(i)) }
     for (i, m) in plan.annotationList.enumerated() where hits(.marks, m.start, m.end) { out.append(.annotation(i)) }
     for (i, c) in plan.insertList.enumerated() where hits(.broll, c.start, c.end) { out.append(.insert(i)) }
-    for (i, a) in plan.animationList.enumerated() where hits(.broll, a.start, a.end) { out.append(.animation(i)) }
+    for (i, a) in plan.animationList.enumerated() where hits(.animations, a.start, a.end) { out.append(.animation(i)) }
     return out
   }
 

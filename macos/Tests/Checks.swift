@@ -468,6 +468,22 @@ struct Checks {
     animPlan.animations = [anim]
     expect(animPlan.animationInserts(dir: URL(fileURLWithPath: "/tmp/sd-no-such-project")).isEmpty, "an unrendered animation isn't B-roll yet")
 
+    // Every bundled template has a manifest the editor can read, and a new one spreads its beats over its own stretch.
+    let templateDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Resources/animations/templates")
+    let templates = AnimationTemplate.all(in: templateDir)
+    let scripts = ((try? FileManager.default.contentsOfDirectory(atPath: templateDir.path)) ?? []).filter { $0.hasSuffix(".js") }
+    expect(templates.count == scripts.count && !templates.isEmpty, "each template script has a manifest (\(templates.map(\.name)) vs \(scripts))")
+    for t in templates {
+      let made = t.make(start: 100, end: 100 + t.length / 2)
+      expect(made.cues?.values.allSatisfy { $0 >= 100 && $0 <= 100 + t.length / 2 } == true, "\(t.name): beats land inside a shorter animation")
+      expect(t.fields.allSatisfy { t.data[path: $0.key] != nil }, "\(t.name): every field has a starting value")
+    }
+    var edited = JSONValue.object(["center": .object(["logo": .string("OpenAI")])])
+    edited[path: "center.label"] = .string("your dot")
+    edited[path: "title"] = .string("Hi")
+    edited[path: "center.logo"] = nil
+    expect(edited[path: "center.label"]?.string == "your dot" && edited[path: "title"]?.string == "Hi" && edited[path: "center.logo"] == nil, "dotted paths set and clear fields")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

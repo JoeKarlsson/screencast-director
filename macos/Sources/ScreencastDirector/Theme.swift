@@ -14,6 +14,7 @@ enum Theme {
   static let title = Color.orange
   static let mark = Color.pink
   static let broll = Color.indigo
+  static let animation = Color(red: 0.93, green: 0.62, blue: 0.05)
   static let recording = Color.red
   static let ai = Color.orange
 

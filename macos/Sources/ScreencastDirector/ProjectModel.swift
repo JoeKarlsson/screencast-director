@@ -225,7 +225,7 @@ final class ProjectModel: ObservableObject {
         if wasPlaying { player.play() }
         let out = Double(built.scene.frameCount) / Double(plan.output.fps)
         status = "\(fmtTime(plan.source.duration)) recorded → \(fmtTime(out)) edited"
-        renderAnimationsIfNeeded(plan)
+        scheduleAnimationRender()
       } catch {
         status = "Couldn't load the plan: \(error.localizedDescription)"
         Notices.shared.show(error, "Couldn't load the plan")
@@ -237,6 +237,19 @@ final class ProjectModel: ObservableObject {
   /// with the bundled `director animate` (WebKit lives there, not in the app's process) and rebuild
   /// when it's done. One run at a time; a plan changed meanwhile is checked again by that rebuild.
   @Published private(set) var animating = false
+
+  private var animateWork: DispatchWorkItem?
+
+  /// Renders once editing pauses, so typing in an animation's heading doesn't start a render per key.
+  private func scheduleAnimationRender() {
+    animateWork?.cancel()
+    let work = DispatchWorkItem { [weak self] in
+      guard let self, let plan = self.plan else { return }
+      self.renderAnimationsIfNeeded(plan)
+    }
+    animateWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+  }
 
   private func renderAnimationsIfNeeded(_ plan: Plan) {
     let missing = plan.animationsToRender(dir: dir).count
@@ -683,6 +696,49 @@ final class ProjectModel: ObservableObject {
     let z = Zoom(start: t, end: min(plan.source.duration, t + 2.5), x: f.x, y: f.y, scale: 1.8, note: "manual")
     apply { $0.zooms.append(z) }
     if let i = self.plan?.zooms.firstIndex(of: z) { selection = .zoom(i) }
+  }
+
+  /// A new animation over the in/out range, the selected words, or the template's length from the
+  /// playhead, with the template's starting content and its beats spread over that stretch.
+  func addAnimation(_ template: AnimationTemplate) {
+    guard let plan else { return }
+    let span = markedRange ?? transcriptRange ?? playheadSrc..<min(plan.source.duration, playheadSrc + template.length)
+    guard span.upperBound - span.lowerBound > 0.5 else {
+      Notices.shared.show("There's not enough recording after the playhead for an animation.")
+      return
+    }
+    let a = template.make(start: span.lowerBound, end: span.upperBound)
+    apply { $0.animationList.append(a) }
+    if let i = self.plan?.animationList.firstIndex(of: a) { select(.animation(i), adding: false) }
+    status = "Added \(template.title). Fill it in on the right, or let Claude fill it from what you say."
+  }
+
+  /// Changes one animation, bounds-checked (an undo can remove it while its editor is open).
+  func editAnimation(_ i: Int, coalesce: String? = nil, _ change: (inout Animation) -> Void) {
+    apply(coalesce: coalesce) { p in
+      guard p.animationList.indices.contains(i) else { return }
+      var list = p.animationList
+      change(&list[i])
+      p.animationList = list
+    }
+  }
+
+  /// Switches an animation to another template, starting over with that template's content.
+  func setAnimationTemplate(_ i: Int, _ template: AnimationTemplate) {
+    editAnimation(i) { a in
+      guard a.template != template.name else { return }
+      a = template.make(start: a.start, end: a.end)
+    }
+  }
+
+  /// Has Claude write the animation's text and time its beats from what's said over it.
+  func fillAnimationFromTranscript(_ i: Int) {
+    guard let list = plan?.animationList, list.indices.contains(i) else { return }
+    let a = list[i]
+    instruction =
+      "Fill in animation #\(i) (the \"\(a.template)\" template, \(fmtTime(a.start))–\(fmtTime(a.end))) from what I say in that stretch: "
+      + "write its heading, labels and apps in my words, and cue each beat to the word that names it. Keep its start and end."
+    askClaude()
   }
 
   func addLayout(_ mode: LayoutMode) {
