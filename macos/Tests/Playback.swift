@@ -117,6 +117,10 @@ struct Playback {
       for i in 0..<8820 { beep.floatChannelData![0][i] = Float(sin(Double(i) * 2 * .pi * 1000 / 44100) * 0.5) }
       try AVAudioFile(forWriting: dir.appendingPathComponent("beep.caf"), settings: beepFormat.settings).write(from: beep)
       plan.sfx = [SoundEffect(t: 1, file: "beep.caf"), SoundEffect(t: 3, file: "beep.caf", gainDB: -6)]
+      // A sound attached to a title plays when the title appears, on the same track.
+      var titled = Callout(start: 0.25, end: 0.9, text: "Step 1", style: "chapter")
+      titled.sound = Sound(file: "beep.caf")
+      plan.callouts = [titled]
       let box = ResultBox<BuiltComposition>()
       let sem = DispatchSemaphore(value: 0)
       let planCopy = plan
@@ -138,6 +142,12 @@ struct Playback {
     expect(abs(built.asset.duration.seconds - 2.5) < 0.05, "asset duration matches the plan (\(built.asset.duration.seconds)s)")
     expect(built.asset.tracks(withMediaType: .audio).count == 1, "the sound effects get one audio track (the synthetic video is silent)")
     expect(built.asset.tracks.allSatisfy { $0.timeRange.end == built.asset.duration }, "every track, sound effects included, ends with the video")
+    // Effects at source 1 s and 3 s land at 1 s and 2 s of output (after a 2x cut); the title's at 0.25 s.
+    let soundStarts = (built.asset.tracks(withMediaType: .audio).first?.segments ?? []).filter { !$0.isEmpty }
+      .map { ($0.timeMapping.target.start.seconds * 100).rounded() / 100 }
+    for at in [0.25, 1.0, 2.0] {
+      expect(soundStarts.contains { abs($0 - at) < 0.04 }, "a sound starts at \(at)s of output (starts: \(soundStarts))")
+    }
 
     let item = built.playerItem()
     let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])

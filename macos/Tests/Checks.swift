@@ -1,5 +1,6 @@
 import CoreImage
 import Foundation
+import JavaScriptCore
 
 // Plain-swiftc checks for DirectorCore (Swift Testing and XCTest need Xcode). Run: macos/test.sh
 // One long list of checks by design, so the body-length rules don't apply here.
@@ -20,6 +21,34 @@ func pixel(_ image: CIImage, x: Double, y: Double) -> [Double] {
     image, toBitmap: &px, rowBytes: 4, bounds: CGRect(x: x, y: y, width: 1, height: 1), format: .RGBA8,
     colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
   return px.prefix(3).map { Double($0) / 255 }
+}
+
+/// The animation engine and templates in JavaScriptCore with a stand-in page, so template logic is
+/// checked without WebKit. Every element `el` makes is kept in `made`, and `logoHTML` gives "@name".
+func animationScripts(_ animations: URL) -> JSContext {
+  let js = JSContext()!
+  js.exceptionHandler = { _, e in expect(false, "animation script threw: \(e?.toString() ?? "?")") }
+  js.evaluateScript("""
+    const fake = () => ({ className: "", innerHTML: "", textContent: "", style: { setProperty() {} },
+      setAttribute() {}, appendChild() {}, querySelector() { return fake(); } });
+    var window = globalThis;
+    var document = { createElement: fake, createElementNS: fake, getElementById: fake, documentElement: fake(), images: [] };
+    """)
+  let templateFiles = ((try? FileManager.default.contentsOfDirectory(atPath: animations.appendingPathComponent("templates").path)) ?? [])
+    .filter { $0.hasSuffix(".js") }.sorted().map { "templates/" + $0 }
+  for file in ["engine.js"] + templateFiles {
+    let source = (try? String(contentsOf: animations.appendingPathComponent(file), encoding: .utf8)) ?? ""
+    expect(!source.isEmpty, "\(file) loads")
+    js.evaluateScript(source, withSourceURL: URL(string: file))
+  }
+  js.evaluateScript("""
+    cam = fake(); lines = fake();
+    var made = [];
+    const makeElement = el;
+    el = (cls, html) => { const d = makeElement(cls, html); made.push(d); return d; };
+    logoHTML = name => "@" + name;
+    """)
+  return js
 }
 
 @main
@@ -783,6 +812,37 @@ struct Checks {
       let missing = named.filter { bundledLogos[$0] == nil }
       expect(missing.isEmpty, "\(t.name): every starting logo is in the picker (missing \(missing))")
     }
+
+    // Animation scripts run in JavaScriptCore: every template's frames draw without throwing, and the
+    // hub's background field shows its own apps, each once before any repeats, never the grid's.
+    let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
+    for t in templates {
+      let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)
+      let cues = "{" + t.cues.map { "\"\($0.key)\": \($0.at)" }.joined(separator: ", ") + "}"
+      let drawn = templateScripts.evaluateScript("""
+        (() => { const seek = TEMPLATES["\(t.name)"](\(data), \(cues), \(t.length));
+          for (let s = 0; s <= \(t.length); s += 0.25) seek(s); return true; })()
+        """)
+      expect(drawn?.toBool() == true, "\(t.name): every frame draws")
+    }
+    func hubField(_ grid: [String], _ own: [String]) -> [String] {
+      let data = String(decoding: (try? JSONEncoder().encode(["apps": grid, "moreApps": own])) ?? Data(), as: UTF8.self)
+      let result = templateScripts.evaluateScript("""
+        (() => { made = []; const d = \(data); d.more = "+ more"; TEMPLATES.hub(d, {}, 17);
+          return made.filter(e => e.className.includes("ghost")).map(e => e.innerHTML.slice(1)); })()
+        """)
+      return result?.toArray() as? [String] ?? []
+    }
+    let hubGrid = ["Salesforce", "Slack", "Jira"]
+    let hubOwn = (1...10).map { "App \($0)" }
+    let hubSpots = hubField(hubGrid, hubOwn + ["Slack"])
+    let cycled = hubSpots.indices.map { hubOwn[$0 % hubOwn.count] }
+    expect(hubSpots.count > hubOwn.count && hubSpots == cycled, "the hub's field shows each of its apps once before repeating (\(hubSpots))")
+    expect(!hubSpots.contains { hubGrid.contains($0) }, "the hub's field leaves out the grid's apps")
+    let hubMany = (1...40).map { "App \($0)" }
+    let hubFull = hubField(hubGrid, hubMany)
+    expect(Set(hubFull).count == hubFull.count, "with more apps than spots, none repeats (\(hubFull.count) spots)")
+    expect(Set(hubField(hubGrid, [])) == Set(hubGrid), "with no apps of its own, the field repeats the grid's")
 
     let mutedMap = mapSegments([Segment(start: 0, end: 2, speed: 1), Segment(start: 2, end: 10, speed: 8)], fps: fps)
     let mutedPages = Scene.captionPages(
