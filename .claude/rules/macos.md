@@ -37,6 +37,7 @@ paths:
 
 ## Tests
 
+- Every `feat:` or `fix:` commit adds or updates a check in the same commit: `Tests/Checks.swift` for plan, scene and describe logic, `Tests/Playback.swift` for composition tracks, and `smoke-test.sh` for app-only behavior (timeline, inspector, shortcuts, the Claude box). If app behavior can't be checked there, move the logic into DirectorCore, where `test.sh` reaches it. A change with no test says why in its commit message.
 - `macos/test.sh` covers the timeline math, planner rules and editing. `test/make-fixture.sh` builds a synthetic project (`projects/fixture`) whose green top bar grows 96 px per source second, so frame mapping can be read off any rendered frame.
 - Tests beyond `macos/test.sh`: `macos/playback-test.sh` plays a composition from a synthetic recording through `AVPlayerItemVideoOutput` and fails on black or missing frames (runs in CI). `macos/smoke-test.sh` builds dist/, launches that copy on a temp fixture (`-projectsFolder`, `-openProject`), and drives the editor through System Events by PID; it needs a GUI session, so it's local only.
 - Every composition track must end exactly at the instruction's end. A camera track a few milliseconds long (scaled-range rounding) makes AVPlayer render nothing, black and silent, while `AVAssetImageGenerator` and export still work, so `director still` can't catch it. `buildComposition` trims to the frame count. Test playback with an `AVPlayerItemVideoOutput`, not just stills.
