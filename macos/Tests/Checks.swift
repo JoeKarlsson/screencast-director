@@ -678,6 +678,19 @@ struct Checks {
     let (lutClean, lutReverted) = PathSafety.sanitize(lutEvil, previous: graded, project: URL(fileURLWithPath: "/tmp/fx-project"))
     expect(lutClean.camera?.grade?.lut == "luts/look.cube" && lutReverted == ["camera.grade.lut"], "a LUT outside the project is undone")
     expect(describe(p, graded).contains("WARNING: camera LUT luts/look.cube isn't applied"), "describe warns about a LUT it can't read")
+    // Fonts: a file that isn't a font and a name that isn't installed are warned about; an installed one isn't.
+    let notAFont = FileManager.default.temporaryDirectory.appendingPathComponent("sd-not-a-font-\(UUID().uuidString).ttf")
+    try? Data("nope".utf8).write(to: notAFont)
+    defer { try? FileManager.default.removeItem(at: notAFont) }
+    var fonted = fx
+    fonted.look = Look()
+    fonted.look?.fontFiles = [notAFont.path]
+    fonted.look?.titleFont = "No Such Font Sans"
+    fonted.look?.captionFont = "Helvetica"
+    let fontText = describe(p, fonted)
+    expect(fontText.contains("font file \(notAFont.path) isn't used"), "describe warns about a font file CoreText can't read")
+    expect(fontText.contains("titleFont \"No Such Font Sans\" isn't installed") && !fontText.contains("captionFont"), "describe warns about a missing font name only")
+    expect(!describe(p, fx).contains("## Fonts"), "no Fonts section when the fonts are fine")
     // An attached sound plays when its title appears, and follows it when the title moves.
     var attached = fx
     attached.sfx = nil

@@ -180,13 +180,41 @@ public struct Profile: Codable, Equatable {
 }
 
 public enum Fonts {
-  nonisolated(unsafe) private static var registered = Set<String>()
+  /// Each font file tried so far, and why it couldn't be registered (nil when it was).
+  nonisolated(unsafe) private static var tried: [String: String?] = [:]
 
-  /// Registers font files for this process (once each).
+  /// Registers font files for this process (once each). A file that can't be registered is skipped
+  /// here, so the frame still renders; `problems` says why, and `describe` warns about it.
   public static func register(_ paths: [String]?) {
-    for path in paths ?? [] where !registered.contains(path) {
-      registered.insert(path)
-      CTFontManagerRegisterFontsForURL(URL(fileURLWithPath: path) as CFURL, .process, nil)
+    for path in paths ?? [] where tried[path] == nil {
+      var error: Unmanaged<CFError>?
+      let ok = CTFontManagerRegisterFontsForURL(URL(fileURLWithPath: path) as CFURL, .process, &error)
+      let why = error.map { ($0.takeRetainedValue() as Error).localizedDescription }
+      // Already registered (by this process or the system) is fine.
+      let alreadyThere = why?.contains("already") == true
+      tried[path] = ok || alreadyThere ? .some(nil) : .some(why ?? "it isn't a font CoreText can read")
     }
+  }
+
+  /// Why the look's fonts won't all be used: font files that can't be registered, and named fonts
+  /// that are neither installed nor in `fontFiles` (CoreText would silently draw another font).
+  public static func problems(_ look: Look) -> [String] {
+    register(look.fontFiles)
+    var out: [String] = []
+    for path in look.fontFiles ?? [] {
+      if case .some(.some(let why)) = tried[path] { out.append("font file \(path) isn't used: \(why)") }
+    }
+    for (field, name) in [("titleFont", look.titleFont), ("captionFont", look.captionFont), ("chipFont", look.chipFont)] {
+      guard let name, !isAvailable(name) else { continue }
+      out.append("\(field) \"\(name)\" isn't installed or in fontFiles, so another font is drawn instead")
+    }
+    return out
+  }
+
+  /// Whether CoreText finds this font by PostScript, full or family name rather than substituting one.
+  static func isAvailable(_ name: String) -> Bool {
+    let font = CTFontCreateWithName(name as CFString, 12, nil)
+    let names = [CTFontCopyPostScriptName(font), CTFontCopyFullName(font), CTFontCopyFamilyName(font)].map { ($0 as String).lowercased() }
+    return names.contains(name.lowercased())
   }
 }
