@@ -37,6 +37,8 @@ fail() {
 }
 
 "$ROOT/test/make-fixture.sh" "$PROJECT" >/dev/null
+AXPRESS="$TMP/axpress"
+swiftc -suppress-warnings Tests/AXPress.swift -o "$AXPRESS"
 "$APP/Contents/MacOS/director" plan "$PROJECT" >/dev/null
 # The fixture's plan ends with a 1x clip at 10.5-13.1 s; the test changes its speed and undoes it.
 segments() { python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["segments"], sort_keys=True))' "$PROJECT/plan.json"; }
@@ -124,19 +126,9 @@ echo "ok: ⌘Z restored the original plan"
 
 # 5. The Audio tab's sound picker adds a library sound: plan.json names it and the project gets a copy.
 # SwiftUI buttons here have no AX title, so they're found by their help text.
-press_help() {
-  ax "set els to entire contents of window 1
-    repeat with i from 1 to count of els
-      set e to item i of els
-      try
-        if role of e is \"AXButton\" and (help of e as text) is \"$1\" then
-          perform action \"AXPress\" of e
-          return \"pressed\"
-        end if
-      end try
-    end repeat
-    return \"missing\""
-}
+# Buttons are found through the test instance's PID (Tests/AXPress.swift): AppleScript's
+# `entire contents` references name the process, so they'd reach the installed copy when it's running.
+press_help() { "$AXPRESS" "$PID" help "$1"; }
 [[ "$(press_help "Audio")" == pressed ]] || fail "no Audio tab in the inspector"
 sleep 1
 [[ "$(press_help "Pick a sound effect to add at the playhead")" == pressed ]] || fail "no Add Sound Effect button in the Audio tab"
@@ -148,7 +140,29 @@ for _ in $(seq 1 20); do [[ "$(sounds)" == *sfx/pop.m4a* ]] && break; sleep 0.2;
 [[ -s "$PROJECT/sfx/pop.m4a" ]] || fail "adding pop didn't copy it into the project's sfx folder"
 echo "ok: the sound picker added pop to plan.json and copied it into the project"
 
-# 6. Quit: stop the test instance by PID only.
+# 6. The sound shows on the Sound FX row: pressing its chip selects it, the inspector's volume slider
+# sets its level, ⌫ removes it, and ⌘Z brings it back.
+chip="$("$AXPRESS" "$PID" description "Sound effect pop*")"
+[[ "$chip" == pressed ]] || fail "no pop chip on the Sound FX row"
+sleep 1
+gain() { python3 -c 'import json,sys; s=json.load(open(sys.argv[1])).get("sfx") or []; print(s[0].get("gainDB", 0) if s else "none")' "$PROJECT/plan.json"; }
+before_gain="$(gain)"
+ax "perform action \"AXIncrement\" of slider 1 of $INSPECTOR" >/dev/null || fail "no volume slider for the selected sound"
+for _ in $(seq 1 20); do [[ "$(gain)" != "$before_gain" ]] && break; sleep 0.2; done
+[[ "$(gain)" != "$before_gain" ]] || fail "the volume slider didn't change the sound's level (gainDB $(gain))"
+echo "ok: the volume slider set the sound to $(gain) dB"
+front
+ax 'key code 51' >/dev/null # ⌫
+for _ in $(seq 1 20); do [[ -z "$(sounds)" ]] && break; sleep 0.2; done
+[[ -z "$(sounds)" ]] || fail "⌫ didn't remove the selected sound (sfx: $(sounds))"
+echo "ok: ⌫ removed the sound"
+front
+ax 'key code 6 using command down' >/dev/null # ⌘Z
+for _ in $(seq 1 20); do [[ "$(sounds)" == *sfx/pop.m4a* ]] && break; sleep 0.2; done
+[[ "$(sounds)" == *sfx/pop.m4a* ]] || fail "⌘Z didn't bring the sound back"
+echo "ok: ⌘Z brought the sound back"
+
+# 7. Quit: stop the test instance by PID only.
 kill "$PID"
 for _ in $(seq 1 50); do kill -0 "$PID" 2>/dev/null || break; sleep 0.1; done
 kill -0 "$PID" 2>/dev/null && fail "test instance didn't quit"
