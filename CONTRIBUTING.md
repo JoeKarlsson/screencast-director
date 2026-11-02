@@ -9,12 +9,19 @@ See [docs/app.md](docs/app.md) for the macOS app and [docs/cli.md](docs/cli.md) 
 ## Tests and linting
 
 ```sh
-macos/test.sh       # timeline math, planner rules, editing, signing and more
-macos/playback-test.sh  # plays a built composition headlessly; fails on black or missing frames
-macos/smoke-test.sh     # builds dist/ and drives the app's editor (needs a GUI session and Accessibility)
-
-macos/lint.sh       # SwiftLint and ShellCheck (brew install swiftlint shellcheck)
+macos/test-all.sh   # everything below, in order; run it before pushing app changes
 ```
+
+`test-all.sh` runs:
+
+- `macos/lint.sh`: SwiftLint and ShellCheck (`brew install swiftlint shellcheck`)
+- `macos/test.sh`: timeline math, planner rules, editing, review and more
+- `macos/playback-test.sh`: plays a built composition headlessly; fails on black or missing frames
+- `macos/media-test.sh`: the media pipeline on synthetic recordings and a talking-head clip (needs whisper-cli and a model)
+- `macos/cli-test.sh`: every `director` command and `bin/sd` on a temp fixture
+- `macos/animate-test.sh`: renders one animation per bundled template
+- `test/logger-test.sh`: the input logger's event records
+- `macos/smoke-test.sh`: builds dist/ and drives the app's editor (needs a GUI session and Accessibility)
 
 CI runs all of these except the smoke test. Lint errors fail the build; SwiftLint warnings don't.
 
