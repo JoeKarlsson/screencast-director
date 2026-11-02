@@ -783,7 +783,12 @@ struct Checks {
     expect(mutedPages.flatMap { $0.words.map(\.0) } == ["heard"], "no captions for words in a muted sped-up segment")
 
     // Clip leveling: a take 6 dB quieter gets 6 dB more, a clip with no talking gets the overall gain.
-    let clipLevels: [(Double, Double)] = (0..<400).map { i in (Double(i) * 0.05, i < 200 ? -20.0 : -26.0) } + (400..<440).map { i in (Double(i) * 0.05, -60.0) }
+    // Built in steps: as one expression, CI's compiler gives up type-checking it.
+    var clipLevels: [(Double, Double)] = []
+    for i in 0..<440 {
+      let level: Double = i < 200 ? -20 : i < 400 ? -26 : -60
+      clipLevels.append((Double(i) * 0.05, level))
+    }
     let cg = AudioGain.clipGains(clipLevels, clips: [(0, 10), (10, 20), (20, 22)])
     expect(abs(cg[0]) < 0.01 && abs(cg[1] - 6) < 0.01 && abs(cg[2] - AudioGain.normalizeGain(clipLevels)) < 0.01, "clips level to the same speech level")
 
