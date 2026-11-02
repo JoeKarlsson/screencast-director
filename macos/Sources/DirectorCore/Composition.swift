@@ -355,7 +355,7 @@ final class DirectorCompositor: NSObject, AVVideoCompositing, @unchecked Sendabl
     guard let instruction = request.videoCompositionInstruction as? DirectorInstruction,
       let out = request.renderContext.newPixelBuffer()
     else {
-      request.finish(with: NSError(domain: "DirectorCompositor", code: 1))
+      request.finish(with: DirectorError("The preview couldn't get a frame to draw into"))
       return
     }
     let scene = instruction.scene
@@ -379,7 +379,7 @@ final class DirectorCompositor: NSObject, AVVideoCompositing, @unchecked Sendabl
 public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws {
   try? FileManager.default.removeItem(at: url)
   guard let session = AVAssetExportSession(asset: built.asset, presetName: AVAssetExportPresetHighestQuality) else {
-    throw NSError(domain: "Export", code: 1, userInfo: [NSLocalizedDescriptionKey: "Can't create an export session."])
+    throw DirectorError("Can't create an export session.")
   }
   session.videoComposition = built.videoComposition
   session.audioMix = built.audioMix

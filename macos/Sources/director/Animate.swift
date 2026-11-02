@@ -82,18 +82,18 @@ enum Animate {
         web.loadFileURL(Animate.resources.appendingPathComponent("animation.html"), allowingReadAccessTo: URL(fileURLWithPath: "/"))
       }
       guard let scriptURL = sources.script(a.template) else {
-        throw Failure("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
+        throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
       do {
         _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;0")
       } catch {
-        throw Failure("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
+        throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
       do {
         let config = try Animate.config(a, plan: plan, logos: sources.logos())
         _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
-        throw Failure("the \(a.template) template didn't start: \(error)")
+        throw DirectorError("the \(a.template) template didn't start: \(error)")
       }
 
       let tmp = out.deletingLastPathComponent().appendingPathComponent(".rendering-\(out.lastPathComponent)")
@@ -113,7 +113,7 @@ enum Animate {
           kCVPixelBufferHeightKey as String: height,
         ])
       writer.add(input)
-      guard writer.startWriting() else { throw writer.error ?? Failure("can't write \(tmp.path)") }
+      guard writer.startWriting() else { throw writer.error ?? DirectorError("can't write \(tmp.path)") }
       writer.startSession(atSourceTime: .zero)
 
       let frames = max(1, Int(((a.end - a.start) * Double(Animate.fps)).rounded()))
@@ -122,21 +122,21 @@ enum Animate {
         do {
           _ = try await web.evaluateJavaScript("seek(\(t)); 0")
         } catch {
-          throw Failure("the \(a.template) template failed at \(t)s: \(error)")
+          throw DirectorError("the \(a.template) template failed at \(t)s: \(error)")
         }
         let image = try await snapshot()
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
-        guard let pool = adaptor.pixelBufferPool else { throw Failure("no pixel buffer pool") }
+        guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
         var buffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
-        guard let buffer else { throw Failure("no pixel buffer") }
+        guard let buffer else { throw DirectorError("no pixel buffer") }
         draw(image, into: buffer)
         adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f), timescale: CMTimeScale(Animate.fps)))
       }
       input.markAsFinished()
       writer.endSession(atSourceTime: CMTime(value: CMTimeValue(frames), timescale: CMTimeScale(Animate.fps)))
       await writer.finishWriting()
-      guard writer.status == .completed else { throw writer.error ?? Failure("writing \(out.lastPathComponent) failed") }
+      guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
     }
@@ -147,7 +147,7 @@ enum Animate {
       // snapshotWidth is in points; the backing scale turns it into pixels.
       snap.snapshotWidth = NSNumber(value: Double(width) / Double(window.backingScaleFactor))
       let image = try await web.takeSnapshot(configuration: snap)
-      guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { throw Failure("the snapshot had no image") }
+      guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { throw DirectorError("the snapshot had no image") }
       return cg
     }
 
@@ -181,9 +181,4 @@ enum Animate {
     return config
   }
 
-  struct Failure: LocalizedError {
-    let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
-  }
 }

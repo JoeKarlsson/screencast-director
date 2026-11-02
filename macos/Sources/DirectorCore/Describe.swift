@@ -96,7 +96,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   }
   if let lut = plan.camera?.grade?.lut {
     do {
-      guard let url = Scene.fileURL(lut, dir: project.dir) else { throw CubeLUT.Failure(message: "no project folder") }
+      guard let url = Scene.fileURL(lut, dir: project.dir) else { throw DirectorError("no project folder") }
       _ = try CubeLUT.load(url)
     } catch {
       out.append("  WARNING: camera LUT \(lut) isn't applied: \(error.localizedDescription)")

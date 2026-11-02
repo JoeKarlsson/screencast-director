@@ -70,7 +70,7 @@ final class Library: ObservableObject {
     }
     let dest = url.deletingLastPathComponent().appendingPathComponent(clean)
     guard !FileManager.default.fileExists(atPath: dest.path) else {
-      throw NSError(domain: "Library", code: 1, userInfo: [NSLocalizedDescriptionKey: "There's already a recording called \(clean)."])
+      throw DirectorError("There's already a recording called \(clean).")
     }
     let wasSelected = selection == url
     if wasSelected { selection = nil }

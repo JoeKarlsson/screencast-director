@@ -41,7 +41,7 @@ public enum VoiceCleanup {
   public static func render(source: URL, to out: URL, method: Method, levels: [(Double, Double)]) async throws {
     let asset = AVURLAsset(url: source)
     guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
-      throw NSError(domain: "VoiceCleanup", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(source.lastPathComponent) has no audio."])
+      throw DirectorError("\(source.lastPathComponent) has no audio.")
     }
     let duration = try await asset.load(.duration).seconds
     let reader = try AVAssetReader(asset: asset)
@@ -53,7 +53,7 @@ public enum VoiceCleanup {
         AVLinearPCMIsBigEndianKey: false,
       ])
     reader.add(output)
-    guard reader.startReading() else { throw reader.error ?? NSError(domain: "VoiceCleanup", code: 2) }
+    guard reader.startReading() else { throw reader.error ?? DirectorError("Couldn't read the audio to clean it up") }
 
     let feed = Feed(output: output)
     let fmt = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
@@ -110,7 +110,7 @@ public enum VoiceCleanup {
         try Task.checkCancellation()
         let status = try engine.renderOffline(chunk, to: rendered)
         guard status == .success else {
-          throw NSError(domain: "VoiceCleanup", code: 3, userInfo: [NSLocalizedDescriptionKey: "Audio render stopped (\(status.rawValue))."])
+          throw DirectorError("Audio render stopped (\(status.rawValue)).")
         }
         let n = Int(rendered.frameLength)
         let drop = min(skip, n)

@@ -47,7 +47,7 @@ public enum GIF {
 
     try? FileManager.default.removeItem(at: url)
     guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, count, nil) else {
-      throw NSError(domain: "GIF", code: 1, userInfo: [NSLocalizedDescriptionKey: "Can't write \(url.path)"])
+      throw DirectorError("Can't write \(url.path)")
     }
     CGImageDestinationSetProperties(
       dest, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0, kCGImagePropertyGIFHasGlobalColorMap: false]] as CFDictionary)
@@ -63,14 +63,14 @@ public enum GIF {
       try Task.checkCancellation()
       // The generator delivers in request order; a gap would mean a dropped frame.
       guard result.requestedTime == times[done] else {
-        throw NSError(domain: "GIF", code: 3, userInfo: [NSLocalizedDescriptionKey: "Frames arrived out of order"])
+        throw DirectorError("Frames arrived out of order")
       }
       CGImageDestinationAddImage(dest, try result.image, frameProps(done))
       done += 1
       progress?(Double(done) / Double(count))
     }
     guard CGImageDestinationFinalize(dest) else {
-      throw NSError(domain: "GIF", code: 2, userInfo: [NSLocalizedDescriptionKey: "Couldn't finish \(url.lastPathComponent)"])
+      throw DirectorError("Couldn't finish \(url.lastPathComponent)")
     }
     return done
   }

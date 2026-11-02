@@ -1,18 +1,9 @@
 import CoreImage
 import DirectorCore
 import Foundation
-import ImageIO
-import UniformTypeIdentifiers
 
 // director: headless commands on a project folder. The app bundles it so Claude can run `describe`.
-//
-//   director analyze  <dir>                transcript.json + motion.json
-//   director plan     <dir> [--force]      first-draft plan.json
-//   director describe <dir>                the plan as a readable timeline
-//   director render   <dir> [out.mp4]      export (default <dir>/out.mp4)
-//   director still    <dir> <frame> <png> [--preset id]  one output frame, for checking an edit
-//   director profile  <dir> <profileDir>   apply a profile (look + style) to the plan
-//   director render   <dir> [out.mp4] [--preset id]   presets: youtube-4k youtube-1080 vertical square feed
+// `usage` below lists the commands.
 
 let usage = """
   usage:
@@ -26,7 +17,7 @@ let usage = """
     director profile  <dir> <profileDir>
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
-  director sync-camera <dir>                       line the camera up with the voice by watching the lips
+    director sync-camera <dir>                       line the camera up with the voice by watching the lips
     director screentext <dir>                        read the text around each click (screentext.json)
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
@@ -61,12 +52,7 @@ let positional = args.enumerated().filter { i, a in !flags.contains(a) && (i == 
 
 func stillFrame(_ project: Project, _ plan: Plan, frame: Int, to out: URL) async throws {
   let built = try await buildComposition(project: project, plan: plan)
-  let image = try await stillImage(built, frame: frame)
-  guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-    fail("can't write \(out.path)")
-  }
-  CGImageDestinationAddImage(dest, image, nil)
-  CGImageDestinationFinalize(dest)
+  try Publish.writePNG(try await stillImage(built, frame: frame), to: out)
 }
 
 do {

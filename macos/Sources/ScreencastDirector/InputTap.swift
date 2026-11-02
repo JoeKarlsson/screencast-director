@@ -20,10 +20,6 @@ enum InputTap {
   /// While the recording is paused, nothing is logged (the paused stretch gets cut anyway).
   nonisolated(unsafe) static var paused = false
 
-  /// Input Monitoring is needed for keys; without it, start() still logs nothing and returns false.
-  static var hasPermission: Bool { CGPreflightListenEventAccess() }
-  static func requestPermission() { _ = CGRequestListenEventAccess() }
-
   static func now() -> Double { Double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9 }
 
   /// `capture` is the recorded area in global points (a display's bounds or a window's frame);

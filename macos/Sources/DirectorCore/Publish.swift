@@ -208,10 +208,10 @@ public enum Publish {
 
   public static func writePNG(_ image: CGImage, to url: URL) throws {
     guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-      throw NSError(domain: "Publish", code: 1)
+      throw DirectorError("Can't write \(url.lastPathComponent)")
     }
     CGImageDestinationAddImage(dest, image, nil)
-    guard CGImageDestinationFinalize(dest) else { throw NSError(domain: "Publish", code: 2) }
+    guard CGImageDestinationFinalize(dest) else { throw DirectorError("Couldn't finish writing \(url.lastPathComponent)") }
   }
 
   /// Writes publish/captions.srt, publish/chapters.txt (when titles allow), publish/transcript.txt and

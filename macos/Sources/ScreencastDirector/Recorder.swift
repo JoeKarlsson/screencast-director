@@ -62,7 +62,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
     let wanted = settings.displayID != 0 ? CGDirectDisplayID(settings.displayID) : CGMainDisplayID()
     guard let display = content.displays.first(where: { $0.displayID == wanted }) ?? content.displays.first else {
-      throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "No display to record."])
+      throw DirectorError("No display to record.")
     }
     let filter: SCContentFilter
     // The recorded area in global points, for normalizing click and cursor positions.
@@ -324,7 +324,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     session.beginConfiguration()
     session.sessionPreset = .hd1920x1080
     let input = try AVCaptureDeviceInput(device: device)
-    guard session.canAddInput(input) else { throw NSError(domain: "Recorder", code: 2) }
+    guard session.canAddInput(input) else { throw DirectorError("Can't record from \(device.localizedName): the camera is busy or not supported") }
     session.addInput(input)
     let output = AVCaptureVideoDataOutput()
     output.setSampleBufferDelegate(self, queue: camQueue)
