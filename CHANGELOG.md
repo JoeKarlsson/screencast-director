@@ -16,6 +16,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - The recording widget floats above full-screen apps and other floating windows, and the arrow on its right shrinks it to just the clock and Stop.
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 - `sd plan` (and `director plan`) on a recording that hasn't been analyzed says to run `sd analyze` first, instead of writing a draft that cuts the whole video.
+- `sd record` stops if remuxing the recording fails, instead of saving a project that names a camera file that isn't there.
 
 ### App
 - Plan the edit in the script. An `## Edit plan` in the header of the Followspot script you record with (zooms, annotations, callouts, animations, sound effects, punch-ins, layouts, each tied to the words you say) shows up in `describe`, and Claude applies it when it edits.
@@ -28,6 +29,12 @@ Each release lists what changed for people using the app or the CLI. The version
 - An unanalyzed recording shows a labeled Analyze button in the toolbar and in the inspector.
 - The X on a banner is easier to hit. Before, only a click right on the X closed it.
 - Move a recording to the Trash from its right-click menu in the sidebar or on Home.
+- Reviewing an AI edit lists added animations, sound effects and B-roll as their own changes you can undo, and flashes them on the timeline. Before, an added animation showed up as "Style, captions and settings".
+- Select All (⌘A) picks markers, B-roll, animations and sound effects too, not just zooms, layouts, titles and annotations.
+- Export > GIF with a layout, B-roll or animation selected exports that stretch, instead of the whole video.
+- Dragging an item on the timeline snaps to sound effects.
+- The preview and export no longer re-read the camera's LUT file for every frame.
+- Errors that used to pass silently now show in the banner: a plan.json that can't be read (it used to look like a recording that was never analyzed), a broken profile, a key the Keychain wouldn't save, a failed AI double-check, a missing B-roll or music file (they used to drop out of the video), a failed loudness measurement (normalizing and music ducking used to switch off), and Claude's own error text when a YouTube description fails. Errors that showed as "Publish error 2" now say what went wrong.
 - Claude edits can run `director describe`, `still` and `review` again. The app's path has spaces, so the quoted command Claude ran didn't match its allow rule and was blocked.
 - Claude Code is found when it is installed in ~/.local/bin and only .zshrc adds that folder to PATH. Before, the app said Claude Code wasn't installed.
 - Renaming a recording while it's analyzing or exporting waits until it's done, then renames it, even if you've clicked away to another recording. Before, the rename broke the analysis with "The folder motion.json doesn't exist".
