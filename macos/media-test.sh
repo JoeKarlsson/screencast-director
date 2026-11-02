@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Headless media pipeline checks (Tests/Media.swift): motion, audio extraction and loudness, analyze()
-# and screen text (Vision OCR), joining takes, GIF export and publishing, on synthetic recordings.
-# Needs ffmpeg (to mux the test audio); no screen, whisper or fixtures.
+# and screen text (Vision OCR), joining takes, GIF export, publishing and the export queue on synthetic
+# recordings; faces and lip sync on test/fixtures/talking-head.mp4; whisper transcription of `say`.
+# Needs ffmpeg, whisper-cli and a Whisper model (fails without them); no screen.
 #
 #   macos/media-test.sh
 set -euo pipefail

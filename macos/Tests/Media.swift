@@ -1,12 +1,14 @@
 import AVFoundation
+import CoreImage
 import CoreText
 import Foundation
 import ImageIO
 
 // Headless media pipeline checks: analysis (motion, audio extraction, loudness), analyze() and screen
-// text, joining takes, GIF export and publishing, on synthetic recordings made here (ffmpeg muxes the
-// audio). Transcription needs whisper-cli and a model, and the face steps need a real face, so those
-// only get their "nothing found" paths. Run: macos/media-test.sh
+// text, joining takes, GIF export, publishing and the export queue, on synthetic recordings made here
+// (ffmpeg muxes the audio); the face steps (thumbnail faces, face centering, cutout, lip sync) on the
+// public-domain talking head in test/fixtures; and transcription with whisper on speech from `say`.
+// Needs ffmpeg, whisper-cli and a model (CI downloads ggml-base.en). Run: macos/media-test.sh
 
 var failures = 0
 func expect(_ ok: Bool, _ what: String, line: Int = #line) {
@@ -121,6 +123,9 @@ struct Media {
       try await analyzeAndScreenText(root)
       try await join(root)
       try await gifAndPublish(root)
+      try await exportQueue(root)
+      try await faces(root)
+      try await transcription(root)
     } catch {
       expect(false, "media checks threw: \(error)")
     }
@@ -339,5 +344,131 @@ struct Media {
     expect(try await Publish.faceCenter(project: project, plan: faceless) == nil, "no face, no face center")
     let synced = try await LipSync.measure(project: project, camera: faceless.camera!)
     expect(synced?.confident != true, "no face, no confident lip sync (\(String(describing: synced)))")
+  }
+
+  /// The export queue's success path: two queued exports both finish, one after the other, at the plan's size and length.
+  static func exportQueue(_ root: URL) async throws {
+    let dir = try folder(root, "export")
+    try await barVideo(to: dir.appendingPathComponent("screen.mp4"), seconds: 3)
+    try writeSource(dir, width: 640, height: 360, duration: 3)
+    var plan = buildPlan(try Project.load(dir))
+    plan.intro = nil
+    plan.outro = nil
+    plan.segments = [Segment(start: 0, end: 1, speed: 1), Segment(start: 1.5, end: 3, speed: 3)]
+    plan.output = Plan.Output(width: 640, height: 360, fps: 30)
+    let outA = dir.appendingPathComponent("a.mp4"), outB = dir.appendingPathComponent("b.mp4")
+    let queue = await ExportQueue()
+    var finished: [String] = []
+    var bWaitedForA = false
+    await MainActor.run {
+      queue.onFinished = { finished.append($0.label) }
+      let a = queue.enqueue(projectDir: dir, plan: plan, label: "a", url: outA)
+      let b = queue.enqueue(projectDir: dir, plan: plan, label: "b", url: outB)
+      bWaitedForA = a.state == .running && b.state == .queued
+    }
+    await queue.waitUntilIdle()
+    let jobs = await MainActor.run { queue.jobs.map { ($0.label, $0.state, $0.progress) } }
+    expect(bWaitedForA, "the second export waits for the first")
+    expect(jobs.map(\.1) == [.done, .done] && jobs.allSatisfy { $0.2 == 1 }, "both exports finish with progress 1 (\(jobs))")
+    expect(finished == ["a", "b"], "onFinished runs once per export, in order (\(finished))")
+    let frames = Double(planFrames(plan))
+    for out in [outA, outB] {
+      let asset = AVURLAsset(url: out)
+      let track = try await asset.loadTracks(withMediaType: .video).first
+      let size = try await track?.load(.naturalSize)
+      let length = try await track?.load(.timeRange).duration.seconds ?? 0
+      expect(size == CGSize(width: 640, height: 360), "\(out.lastPathComponent) is 640x360 (\(String(describing: size)))")
+      expect(abs(length - frames / 30) < 0.02, "\(out.lastPathComponent) is the plan's length (\(length) vs \(frames / 30))")
+    }
+  }
+
+  /// The public-domain talking-head clip in test/fixtures (see its README), used for the face steps.
+  static func talkingHead() throws -> URL {
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../test/fixtures/talking-head.mp4").standardized
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      throw NSError(domain: "Media", code: 6, userInfo: [NSLocalizedDescriptionKey: "missing fixture \(url.path)"])
+    }
+    return url
+  }
+
+  /// A real face: thumbnail picks, face centering, the person cutout, and lip sync finding a known camera lag.
+  static func faces(_ root: URL) async throws {
+    let dir = try folder(root, "faces")
+    let clip = try talkingHead()
+    try FileManager.default.copyItem(at: clip, to: dir.appendingPathComponent("screen.mp4"))
+    try FileManager.default.copyItem(at: clip, to: dir.appendingPathComponent("camera.mp4"))
+    let length = await duration(clip)
+    try writeSource(dir, width: 640, height: 360, duration: length)
+    let project = try Project.load(dir)
+    var plan = buildPlan(project)
+    plan.intro = nil
+    plan.outro = nil
+    plan.segments = [Segment(start: 0, end: length, speed: 1)]
+    plan.output = Plan.Output(width: 640, height: 360, fps: 30)
+    plan.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+
+    let center = try await Publish.faceCenter(project: project, plan: plan)
+    expect(center.map { (0.25...0.75).contains($0.x) && (0.15...0.85).contains($0.y) } == true, "the face is found near the middle (\(String(describing: center)))")
+    let picks = try await Publish.bestFaces(project: project, plan: plan)
+    let times = picks.map(\.sourceTime).sorted()
+    expect(picks.count == 3, "three thumbnail faces in 40 s (\(picks.count))")
+    expect(zip(times, times.dropFirst()).allSatisfy { $1 - $0 >= 3 }, "picked faces are at least 3 s apart (\(times))")
+    expect(picks.allSatisfy { $0.score > 0.3 } && picks.map(\.score) == picks.map(\.score).sorted(by: >), "scores are real and best first (\(picks.map(\.score)))")
+    // The person is cut out of the frame, and the thumbnail draws them over the background on the left.
+    if let best = picks.first {
+      let cut = Publish.cutout(best.image)
+      let alpha = cut.map { img -> Double in
+        let small = img.transformed(by: CGAffineTransform(scaleX: 64 / img.extent.width, y: 36 / img.extent.height))
+        var px = [UInt8](repeating: 0, count: 64 * 36 * 4)
+        CIContext().render(small, toBitmap: &px, rowBytes: 64 * 4, bounds: CGRect(x: 0, y: 0, width: 64, height: 36), format: .RGBA8, colorSpace: nil)
+        return Double(stride(from: 3, to: px.count, by: 4).filter { px[$0] > 128 }.count) / Double(64 * 36)
+      }
+      expect(alpha.map { $0 > 0.1 && $0 < 0.8 } == true, "the cutout keeps the person and drops the room (\(alpha ?? -1) opaque)")
+      let built = try await buildComposition(project: project, plan: plan)
+      let withPerson = Publish.thumbnail(scene: built.scene, screen: best.image, person: best.image, title: "Life in space")
+      let without = Publish.thumbnail(scene: built.scene, screen: best.image, person: nil, title: "Life in space")
+      expect(withPerson?.width == 1280 && withPerson?.height == 720, "the thumbnail is 1280x720")
+      let left = { (img: CGImage?) -> Data? in
+        img.flatMap { $0.cropping(to: CGRect(x: 0, y: 0, width: 500, height: 720)) }.flatMap { $0.dataProvider?.data as Data? }
+      }
+      expect(left(withPerson) != nil && left(withPerson) != left(without), "the person is drawn on the left of the thumbnail")
+    }
+
+    // Lip sync: the clip's own camera peaks near 0 (it reads about -0.09 s: lips open just before
+    // the sound, or the broadcast's own lag; its 10 s windows don't all agree, so it isn't
+    // "confident"), and a camera file that starts 0.3 s into the same footage is found, confidently,
+    // 0.3 s earlier than that.
+    guard let synced = try await LipSync.measure(project: project, camera: plan.camera!) else {
+      expect(false, "lip sync measures the talking head")
+      return
+    }
+    expect(synced.strength >= 0.08 && abs(synced.offset) < 0.15, "the clip's own camera has a clear peak near 0 (\(synced))")
+    try run("ffmpeg", ["-v", "error", "-y", "-ss", "0.3", "-i", clip.path, "-an", "-c:v", "libx264", "-crf", "30", dir.appendingPathComponent("late.mp4").path])
+    let late = try await LipSync.measure(project: project, camera: Plan.Camera(video: "late.mp4", offset: 0))
+    expect(late.map { $0.confident && abs($0.offset - (synced.offset - 0.3)) < 0.05 } == true, "a camera 0.3 s off is found (\(String(describing: late)))")
+  }
+
+  /// Real transcription: `say` speaks a known sentence onto a still video, and analyze() runs whisper on it.
+  static func transcription(_ root: URL) async throws {
+    guard Tools.whisperCLI != nil, Tools.model != nil else {
+      expect(false, "whisper-cli and a model are installed (see the CI workflow for the model download)")
+      return
+    }
+    let dir = try folder(root, "whisper")
+    let video = dir.appendingPathComponent("screen.mp4")
+    try await barVideo(to: video, seconds: 6)
+    let speech = dir.appendingPathComponent("speech.aiff")
+    try run("say", ["-o", speech.path, "Record the screen, then edit the video by changing a plan."])
+    let muxed = dir.appendingPathComponent("muxed.mp4")
+    try run("ffmpeg", ["-v", "error", "-y", "-i", video.path, "-i", speech.path, "-c:v", "copy", "-c:a", "aac", "-shortest", muxed.path])
+    try FileManager.default.removeItem(at: video)
+    try FileManager.default.moveItem(at: muxed, to: video)
+    try writeSource(dir, width: 640, height: 360, duration: await duration(video))
+    try await analyze(dir)
+    let words = try Project.load(dir).words
+    let said = words.map { $0.text.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+    expect(["record", "screen", "edit", "video", "changing", "plan"].allSatisfy(said.contains), "whisper hears the sentence (\(said))")
+    expect(zip(words, words.dropFirst()).allSatisfy { $1.start >= $0.start } && words.allSatisfy { $0.end >= $0.start }, "word times run forward")
+    expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("loudness.json").path), "analyze measures loudness when there's audio")
   }
 }
