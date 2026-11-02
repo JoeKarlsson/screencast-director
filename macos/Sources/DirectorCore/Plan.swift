@@ -292,6 +292,8 @@ public struct Plan: Codable, Equatable {
   public var audio: AudioSettings?
   /// Background music, ducked under the voice.
   public var music: Music?
+  /// One-shot sound effects (whoosh, pop, ding) at source times. Not ducked.
+  public var sfx: [SoundEffect]?
   /// The drawn cursor (only for recordings made with the real cursor hidden).
   public var cursor: CursorSettings?
   /// Full-frame cards before and after the video (shown when enabled is true). A nil logo falls
@@ -394,6 +396,23 @@ public struct Music: Codable, Equatable {
     self.file = file
     self.volumeDB = volumeDB
     self.duckDB = duckDB
+  }
+}
+
+/// A one-shot sound effect. `t` is source seconds; an effect whose time is cut is dropped, and one
+/// in a sped-up stretch still plays at normal speed from the mapped output time.
+public struct SoundEffect: Codable, Equatable {
+  public var t: Double
+  /// A file in the project folder, or an absolute path.
+  public var file: String
+  /// Level in dB (0 = as recorded).
+  public var gainDB: Double?
+  public var note: String?
+  public init(t: Double, file: String, gainDB: Double? = nil, note: String? = nil) {
+    self.t = t
+    self.file = file
+    self.gainDB = gainDB
+    self.note = note
   }
 }
 

@@ -783,6 +783,29 @@ struct InspectorView: View {
         Button { pickMusic() } label: { Label("Add Music…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
       }
     }
+    if let effects = plan.sfx, !effects.isEmpty {
+      InspectorSection("Sound Effects", detail: "One-shot sounds at points in the recording (sfx in plan.json). Ask Claude to add more.") {
+        ForEach(Array(effects.enumerated()), id: \.offset) { i, e in
+          HStack(spacing: 8) {
+            Image(systemName: "speaker.wave.2").foregroundStyle(Theme.audio)
+            Text(fmtTime(e.t)).monospacedDigit().foregroundStyle(.secondary)
+            Text(e.note ?? (e.file as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 4)
+            Button {
+              project.apply { p in
+                guard var list = p.sfx, list.indices.contains(i) else { return }
+                list.remove(at: i)
+                p.sfx = list.isEmpty ? nil : list
+              }
+            } label: { Image(systemName: "xmark.circle.fill") }
+              .buttonStyle(.plain)
+              .foregroundStyle(.secondary)
+              .help("Remove this sound effect")
+              .accessibilityLabel("Remove")
+          }
+        }
+      }
+    }
     InspectorSection("Pauses", detail: "How hard to cut silence. Cuts that removed words always stay cut.") {
       Picker("Pauses", selection: Binding(get: { plan.pauses ?? .normal }, set: { project.setPauses($0) })) {
         ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }

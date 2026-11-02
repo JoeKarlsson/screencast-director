@@ -20,9 +20,11 @@ public struct BuiltComposition {
 
 public enum CompositionError: LocalizedError {
   case noVideo(String)
+  case noAudio(String)
   public var errorDescription: String? {
     switch self {
     case .noVideo(let f): return "\(f) has no video track."
+    case .noAudio(let f): return "Sound effect \(f) has no audio track."
     }
   }
 }
@@ -202,8 +204,40 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     }
   }
 
+  // Sound effects: one shared track, each effect at its mapped output time and real speed, not
+  // ducked. An effect that starts before the previous one ends cuts it short (one track can't
+  // hold two at once).
+  var sfxParams: AVMutableAudioMixInputParameters?
+  var sfxFill: (AVMutableCompositionTrack, AVAssetTrack)?
+  var sfxAssets: [AVURLAsset] = []
+  let sfxTimes: [(at: CMTime, effect: SoundEffect)] = (plan.sfx ?? []).compactMap { e in
+    guard let f = srcToOut(scene.mapped, e.t, fps: scene.fps) else { return nil }
+    let at = CMTime(value: CMTimeValue(f.rounded()), timescale: fps)
+    return at < total ? (at, e) : nil
+  }.sorted { $0.at < $1.at }
+  if !sfxTimes.isEmpty, let sfxTrack = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
+    let p = AVMutableAudioMixInputParameters(track: sfxTrack)
+    for (i, (at, e)) in sfxTimes.enumerated() {
+      guard let url = Scene.fileURL(e.file, dir: project.dir) else { throw CompositionError.noAudio(e.file) }
+      let asset = AVURLAsset(url: url)
+      guard let src = try? await asset.loadTracks(withMediaType: .audio).first else { throw CompositionError.noAudio(e.file) }
+      sfxAssets.append(asset)
+      let range = try await src.load(.timeRange)
+      let until = i + 1 < sfxTimes.count ? sfxTimes[i + 1].at : total
+      let length = CMTimeMinimum(range.duration, CMTimeSubtract(until, at))
+      guard length.seconds > 0.01 else { continue }
+      try insert(sfxTrack, CMTimeRange(start: range.start, duration: length), of: src, at: at, "sound effect")
+      p.setVolume(Float(pow(10, (e.gainDB ?? 0) / 20)), at: at)
+      // Silent after the effect, so the end padding below can't be heard.
+      p.setVolume(0, at: CMTimeAdd(at, length))
+      sfxFill = (sfxTrack, src)
+    }
+    sfxParams = p
+  }
+
   withExtendedLifetime(camAsset) {}
   withExtendedLifetime(screenAsset) {}
+  withExtendedLifetime(sfxAssets) {}
   withExtendedLifetime(cleanAsset) {}
   withExtendedLifetime(musicAsset) {}
   // Rounding can leave a track (usually the camera) a few milliseconds past the last frame.
@@ -221,6 +255,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   if let camTrack, let (track, _, _) = camSource { fills.append((camTrack, track)) }
   if let handleTrack { fills.append((handleTrack, srcVideo)) }
   fills += insertFills
+  if let sfxFill { fills.append(sfxFill) }
   for (track, src) in fills where track.timeRange.end < total {
     let at = track.timeRange.end
     let sliver = CMTimeRange(start: src.timeRange.start, duration: CMTimeMinimum(src.timeRange.duration, t(0.5)))
@@ -228,7 +263,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     track.scaleTimeRange(CMTimeRange(start: at, duration: sliver.duration), toDuration: CMTimeSubtract(total, at))
   }
   // The padding inserts from these assets too.
-  withExtendedLifetime((camAsset, screenAsset, cleanAsset, insertAssets)) {}
+  withExtendedLifetime((camAsset, screenAsset, cleanAsset, insertAssets, sfxAssets)) {}
   if scene.outroStart < scene.frameCount {
     audioParams?.setVolume(0, at: CMTime(value: CMTimeValue(scene.outroStart), timescale: fps))
   }
@@ -242,7 +277,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   vc.instructions = [instruction]
 
   let mix = AVMutableAudioMix()
-  mix.inputParameters = [audioParams, musicParams].compactMap { $0 }
+  mix.inputParameters = [audioParams, musicParams, sfxParams].compactMap { $0 }
   return BuiltComposition(asset: comp, videoComposition: vc, audioMix: mix, scene: scene)
 }
 

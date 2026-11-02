@@ -110,6 +110,13 @@ struct Playback {
       plan.zooms = [Zoom(start: 0.5, end: 1.4, x: 0.3, y: 0.3, scale: 2)]
       // A B-roll clip (the recording itself) adds another video track that has to end with the rest.
       plan.inserts = [Insert(start: 0.6, end: 1.2, file: "screen.mp4", placement: "full")]
+      // A sound effect adds an audio track that ends long before the video and must be padded.
+      let beepFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+      let beep = AVAudioPCMBuffer(pcmFormat: beepFormat, frameCapacity: 8820)!
+      beep.frameLength = 8820
+      for i in 0..<8820 { beep.floatChannelData![0][i] = Float(sin(Double(i) * 2 * .pi * 1000 / 44100) * 0.5) }
+      try AVAudioFile(forWriting: dir.appendingPathComponent("beep.caf"), settings: beepFormat.settings).write(from: beep)
+      plan.sfx = [SoundEffect(t: 1, file: "beep.caf"), SoundEffect(t: 3, file: "beep.caf", gainDB: -6)]
       let box = ResultBox<BuiltComposition>()
       let sem = DispatchSemaphore(value: 0)
       let planCopy = plan
@@ -129,6 +136,8 @@ struct Playback {
     // 1.5 s at 1x + 2 s at 2x = 2.5 s = 75 frames.
     expect(built.scene.frameCount == 75, "composition is 75 frames (got \(built.scene.frameCount))")
     expect(abs(built.asset.duration.seconds - 2.5) < 0.05, "asset duration matches the plan (\(built.asset.duration.seconds)s)")
+    expect(built.asset.tracks(withMediaType: .audio).count == 1, "the sound effects get one audio track (the synthetic video is silent)")
+    expect(built.asset.tracks.allSatisfy { $0.timeRange.end == built.asset.duration }, "every track, sound effects included, ends with the video")
 
     let item = built.playerItem()
     let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])

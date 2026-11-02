@@ -137,6 +137,14 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("## Markers (the user's named points)")
     for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
   }
+  if let effects = plan.sfx, !effects.isEmpty {
+    out.append("")
+    out.append("## Sound effects")
+    for (i, e) in effects.enumerated() {
+      let at = srcToOut(mapped, e.t, fps: fps).map { "out \(fmtTime($0 / Double(fps)))" } ?? "CUT (won't play)"
+      out.append(line("  #\(i) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? ""))
+    }
+  }
   if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
   return out.joined(separator: "\n")
 }

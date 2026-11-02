@@ -127,6 +127,7 @@ enum APIEditor {
     - `annotations` (optional): {start, end, kind, x, y, w, h, text?, enter?, exit?}; a 0..1 screen rectangle (top-left x/y) that follows zooms. kind spotlight | box | arrow | highlight | blur (hides secrets).
     - `enter`/`exit`: {preset, seconds?, ease?}; presets fade, fade-up, slide-up, slide-down, slide-left, slide-right, pop, zoom, blur, wipe, words, typewriter, none. Omit to use the motion style.
     - `inserts` (optional, B-roll): {start, end, file, from?, placement?, fit?, enter?, exit?}; file is a picture or clip already in the project (broll/), never invent one; placement screen | full; fit fill | fit.
+    - `sfx` (optional): {t, file, gainDB?, note?}; a one-shot sound effect at source time t, file already in the project (sfx/), never invent one. Keep them sparse: a whoosh on a section change, a pop on a reveal.
     - `markers` (optional): {t, label?}, the user's named points; use them when the user refers to one, leave them alone otherwise.
     - `segments[i].transition` (optional): the cut into segment i: crossfade | blur | dip | flash | punch | whip. Only at section changes.
     - `style.motion`: smooth | snappy | cinematic | bouncy | classic. Eases: smooth, snappy, cinematic, spring, bouncy, linear, ease-in, ease-out, ease-in-out, spring(0.7), cubic-bezier(a,b,c,d). `captions.style`: pill | karaoke | pop | bold.

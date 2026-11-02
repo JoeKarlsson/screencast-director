@@ -88,6 +88,14 @@ extension Plan {
       }.filter { $0.end - $0.start >= 0.2 && !$0.file.isEmpty }.sorted { $0.start < $1.start }
       inserts = kept.isEmpty ? nil : kept
     }
+    if let list = sfx {
+      let kept: [SoundEffect] = list.map { e in
+        var e = e
+        e.t = min(max(e.t, 0), dur)
+        return e
+      }.filter { !$0.file.isEmpty }.sorted { $0.t < $1.t }
+      sfx = kept.isEmpty ? nil : kept
+    }
     if let m = markers {
       let kept: [Marker] = m.map { k in
         var k = k

@@ -550,6 +550,20 @@ struct Checks {
     hp.layouts = []
     expect(cameraHidesScreen(hide, hp).isEmpty, "pip over the demo is fine")
 
+    // Sound effects: clamped and sorted, outside paths dropped, cut ones flagged in describe.
+    var fx = buildPlan(p)
+    fx.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 6, end: 12, speed: 2)]
+    fx.sfx = [SoundEffect(t: 99, file: "sfx/ding.m4a"), SoundEffect(t: 1, file: "sfx/whoosh.m4a", gainDB: -6), SoundEffect(t: 5, file: "sfx/pop.m4a")]
+    fx.normalize()
+    expect(fx.sfx?.map(\.t) == [1, 5, 12], "sound effects clamped to the recording and sorted")
+    var fxEvil = fx
+    fxEvil.sfx?.append(SoundEffect(t: 2, file: "/etc/passwd"))
+    let (fxClean, fxReverted) = PathSafety.sanitize(fxEvil, previous: fx, project: URL(fileURLWithPath: "/tmp/fx-project"))
+    expect(fxClean.sfx == fx.sfx && fxReverted == ["sfx.file"], "a sound effect outside the project is dropped")
+    let fxText = describe(p, fx)
+    expect(fxText.contains("## Sound effects") && fxText.contains("out 0:01.0 sfx/whoosh.m4a") && fxText.contains("-6 dB"), "describe lists effects")
+    expect(fxText.contains("src 0:05.0 CUT (won't play) sfx/pop.m4a"), "describe flags a cut effect")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }
