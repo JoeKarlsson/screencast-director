@@ -34,7 +34,8 @@ public enum Analyzer {
     var nextT = 0.0
     while let buf = output.copyNextSampleBuffer() {
       let t = CMSampleBufferGetPresentationTimeStamp(buf).seconds
-      guard t >= nextT, let px = CMSampleBufferGetImageBuffer(buf) else { continue }
+      // A millisecond of slack: 0.1 + 0.1 + 0.1 is just over 0.3, so without it some 0.1 s samples were skipped.
+      guard t >= nextT - 0.001, let px = CMSampleBufferGetImageBuffer(buf) else { continue }
       nextT = t + 0.1
       CVPixelBufferLockBaseAddress(px, .readOnly)
       let w = CVPixelBufferGetWidthOfPlane(px, 0), h = CVPixelBufferGetHeightOfPlane(px, 0)
