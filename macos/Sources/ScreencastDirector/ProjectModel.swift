@@ -627,6 +627,22 @@ final class ProjectModel: ObservableObject {
     if let window = AppDelegate.shared?.window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
   }
 
+  /// A library sound at the playhead. It's copied into the project's sfx/ folder (unless the
+  /// project already has that file), so the video keeps it if the library changes.
+  func addSound(_ entry: SoundLibrary.Entry) {
+    let file: String
+    do {
+      file = try SoundLibrary.freeze(entry, project: dir)
+    } catch {
+      Notices.shared.show(error, "Couldn't add \(entry.sound.name)")
+      return
+    }
+    let e = SoundEffect(t: playheadSrc, file: file, note: entry.sound.name)
+    apply { p in p.sfx = (p.sfx ?? []) + [e] }
+    if let i = plan?.sfx?.firstIndex(of: e) { select(.sfx(i), adding: false) }
+    status = "\(entry.sound.name) at \(fmtTime(e.t))."
+  }
+
   /// Copies a file into a project subfolder (a new name if one's taken) and returns its plan path.
   private func copyIntoProject(_ url: URL, folder: String) throws -> String {
     let fm = FileManager.default

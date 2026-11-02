@@ -34,6 +34,10 @@ final class InspectorUI: ObservableObject {
   @Published var tab: Tab = .selection
   /// An app typed into an animation's app list, before Return adds it.
   @Published var newAnimationApp = ""
+  @Published var showSoundPicker = false
+  /// The sound library, loaded when the picker opens (so new files in My Sounds show up).
+  var soundEntries: [SoundLibrary.Entry] = []
+  let soundPreview = SoundPreview()
   @Published var thumbnail: NSImage?
   @Published var cameraThumbnail: NSImage?
   var thumbnailFor: Double = -1
@@ -832,9 +836,8 @@ struct InspectorView: View {
         Button { pickMusic() } label: { Label("Add Music…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
       }
     }
-    if let effects = plan.sfx, !effects.isEmpty {
-      InspectorSection("Sound Effects", detail: "One-shot sounds at points in the recording (sfx in plan.json). Ask Claude to add more.") {
-        ForEach(Array(effects.enumerated()), id: \.offset) { i, e in
+    InspectorSection("Sound Effects", detail: "One-shot sounds at moments in the video. Add one at the playhead, or ask Claude.") {
+        ForEach(Array((plan.sfx ?? []).enumerated()), id: \.offset) { i, e in
           HStack(spacing: 8) {
             Image(systemName: "speaker.wave.2").foregroundStyle(Theme.audio)
             Text(fmtTime(e.t)).monospacedDigit().foregroundStyle(.secondary)
@@ -853,7 +856,10 @@ struct InspectorView: View {
               .accessibilityLabel("Remove")
           }
         }
-      }
+        Button { openSoundPicker() } label: { Label("Add Sound Effect…", systemImage: "speaker.wave.2").frame(maxWidth: .infinity) }
+          .popover(isPresented: $ui.showSoundPicker, arrowEdge: .leading) {
+            SoundPicker(project: project, preview: ui.soundPreview, entries: ui.soundEntries) { ui.showSoundPicker = false }
+          }
     }
     InspectorSection("Pauses", detail: "How hard to cut silence. Cuts that removed words always stay cut.") {
       Picker("Pauses", selection: Binding(get: { plan.pauses ?? .normal }, set: { project.setPauses($0) })) {
@@ -992,6 +998,15 @@ struct InspectorView: View {
   }
 
   /// Copies the chosen track into the project folder, so the project still plays if the original moves.
+  private func openSoundPicker() {
+    do {
+      ui.soundEntries = try SoundLibrary().sounds()
+      ui.showSoundPicker = true
+    } catch {
+      Notices.shared.show(error, "Couldn't load the sound library")
+    }
+  }
+
   private func pickMusic() {
     let panel = NSOpenPanel()
     panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .aiff]

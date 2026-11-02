@@ -1,0 +1,372 @@
+[
+  {
+    "name": "pop",
+    "file": "pop.m4a",
+    "category": "Pop-ins",
+    "use": "a card, sticker or title pops on",
+    "length": 0.3,
+    "author": "deraj",
+    "source": "https://freesound.org/people/deraj/sounds/202230/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "cartoon-pop",
+    "file": "cartoon-pop.m4a",
+    "category": "Pop-ins",
+    "use": "a playful pop-in",
+    "length": 0.17,
+    "author": "unfa",
+    "source": "https://freesound.org/people/unfa/sounds/245646/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "sparkle",
+    "file": "sparkle.m4a",
+    "category": "Pop-ins",
+    "use": "something shiny or magic appears",
+    "length": 1.04,
+    "author": "MLaudio",
+    "source": "https://freesound.org/people/MLaudio/sounds/511485/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "boing",
+    "file": "boing.m4a",
+    "category": "Pop-ins",
+    "use": "a bouncy pop-in",
+    "length": 0.62,
+    "author": "simon.rue",
+    "source": "https://freesound.org/people/simon.rue/sounds/61847/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "notification",
+    "file": "notification.m4a",
+    "category": "Pop-ins",
+    "use": "a message or toast appears",
+    "length": 0.53,
+    "author": "yfjesse",
+    "source": "https://freesound.org/people/yfjesse/sounds/235911/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "ding",
+    "file": "ding.m4a",
+    "category": "Success",
+    "use": "an answer or result appears",
+    "length": 0.89,
+    "author": "LittleRainySeasons",
+    "source": "https://freesound.org/people/LittleRainySeasons/sounds/335908/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "idea-ding",
+    "file": "idea-ding.m4a",
+    "category": "Success",
+    "use": "a lightbulb moment",
+    "length": 1.91,
+    "author": "Saya13",
+    "source": "https://freesound.org/people/Saya13/sounds/407258/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "tada",
+    "file": "tada.m4a",
+    "category": "Success",
+    "use": "a reveal",
+    "length": 1.7,
+    "author": "plasterbrain",
+    "source": "https://freesound.org/people/plasterbrain/sounds/397355/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "level-up",
+    "file": "level-up.m4a",
+    "category": "Success",
+    "use": "an unlock or upgrade",
+    "length": 1.65,
+    "author": "qubodup",
+    "source": "https://freesound.org/people/qubodup/sounds/442943/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "success-trumpets",
+    "file": "success-trumpets.m4a",
+    "category": "Success",
+    "use": "a big win",
+    "length": 3.65,
+    "author": "FunWithSound",
+    "source": "https://freesound.org/people/FunWithSound/sounds/456966/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "ka-ching",
+    "file": "ka-ching.m4a",
+    "category": "Success",
+    "use": "money saved or earned",
+    "length": 1.96,
+    "author": "Zott820",
+    "source": "https://freesound.org/people/Zott820/sounds/209578/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "cheer",
+    "file": "cheer.m4a",
+    "category": "Success",
+    "use": "a crowd cheers",
+    "length": 4.13,
+    "author": "jayfrosting",
+    "source": "https://freesound.org/people/jayfrosting/sounds/333404/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "wrong-buzzer",
+    "file": "wrong-buzzer.m4a",
+    "category": "Fail",
+    "use": "a wrong answer",
+    "length": 0.49,
+    "author": "KevinVG207",
+    "source": "https://freesound.org/people/KevinVG207/sounds/331912/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "error",
+    "file": "error.m4a",
+    "category": "Fail",
+    "use": "an error message appears",
+    "length": 0.4,
+    "author": "GabrielAraujo",
+    "source": "https://freesound.org/people/GabrielAraujo/sounds/242503/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "sad-trombone",
+    "file": "sad-trombone.m4a",
+    "category": "Fail",
+    "use": "a fail, wah-wah",
+    "length": 4.78,
+    "author": "kirbydx",
+    "source": "https://freesound.org/people/kirbydx/sounds/175409/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "bonk",
+    "file": "bonk.m4a",
+    "category": "Fail",
+    "use": "a mistake, comedic hit",
+    "length": 0.48,
+    "author": "thecoolcookie17",
+    "source": "https://freesound.org/people/thecoolcookie17/sounds/573047/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "record-scratch",
+    "file": "record-scratch.m4a",
+    "category": "Comedy",
+    "use": "stop, rewind the story",
+    "length": 1.41,
+    "author": "simkiott",
+    "source": "https://freesound.org/people/simkiott/sounds/43404/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "airhorn",
+    "file": "airhorn.m4a",
+    "category": "Comedy",
+    "use": "hype",
+    "length": 1.61,
+    "author": "jacksonacademyashmore",
+    "source": "https://freesound.org/people/jacksonacademyashmore/sounds/414208/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "ba-dum-tss",
+    "file": "ba-dum-tss.m4a",
+    "category": "Comedy",
+    "use": "after a bad joke",
+    "length": 2.73,
+    "author": "Vein_Adams",
+    "source": "https://freesound.org/people/Vein_Adams/sounds/713649/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "crickets",
+    "file": "crickets.m4a",
+    "category": "Comedy",
+    "use": "awkward silence, 7 s long",
+    "length": 7.24,
+    "author": "ceich93",
+    "source": "https://freesound.org/people/ceich93/sounds/263865/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "slide-whistle",
+    "file": "slide-whistle.m4a",
+    "category": "Comedy",
+    "use": "something falls or drops",
+    "length": 2.03,
+    "author": "plasterbrain",
+    "source": "https://freesound.org/people/plasterbrain/sounds/395443/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "sitcom-laugh",
+    "file": "sitcom-laugh.m4a",
+    "category": "Comedy",
+    "use": "laugh track",
+    "length": 5.3,
+    "author": "Kinoton",
+    "source": "https://freesound.org/people/Kinoton/sounds/371562/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "boom",
+    "file": "boom.m4a",
+    "category": "Impacts",
+    "use": "a deep boom on a big statement",
+    "length": 1.71,
+    "author": "Snapper4298",
+    "source": "https://freesound.org/people/Snapper4298/sounds/157245/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "impact",
+    "file": "impact.m4a",
+    "category": "Impacts",
+    "use": "a cinematic hit",
+    "length": 5.43,
+    "author": "AudioPapkin",
+    "source": "https://freesound.org/people/AudioPapkin/sounds/430977/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "thud",
+    "file": "thud.m4a",
+    "category": "Impacts",
+    "use": "a small hit",
+    "length": 0.17,
+    "author": "OtisJames",
+    "source": "https://freesound.org/people/OtisJames/sounds/215162/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "dun-dun-dun",
+    "file": "dun-dun-dun.m4a",
+    "category": "Impacts",
+    "use": "dramatic reveal",
+    "length": 3.64,
+    "author": "notKlaatu",
+    "source": "https://freesound.org/people/notKlaatu/sounds/668130/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "drumroll",
+    "file": "drumroll.m4a",
+    "category": "Impacts",
+    "use": "build-up to a reveal; the hit is at about 4 s",
+    "length": 5.97,
+    "author": "adriann",
+    "source": "https://freesound.org/people/adriann/sounds/191718/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "whoosh",
+    "file": "whoosh.m4a",
+    "category": "Motion",
+    "use": "something flies in",
+    "length": 0.43,
+    "author": "qubodup",
+    "source": "https://freesound.org/people/qubodup/sounds/60013/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "swoosh",
+    "file": "swoosh.m4a",
+    "category": "Motion",
+    "use": "a longer whoosh",
+    "length": 2.22,
+    "author": "Halgrimm",
+    "source": "https://freesound.org/people/Halgrimm/sounds/169867/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "swipe",
+    "file": "swipe.m4a",
+    "category": "Motion",
+    "use": "a quick swipe",
+    "length": 0.45,
+    "author": "qubodup",
+    "source": "https://freesound.org/people/qubodup/sounds/60007/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "riser",
+    "file": "riser.m4a",
+    "category": "Motion",
+    "use": "tension building into a reveal",
+    "length": 2.46,
+    "author": "syntheffects",
+    "source": "https://freesound.org/people/syntheffects/sounds/685256/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "vinyl-rewind",
+    "file": "vinyl-rewind.m4a",
+    "category": "Motion",
+    "use": "rewinding",
+    "length": 2.68,
+    "author": "TasmanianPower",
+    "source": "https://freesound.org/people/TasmanianPower/sounds/162493/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "glitch",
+    "file": "glitch.m4a",
+    "category": "Motion",
+    "use": "a glitch or something breaks",
+    "length": 2.0,
+    "author": "AmicaSys",
+    "source": "https://freesound.org/people/AmicaSys/sounds/332711/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "mouse-click",
+    "file": "mouse-click.m4a",
+    "category": "Interface",
+    "use": "a click",
+    "length": 0.24,
+    "author": "Pixeliota",
+    "source": "https://freesound.org/people/Pixeliota/sounds/678248/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "typing",
+    "file": "typing.m4a",
+    "category": "Interface",
+    "use": "keyboard typing",
+    "length": 3.8,
+    "author": "Breviceps",
+    "source": "https://freesound.org/people/Breviceps/sounds/447909/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "camera-shutter",
+    "file": "camera-shutter.m4a",
+    "category": "Interface",
+    "use": "a screenshot",
+    "length": 0.3,
+    "author": "roachpowder",
+    "source": "https://freesound.org/people/roachpowder/sounds/170229/",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "clock-ticking",
+    "file": "clock-ticking.m4a",
+    "category": "Interface",
+    "use": "waiting, time passing",
+    "length": 3.21,
+    "author": "AntumDeluge",
+    "source": "https://freesound.org/people/AntumDeluge/sounds/188033/",
+    "license": "CC0 1.0"
+  }
+]

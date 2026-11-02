@@ -222,6 +222,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     let at = CMTime(value: CMTimeValue(f.rounded()), timescale: fps)
     return at < total ? (at, e) : nil
   }.sorted { $0.at < $1.at }
+  // Library sounds the plan names (sfx/<file>) are copied into the project the first time.
+  if !sfxTimes.isEmpty { try SoundLibrary().freezeMissing(plan, project: project.dir) }
   if !sfxTimes.isEmpty, let sfxTrack = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
     let p = AVMutableAudioMixInputParameters(track: sfxTrack)
     for (i, (at, e)) in sfxTimes.enumerated() {
