@@ -210,6 +210,37 @@ struct Playback {
       expect(false, "carded composition: \(error)")
     }
 
+    // Camera sync: clips whose lengths aren't whole frames must not push the camera track later
+    // at each cut. Every camera clip has to start on the same frame grid as the screen and audio.
+    do {
+      let project = try Project.load(dir)
+      var plan = built.scene.plan
+      plan.camera = Plan.Camera(video: "screen.mp4", offset: -0.064)
+      plan.intro = nil
+      plan.outro = nil
+      plan.inserts = nil
+      plan.segments = [0.1, 0.7, 1.3, 1.9, 2.5, 3.1].map { Segment(start: $0, end: $0 + 0.51, speed: 1) }
+      let box = ResultBox<BuiltComposition>()
+      let sem = DispatchSemaphore(value: 0)
+      let planCopy = plan
+      Task.detached {
+        do { box.value = try await buildComposition(project: project, plan: planCopy) } catch { box.error = error }
+        sem.signal()
+      }
+      while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+      if let e = box.error { throw e }
+      let synced = box.value!
+      let fps = Double(plan.output.fps)
+      let starts = synced.scene.mapped.map { Double($0.outStart) / fps }
+      let cam = synced.asset.tracks(withMediaType: .video).last!
+      let camStarts = cam.segments.filter { !$0.isEmpty }.map(\.timeMapping.target.start.seconds)
+      for (i, s) in starts.enumerated() where i < camStarts.count {
+        expect(abs(camStarts[i] - s) < 0.001, "camera clip \(i) starts with its screen clip (\(camStarts[i])s vs \(s)s)")
+      }
+    } catch {
+      expect(false, "camera sync composition: \(error)")
+    }
+
     if failures > 0 {
       print("\(failures) playback check(s) failed")
       exit(1)
