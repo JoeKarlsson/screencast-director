@@ -25,6 +25,7 @@ let usage = """
     director profile  <dir> <profileDir>
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
+  director sync-camera <dir>                       line the camera up with the voice by watching the lips
     director screentext <dir>                        read the text around each click (screentext.json)
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
@@ -147,6 +148,18 @@ do {
     plan.camera?.zoom = zoom
     try plan.write(to: project.planURL)
     print(String(format: "camera centered on face at (%.2f, %.2f), zoom %.2f", face.x, face.y, plan.camera?.zoom ?? 1))
+  case "sync-camera":
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    guard let camera = plan.camera else { fail("this recording has no camera") }
+    guard let sync = try await LipSync.measure(project: project, camera: camera) else { fail("no face or voice to compare") }
+    let summary = String(
+      format: "lips match the voice at offset %.3f s (was %.3f; strength %.2f, %d of %d windows agree)",
+      sync.offset, camera.offset, sync.strength, sync.agreeing, sync.windows)
+    guard sync.confident else { fail("not sure enough to change it: " + summary) }
+    plan.camera?.offset = sync.offset
+    try plan.write(to: project.planURL)
+    print(summary)
   case "cut", "restore":
     guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
     let project = try Project.load(dir)

@@ -429,6 +429,25 @@ struct Checks {
     let (brollSafe, brollReverted) = PathSafety.sanitize(brollNew, previous: brollOld, project: URL(fileURLWithPath: "/tmp/sd-proj"))
     expect(brollSafe.insertList.map(\.file) == ["broll/ok.png"] && brollReverted == ["inserts.file"], "outside B-roll dropped (\(brollReverted))")
 
+    // Lip sync: lips that open 0.3 s into the camera file for each word in the voice read as offset 0.3.
+    var seed: UInt64 = 7
+    func noise() -> Double {
+      seed = seed &* 6364136223846793005 &+ 1442695040888963407
+      return Double(seed >> 33) / Double(1 << 31)
+    }
+    var level = 0.0
+    let speech = (0..<9000).map { i -> (Double, Double) in
+      level = 0.7 * level + 0.3 * (noise() > 0.6 ? 1 : 0)
+      return (Double(i) * 0.02, level)
+    }
+    let lipWindows = [10.0...40.0, 60.0...90.0, 110.0...140.0]
+    let lips = stride(from: 0.0, to: 179.0, by: 1.0 / 30).map { t in (t, LipSync.interpolate(speech, at: [t - 0.3])[0]) }
+    let synced = LipSync.bestOffset(mouth: lips, voice: speech, windows: lipWindows, around: -0.06, search: 0.5)
+    expect(synced.map { abs($0.offset - 0.3) < 0.02 && $0.confident } == true, "lip sync finds a 0.3 s camera lag (\(String(describing: synced)))")
+    let unrelated = stride(from: 0.0, to: 179.0, by: 1.0 / 30).map { ($0, noise()) }
+    let guess = LipSync.bestOffset(mouth: unrelated, voice: speech, windows: lipWindows, around: 0, search: 0.5)
+    expect(guess?.confident == false, "lip sync isn't confident when the lips don't follow the voice (\(String(describing: guess)))")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

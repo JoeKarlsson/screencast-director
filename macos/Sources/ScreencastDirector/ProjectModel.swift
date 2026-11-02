@@ -957,6 +957,20 @@ final class ProjectModel: ObservableObject {
     }
   }
 
+  /// Lines the camera up with the voice by watching the lips (see LipSync).
+  func syncCameraToVoice() {
+    run("Matching your lips to your voice…") { [self] in
+      guard let plan, let project, let camera = plan.camera else { return }
+      guard let sync = try await LipSync.measure(project: project, camera: camera), sync.confident else {
+        status = "Couldn't tell how far off the camera is. Set Lip sync by hand."
+        Notices.shared.show(status)
+        return
+      }
+      apply { $0.camera?.offset = sync.offset }
+      status = String(format: "Camera synced to your voice (moved %+.2f s).", sync.offset - camera.offset)
+    }
+  }
+
   /// A frame of the camera video, for the framing picker.
   func cameraThumbnail(done: @escaping (NSImage?) -> Void) {
     guard let cam = plan?.camera else { return done(nil) }
@@ -1061,6 +1075,15 @@ final class ProjectModel: ObservableObject {
         draft.camera?.x = face.x
         draft.camera?.y = face.y
         draft.camera?.zoom = Publish.centeringZoom(x: face.x, y: face.y)
+      }
+      // The recorder's offset comes from stream timestamps, which some webcams stamp late.
+      if let camera = draft.camera {
+        status = "Matching your lips to your voice…"
+        if let sync = try await LipSync.measure(project: try Project.load(dir), camera: camera), sync.confident {
+          draft.camera?.offset = sync.offset
+        } else {
+          Notices.shared.show("Couldn't check that the camera is in sync with your voice. If it looks off, set Camera > Lip sync.")
+        }
       }
       if let current = plan, force {
         undoStack.append(current)

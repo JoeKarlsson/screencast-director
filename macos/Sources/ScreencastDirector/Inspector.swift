@@ -619,6 +619,15 @@ struct InspectorView: View {
           Label("Center on My Face", systemImage: "face.smiling").frame(maxWidth: .infinity)
         }
       }
+      InspectorSection("Lip sync", detail: "Slide right if your lips move after you speak, left if before.") {
+        let offset = plan.camera?.offset ?? 0
+        slider("Camera", Binding(get: { project.plan?.camera?.offset ?? 0 }, set: { v in
+          project.apply(coalesce: "camOffset") { $0.camera?.offset = (v * 100).rounded() / 100 }
+        }), min(-1, offset)...max(1, offset), String(format: "%+.2f s", offset))
+        Button(action: project.syncCameraToVoice) {
+          Label("Sync to My Voice", systemImage: "waveform.and.person.filled").frame(maxWidth: .infinity)
+        }
+      }
       InspectorSection("Bubble", detail: "The camera while you demo. Drag it anywhere in the preview, or set it here.") {
         let cam = plan.camera
         let place = bubblePlacement(plan)
