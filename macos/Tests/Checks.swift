@@ -455,9 +455,17 @@ struct Checks {
     planB.callouts.append(Callout(start: 4, end: 6, text: "Hi", style: "lower-third"))
     planB.style.motion = "snappy"
     planB.segments[0].speed = 2
+    planB.animationList = [Animation(start: 2, end: 4, template: "hub", data: .null)]
+    planB.sfxList = [SoundEffect(t: 5, file: "sounds/pop.m4a")]
+    planB.insertList = [Insert(start: 40, end: 42, file: "broll/a.mp4")]
     let changes = planChanges(from: planA, to: planB)
     let kinds: [String] = changes.map { $0.kind }
-    expect(Set(kinds) == Set(["clips", "zoom", "title", "style"]), "change kinds (\(changes.map { $0.label }))")
+    expect(Set(kinds) == Set(["clips", "zoom", "title", "insert", "animation", "sound", "style"]), "change kinds (\(changes.map { $0.label }))")
+    let clipRange = changes.first { $0.kind == "clips" }?.range
+    expect(clipRange.map { $0.1 <= planA.segments[0].end } == true, "the clips change covers only the clips (\(String(describing: clipRange)))")
+    var withAnimation = planA
+    withAnimation.animationList = [Animation(start: 30, end: 32, template: "hub", data: .null)]
+    expect(changedRanges(from: planA, to: withAnimation).map { [$0.0, $0.1] } == [[30, 32]], "an added animation flashes on the timeline")
     let zoomVerbs: [String] = changes.filter { $0.kind == "zoom" }.map { String($0.label.split(separator: " ")[0]) }.sorted()
     expect(zoomVerbs == ["Changed", "Removed"], "zoom changed and removed")
     for c in changes {
@@ -469,7 +477,10 @@ struct Checks {
       case "zoom" where c.label.hasPrefix("Changed"): expect(undone.zooms.contains(planA.zooms[0]) && sameTitles, "undo one zoom change only")
       case "zoom": expect(undone.zooms.count == 2, "undo a removed zoom puts it back")
       case "title": expect(undone.callouts == planA.callouts && sameZooms, "undo the added title only")
-      case "style": expect(undone.style.motion == planA.style.motion && sameTitles, "undo style keeps the rest")
+      case "style": expect(undone.style.motion == planA.style.motion && sameTitles && undone.animations == planB.animations, "undo style keeps the rest")
+      case "animation": expect(undone.animations == nil && sameTitles, "undo the added animation only")
+      case "sound": expect(undone.sfx == nil && undone.animations == planB.animations, "undo the added sound only")
+      case "insert": expect(undone.inserts == nil && sameZooms, "undo the added B-roll only")
       default: expect(undone.segments == planA.segments && sameZooms, "undo clips keeps the rest")
       }
     }

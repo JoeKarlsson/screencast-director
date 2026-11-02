@@ -3,7 +3,7 @@ import Foundation
 /// One thing an AI edit changed, which the user can keep or undo on its own.
 public struct PlanChange: Identifiable {
   public let id = UUID()
-  /// clips, zoom, layout, title, annotation or style.
+  /// clips, zoom, layout, title, annotation, insert, animation, sound or style.
   public let kind: String
   public let label: String
   /// Where it is, in source seconds (nil for style changes).
@@ -12,12 +12,15 @@ public struct PlanChange: Identifiable {
   public let revert: (inout Plan) -> Void
 }
 
-/// The changes between two plans, item by item for zooms, layouts, titles and annotations, as one
+/// The changes between two plans, item by item for zooms, layouts, titles, annotations, B-roll,
+/// animations and sound effects, as one
 /// change for the clips (cuts and speed), and one for everything about the look.
 public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
   var out: [PlanChange] = []
   if old.segments != new.segments {
-    let ranges = changedRanges(from: Plan.withOnly(segments: old), to: Plan.withOnly(segments: new))
+    var onlyClips = old
+    onlyClips.segments = new.segments
+    let ranges = changedRanges(from: old, to: onlyClips)
     let before = Double(planFrames(old)) / Double(old.output.fps), after = Double(planFrames(new)) / Double(new.output.fps)
     let oldSegments = old.segments
     out.append(
@@ -55,26 +58,11 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
   items(\.callouts, kind: "title", { "\($0.style ?? "title") “\($0.text)”" }, { ($0.start, $0.end) })
   items(\.insertList, kind: "insert", { "B-roll \(($0.file as NSString).lastPathComponent) at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.annotationList, kind: "annotation", { "\($0.kind)\($0.text.map { " “\($0)”" } ?? "") at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
-  var look = old
-  look.segments = new.segments
-  look.zooms = new.zooms
-  look.layouts = new.layouts
-  look.callouts = new.callouts
-  look.annotations = new.annotations
-  look.inserts = new.inserts
-  if look != new {
+  items(\.animationList, kind: "animation", { "\($0.template) animation at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
+  items(\.sfxList, kind: "sound", { "sound \(($0.file as NSString).lastPathComponent) at \(fmtTime($0.t))" }, { ($0.t, $0.t) })
+  if old.withTimedItems(from: new) != new {
     let was = old
-    out.append(
-      PlanChange(kind: "style", label: "Style, captions and settings", range: nil) { p in
-        let keep = p
-        p = was
-        p.segments = keep.segments
-        p.zooms = keep.zooms
-        p.layouts = keep.layouts
-        p.callouts = keep.callouts
-        p.annotations = keep.annotations
-        p.inserts = keep.inserts
-      })
+    out.append(PlanChange(kind: "style", label: "Style, captions and settings", range: nil) { p in p = was.withTimedItems(from: p) })
   }
   return out.sorted { ($0.range?.0 ?? .infinity) < ($1.range?.0 ?? .infinity) }
 }
@@ -98,13 +86,24 @@ extension Plan {
     set { markers = newValue.isEmpty ? nil : newValue.sorted { $0.t < $1.t } }
   }
 
-  /// A copy with only these segments differing from an empty edit, for changedRanges.
-  static func withOnly(segments p: Plan) -> Plan {
-    var q = p
-    q.zooms = []
-    q.layouts = []
-    q.callouts = []
-    q.annotations = nil
-    return q
+  /// `sfx` as a plain list (empty when there are none).
+  public var sfxList: [SoundEffect] {
+    get { sfx ?? [] }
+    set { sfx = newValue.isEmpty ? nil : newValue }
+  }
+
+  /// This plan with `other`'s clips and timed items: everything planChanges reviews item by item,
+  /// so what's left differing is the look and settings.
+  func withTimedItems(from other: Plan) -> Plan {
+    var p = self
+    p.segments = other.segments
+    p.zooms = other.zooms
+    p.layouts = other.layouts
+    p.callouts = other.callouts
+    p.annotations = other.annotations
+    p.inserts = other.inserts
+    p.animations = other.animations
+    p.sfx = other.sfx
+    return p
   }
 }

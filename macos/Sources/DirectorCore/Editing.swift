@@ -301,8 +301,9 @@ public func editReview(_ project: Project, _ plan: Plan) -> String {
   return lines.isEmpty ? "No zooms and no cuts inside words." : lines.joined(separator: "\n")
 }
 
-/// Source-time ranges an edit touched: clips, zooms, layouts and titles that were added, removed or
-/// changed between two plans, merged where they overlap. The timeline flashes these after an AI edit.
+/// Source-time ranges an edit touched: clips and timed items (zooms, layouts, titles, annotations,
+/// B-roll, animations, sound effects) that were added, removed or changed between two plans, merged
+/// where they overlap. The timeline flashes these after an AI edit.
 public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
   func diff<T: Equatable>(_ a: [T], _ b: [T], _ range: (T) -> (Double, Double)) -> [(Double, Double)] {
     a.filter { !b.contains($0) }.map(range) + b.filter { !a.contains($0) }.map(range)
@@ -311,7 +312,8 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
     diff(old.segments, new.segments) { ($0.start, $0.end) } + diff(old.zooms, new.zooms) { ($0.start, $0.end) }
     + diff(old.layouts, new.layouts) { ($0.start, $0.end) } + diff(old.callouts, new.callouts) { ($0.start, $0.end) }
     + diff(old.annotations ?? [], new.annotations ?? []) { ($0.start, $0.end) }
-    + diff(old.inserts ?? [], new.inserts ?? []) { ($0.start, $0.end) }
+    + diff(old.insertList, new.insertList) { ($0.start, $0.end) }
+    + diff(old.animationList, new.animationList) { ($0.start, $0.end) } + diff(old.sfxList, new.sfxList) { ($0.t, $0.t) }
   var merged: [(Double, Double)] = []
   for r in all.sorted(by: { $0.0 < $1.0 }) {
     if let last = merged.last, r.0 <= last.1 {
