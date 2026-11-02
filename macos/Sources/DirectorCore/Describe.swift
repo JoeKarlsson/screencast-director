@@ -94,6 +94,14 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   for run in cameraHidesScreen(project, plan) {
     out.append("  WARNING: full camera hides screen activity at src \(fmtTime(run.start))-\(fmtTime(run.end)) (\(run.count) clicks/keys); use pip or side there")
   }
+  if let lut = plan.camera?.grade?.lut {
+    do {
+      guard let url = Scene.fileURL(lut, dir: project.dir) else { throw CubeLUT.Failure(message: "no project folder") }
+      _ = try CubeLUT.load(url)
+    } catch {
+      out.append("  WARNING: camera LUT \(lut) isn't applied: \(error.localizedDescription)")
+    }
+  }
   if let punches = plan.camera?.punchIns, !punches.isEmpty {
     out.append("")
     out.append("## Camera punch-ins")

@@ -360,11 +360,26 @@ public struct Grade: Codable, Equatable {
   public var saturation: Double?
   /// -1 (cool) ... 1 (warm).
   public var warmth: Double?
-  public init(exposure: Double? = nil, contrast: Double? = nil, saturation: Double? = nil, warmth: Double? = nil) {
+  /// -1...0: pulls the bright parts down (a hot-lit face) without darkening the rest. 0 = unchanged.
+  public var highlights: Double?
+  /// -1...1: positive lifts the dark parts, negative deepens them. 0 = unchanged.
+  public var shadows: Double?
+  /// -1...1: like saturation, but boosts muted colors more than strong ones, so skin stays put. 0 = unchanged.
+  public var vibrance: Double?
+  /// A 3D `.cube` LUT (relative to the project, usually `luts/`), applied after the other controls.
+  public var lut: String?
+  public init(
+    exposure: Double? = nil, contrast: Double? = nil, saturation: Double? = nil, warmth: Double? = nil,
+    highlights: Double? = nil, shadows: Double? = nil, vibrance: Double? = nil, lut: String? = nil
+  ) {
     self.exposure = exposure
     self.contrast = contrast
     self.saturation = saturation
     self.warmth = warmth
+    self.highlights = highlights
+    self.shadows = shadows
+    self.vibrance = vibrance
+    self.lut = lut
   }
   public static let presets: [(name: String, grade: Grade)] = [
     ("Natural", Grade()),

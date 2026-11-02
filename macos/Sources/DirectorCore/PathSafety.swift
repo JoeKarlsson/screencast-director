@@ -51,6 +51,9 @@ public enum PathSafety {
     if !safe(plan.camera?.video, previous.camera?.video, "camera.video") {
       if let old = previous.camera?.video { plan.camera?.video = old } else { plan.camera = nil }
     }
+    if !safe(plan.camera?.grade?.lut, previous.camera?.grade?.lut, "camera.grade.lut") {
+      plan.camera?.grade?.lut = previous.camera?.grade?.lut
+    }
     if !safe(plan.music?.file, previous.music?.file, "music.file") { plan.music = previous.music }
     if let list = plan.inserts {
       let known = Set((previous.inserts ?? []).map(\.file))

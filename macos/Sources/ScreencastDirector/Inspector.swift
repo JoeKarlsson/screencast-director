@@ -753,14 +753,33 @@ struct InspectorView: View {
       InspectorSection("Color", detail: "Start from a preset, then fine-tune.") {
         FlowLayout(spacing: 6, lineSpacing: 6) {
           ForEach(Grade.presets, id: \.name) { preset in
-            Button(preset.name) { project.apply { $0.camera?.grade = preset.grade } }
-              .controlSize(.small)
+            Button(preset.name) {
+              project.apply { p in
+                var g = preset.grade
+                g.lut = p.camera?.grade?.lut
+                p.camera?.grade = g
+              }
+            }
+            .controlSize(.small)
           }
         }
         gradeSlider("Exposure", \.exposure, 0, -1...1, "%+.2f")
+        gradeSlider("Highlights", \.highlights, 0, -1...0, "%+.2f")
+        gradeSlider("Shadows", \.shadows, 0, -1...1, "%+.2f")
         gradeSlider("Contrast", \.contrast, 1, 0.7...1.4, "%.2f")
         gradeSlider("Saturation", \.saturation, 1, 0...1.6, "%.2f")
+        gradeSlider("Vibrance", \.vibrance, 0, -1...1, "%+.2f")
         gradeSlider("Warmth", \.warmth, 0, -1...1, "%+.2f")
+        LabeledContent("LUT") {
+          Text(plan.camera?.grade?.lut.map { ($0 as NSString).lastPathComponent } ?? "None")
+            .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+          Button("Choose…") { project.chooseLUT() }
+            .controlSize(.small).help("Choose a .cube LUT")
+          if plan.camera?.grade?.lut != nil {
+            Button("Remove") { project.apply { $0.camera?.grade?.lut = nil } }
+              .controlSize(.small).help("Remove the LUT")
+          }
+        }
       }
     } else {
       emptyState("video.slash", "No camera", "This recording has no camera video. Turn on \"Record camera\" in Settings for the next one.")

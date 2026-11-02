@@ -232,6 +232,42 @@ func sceneDrawingChecks() {
   expect(warm[0] > warm[2] + 0.05 && cool[2] > cool[0] + 0.05, "warmth pushes toward red, coolness toward blue (\(warm), \(cool))")
   let flat = pixel(Scene.graded(CIImage(color: CIColor(red: 0.3, green: 0.5, blue: 0.7)).cropped(to: mid.extent), Grade(contrast: 0)), x: 4, y: 4)
   expect(flat.max()! - flat.min()! < 0.3 && Scene.graded(mid, nil) === mid, "contrast 0 flattens; no grade leaves the picture alone (\(flat))")
+  // Highlights pull the bright side of a picture down, shadows lift the dark side.
+  let halves = CIImage(color: CIColor(red: 0.9, green: 0.9, blue: 0.9)).cropped(to: CGRect(x: 0, y: 0, width: 64, height: 64))
+    .composited(over: CIImage(color: CIColor(red: 0.08, green: 0.08, blue: 0.08)).cropped(to: CGRect(x: 0, y: 0, width: 128, height: 64)))
+  let bright = pixel(halves, x: 16, y: 32)[1], dark = pixel(halves, x: 112, y: 32)[1]
+  let tamed = pixel(Scene.graded(halves, Grade(highlights: -1)), x: 16, y: 32)[1]
+  let lifted = pixel(Scene.graded(halves, Grade(shadows: 1)), x: 112, y: 32)[1]
+  expect(tamed < bright - 0.03 && lifted > dark + 0.03, "highlights darken the bright side, shadows lift the dark (\(bright)→\(tamed), \(dark)→\(lifted))")
+  // Vibrance boosts a muted color more than one that's already strong.
+  func spread(_ c: [Double]) -> Double { c.max()! - c.min()! }
+  let muted = CIImage(color: CIColor(red: 0.5, green: 0.45, blue: 0.4)).cropped(to: mid.extent)
+  let strong = CIImage(color: CIColor(red: 0.9, green: 0.3, blue: 0.1)).cropped(to: mid.extent)
+  let mutedGain = spread(pixel(Scene.graded(muted, Grade(vibrance: 1)), x: 4, y: 4)) / spread(pixel(muted, x: 4, y: 4))
+  let strongGain = spread(pixel(Scene.graded(strong, Grade(vibrance: 1)), x: 4, y: 4)) / spread(pixel(strong, x: 4, y: 4))
+  expect(mutedGain > 1.1 && mutedGain > strongGain, "vibrance favors muted colors (\(mutedGain) vs \(strongGain))")
+  // A .cube LUT: an inverting 2x2x2 table turns the gray's complement, from a file in the project.
+  let lutDir = FileManager.default.temporaryDirectory.appendingPathComponent("lut-check-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: lutDir.appendingPathComponent("luts"), withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: lutDir) }
+  var cube = "TITLE \"invert\"\n# comment\nLUT_3D_SIZE 2\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1\n"
+  for b in 0..<2 { for g in 0..<2 { for r in 0..<2 { cube += "\(1 - r) \(1 - g) \(1 - b)\n" } } }
+  try? cube.write(to: lutDir.appendingPathComponent("luts/invert.cube"), atomically: true, encoding: .utf8)
+  let inverted = pixel(Scene.graded(CIImage(color: CIColor(red: 0.2, green: 0.5, blue: 0.8)).cropped(to: mid.extent), Grade(lut: "luts/invert.cube"), dir: lutDir), x: 4, y: 4)
+  expect(near(inverted, [0.8, 0.5, 0.2], 0.04), "a LUT recolors the camera (\(inverted))")
+  let missing = pixel(Scene.graded(mid, Grade(lut: "luts/gone.cube"), dir: lutDir), x: 4, y: 4)
+  expect(near(missing, [0.4, 0.4, 0.4], 0.01), "a missing LUT leaves the picture alone (\(missing))")
+  for (bad, why) in [
+    ("LUT_1D_SIZE 2\n0 0 0\n1 1 1\n", "1D"), ("LUT_3D_SIZE 2\n0 0 0\n", "needs 8"), ("0 0 0\n", "no LUT_3D_SIZE"),
+    ("LUT_3D_SIZE 2\nDOMAIN_MAX 2 2 2\n", "0...1 domain"), ("LUT_3D_SIZE 2\nred green blue\n", "unreadable"),
+  ] {
+    do {
+      _ = try CubeLUT.parse(bad, name: "bad.cube")
+      expect(false, "a broken LUT (\(why)) is refused")
+    } catch {
+      expect(error.localizedDescription.contains(why), "a broken LUT says why: \(error.localizedDescription)")
+    }
+  }
 
   // Cutout with no one in the frame: the background is removed, so nothing of the camera shows.
   let empty = Scene.personCutout(green)

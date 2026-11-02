@@ -627,6 +627,29 @@ final class ProjectModel: ObservableObject {
     if let window = AppDelegate.shared?.window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
   }
 
+  /// Asks for a `.cube` LUT, copies it into the project's luts/ folder, and grades the camera with it.
+  /// A file that isn't a 3D LUT is refused with the reason, before anything is copied.
+  func chooseLUT() {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [UTType(filenameExtension: "cube") ?? .data]
+    panel.message = "Choose a .cube LUT for the camera"
+    let done: (NSApplication.ModalResponse) -> Void = { [self] response in
+      guard response == .OK, let url = panel.url else { return }
+      do {
+        _ = try CubeLUT.load(url)
+        let file = try copyIntoProject(url, folder: "luts")
+        apply { p in
+          var g = p.camera?.grade ?? Grade()
+          g.lut = file
+          p.camera?.grade = g
+        }
+      } catch {
+        Notices.shared.show(error, "Couldn't use that LUT")
+      }
+    }
+    if let window = AppDelegate.shared?.window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
+  }
+
   /// A library sound at the playhead. It's copied into the project's sfx/ folder (unless the
   /// project already has that file), so the video keeps it if the library changes.
   func addSound(_ entry: AudioLibrary.Entry) {

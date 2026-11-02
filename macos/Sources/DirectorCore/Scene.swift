@@ -371,25 +371,34 @@ public final class Scene: @unchecked Sendable {
     return masked(placed, ciRect(b), radius: b.r, opacity: b.opacity)
   }
 
-  static func graded(_ img: CIImage, _ g: Grade?) -> CIImage {
+  /// The camera picture through the plan's grade. A LUT that can't be read is skipped here
+  /// (`describe` warns about it, and the app checks it when it's chosen).
+  static func graded(_ img: CIImage, _ g: Grade?, dir: URL? = nil) -> CIImage {
     guard let g else { return img }
     var out = img
     if let e = g.exposure, e != 0 { out = out.applyingFilter("CIExposureAdjust", parameters: ["inputEV": e]) }
+    let hi = min(0, max(-1, g.highlights ?? 0)), sh = min(1, max(-1, g.shadows ?? 0))
+    if hi != 0 || sh != 0 {
+      out = out.applyingFilter(
+        "CIHighlightShadowAdjust", parameters: ["inputHighlightAmount": 1 + hi, "inputShadowAmount": sh, "inputRadius": 0])
+    }
     if g.contrast != nil || g.saturation != nil {
       out = out.applyingFilter(
         "CIColorControls", parameters: ["inputContrast": g.contrast ?? 1, "inputSaturation": g.saturation ?? 1, "inputBrightness": 0])
     }
+    if let v = g.vibrance, v != 0 { out = out.applyingFilter("CIVibrance", parameters: ["inputAmount": v]) }
     if let w = g.warmth, w != 0 {
       // A target neutral below the source's warms the picture, above it cools it.
       out = out.applyingFilter(
         "CITemperatureAndTint",
         parameters: ["inputNeutral": CIVector(x: 6500, y: 0), "inputTargetNeutral": CIVector(x: 6500 - w * 2500, y: 0)])
     }
+    if let path = g.lut, let url = fileURL(path, dir: dir), let lut = try? CubeLUT.load(url) { out = lut.apply(to: out) }
     return out.cropped(to: img.extent)
   }
 
   func cameraCard(_ src0: CIImage, box b: Box, frame f: Double) -> CIImage {
-    var src = Scene.graded(src0, plan.camera?.grade)
+    var src = Scene.graded(src0, plan.camera?.grade, dir: dir)
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
     let cut = cutoutWeight(b)

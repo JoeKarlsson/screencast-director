@@ -658,6 +658,15 @@ struct Checks {
     expect(fxText.contains("## Sound effects") && fxText.contains("out 0:01.0 sfx/whoosh.m4a") && fxText.contains("-6 dB"), "describe lists effects")
     expect(fxText.contains("src 0:05.0 CUT (won't play) sfx/pop.m4a"), "describe flags a cut effect")
     expect(fxText.contains("WARNING: sfx #1 at src 0:05.0 is in a cut"), "describe warns about a free-standing effect in a cut")
+    // A camera LUT: an outside path is undone, and describe warns when the file can't be used.
+    var graded = fx
+    graded.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+    graded.camera?.grade = Grade(lut: "luts/look.cube")
+    var lutEvil = graded
+    lutEvil.camera?.grade?.lut = "/etc/passwd"
+    let (lutClean, lutReverted) = PathSafety.sanitize(lutEvil, previous: graded, project: URL(fileURLWithPath: "/tmp/fx-project"))
+    expect(lutClean.camera?.grade?.lut == "luts/look.cube" && lutReverted == ["camera.grade.lut"], "a LUT outside the project is undone")
+    expect(describe(p, graded).contains("WARNING: camera LUT luts/look.cube isn't applied"), "describe warns about a LUT it can't read")
     // An attached sound plays when its title appears, and follows it when the title moves.
     var attached = fx
     attached.sfx = nil
