@@ -6,7 +6,7 @@
 #   macos/test-all.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-for step in ./lint.sh ./test.sh ./playback-test.sh ./cli-test.sh ./animate-test.sh ./smoke-test.sh; do
+for step in ./lint.sh ./test.sh ./playback-test.sh ./media-test.sh ./cli-test.sh ./animate-test.sh ./smoke-test.sh; do
   echo "== $step"
   "$step"
 done

@@ -26,6 +26,7 @@ jobs:
       - run: macos/lint.sh
       - run: macos/test.sh
       - run: macos/playback-test.sh   # plays a built composition headlessly and fails on black or missing frames
+      - run: macos/media-test.sh      # analysis, screen text, joins, GIFs and publishing on synthetic recordings
       - run: swift build --package-path macos --product director   # the app target times out type-checking SwiftUI on CI runners
       - run: macos/cli-test.sh        # runs the director commands and bin/sd on a temp fixture and checks what they wrote
       - run: macos/animate-test.sh    # renders every animation template through director animate (offscreen WebKit)
