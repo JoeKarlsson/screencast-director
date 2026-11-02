@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Fails when a feat: or fix: commit changes the engine or app (macos/Sources, the animation
-# templates) without adding or changing a test (macos/Tests, a macos/*-test.sh script, test/), unless
+# Fails when a feat: or fix: commit changes the engine, app, sd or input logger (macos/Sources, the animation
+# templates, bin/, logger/) without adding or changing a test (macos/Tests, a macos/*-test.sh script, test/), unless
 # its message has a "No test: <why>" line. CI runs it on every push and pull request.
 #
 #   macos/check-tests.sh <base>..<head>   # check every commit in a range
@@ -18,7 +18,7 @@ for c in $commits; do
   subject=$(git log -1 --format=%s "$c")
   [[ "$subject" =~ ^(feat|fix)(\(.+\))?!?: ]] || continue
   files=$(git diff-tree --no-commit-id --name-only -r "$c")
-  grep -qE '^macos/(Sources/|Resources/animations/)' <<<"$files" || continue
+  grep -qE '^(macos/(Sources/|Resources/animations/)|bin/|logger/)' <<<"$files" || continue
   grep -qE '^(macos/Tests/|macos/[a-z-]+-test\.sh$|test/)' <<<"$files" && continue
   git log -1 --format=%B "$c" | grep -qE '^No test: .+' && continue
   echo "FAIL: ${c:0:7} $subject"

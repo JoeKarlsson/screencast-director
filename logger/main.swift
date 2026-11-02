@@ -1,4 +1,4 @@
-// input-logger: writes mouse and keyboard activity as JSON lines while a recording runs.
+// input-logger (logger/main.swift): writes mouse and keyboard activity as JSON lines while a recording runs.
 //
 // Timestamps use CLOCK_UPTIME_RAW, the same host clock AVFoundation stamps captured
 // frames with, so events line up with the video without any guessed offset.
@@ -38,17 +38,7 @@ State.bounds = CGDisplayBounds(CGMainDisplayID())
 func now() -> Double { Double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9 }
 
 func emit(_ obj: [String: Any]) {
-    guard let data = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]) else { return }
-    State.out.write(data)
-    State.out.write("\n".data(using: .utf8)!)
-}
-
-// Normalize to the main display (what avfoundation "Capture screen 0" records).
-func norm(_ p: CGPoint) -> (Double, Double) {
-    let b = State.bounds
-    let x = (p.x - b.origin.x) / b.width
-    let y = (p.y - b.origin.y) / b.height
-    return ((x * 10000).rounded() / 10000, (y * 10000).rounded() / 10000)
+    if let line = jsonLine(obj) { State.out.write(line) }
 }
 
 emit([
@@ -59,60 +49,16 @@ emit([
     "display": ["w": State.bounds.width, "h": State.bounds.height, "scale": NSScreen.main?.backingScaleFactor ?? 1],
 ])
 
-
-func keyLabel(_ event: CGEvent) -> String? {
-    let flags = event.flags
-    let shortcut = flags.contains(.maskCommand) || flags.contains(.maskControl)
-    let code = event.getIntegerValueField(.keyboardEventKeycode)
-    let special: [Int64: String] = [49: "Space", 36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑"]
-    if !shortcut {
-        // Named non-text keys are useful and not sensitive; text (including Space) stays anonymous.
-        return code == 49 ? nil : special[code]
-    }
-    var label = ""
-    if flags.contains(.maskControl) { label += "⌃" }
-    if flags.contains(.maskAlternate) { label += "⌥" }
-    if flags.contains(.maskShift) { label += "⇧" }
-    if flags.contains(.maskCommand) { label += "⌘" }
-    if let s = special[code] { return label + s }
-    var length = 0
-    var chars = [UniChar](repeating: 0, count: 4)
-    // Read the unmodified character so ⌘⇧P shows "P", not a control code.
-    event.flags = []
-    event.keyboardGetUnicodeString(maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
-    let base = String(utf16CodeUnits: chars, count: length).uppercased()
-    return label + (base.isEmpty ? "?" : base)
-}
-
 let callback: CGEventTapCallBack = { _, type, event, _ in
     let t = now()
-    switch type {
-    case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
-        if t - State.lastMove >= 1.0 / 30.0 {
-            State.lastMove = t
-            let (x, y) = norm(event.location)
-            emit(["type": "move", "t": t, "x": x, "y": y])
-        }
-    case .leftMouseDown, .rightMouseDown:
-        let (x, y) = norm(event.location)
-        emit(["type": "click", "t": t, "x": x, "y": y, "button": type == .leftMouseDown ? "left" : "right"])
-    case .scrollWheel:
-        let (x, y) = norm(event.location)
-        emit(["type": "scroll", "t": t, "x": x, "y": y])
-    case .keyDown:
-        if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { break }
-        // A password field (or any app) has secure input on: log nothing, not even that a key was hit.
-        if IsSecureEventInputEnabled() { break }
-        var obj: [String: Any] = ["type": "key", "t": t]
-        let (x, y) = norm(event.location)
-        obj["x"] = x
-        obj["y"] = y
-        if let label = keyLabel(event.copy()!) { obj["label"] = label }
+    let isMove = [.mouseMoved, .leftMouseDragged, .rightMouseDragged].contains(type)
+    // Moves at most 30 times a second.
+    let throttled = isMove && t - State.lastMove < 1.0 / 30.0
+    // A password field (or any app) has secure input on: log nothing, not even that a key was hit.
+    let secure = type == .keyDown && IsSecureEventInputEnabled()
+    if !throttled, !secure, let obj = eventRecord(type, event, t: t, bounds: State.bounds) {
+        if isMove { State.lastMove = t }
         emit(obj)
-    case .tapDisabledByTimeout, .tapDisabledByUserInput:
-        break
-    default:
-        break
     }
     return Unmanaged.passUnretained(event)
 }

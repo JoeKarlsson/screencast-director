@@ -4,7 +4,7 @@ import CoreGraphics
 import DirectorCore
 import Foundation
 
-// In-process version of logger/InputLogger.swift: writes clicks, keys and cursor moves as
+// In-process version of logger/main.swift: writes clicks, keys and cursor moves as
 // JSON lines while a recording runs. Same format, same privacy rule: plain typing (and Space)
 // is logged without characters; only ⌘ or ⌃ combos get a label (⌥ alone types characters),
 // and nothing is logged while secure input (a password field) is on.

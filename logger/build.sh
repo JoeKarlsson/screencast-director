@@ -3,5 +3,5 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p bin
-swiftc -O InputLogger.swift -o bin/input-logger
+swiftc -O InputEvents.swift main.swift -o bin/input-logger
 echo "built logger/bin/input-logger"
