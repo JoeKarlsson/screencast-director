@@ -208,6 +208,38 @@ check "sd plan writes a draft" test -f "$SD_PROJECTS/demo/plan.json"
 check "sd describe passes through to director" grep -q "keyboard shortcut" <<<"$("$SD" describe demo)"
 expect_error "sd on a missing project says so" "no project" "$SD" describe missing
 expect_error "sd without a project name says so" "missing project name" "$SD" plan
+expect_error "sd import rejects an unknown option" "unknown option --loud" "$SD" import other "$P/screen.mp4" --loud
+expect_error "sd plan on an unanalyzed recording says to analyze first" "sd analyze" "$SD" plan cam
+check "a refused plan writes nothing" test ! -e "$SD_PROJECTS/cam/plan.json"
+
+# --- what sd record does after ffmpeg stops (no devices needed): the first frame's host time from
+# ffmpeg's log, the camera offset, and a source.json whose input events line up with the recording.
+cat >"$TMP/ffmpeg.log" <<'LOG'
+Input #0, avfoundation, from 'Capture screen 0:default':
+  Duration: N/A, start: 51234.567800, bitrate: N/A
+  Stream #0:0: Video: rawvideo (UYVY / 0x59565955), uyvy422, 3024x1964, 1000k tbr, 1000k tbn, start 51234.567800
+  Stream #0:1: Audio: pcm_f32le, 48000 Hz, mono, flt, 1536 kb/s, start 51234.601000
+LOG
+mkdir "$TMP/recorded"
+cp "$P/screen.mp4" "$TMP/recorded/"
+# Sourced, bin/sd only defines its functions; a subshell keeps its variables out of this script.
+recorded=$(
+  # shellcheck source=bin/sd
+  source "$SD"
+  start=$(capture_start "$TMP/ffmpeg.log")
+  write_source "$TMP/recorded" screen.mp4 "$start" camera.mp4 "$(camera_offset "$start" 51234.3118)"
+  echo "$start $(camera_offset 100 100.064)"
+)
+check "record reads the first frame's time from ffmpeg's log" test "${recorded% *}" = 51234.567800
+check "the camera offset is screen start minus camera start" test "${recorded#* }" = -0.064
+check "record's source.json has the capture start and camera offset" python3 -c "
+import json, sys; s = json.load(open('$TMP/recorded/source.json'))
+sys.exit(0 if s['captureStart'] == 51234.5678 and s['camera'] == {'video': 'camera.mp4', 'offset': 0.256} else 1)"
+printf '%s\n' '{"type":"meta","clock":"uptime_raw","t":51234.5}' '{"type":"click","t":51241.5678,"x":0.75,"y":0.29}' >"$TMP/recorded/events.jsonl"
+# shellcheck disable=SC2031  # sourcing sd set its own DIRECTOR only inside the subshell above
+"$DIRECTOR" plan "$TMP/recorded" >/dev/null
+# shellcheck disable=SC2031
+check "a click on the host clock lands 7 s into the recording" grep -q "0:07.0" <<<"$("$DIRECTOR" describe "$TMP/recorded")"
 
 [[ "$failures" == 0 ]] || { echo "$failures CLI check(s) failed" >&2; exit 1; }
 echo "CLI checks passed"

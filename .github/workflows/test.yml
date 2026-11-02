@@ -30,5 +30,4 @@ jobs:
       - run: swift build --package-path macos --product director   # the app target times out type-checking SwiftUI on CI runners
       - run: macos/cli-test.sh        # runs the director commands and bin/sd on a temp fixture and checks what they wrote
       - run: macos/animate-test.sh    # renders every animation template through director animate (offscreen WebKit)
-      - run: test/sd-test.sh          # the sd CLI: import, plan, describe, and record's source.json
       - run: test/logger-test.sh      # the input logger's event records, read back by the engine
