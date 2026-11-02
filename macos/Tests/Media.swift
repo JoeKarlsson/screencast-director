@@ -434,18 +434,18 @@ struct Media {
       expect(left(withPerson) != nil && left(withPerson) != left(without), "the person is drawn on the left of the thumbnail")
     }
 
-    // Lip sync: the clip's own camera peaks near 0 (it reads about -0.09 s: lips open just before
-    // the sound, or the broadcast's own lag; its 10 s windows don't all agree, so it isn't
+    // Lip sync: the clip's own camera (in sync) reads within 50 ms of 0 once lips leading the voice
+    // is allowed for (it read -0.094 s before; its 10 s windows don't all agree, so it isn't
     // "confident"), and a camera file that starts 0.3 s into the same footage is found, confidently,
-    // 0.3 s earlier than that.
+    // at -0.3 s.
     guard let synced = try await LipSync.measure(project: project, camera: plan.camera!) else {
       expect(false, "lip sync measures the talking head")
       return
     }
-    expect(synced.strength >= 0.08 && abs(synced.offset) < 0.15, "the clip's own camera has a clear peak near 0 (\(synced))")
+    expect(synced.strength >= 0.08 && abs(synced.offset) < 0.05, "the clip's own camera has a clear peak at 0 (\(synced))")
     try run("ffmpeg", ["-v", "error", "-y", "-ss", "0.3", "-i", clip.path, "-an", "-c:v", "libx264", "-crf", "30", dir.appendingPathComponent("late.mp4").path])
     let late = try await LipSync.measure(project: project, camera: Plan.Camera(video: "late.mp4", offset: 0))
-    expect(late.map { $0.confident && abs($0.offset - (synced.offset - 0.3)) < 0.05 } == true, "a camera 0.3 s off is found (\(String(describing: late)))")
+    expect(late.map { $0.confident && abs($0.offset + 0.3) < 0.05 } == true, "a camera 0.3 s off is found (\(String(describing: late)))")
   }
 
   /// whisper-cli's JSON (a real capture, test/fixtures/whisper-cli.json) becomes transcript.json:

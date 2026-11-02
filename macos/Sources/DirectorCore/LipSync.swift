@@ -21,6 +21,12 @@ public enum LipSync {
   }
 
   static let step = 0.02
+  /// How far lips lead the voice: the mouth opens a little before the sound comes out, so lip
+  /// opening correlates best with voice level this much earlier than true sync. Measured on
+  /// in-sync footage (four studio-recorded public-domain addresses, every window agreeing:
+  /// 0.060-0.096 s, mean 0.080; the talking-head fixture reads 0.094). Without it, Lip sync set the
+  /// camera about 80 ms early, so the mouth moved before the voice.
+  static let lipLead = 0.08
   static let windowCount = 4
   static let windowLength = 30.0
 
@@ -43,7 +49,12 @@ public enum LipSync {
       mouth += try mouthOpening(cam, track: camTrack, from: lo, to: hi)
       voice += try voiceLevel(screen, track: audioTrack, from: w.lowerBound, to: w.upperBound)
     }
-    return bestOffset(mouth: mouth, voice: voice, windows: windows, around: camera.offset, search: search)
+    // The correlation peaks `lipLead` early, so search around there and report true sync.
+    guard var result = bestOffset(mouth: mouth, voice: voice, windows: windows, around: camera.offset - lipLead, search: search) else {
+      return nil
+    }
+    result.offset = ((result.offset + lipLead) * 1000).rounded() / 1000
+    return result
   }
 
   /// Up to four 30 s stretches with the most words, one from each quarter of the recording.

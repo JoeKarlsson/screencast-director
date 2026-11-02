@@ -62,6 +62,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Lip sync no longer sets the camera about 80 ms early. Lips open a little before the sound comes out, and the measurement now allows for it: in-sync footage measures within 20 ms of in sync, where it used to read 60-96 ms early. Run Camera > Lip sync again on videos synced before this.
 - An intro or outro card written into plan.json or a profile without `"enabled"` now shows. Before, it was silently left off; `"enabled": false` still switches one off.
 - Saving an unchanged plan no longer adds a copy to its history. plan.json now keeps its keys in a fixed order, so a save that changes nothing writes the same file, and the 30 saved versions are real edits.
 - Times just under ten seconds or a minute read correctly in the timeline description and the editor's status line (59.97 s was "0:60.0", 9.97 s was "0:010.0").
