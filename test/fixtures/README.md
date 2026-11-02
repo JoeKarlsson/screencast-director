@@ -14,3 +14,10 @@
 
       ffmpeg -ss 45 -t 40 -i original.webm -vf 'crop=960:540:480:120,scale=640:360,fps=30' \
         -c:v libx264 -preset slow -crf 30 -pix_fmt yuv420p -c:a aac -ac 1 -b:a 48k -movflags +faststart talking-head.mp4
+
+## whisper-cli.json
+
+Real whisper-cli output (`-ml 1 -sow -oj`, the flags `Analyzer.transcribe` uses, model ggml-base.en) for
+`say "Record the screen, then edit the video by changing a plan."` after 1.5 s of silence. Two hand edits:
+the model path is cut to its file name, and a `[BLANK_AUDIO]` item is added at the end so the conversion's
+skip rule is checked. `macos/media-test.sh` checks the conversion to transcript.json; no model runs in tests.

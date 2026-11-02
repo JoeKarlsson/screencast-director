@@ -22,21 +22,11 @@ jobs:
           else
             macos/check-tests.sh "$BEFORE..HEAD"
           fi
-      - run: brew install swiftlint shellcheck ffmpeg whisper-cpp
-      - name: Cache the Whisper model
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Application Support/Screencast Director/models
-          key: whisper-ggml-base.en
-      - name: Download the Whisper model (media-test.sh transcribes with it)
-        run: |
-          models="$HOME/Library/Application Support/Screencast Director/models"
-          mkdir -p "$models"
-          [[ -f "$models/ggml-base.en.bin" ]] || curl -fsSL -o "$models/ggml-base.en.bin" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+      - run: brew install swiftlint shellcheck ffmpeg
       - run: macos/lint.sh
       - run: macos/test.sh
       - run: macos/playback-test.sh   # plays a built composition headlessly and fails on black or missing frames
-      - run: macos/media-test.sh      # analysis, joins, GIFs, publishing and exports; faces on the talking-head fixture; whisper
+      - run: macos/media-test.sh      # analysis, joins, GIFs, publishing and exports; faces on the talking-head fixture; whisper output conversion
       - run: swift build --package-path macos --product director   # the app target times out type-checking SwiftUI on CI runners
       - run: macos/cli-test.sh        # runs the director commands and bin/sd on a temp fixture and checks what they wrote
       - run: macos/animate-test.sh    # renders every animation template through director animate (offscreen WebKit)

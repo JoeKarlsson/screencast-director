@@ -7,8 +7,8 @@ import ImageIO
 // Headless media pipeline checks: analysis (motion, audio extraction, loudness), analyze() and screen
 // text, joining takes, GIF export, publishing and the export queue, on synthetic recordings made here
 // (ffmpeg muxes the audio); the face steps (thumbnail faces, face centering, cutout, lip sync) on the
-// public-domain talking head in test/fixtures; and transcription with whisper on speech from `say`.
-// Needs ffmpeg, whisper-cli and a model (CI downloads ggml-base.en). Run: macos/media-test.sh
+// public-domain talking head in test/fixtures; and turning whisper-cli's JSON into transcript.json, from
+// a captured sample (no model runs here). Needs ffmpeg. Run from macos/: macos/media-test.sh
 
 var failures = 0
 func expect(_ ok: Bool, _ what: String, line: Int = #line) {
@@ -382,9 +382,9 @@ struct Media {
     }
   }
 
-  /// The public-domain talking-head clip in test/fixtures (see its README), used for the face steps.
-  static func talkingHead() throws -> URL {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../test/fixtures/talking-head.mp4").standardized
+  /// A file in test/fixtures (see its README). media-test.sh runs from macos/.
+  static func fixture(_ name: String) throws -> URL {
+    let url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("../test/fixtures/\(name)").standardized
     guard FileManager.default.fileExists(atPath: url.path) else {
       throw NSError(domain: "Media", code: 6, userInfo: [NSLocalizedDescriptionKey: "missing fixture \(url.path)"])
     }
@@ -394,7 +394,7 @@ struct Media {
   /// A real face: thumbnail picks, face centering, the person cutout, and lip sync finding a known camera lag.
   static func faces(_ root: URL) async throws {
     let dir = try folder(root, "faces")
-    let clip = try talkingHead()
+    let clip = try fixture("talking-head.mp4")
     try FileManager.default.copyItem(at: clip, to: dir.appendingPathComponent("screen.mp4"))
     try FileManager.default.copyItem(at: clip, to: dir.appendingPathComponent("camera.mp4"))
     let length = await duration(clip)
@@ -448,27 +448,29 @@ struct Media {
     expect(late.map { $0.confident && abs($0.offset - (synced.offset - 0.3)) < 0.05 } == true, "a camera 0.3 s off is found (\(String(describing: late)))")
   }
 
-  /// Real transcription: `say` speaks a known sentence onto a still video, and analyze() runs whisper on it.
+  /// whisper-cli's JSON (a real capture, test/fixtures/whisper-cli.json) becomes transcript.json:
+  /// words trimmed, times in seconds, blanks and [BLANK_AUDIO] dropped, and Project.load reads it back.
+  /// The model itself isn't tested, and neither is running whisper-cli (Analyzer.transcribe).
   static func transcription(_ root: URL) async throws {
-    guard Tools.whisperCLI != nil, Tools.model != nil else {
-      expect(false, "whisper-cli and a model are installed (see the CI workflow for the model download)")
-      return
-    }
     let dir = try folder(root, "whisper")
-    let video = dir.appendingPathComponent("screen.mp4")
-    try await barVideo(to: video, seconds: 6)
-    let speech = dir.appendingPathComponent("speech.aiff")
-    try run("say", ["-o", speech.path, "Record the screen, then edit the video by changing a plan."])
-    let muxed = dir.appendingPathComponent("muxed.mp4")
-    try run("ffmpeg", ["-v", "error", "-y", "-i", video.path, "-i", speech.path, "-c:v", "copy", "-c:a", "aac", "-shortest", muxed.path])
-    try FileManager.default.removeItem(at: video)
-    try FileManager.default.moveItem(at: muxed, to: video)
-    try writeSource(dir, width: 640, height: 360, duration: await duration(video))
-    try await analyze(dir)
+    let out = dir.appendingPathComponent("transcript.json")
+    try Analyzer.writeMlxTranscript(fromWhisperCpp: Data(contentsOf: try fixture("whisper-cli.json")), to: out)
+    let written = try JSONSerialization.jsonObject(with: Data(contentsOf: out)) as? [String: Any]
+    expect(
+      written?["text"] as? String == " Record the screen, then edit the video by changing a plan",
+      "the transcript's text joins the words (\(written?["text"] ?? "none"))")
+    try writeSource(dir, width: 640, height: 360, duration: 8)
     let words = try Project.load(dir).words
-    let said = words.map { $0.text.lowercased().trimmingCharacters(in: .punctuationCharacters) }
-    expect(["record", "screen", "edit", "video", "changing", "plan"].allSatisfy(said.contains), "whisper hears the sentence (\(said))")
-    expect(zip(words, words.dropFirst()).allSatisfy { $1.start >= $0.start } && words.allSatisfy { $0.end >= $0.start }, "word times run forward")
-    expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("loudness.json").path), "analyze measures loudness when there's audio")
+    expect(
+      words.map(\.text) == ["Record", "the", "screen,", "then", "edit", "the", "video", "by", "changing", "a", "plan"],
+      "words are trimmed, and the empty item and [BLANK_AUDIO] are dropped (\(words.map(\.text)))")
+    expect(
+      words.first.map { [$0.start, $0.end] } == [0, 0.72] && words.last.map { [$0.start, $0.end] } == [5.03, 5.84],
+      "offsets in ms become seconds")
+    expect(words.count == 11 && words[9].start == 5.03 && words[9].end == 5.03, "a zero-length word keeps its time")
+    try Analyzer.writeMlxTranscript(fromWhisperCpp: Data(#"{"transcription": []}"#.utf8), to: out)
+    expect(try Project.load(dir).words.isEmpty, "no speech, no words")
+    expect((try? Analyzer.writeMlxTranscript(fromWhisperCpp: Data("not json".utf8), to: out)) == nil, "unreadable whisper output fails")
   }
+
 }

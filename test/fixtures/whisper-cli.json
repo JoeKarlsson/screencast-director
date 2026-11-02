@@ -1,0 +1,175 @@
+{
+ "systeminfo": "WHISPER : VITISAI = 0 | COREML = 0 | OPENVINO = 0 | MTL : EMBED_LIBRARY = 1 | CPU : NEON = 1 | ARM_FMA = 1 | FP16_VA = 1 | MATMUL_INT8 = 1 | DOTPROD = 1 | SME = 1 | ACCELERATE = 1 | OPENMP = 1 | REPACK = 1 | ",
+ "model": {
+  "type": "base",
+  "multilingual": false,
+  "vocab": 51864,
+  "audio": {
+   "ctx": 1500,
+   "state": 512,
+   "head": 8,
+   "layer": 6
+  },
+  "text": {
+   "ctx": 448,
+   "state": 512,
+   "head": 8,
+   "layer": 6
+  },
+  "mels": 80,
+  "ftype": 1
+ },
+ "params": {
+  "model": "ggml-base.en.bin",
+  "language": "en",
+  "translate": false
+ },
+ "result": {
+  "language": "en"
+ },
+ "transcription": [
+  {
+   "timestamps": {
+    "from": "00:00:00,000",
+    "to": "00:00:00,000"
+   },
+   "offsets": {
+    "from": 0,
+    "to": 0
+   },
+   "text": ""
+  },
+  {
+   "timestamps": {
+    "from": "00:00:00,000",
+    "to": "00:00:00,720"
+   },
+   "offsets": {
+    "from": 0,
+    "to": 720
+   },
+   "text": " Record"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:00,720",
+    "to": "00:00:01,500"
+   },
+   "offsets": {
+    "from": 720,
+    "to": 1500
+   },
+   "text": " the"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:01,500",
+    "to": "00:00:02,130"
+   },
+   "offsets": {
+    "from": 1500,
+    "to": 2130
+   },
+   "text": " screen,"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:02,130",
+    "to": "00:00:02,720"
+   },
+   "offsets": {
+    "from": 2130,
+    "to": 2720
+   },
+   "text": " then"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:02,720",
+    "to": "00:00:03,000"
+   },
+   "offsets": {
+    "from": 2720,
+    "to": 3000
+   },
+   "text": " edit"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:03,000",
+    "to": "00:00:03,360"
+   },
+   "offsets": {
+    "from": 3000,
+    "to": 3360
+   },
+   "text": " the"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:03,360",
+    "to": "00:00:03,960"
+   },
+   "offsets": {
+    "from": 3360,
+    "to": 3960
+   },
+   "text": " video"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:03,960",
+    "to": "00:00:04,200"
+   },
+   "offsets": {
+    "from": 3960,
+    "to": 4200
+   },
+   "text": " by"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:04,200",
+    "to": "00:00:05,030"
+   },
+   "offsets": {
+    "from": 4200,
+    "to": 5030
+   },
+   "text": " changing"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:05,030",
+    "to": "00:00:05,030"
+   },
+   "offsets": {
+    "from": 5030,
+    "to": 5030
+   },
+   "text": " a"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:05,030",
+    "to": "00:00:05,840"
+   },
+   "offsets": {
+    "from": 5030,
+    "to": 5840
+   },
+   "text": " plan"
+  },
+  {
+   "timestamps": {
+    "from": "00:00:05,840",
+    "to": "00:00:07,000"
+   },
+   "offsets": {
+    "from": 5840,
+    "to": 7000
+   },
+   "text": " [BLANK_AUDIO]"
+  }
+ ]
+}
