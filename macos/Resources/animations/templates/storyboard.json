@@ -1,0 +1,31 @@
+{
+  "name": "storyboard",
+  "title": "Storyboard",
+  "summary": "Build any diagram step by step, each step on a word: show logos and labels, connect them, count, highlight, dim, circle, or clear to a new board.",
+  "length": 12,
+  "fields": [
+    { "key": "title", "label": "Heading", "type": "text" },
+    { "key": "highlight", "label": "Highlighted words", "type": "text", "help": "Part of the heading that gets the highlighter." },
+    { "key": "steps", "label": "Steps", "type": "steps" }
+  ],
+  "cues": [
+    { "key": "s1", "label": "Step 1", "at": 0.4 },
+    { "key": "s2", "label": "Step 2", "at": 2.0 },
+    { "key": "s3", "label": "Step 3", "at": 3.4 },
+    { "key": "s4", "label": "Step 4", "at": 4.6 },
+    { "key": "s5", "label": "Step 5", "at": 5.8 },
+    { "key": "s6", "label": "Step 6", "at": 8.0 }
+  ],
+  "data": {
+    "title": "Two apps, one answer",
+    "highlight": "one answer",
+    "steps": [
+      { "cue": "s1", "do": "show", "id": "agent", "kind": "dot", "logo": "OpenAI", "label": "your agent" },
+      { "cue": "s2", "do": "show", "id": "a", "kind": "sticker", "logo": "Salesforce", "label": "deals" },
+      { "cue": "s3", "do": "show", "id": "b", "kind": "sticker", "logo": "Snowflake", "label": "usage" },
+      { "cue": "s4", "do": "connect", "from": "agent", "to": "a" },
+      { "cue": "s5", "do": "connect", "from": "agent", "to": "b" },
+      { "cue": "s6", "do": "highlight", "target": "agent" }
+    ]
+  }
+}

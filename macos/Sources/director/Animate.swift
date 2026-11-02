@@ -21,18 +21,23 @@ enum Animate {
   /// animation uses any more. Returns how many it rendered.
   @MainActor
   static func renderMissing(_ dir: URL, _ plan: Plan, force: Bool = false, log: (String) -> Void) async throws -> Int {
+    let sources = AnimationSources(project: dir, builtIn: resources)
+    // Freeze each template into the video first: the clip's name includes the frozen copy.
+    for name in Set(plan.animationList.map(\.template)) where try sources.freeze(name) {
+      log("froze the \(name) template into animations/templates/")
+    }
     let folder = dir.appendingPathComponent(".animations")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let wanted = Set(plan.animationList.map { ($0.clipPath(plan.output) as NSString).lastPathComponent })
+    let wanted = Set(plan.animationList.map { ($0.clipPath(plan.output, dir: dir) as NSString).lastPathComponent })
     for f in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !wanted.contains(f) {
       try? FileManager.default.removeItem(at: folder.appendingPathComponent(f))
     }
-    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.output)) } : plan.animationsToRender(dir: dir)
+    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.output, dir: dir)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }
     let page = Page(width: plan.output.width, height: plan.output.height)
     for (i, a, path) in todo {
       let started = Date()
-      try await page.render(a, plan: plan, to: dir.appendingPathComponent(path))
+      try await page.render(a, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
       log(String(format: "animation #%d (%@): %@ in %.1fs", i, a.template, path, Date().timeIntervalSince(started)))
     }
     return todo.count
@@ -68,15 +73,25 @@ enum Animate {
       if let error { c?.resume(throwing: error) } else { c?.resume() }
     }
 
-    func render(_ a: Animation, plan: Plan, to out: URL) async throws {
+    func render(_ a: Animation, plan: Plan, sources: AnimationSources, to out: URL) async throws {
       // A fresh page per animation, so one template's nodes never leak into the next. Read access to
-      // the whole disk: fonts come from profile folders and logos from the bundle.
+      // the whole disk: fonts come from profile folders, templates and logos from the video, the
+      // personal library or the bundle.
       try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
         loading = c
         web.loadFileURL(Animate.resources.appendingPathComponent("animation.html"), allowingReadAccessTo: URL(fileURLWithPath: "/"))
       }
+      guard let scriptURL = sources.script(a.template) else {
+        throw Failure("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
+      }
       do {
-        _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": try Animate.config(a, plan: plan)], contentWorld: .page)
+        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;0")
+      } catch {
+        throw Failure("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
+      }
+      do {
+        let config = try Animate.config(a, plan: plan, logos: sources.logos())
+        _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
         throw Failure("the \(a.template) template didn't start: \(error)")
       }
@@ -149,9 +164,9 @@ enum Animate {
   }
 
   /// What the page's init() gets: the template, its data and cues, and the plan's brand look.
-  static func config(_ a: Animation, plan: Plan) throws -> [String: Any] {
+  static func config(_ a: Animation, plan: Plan, logos files: [String: URL]) throws -> [String: Any] {
     let data = try JSONSerialization.jsonObject(with: JSONEncoder().encode(a.data), options: [.fragmentsAllowed])
-    let logos = (try? JSONSerialization.jsonObject(with: Data(contentsOf: resources.appendingPathComponent("logos/logos.json")))) ?? [:]
+    let logos = files.mapValues(\.absoluteString)
     let look = plan.look
     let fonts: [[String: String]] = (look?.fontFiles ?? []).map { path in
       ["family": ((path as NSString).lastPathComponent as NSString).deletingPathExtension, "url": URL(fileURLWithPath: path).absoluteString]

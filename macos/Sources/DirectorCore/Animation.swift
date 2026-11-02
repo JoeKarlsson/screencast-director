@@ -37,23 +37,25 @@ public struct Animation: Codable, Equatable {
   /// The cues relative to the animation's start, which is what the template plays against.
   public var localCues: [String: Double] { (cues ?? [:]).mapValues { $0 - start } }
 
-  /// Names the rendered clip: everything that changes its frames, and nothing else.
-  public func renderKey(width: Int, height: Int, fps: Int) -> String {
+  /// Names the rendered clip: everything that changes its frames, and nothing else. `script` is the
+  /// digest of the video's frozen copy of the template (see AnimationSources), so editing it re-renders.
+  public func renderKey(width: Int, height: Int, fps: Int, script: String = "") -> String {
     struct Key: Encodable {
-      let v: Int, template: String, data: JSONValue, cues: [String: Double], duration: Double, w: Int, h: Int, fps: Int
+      let v: Int, template: String, script: String, data: JSONValue, cues: [String: Double], duration: Double, w: Int, h: Int, fps: Int
     }
     let enc = JSONEncoder()
     enc.outputFormatting = .sortedKeys
     let key = Key(
-      v: Animation.engineVersion, template: template, data: data, cues: localCues.mapValues { ($0 * 1000).rounded() / 1000 },
+      v: Animation.engineVersion, template: template, script: script, data: data, cues: localCues.mapValues { ($0 * 1000).rounded() / 1000 },
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps)
     let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data())
     return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
   }
 
-  /// The rendered clip, relative to the project folder.
-  public func clipPath(_ output: Plan.Output) -> String {
-    ".animations/\(template)-\(renderKey(width: output.width, height: output.height, fps: output.fps)).mp4"
+  /// The rendered clip, relative to the project folder `dir`.
+  public func clipPath(_ output: Plan.Output, dir: URL?) -> String {
+    let script = dir.map { AnimationSources.digest(template, in: AnimationSources.videoFolder($0)) } ?? ""
+    return ".animations/\(template)-\(renderKey(width: output.width, height: output.height, fps: output.fps, script: script)).mp4"
   }
 }
 
@@ -102,7 +104,7 @@ extension Plan {
   /// that hasn't been rendered yet is left out (the app and `director render` render it first).
   public func animationInserts(dir: URL?) -> [Insert] {
     animationList.compactMap { a in
-      let path = a.clipPath(output)
+      let path = a.clipPath(output, dir: dir)
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
       return Insert(start: a.start, end: a.end, file: path, placement: "full", fit: "fill", note: a.note)
     }
@@ -111,7 +113,7 @@ extension Plan {
   /// Animations whose clip is missing, with the clip path each should be rendered to.
   public func animationsToRender(dir: URL) -> [(index: Int, animation: Animation, path: String)] {
     animationList.enumerated().compactMap { i, a in
-      let path = a.clipPath(output)
+      let path = a.clipPath(output, dir: dir)
       return FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) ? nil : (i, a, path)
     }
   }

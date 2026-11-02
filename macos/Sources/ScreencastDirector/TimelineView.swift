@@ -388,7 +388,7 @@ struct TimelineView: View {
         .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
         iconButton("B-roll", "photo.on.rectangle", help: "Show a picture or clip over the video from the playhead", action: project.addInsert)
         Menu {
-          ForEach(AnimationLibrary.templates, id: \.name) { t in
+          ForEach(AnimationLibrary.templates(project.dir).map(\.template), id: \.name) { t in
             Button { project.addAnimation(t) } label: { Text("\(t.title): \(t.summary)") }
           }
         } label: {
@@ -665,7 +665,7 @@ struct TimelineView: View {
         let sel = Selection.animation(i)
         let (a, b) = range(sel, an.start, an.end)
         let rendering = project.animating && plan.animationsToRender(dir: project.dir).contains { $0.index == i }
-        let label = "\(an.note ?? AnimationLibrary.template(an.template)?.title ?? an.template)\(rendering ? " · rendering…" : "")"
+        let label = "\(an.note ?? AnimationLibrary.template(an.template, project.dir)?.title ?? an.template)\(rendering ? " · rendering…" : "")"
         bar(sel: sel, start: a, end: b, track: .animations, color: Theme.animation, label: label, striped: rendering, movable: true) { s, e in
           project.apply {
             guard $0.animationList.indices.contains(i) else { return }

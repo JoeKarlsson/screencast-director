@@ -1,10 +1,11 @@
 import AppKit
 import DirectorCore
 
-/// The bundled animation templates and logo library (Resources/animations), for the editor.
+/// The animation templates and logos a video can use: its own `animations/` folder, the personal
+/// library, then the ones built into the app (see AnimationSources).
 enum AnimationLibrary {
-  /// In the app bundle, or the source tree for a `swift build` run.
-  static let dir: URL = {
+  /// The built-in set: in the app bundle, or the source tree for a `swift build` run.
+  static let builtIn: URL = {
     if let bundled = Bundle.main.resourceURL?.appendingPathComponent("animations"),
       FileManager.default.fileExists(atPath: bundled.appendingPathComponent("animation.html").path)
     {
@@ -13,28 +14,23 @@ enum AnimationLibrary {
     return URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources/animations").standardizedFileURL
   }()
 
-  static let templates: [AnimationTemplate] = AnimationTemplate.all(in: dir.appendingPathComponent("templates"))
+  static func sources(_ project: URL) -> AnimationSources { AnimationSources(project: project, builtIn: builtIn) }
 
-  static func template(_ name: String) -> AnimationTemplate? { templates.first { $0.name == name } }
+  static func templates(_ project: URL) -> [(template: AnimationTemplate, origin: AnimationSources.Origin)] { sources(project).templates() }
 
-  /// Logo names to file names, from logos/logos.json.
-  static let logoFiles: [String: String] = {
-    guard let data = try? Data(contentsOf: dir.appendingPathComponent("logos/logos.json")),
-      let map = try? JSONDecoder().decode([String: String].self, from: data)
-    else { return [:] }
-    return map
-  }()
+  static func template(_ name: String, _ project: URL) -> AnimationTemplate? { sources(project).template(name)?.template }
 
   /// Logo names, alphabetically. Aliases of one file (ChatGPT and OpenAI) both stay, so a plan that
   /// names either one finds its entry in the pickers.
-  static let logoNames: [String] = logoFiles.keys.sorted()
+  static func logoNames(_ project: URL) -> [String] { sources(project).logos().keys.sorted() }
 
-  private static var images: [String: NSImage] = [:]
+  private static var images: [URL: NSImage] = [:]
 
-  static func image(_ name: String) -> NSImage? {
-    if let cached = images[name] { return cached }
-    guard let file = logoFiles[name], let img = NSImage(contentsOf: dir.appendingPathComponent("logos/\(file)")) else { return nil }
-    images[name] = img
+  static func image(_ name: String, _ project: URL) -> NSImage? {
+    guard let url = sources(project).logos()[name] else { return nil }
+    if let cached = images[url] { return cached }
+    guard let img = NSImage(contentsOf: url) else { return nil }
+    images[url] = img
     return img
   }
 }

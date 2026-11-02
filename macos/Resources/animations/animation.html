@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- The page `director animate` renders frame by frame: engine.js draws the shared look (paper,
-     grain, camera) and each templates/<name>.js builds one kind of explainer from the plan's data.
+     grain, camera); the renderer injects the template's script (from the video, the personal library or the app), which builds one kind of explainer from the plan's data.
      The renderer calls init(config) once, then seek(t) for every frame. -->
 <style>
 :root { --ink: #15151C; --paper: #FBFBF9; --accent: #FFE500; --title: Georgia, serif; --body: "Helvetica Neue", sans-serif; }
@@ -44,6 +44,7 @@ svg#lines { position: absolute; inset: 0; overflow: visible; }
   box-shadow: 0 4px 10px rgba(21,21,28,.14); display: flex; align-items: center; justify-content: center; }
 .ghost img { width: 30px; height: 30px; }
 .ghost .word { font: 700 9px var(--body); color: var(--ink); }
+.ringmark { border-radius: 50%; border: 7px solid var(--accent); box-sizing: border-box; mix-blend-mode: multiply; }
 #grain { position: absolute; inset: -50px; pointer-events: none; mix-blend-mode: multiply; opacity: .32; }
 #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(60,50,30,.16) 100%); }
 </style>
@@ -56,7 +57,5 @@ svg#lines { position: absolute; inset: 0; overflow: visible; }
   <div id="vignette"></div>
 </div>
 <script src="engine.js"></script>
-<script src="templates/sprawl.js"></script>
-<script src="templates/hub.js"></script>
 </body>
 </html>

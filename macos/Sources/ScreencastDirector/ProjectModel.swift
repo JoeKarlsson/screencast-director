@@ -708,6 +708,7 @@ final class ProjectModel: ObservableObject {
       return
     }
     let a = template.make(start: span.lowerBound, end: span.upperBound)
+    freezeTemplate(template.name)
     apply { $0.animationList.append(a) }
     if let i = self.plan?.animationList.firstIndex(of: a) { select(.animation(i), adding: false) }
     status = "Added \(template.title). Fill it in on the right, or let Claude fill it from what you say."
@@ -725,10 +726,50 @@ final class ProjectModel: ObservableObject {
 
   /// Switches an animation to another template, starting over with that template's content.
   func setAnimationTemplate(_ i: Int, _ template: AnimationTemplate) {
+    freezeTemplate(template.name)
     editAnimation(i) { a in
       guard a.template != template.name else { return }
       a = template.make(start: a.start, end: a.end)
     }
+  }
+
+  /// Copies a template into this video's animations folder (once), so later changes to the
+  /// library never change this video.
+  private func freezeTemplate(_ name: String) {
+    do {
+      try AnimationLibrary.sources(dir).freeze(name)
+    } catch {
+      Notices.shared.show(error, "Couldn't copy the \(name) template into this video")
+    }
+  }
+
+  /// Replaces this video's copy of a template with the library's latest; its animations re-render.
+  func updateAnimationTemplate(_ name: String) {
+    do {
+      try AnimationLibrary.sources(dir).updateFromLibrary(name)
+      objectWillChange.send()
+      rebuild(now: true)
+      status = "Updated the \(name) template. Its animations re-render with the new version."
+    } catch {
+      Notices.shared.show(error, "Couldn't update the \(name) template")
+    }
+  }
+
+  /// Saves this video's copy of a template to the personal library, for future videos.
+  func saveAnimationTemplate(_ name: String) {
+    do {
+      try AnimationLibrary.sources(dir).saveToPersonal(name)
+      objectWillChange.send()
+      status = "Saved the \(name) template to your library. New animations in any video can use it."
+    } catch {
+      Notices.shared.show(error, "Couldn't save the \(name) template to your library")
+    }
+  }
+
+  /// Shows this video's copy of a template in the Finder, to edit it by hand or with Claude.
+  func revealAnimationTemplate(_ name: String) {
+    let file = AnimationSources.videoFolder(dir).appendingPathComponent("templates/\(name).js")
+    NSWorkspace.shared.activateFileViewerSelecting([file])
   }
 
   /// Has Claude write the animation's text and time its beats from what's said over it.

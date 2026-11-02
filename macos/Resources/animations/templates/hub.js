@@ -24,9 +24,9 @@ TEMPLATES.hub = function (data, cues, duration) {
   }
   const main = path(12, "var(--ink)");
   const center = data.center || {}, hubData = data.hub || {};
-  const dot = el("dot", LOGOS[center.logo] ? `<img src="logos/${LOGOS[center.logo]}">` : `<div class="word">${esc(center.logo || "")}</div>`);
+  const dot = el("dot", LOGOS[center.logo] ? `<img src="${LOGOS[center.logo]}">` : `<div class="word">${esc(center.logo || "")}</div>`);
   const dotLabel = center.label ? el("hand chip", `<span class="wrapt"><span class="hl"></span>${esc(center.label)}</span>`) : null;
-  const hubNode = el("hub", `${LOGOS[hubData.logo] ? `<img src="logos/${LOGOS[hubData.logo]}">` : ""}<div>${esc(hubData.label || "")}</div>`);
+  const hubNode = el("hub", `${LOGOS[hubData.logo] ? `<img src="${LOGOS[hubData.logo]}">` : ""}<div>${esc(hubData.label || "")}</div>`);
   const link = data.link ? el("tag", esc(data.link)) : null;
   const icons = ["lock", "shield", "log"].map(k => el("icon", ICONS[k]));
   const more = data.more ? el("hand", `<span class="wrapt"><span class="hl"></span>${esc(data.more)}</span>`) : null;

@@ -1,46 +1,62 @@
 ---
 name: animate
-description: Add a Vox-style motion-graphics explainer (real logos, sticker pop-ins, hand-drawn lines, highlighter) to a recording by adding an `animations` entry to its plan.json, timed to the spoken words. Use when the user says "animate the part where I...", "make a diagram for...", "add an explainer/animation", or names one of the templates (sprawl, hub).
+description: Add a Vox-style motion-graphics explainer (real logos, sticker pop-ins, hand-drawn lines, highlighter) to a recording by adding an `animations` entry to its plan.json, timed to the spoken words, or write a new animation template for one video. Use when the user says "animate the part where I...", "make a diagram for...", "add an explainer/animation", or names a template (storyboard, sprawl, hub).
 ---
 
 # Animate a stretch of a recording
 
-An animation is a template filled with data and cued to spoken words. It lives in the plan's `animations` list and plays full frame over the video (captions stay on top). `director animate` renders each one with the macOS web view to `.animations/<template>-<hash>.mp4`. The hash covers the data, the cues and the length, so any change re-renders, and the app renders new ones on its own.
+An animation is a template filled with data and cued to spoken words. It lives in the plan's `animations` list and plays full frame over the video (captions stay on top). `director animate` renders each one with the macOS web view to `.animations/<template>-<hash>.mp4`; the app renders new or changed ones on its own.
+
+## Where templates live
+
+First match wins:
+1. **The video:** `<project>/animations/templates/<name>.js` + `.json`, and `<project>/animations/logos/`.
+2. **The personal library:** `~/Library/Application Support/Screencast Director/Animations/` (same layout).
+3. **Built into the app:** `macos/Resources/animations/` in this repo.
+
+A video freezes every template it uses: the first render (or adding one in the app) copies the template into the video's folder, so changing a template in the library never changes a finished video. The clip's name includes the frozen copy's contents, so editing the video's copy re-renders it. In the app, the inspector offers Update Template (take the library's latest) and Save to My Templates (copy the video's version to the personal library).
 
 ## 1. Find the stretch and its words
 
-Run `bin/sd describe <name>` (or `macos/.build/release/director describe <dir>`) and read the transcript in `transcript.json` (`segments[].words[]` with `word`, `start`, `end` in source seconds). Pick the sentences the animation explains. The animation's `start` is the first word's start, and its `end` is where the speaker moves on. Check that the stretch is kept in the edit (inside `segments`); a cut inside it would chop the animation.
+Run `bin/sd describe <name>` (or `macos/.build/release/director describe <dir>`) and read `transcript.json` (`segments[].words[]` with `word`, `start`, `end` in source seconds). The animation's `start` is the first word's start and its `end` is where the speaker moves on. Check that the stretch is kept in the edit (inside `segments`). Don't cover a camera punch-in (`camera.punchIns`) or a moment where the screen matters.
 
-Don't cover a camera punch-in (`camera.punchIns`) or a moment where the screen matters. The animation hides the screen and the face.
+## 2. Pick a template
 
-## 2. Pick a template and fill its data
+Read the manifests (`templates/*.json`: `summary`, `fields`, `cues`, starting `data`) in all three folders.
 
-Templates live in `macos/Resources/animations/templates/`. Each file's header lists its `data` fields and `cues`. Read the header before filling it in.
+- **storyboard** is the default for anything specific to this video. Its `steps` build a diagram on cue: `show` a node (`kind` dot, sticker, card or label; `logo`, `label`, optional `x`/`y` in % of the frame, else laid out around the board's first node), `connect` two nodes (`label`, `dashed`), `note`, `count` (a tally row counting up to `value`), `highlight`, `dim`, `hide` a node by `target` id, `tangle` the lines, `circle` the board, `clear` to a new board. Every step has a `cue` key whose time goes in `cues`.
+- **sprawl** and **hub** are fixed stories (wiring apps up one at a time until it's a mess; one hub that fans out). Use them when the narration is that story.
+- **Nothing fits?** Write a new template for this video (below).
 
-- **sprawl**: one thing wired to many apps one at a time, each with its own costs (sign-ins, permissions, logs), until it tangles into a mess. Good for "doing it the hard way".
-- **hub**: one connection to a hub that fans out to many apps, with one of each cost. The answer to sprawl. Use the two back to back for problem → solution.
-
-Logos come from `macos/Resources/animations/logos/logos.json` (display name → file). A name with no logo file shows as text in a sticker. Add a logo by dropping a colored SVG in `logos/` and a line in `logos.json`; Simple Icons (CC0) SVGs need `fill="#brandhex"` on the root `<svg>`.
-
-Keep the text short and in the speaker's words. The heading's `highlight` is the phrase that gets the yellow highlighter.
+Logos come from each folder's `logos/logos.json` (display name → file in that folder). A name with no logo shows as text. To add a logo for one video, put the SVG in `<project>/animations/logos/` and a line in that folder's `logos.json`; Simple Icons (CC0) SVGs need `fill="#brandhex"` on the root `<svg>`.
 
 ## 3. Cue the beats to words
 
-`cues` maps each beat name to a source time, usually the start of the word that names it ("another **sign-in**" → `cost1`). Beats left out use the template's defaults, which are rarely right. Give a beat a few tenths of a second before the word if it should be on screen as the word lands.
+`cues` maps each beat (or storyboard step's `cue`) to a source time, usually the start of the word that names it. Give a beat a few tenths of a second before the word if it should be on screen as the word lands.
 
 ## 4. Add it, render, check
 
 ```json
 "animations": [{
-  "start": 55.75, "end": 81.6, "template": "sprawl", "note": "Hooking up apps one at a time",
-  "data": { "title": "Hooking up apps one at a time", "highlight": "one at a time", "center": {"logo": "OpenAI", "label": "your dot"},
-            "apps": ["Salesforce", "Slack", "Jira"], "costs": ["sign-ins", "sets of permissions", "places to check"] },
-  "cues": { "apps": 56.35, "cost1": 67.35, "cost2": 69.25, "cost3": 71.55, "few": 75.35, "many": 78.7 }
+  "start": 420.4, "end": 436.0, "template": "storyboard", "note": "Two apps, one answer",
+  "data": { "title": "Two apps, one answer", "highlight": "one answer", "steps": [
+    { "cue": "s1", "do": "show", "id": "agent", "kind": "dot", "logo": "OpenAI", "label": "your dot", "x": 24, "y": 55 },
+    { "cue": "s2", "do": "show", "id": "hub", "kind": "card", "logo": "CData", "label": "Connect AI", "x": 52, "y": 55 },
+    { "cue": "s3", "do": "connect", "from": "agent", "to": "hub", "label": "1 plugin" }
+  ] },
+  "cues": { "s1": 420.6, "s2": 421.6, "s3": 422.4 }
 }]
 ```
 
-Then run `macos/.build/release/director animate <dir>` (about a minute per 20 s of animation) and look at stills across it: `director still <dir> <frame> /tmp/a.png` at a few output frames inside the animation, especially each beat. Check that nothing overlaps, nothing runs off the frame, the captions are clear at the bottom, and each beat lands on its word. Fix by changing data, cues or the template, and render again.
+Run `macos/.build/release/director animate <dir>` (about a minute per 20 s of animation) and look at stills at each beat: `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word.
 
-## Writing a new template
+## Writing a template for one video
 
-Copy a template in `templates/` (both the `.js` and its `.json` manifest), register it as `TEMPLATES.<name>` and add its `<script>` tag to `animation.html`. The manifest is what the app's editor shows: `fields` (key as a dotted path into `data`; type text, texts, logo, logos or number; optional `max` and `help`), `cues` (key, label, and `at`, the default seconds from the start for the template's `length`), and the starting `data`. The Animate button and the inspector pick new templates up from it with no app changes. Build it from the kit in `engine.js` (`el`, `popScale`, `popBlur`, `handCurve`, `drawPath`, `heading`, `tally`, `camera`, `grain`, `cue`) so it shares the look: white paper, grain, stickers that pop in with overshoot, lines that draw on, highlighter accents, a camera that always drifts. Keep the bottom ~150 px clear for captions. Bump `Animation.engineVersion` in `DirectorCore/Animation.swift` when a change to the templates or engine should re-render existing clips.
+When the narration needs a shape the storyboard can't make (a map, a chart, a timeline, a before/after split), write a template into the video's own folder: `<project>/animations/templates/<name>.js` and `<name>.json`. Start from a built-in one.
+
+- The `.js` registers `TEMPLATES.<name> = function (data, cues, duration) { ...; return t => { /* draw time t */ } }`. Build it from the kit in `engine.js` so it shares the look: `el` (stickers, dots, tags, hands, rows), `logoHTML`/`LOGOS[name]`, `popScale`/`popBlur` (pop-ins with overshoot), `path`/`handCurve`/`drawPath` (lines that draw on and boil), `heading`/`setHL` (highlighter), `tally`/`showTally`, `camera`, `grain`, `cue(cues, name, fallback)`. The stage is 1920×1080 design pixels on white paper; the CData accent is `var(--accent)`.
+- The `.json` is what the app's editor shows: `name`, `title`, `summary`, `length`, `fields` (dotted `key` into `data`; `type` text, texts, logo, logos, number or steps; optional `max`, `help`), `cues` (`key`, `label`, default `at` seconds for `length`), and starting `data`.
+- Render and check stills as above. Iterate on the video's copy; each edit re-renders.
+- If the user likes it and wants it again, copy both files into the personal library folder (or have them press Save to My Templates in the app).
+
+Templates that should ship with the app go in `macos/Resources/animations/templates/` in this repo, with their manifest; the app picks them up with no other changes. Bump `Animation.engineVersion` in `DirectorCore/Animation.swift` only when `engine.js` changes how existing clips look.

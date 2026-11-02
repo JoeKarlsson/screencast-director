@@ -30,10 +30,10 @@ const ICONS = {
   log: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
 };
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
-// A logo by name from logos/logos.json, or the name itself in the sticker when there's no file.
+// A logo by name (config.logos maps names to file URLs), or the name itself in the sticker when there's no file.
 function logoHTML(name) {
   const file = LOGOS[name];
-  return file ? `<img src="logos/${file}">` : `<div class="word">${esc(name)}</div>`;
+  return file ? `<img src="${file}">` : `<div class="word">${esc(name)}</div>`;
 }
 function path(width, color) {
   const p = document.createElementNS(NS, "path");

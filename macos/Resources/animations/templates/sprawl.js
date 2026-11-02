@@ -26,7 +26,7 @@ TEMPLATES.sprawl = function (data, cues, duration) {
     a.icons = ["lock", "shield", "log"].map(k => el("icon", ICONS[k]));
   });
   const center = data.center || {};
-  const dot = el("dot", LOGOS[center.logo] ? `<img src="logos/${LOGOS[center.logo]}">` : `<div class="word">${esc(center.logo || "")}</div>`);
+  const dot = el("dot", LOGOS[center.logo] ? `<img src="${LOGOS[center.logo]}">` : `<div class="word">${esc(center.logo || "")}</div>`);
   const dotLabel = center.label ? el("hand chip", `<span class="wrapt"><span class="hl"></span>${esc(center.label)}</span>`) : null;
   const notes = (data.questions || []).slice(0, 3).map((txt, i) => ({ node: el("tag", esc(txt)), s: T.q[i], at: [[130, 380], [170, 520], [130, 660]][i], rot: [-5, 4, -3][i] }));
   const head = heading(data.title || "", data.highlight);

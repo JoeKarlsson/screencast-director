@@ -454,14 +454,14 @@ struct Checks {
     var moved = anim
     moved.move(by: 5)
     expect(moved.start == 15 && moved.end == 25 && moved.cues == ["hub": 16.5], "moving an animation moves its cues")
-    expect(moved.clipPath(out1080) == anim.clipPath(out1080), "a moved animation reuses its clip (same frames)")
+    expect(moved.clipPath(out1080, dir: nil) == anim.clipPath(out1080, dir: nil), "a moved animation reuses its clip (same frames)")
     var retitled = anim
     retitled.data = .object(["title": .string("Two hubs")])
-    expect(retitled.clipPath(out1080) != anim.clipPath(out1080), "new data renders a new clip")
+    expect(retitled.clipPath(out1080, dir: nil) != anim.clipPath(out1080, dir: nil), "new data renders a new clip")
     var recued = anim
     recued.cues = ["hub": 12]
-    expect(recued.clipPath(out1080) != anim.clipPath(out1080), "a new beat renders a new clip")
-    expect(anim.clipPath(Plan.Output(width: 1080, height: 1920, fps: 30)) != anim.clipPath(out1080), "another size renders a new clip")
+    expect(recued.clipPath(out1080, dir: nil) != anim.clipPath(out1080, dir: nil), "a new beat renders a new clip")
+    expect(anim.clipPath(Plan.Output(width: 1080, height: 1920, fps: 30), dir: nil) != anim.clipPath(out1080, dir: nil), "another size renders a new clip")
     let roundTrip = try! JSONDecoder().decode(Animation.self, from: JSONEncoder().encode(anim))
     expect(roundTrip == anim, "animations round-trip through JSON")
     var animPlan = buildPlan(p)
@@ -478,6 +478,36 @@ struct Checks {
       expect(made.cues?.values.allSatisfy { $0 >= 100 && $0 <= 100 + t.length / 2 } == true, "\(t.name): beats land inside a shorter animation")
       expect(t.fields.allSatisfy { t.data[path: $0.key] != nil }, "\(t.name): every field has a starting value")
     }
+    // Template folders: the video's copy wins over the personal library over the app's; freezing copies
+    // one into the video once, and editing that copy names a new clip.
+    let lib = FileManager.default.temporaryDirectory.appendingPathComponent("sd-anim-\(getpid())")
+    defer { try? FileManager.default.removeItem(at: lib) }
+    let builtInDir = lib.appendingPathComponent("app"), personalDir = lib.appendingPathComponent("me"), video = lib.appendingPathComponent("video")
+    func writeTemplate(_ folder: URL, _ name: String, _ title: String, script: String) {
+      try? FileManager.default.createDirectory(at: folder.appendingPathComponent("templates"), withIntermediateDirectories: true)
+      let manifest = #"{"name":"\#(name)","title":"\#(title)","summary":"","length":10,"fields":[],"cues":[],"data":{}}"#
+      try? manifest.write(to: folder.appendingPathComponent("templates/\(name).json"), atomically: true, encoding: .utf8)
+      try? script.write(to: folder.appendingPathComponent("templates/\(name).js"), atomically: true, encoding: .utf8)
+    }
+    writeTemplate(builtInDir, "hub", "Hub (app)", script: "// v1")
+    writeTemplate(personalDir, "mine", "Mine", script: "// mine")
+    try? FileManager.default.createDirectory(at: video, withIntermediateDirectories: true)
+    let animSrc = AnimationSources(project: video, builtIn: builtInDir, personal: personalDir)
+    expect(Set(animSrc.templates().map(\.template.name)) == ["hub", "mine"] && animSrc.template("mine")?.origin == .personal, "templates come from every folder")
+    let hubAnim = Animation(start: 0, end: 10, template: "hub", data: .object([:]))
+    let unfrozen = hubAnim.clipPath(out1080, dir: video)
+    expect((try? animSrc.freeze("hub")) == true && (try? animSrc.freeze("hub")) == false, "a template freezes into the video once")
+    expect(animSrc.template("hub")?.origin == .video && !animSrc.differsFromLibrary("hub"), "the frozen copy is used and matches the library")
+    let frozen = hubAnim.clipPath(out1080, dir: video)
+    expect(frozen != unfrozen, "freezing names the clip after the frozen copy")
+    try? "// v2".write(to: builtInDir.appendingPathComponent("templates/hub.js"), atomically: true, encoding: .utf8)
+    expect(animSrc.differsFromLibrary("hub") && hubAnim.clipPath(out1080, dir: video) == frozen, "a library change offers an update but doesn't touch the video")
+    try? animSrc.updateFromLibrary("hub")
+    expect(!animSrc.differsFromLibrary("hub") && hubAnim.clipPath(out1080, dir: video) != frozen, "updating takes the new version and re-renders")
+    try? "// edited here".write(to: video.appendingPathComponent("animations/templates/hub.js"), atomically: true, encoding: .utf8)
+    try? animSrc.saveToPersonal("hub")
+    expect(animSrc.libraryFolder(for: "hub") == personalDir && !animSrc.differsFromLibrary("hub"), "saving puts the video's version in the personal library")
+
     var edited = JSONValue.object(["center": .object(["logo": .string("OpenAI")])])
     edited[path: "center.label"] = .string("your dot")
     edited[path: "title"] = .string("Hi")
