@@ -96,6 +96,8 @@ public struct Callout: Codable, Equatable {
   /// How it comes and goes (nil: the motion style's).
   public var enter: Motion?
   public var exit: Motion?
+  /// Plays as it appears, and moves with it.
+  public var sound: Sound?
   public init(start: Double, end: Double, text: String, style: String? = nil, subtitle: String? = nil, enter: Motion? = nil, exit: Motion? = nil) {
     self.start = start
     self.end = end
@@ -173,6 +175,8 @@ public struct Annotation: Codable, Equatable {
   public var enter: Motion?
   public var exit: Motion?
   public var note: String?
+  /// Plays as it appears, and moves with it.
+  public var sound: Sound?
   public init(
     start: Double, end: Double, kind: String, x: Double, y: Double, w: Double, h: Double, text: String? = nil, enter: Motion? = nil,
     exit: Motion? = nil, note: String? = nil
@@ -396,6 +400,40 @@ public struct Music: Codable, Equatable {
     self.file = file
     self.volumeDB = volumeDB
     self.duckDB = duckDB
+  }
+}
+
+/// A sound attached to something on screen (a title, an annotation, an animation's beat). It plays
+/// when that thing appears, so it moves when the thing moves and is cut only when the thing is.
+public struct Sound: Codable, Equatable {
+  /// A file in the project folder, or an absolute path.
+  public var file: String
+  /// Level in dB (0 = as recorded).
+  public var gainDB: Double?
+  public init(file: String, gainDB: Double? = nil) {
+    self.file = file
+    self.gainDB = gainDB
+  }
+}
+
+extension Plan {
+  /// Every sound effect that plays: the free-standing `sfx`, plus the sounds attached to titles,
+  /// annotations and animation beats at the moment each appears. Sorted by time.
+  public var soundEffects: [SoundEffect] {
+    var all = sfx ?? []
+    for c in callouts {
+      if let s = c.sound { all.append(SoundEffect(t: c.start, file: s.file, gainDB: s.gainDB, note: "title \"\(c.text)\"")) }
+    }
+    for a in annotationList {
+      if let s = a.sound { all.append(SoundEffect(t: a.start, file: s.file, gainDB: s.gainDB, note: "\(a.kind) \(a.text ?? a.note ?? "")")) }
+    }
+    for an in animationList {
+      for (cue, s) in an.sounds ?? [:] {
+        let t = cue == "start" ? an.start : an.cues?[cue] ?? an.start
+        all.append(SoundEffect(t: t, file: s.file, gainDB: s.gainDB, note: "\(an.note ?? an.template): \(cue)"))
+      }
+    }
+    return all.sorted { $0.t < $1.t }
   }
 }
 

@@ -88,6 +88,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Captions skip words in sped-up stretches. Those play muted, so their words showed up on screen without being heard.
 - The One Hub animation's background field of logos no longer repeats the grid's apps over and over: give it its own list (The rest) and each logo shows once.
 - Normalize voice now levels each clip on its own, so a take recorded quieter or louder matches the rest (within 6 dB of the whole recording's level).
+- Attach a sound to a title, an annotation or an animation's beat (Sound in the inspector), and it plays as that thing appears and moves with it, so it can't drift away or land in a cut. `describe` warns about a free-standing sound effect that's in a cut.
 
 ### Motion
 - A video that opens (or ends) on the full camera starts and stays there, instead of easing in from the bubble over the first frames.

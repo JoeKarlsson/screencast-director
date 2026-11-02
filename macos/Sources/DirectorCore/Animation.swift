@@ -14,6 +14,8 @@ public struct Animation: Codable, Equatable {
   /// Named beats in source seconds (usually a spoken word's start), e.g. {"lock": 67.3}.
   public var cues: [String: Double]?
   public var note: String?
+  /// Sounds keyed by cue name ("start" for the animation's start); each plays on its beat.
+  public var sounds: [String: Sound]?
 
   public init(start: Double, end: Double, template: String, data: JSONValue, cues: [String: Double]? = nil, note: String? = nil) {
     self.start = start

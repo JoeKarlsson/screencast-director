@@ -217,7 +217,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   var sfxParams: AVMutableAudioMixInputParameters?
   var sfxFill: (AVMutableCompositionTrack, AVAssetTrack)?
   var sfxAssets: [AVURLAsset] = []
-  let sfxTimes: [(at: CMTime, effect: SoundEffect)] = (plan.sfx ?? []).compactMap { e in
+  let sfxTimes: [(at: CMTime, effect: SoundEffect)] = plan.soundEffects.compactMap { e in
     guard let f = srcToOut(scene.mapped, e.t, fps: scene.fps) else { return nil }
     let at = CMTime(value: CMTimeValue(f.rounded()), timescale: fps)
     return at < total ? (at, e) : nil

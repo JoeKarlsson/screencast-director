@@ -809,8 +809,31 @@ struct TimelineView: View {
   }
 
   /// Sound effects: a chip at each effect's start on its own row (click to jump and select, drag to move).
+  /// Sounds attached to a title or annotation sit at its start; clicking one selects that item.
   private func soundEffects(_ plan: Plan) -> some View {
     ZStack(alignment: .topLeading) {
+      ForEach(Array(attachedSounds(plan).enumerated()), id: \.offset) { _, a in
+        let (t, _) = project.timeRange(a.owner).map { range(a.owner, $0.0, $0.1) } ?? (a.t, a.t)
+        let name = ((a.file as NSString).lastPathComponent as NSString).deletingPathExtension
+        HStack(spacing: 3) {
+          Image(systemName: "link").font(.system(size: 8, weight: .semibold))
+          if ui.pxPerSec > 8 { Text(name).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
+        }
+        .foregroundStyle(Theme.sfx)
+        .padding(.horizontal, 5)
+        .frame(height: Track.sounds.height - 4)
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Theme.sfx.opacity(0.6), lineWidth: 1))
+        .contentShape(Rectangle())
+        .offset(x: x(t), y: Track.sounds.y + 2)
+        .onTapGesture {
+          project.select(a.owner, adding: adding)
+          project.seek(src: a.t)
+        }
+        .help("\(name), attached to \(a.label). It moves with it; change it in the inspector.")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sound \(name) on \(a.label)")
+        .accessibilityAddTraits(.isButton)
+      }
       ForEach(Array((plan.sfx ?? []).enumerated()), id: \.offset) { i, e in
         let sel = Selection.sfx(i)
         let (t, _) = range(sel, e.t, e.t)
@@ -856,6 +879,17 @@ struct TimelineView: View {
         }
       }
     }
+  }
+
+  /// Sounds attached to titles and annotations, with the item each belongs to.
+  private func attachedSounds(_ plan: Plan) -> [(t: Double, file: String, owner: Selection, label: String)] {
+    var out: [(t: Double, file: String, owner: Selection, label: String)] = []
+    for (i, c) in plan.callouts.enumerated() { if let s = c.sound { out.append((c.start, s.file, .callout(i), "the title \"\(c.text)\"")) } }
+    for (i, m) in plan.annotationList.enumerated() { if let s = m.sound { out.append((m.start, s.file, .annotation(i), "an annotation")) } }
+    for (i, an) in plan.animationList.enumerated() {
+      for (cue, s) in an.sounds ?? [:] { out.append((cue == "start" ? an.start : an.cues?[cue] ?? an.start, s.file, .animation(i), "an animation")) }
+    }
+    return out
   }
 
   /// Marker flags in the ruler (click to jump and select, drag to move) and a faint line below each.

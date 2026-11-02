@@ -142,12 +142,18 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("## Markers (the user's named points)")
     for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
   }
-  if let effects = plan.sfx, !effects.isEmpty {
+  let effects = plan.soundEffects
+  if !effects.isEmpty {
+    let free = plan.sfx ?? []
     out.append("")
-    out.append("## Sound effects")
-    for (i, e) in effects.enumerated() {
+    out.append("## Sound effects (sfx #n, or attached to the item named)")
+    for e in effects {
       let at = srcToOut(mapped, e.t, fps: fps).map { "out \(fmtTime($0 / Double(fps)))" } ?? "CUT (won't play)"
-      out.append(line("  #\(i) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? ""))
+      let label = free.firstIndex(of: e).map { "sfx #\($0)" } ?? "on"
+      out.append(line("  \(label) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? ""))
+    }
+    for (i, e) in free.enumerated() where srcToOut(mapped, e.t, fps: fps) == nil {
+      out.append("  WARNING: sfx #\(i) at src \(fmtTime(e.t)) is in a cut and won't play; move it, or attach it to the item it belongs to")
     }
   }
   if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }

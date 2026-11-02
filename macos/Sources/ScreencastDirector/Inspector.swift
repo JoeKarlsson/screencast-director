@@ -363,6 +363,7 @@ struct InspectorView: View {
         MotionPicker(title: "Out", motion: bindItem("calloutOut\(i)", \.callouts, i, \.exit), fallback: motion.exit)
         previewButton(c.start)
       }
+      soundSection(bindItem("calloutSound\(i)", \.callouts, i, \.sound))
       removeButton()
     case .insert(let i) where plan.insertList.indices.contains(i):
       let c = plan.insertList[i]
@@ -479,10 +480,40 @@ struct InspectorView: View {
         MotionPicker(title: "Out", motion: bindItem("markOut\(i)", \.annotationList, i, \.exit), fallback: motion.exit)
         previewButton(a.start)
       }
+      soundSection(bindItem("markSound\(i)", \.annotationList, i, \.sound))
       removeButton()
     default:
       nothingSelected
     }
+  }
+
+  /// The sound an item plays as it appears: any audio file in the project's sfx folder.
+  private func soundSection(_ sound: Binding<Sound?>) -> some View {
+    var files = soundFiles()
+    if let current = sound.wrappedValue?.file, !files.contains(current) { files.append(current) }
+    return InspectorSection("Sound", detail: "Plays as it appears, and moves with it. Add files to the project's sfx folder.") {
+      Picker(
+        "Sound",
+        selection: Binding(
+          get: { sound.wrappedValue?.file ?? "" },
+          set: { f in sound.wrappedValue = f.isEmpty ? nil : Sound(file: f, gainDB: sound.wrappedValue?.gainDB) })
+      ) {
+        Text("None").tag("")
+        ForEach(files, id: \.self) { f in Text(((f as NSString).lastPathComponent as NSString).deletingPathExtension).tag(f) }
+      }
+      if let s = sound.wrappedValue {
+        slider(
+          "Volume", Binding(get: { s.gainDB ?? 0 }, set: { v in sound.wrappedValue?.gainDB = v.rounded() }), -24...6,
+          "\(Int((s.gainDB ?? 0).rounded())) dB")
+      }
+    }
+  }
+
+  /// Audio files in the project's sfx folder, as plan paths ("sfx/pop.mp3").
+  private func soundFiles() -> [String] {
+    let names = (try? FileManager.default.contentsOfDirectory(atPath: project.dir.appendingPathComponent("sfx").path)) ?? []
+    let audio: Set<String> = ["mp3", "m4a", "wav", "aif", "aiff", "caf"]
+    return names.filter { audio.contains(($0 as NSString).pathExtension.lowercased()) }.sorted().map { "sfx/\($0)" }
   }
 
   /// Plays from just before `t`, to see an animation or cut.

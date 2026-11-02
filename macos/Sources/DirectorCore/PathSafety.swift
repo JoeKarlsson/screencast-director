@@ -68,6 +68,31 @@ public enum PathSafety {
         plan.sfx = kept.isEmpty ? nil : kept
       }
     }
+    // Attached sounds: one pointing outside the project (and not already there before) is removed.
+    let knownSounds = Set(previous.soundEffects.map(\.file))
+    func keep(_ s: Sound?) -> Bool { s.map { knownSounds.contains($0.file) || path($0.file, isInside: project) } ?? true }
+    var droppedSound = false
+    for i in plan.callouts.indices where !keep(plan.callouts[i].sound) {
+      plan.callouts[i].sound = nil
+      droppedSound = true
+    }
+    var marks = plan.annotationList
+    for i in marks.indices where !keep(marks[i].sound) {
+      marks[i].sound = nil
+      droppedSound = true
+    }
+    if droppedSound { plan.annotationList = marks }
+    var anims = plan.animationList
+    for i in anims.indices {
+      guard let sounds = anims[i].sounds else { continue }
+      let kept = sounds.filter { keep($0.value) }
+      if kept.count != sounds.count {
+        anims[i].sounds = kept.isEmpty ? nil : kept
+        droppedSound = true
+        plan.animationList = anims
+      }
+    }
+    if droppedSound { reverted.append("sound.file") }
     if !safe(plan.intro?.logo, previous.intro?.logo, "intro.logo") { plan.intro?.logo = previous.intro?.logo }
     if !safe(plan.outro?.logo, previous.outro?.logo, "outro.logo") { plan.outro?.logo = previous.outro?.logo }
     if plan.look != nil {

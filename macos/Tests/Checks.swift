@@ -577,6 +577,19 @@ struct Checks {
     let fxText = describe(p, fx)
     expect(fxText.contains("## Sound effects") && fxText.contains("out 0:01.0 sfx/whoosh.m4a") && fxText.contains("-6 dB"), "describe lists effects")
     expect(fxText.contains("src 0:05.0 CUT (won't play) sfx/pop.m4a"), "describe flags a cut effect")
+    expect(fxText.contains("WARNING: sfx #1 at src 0:05.0 is in a cut"), "describe warns about a free-standing effect in a cut")
+    // An attached sound plays when its title appears, and follows it when the title moves.
+    var attached = fx
+    attached.sfx = nil
+    var card = Callout(start: 1, end: 3, text: "Step 1", style: "chapter")
+    card.sound = Sound(file: "sfx/pop.m4a", gainDB: -8)
+    attached.callouts = [card]
+    expect(attached.soundEffects.map(\.t) == [1] && attached.soundEffects.first?.gainDB == -8, "a title's sound plays at its start")
+    attached.callouts[0].start = 2.5
+    expect(attached.soundEffects.map(\.t) == [2.5], "the sound moves with its title")
+    let (attachedClean, attachedReverted) = PathSafety.sanitize(
+      { var p = attached; p.callouts[0].sound = Sound(file: "/etc/passwd"); return p }(), previous: attached, project: URL(fileURLWithPath: "/tmp/fx-project"))
+    expect(attachedClean.callouts[0].sound == nil && attachedReverted == ["sound.file"], "an attached sound outside the project is removed")
 
     let mutedMap = mapSegments([Segment(start: 0, end: 2, speed: 1), Segment(start: 2, end: 10, speed: 8)], fps: fps)
     let mutedPages = Scene.captionPages(
