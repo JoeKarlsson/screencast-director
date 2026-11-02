@@ -180,14 +180,21 @@ final class ProjectModel: ObservableObject {
     DispatchQueue.main.asyncAfter(deadline: .now() + (now ? 0 : 0.25), execute: work)
   }
 
+  /// Counts preview builds. A build that finishes after a newer one started is thrown away, or a
+  /// slow build of an older plan would replace the newer preview (and play, say, without leveling).
+  private var previewGeneration = 0
+
   private func rebuildPreview() {
     guard let plan else { return }
     previewReady = false
+    previewGeneration += 1
+    let generation = previewGeneration
     Task { @MainActor in
       do {
         let project = try Project.load(dir)
-        self.project = project
         let built = try await buildComposition(project: project, plan: plan)
+        guard generation == previewGeneration else { return }
+        self.project = project
         let time = player.currentTime()
         let item = built.playerItem()
         itemObserver = item.observe(\.status) { [weak self] item, _ in
@@ -210,6 +217,7 @@ final class ProjectModel: ObservableObject {
         status = "\(fmtTime(plan.source.duration)) recorded → \(fmtTime(out)) edited"
         scheduleAnimationRender()
       } catch {
+        guard generation == previewGeneration else { return }
         status = "Couldn't load the plan: \(error.localizedDescription)"
         Notices.shared.show(error, "Couldn't load the plan")
       }

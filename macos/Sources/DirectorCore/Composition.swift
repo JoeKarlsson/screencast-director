@@ -89,7 +89,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   // phrase (from measured loudness), laid over output frames.
   let gainDB = plan.audio?.gainDB ?? 0
   var curveDB: [Double] = []
-  if plan.audio?.normalize == true, let levels = try? await Analyzer.loudness(project, video: plan.source.video) {
+  if plan.audio?.normalize == true {
+    let levels = try await Analyzer.loudness(project, video: plan.source.video)
     let curve = AudioGain.levelingCurve(levels)
     let step = curve.count > 1 ? curve[1].t - curve[0].t : 0.05
     let fallback = AudioGain.normalizeGain(levels)
@@ -99,8 +100,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     }
   }
   let warm = plan.audio?.warm == true
-  if abs(gainDB) > 0.05 || !curveDB.isEmpty || warm {
-    audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps, warm: warm)
+  if let audioParams, abs(gainDB) > 0.05 || !curveDB.isEmpty || warm {
+    // Without the tap the voice would play with no leveling, gain or warmth, so fail instead.
+    guard let tap = AudioGain.tap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps, warm: warm) else {
+      throw NSError(domain: "Composition", code: 3, userInfo: [NSLocalizedDescriptionKey: "Couldn't set up the voice processing (leveling, volume, warm voice)"])
+    }
+    audioParams.audioTapProcessor = tap
   }
 
   for s in scene.mapped {
