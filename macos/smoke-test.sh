@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # UI smoke test: builds dist/Screencast Director.app, launches that copy on a synthetic project in a
 # temp folder, and drives it through System Events: the editor opens, pressing a timeline bar
-# selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it.
+# selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, and the
+# Audio tab's sound picker adds a library sound.
 #
 #   macos/smoke-test.sh             # build, then test
 #   macos/smoke-test.sh --no-build  # test the existing dist build
@@ -92,12 +93,17 @@ done
 [[ "$bars" -ge 4 ]] || fail "editor didn't show the timeline (found $bars bars)"
 echo "ok: editor open, $bars timeline bars"
 
-# 2. Pressing the 10.5-13.1 s clip selects it and the inspector shows it.
-inspector="$(ax "perform action \"AXPress\" of button 4 of $TIMELINE
-    delay 1
-    set AppleScript's text item delimiters to \" / \"
-    return (value of static texts of $INSPECTOR) as text")"
-[[ "$inspector" == Clip* && "$inspector" == *0:10.5* ]] || fail "inspector doesn't show the clip: $inspector"
+# 2. Pressing the 10.5-13.1 s clip selects it and the inspector shows it. Bars have no AX labels and
+# their order shifts as rows are added, so press each until the inspector shows that clip.
+inspector=""
+for i in $(seq 1 "$bars"); do
+  inspector="$(ax "perform action \"AXPress\" of button $i of $TIMELINE
+      delay 0.6
+      set AppleScript's text item delimiters to \" / \"
+      return (value of static texts of $INSPECTOR) as text")"
+  [[ "$inspector" == Clip* && "$inspector" == *"0:10.5–"* ]] && break
+done
+[[ "$inspector" == Clip* && "$inspector" == *"0:10.5–"* ]] || fail "inspector doesn't show the clip: $inspector"
 echo "ok: inspector shows: $inspector"
 [[ "$(segments)" == "$original" ]] || fail "selecting a clip changed plan.json"
 
@@ -116,7 +122,33 @@ for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2;
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json (last clip at $(last_speed)x)"
 echo "ok: ⌘Z restored the original plan"
 
-# 5. Quit: stop the test instance by PID only.
+# 5. The Audio tab's sound picker adds a library sound: plan.json names it and the project gets a copy.
+# SwiftUI buttons here have no AX title, so they're found by their help text.
+press_help() {
+  ax "set els to entire contents of window 1
+    repeat with i from 1 to count of els
+      set e to item i of els
+      try
+        if role of e is \"AXButton\" and (help of e as text) is \"$1\" then
+          perform action \"AXPress\" of e
+          return \"pressed\"
+        end if
+      end try
+    end repeat
+    return \"missing\""
+}
+[[ "$(press_help "Audio")" == pressed ]] || fail "no Audio tab in the inspector"
+sleep 1
+[[ "$(press_help "Pick a sound effect to add at the playhead")" == pressed ]] || fail "no Add Sound Effect button in the Audio tab"
+sleep 1
+[[ "$(press_help "Add pop at the playhead")" == pressed ]] || fail "the sound picker didn't list pop"
+sounds() { python3 -c 'import json,sys; print(" ".join(e["file"] for e in json.load(open(sys.argv[1])).get("sfx") or []))' "$PROJECT/plan.json"; }
+for _ in $(seq 1 20); do [[ "$(sounds)" == *sfx/pop.m4a* ]] && break; sleep 0.2; done
+[[ "$(sounds)" == *sfx/pop.m4a* ]] || fail "adding pop didn't reach plan.json (sfx: $(sounds))"
+[[ -s "$PROJECT/sfx/pop.m4a" ]] || fail "adding pop didn't copy it into the project's sfx folder"
+echo "ok: the sound picker added pop to plan.json and copied it into the project"
+
+# 6. Quit: stop the test instance by PID only.
 kill "$PID"
 for _ in $(seq 1 50); do kill -0 "$PID" 2>/dev/null || break; sleep 0.1; done
 kill -0 "$PID" 2>/dev/null && fail "test instance didn't quit"

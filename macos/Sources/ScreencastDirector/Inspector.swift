@@ -857,6 +857,7 @@ struct InspectorView: View {
           }
         }
         Button { openSoundPicker() } label: { Label("Add Sound Effect…", systemImage: "speaker.wave.2").frame(maxWidth: .infinity) }
+          .help("Pick a sound effect to add at the playhead")
           .popover(isPresented: $ui.showSoundPicker, arrowEdge: .leading) {
             SoundPicker(project: project, preview: ui.soundPreview, entries: ui.soundEntries) { ui.showSoundPicker = false }
           }
