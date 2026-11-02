@@ -451,15 +451,17 @@ public final class Scene: @unchecked Sendable {
   func overlays(frame f: Double, screen b: Box, cam: CameraState, camBox: Box?) -> CIImage? {
     let fps = Double(plan.output.fps)
     let page = pages.first { f >= $0.startF && f < $0.endF + fps * 0.4 }
-    let chip = chips.last { f >= $0.f && f < $0.f + fps * 1.2 }
+    // Screen marks (cursor, clicks, key chips, annotations) belong to the screen, not to an animation over it.
+    let covered = fullFrameCovers(f)
+    let chip = covered ? nil : chips.last { f >= $0.f && f < $0.f + fps * 1.2 }
     let shownCallouts = callouts.filter { f >= $0.s && f < $0.e }
-    let shownMarks = b.opacity > 0.01 ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
-    let ripples = clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
+    let shownMarks = b.opacity > 0.01 && !covered ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
+    let ripples = covered ? [] : clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
     // A cutout has no shape to outline.
     let border = plan.camera?.cutout != true && plan.camera?.bubbleBorder != false && (camBox.map { $0.opacity > 0.01 } ?? false)
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
-    let pointerAt = b.opacity > 0.01 ? cursorPosition(frame: f) : nil
+    let pointerAt = b.opacity > 0.01 && !covered ? cursorPosition(frame: f) : nil
     if page == nil && chip == nil && shownCallouts.isEmpty && shownMarks.isEmpty && ripples.isEmpty && !border && !brackets
       && watermark == nil && pointerAt == nil
     {
@@ -852,14 +854,27 @@ public final class Scene: @unchecked Sendable {
     ctx.restoreGState()
   }
 
+  /// How an insert enters and leaves. Full-frame inserts that meet across a cut (two parts of one
+  /// animation) skip the fade where they touch, so the screen and camera never flash through.
+  func insertPose(_ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Double) -> OverlayPose {
+    let neighbors = ins.a.isFull ? inserts.filter { $0.index != ins.index && $0.a.isFull } : []
+    let none = Motion(preset: "none")
+    let enter = ins.a.enter ?? (neighbors.contains { $0.e == ins.s } ? none : Motion(preset: "fade", seconds: 0.3, ease: "smooth"))
+    let exit = ins.a.exit ?? (neighbors.contains { $0.s == ins.e } ? none : Motion(preset: "fade", seconds: 0.25, ease: "ease-in"))
+    return Motion.pose(frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: enter, exit: exit, style: motion)
+  }
+
+  /// Whether a full-frame insert fully covers the screen at this frame (so screen marks stay hidden).
+  func fullFrameCovers(_ f: Double) -> Bool {
+    inserts.contains { $0.a.isFull && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
+  }
+
   /// B-roll showing at this frame: in the screen card (`full` false) or over the whole frame.
   func broll(_ image: CIImage, frame f: Double, full: Bool, box b: Box, frames: [Int: CIImage]) -> CIImage {
     var out = image
     for ins in inserts where ins.a.isFull == full && f >= ins.s && f < ins.e {
       guard let src = insertImages[ins.index] ?? frames[ins.index] else { continue }
-      let pose = Motion.pose(
-        frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: ins.a.enter ?? Motion(preset: "fade", seconds: 0.3, ease: "smooth"),
-        exit: ins.a.exit ?? Motion(preset: "fade", seconds: 0.25, ease: "ease-in"), style: motion)
+      let pose = insertPose(ins, frame: f)
       guard pose.visible else { continue }
       let rect = full ? CGRect(x: 0, y: 0, width: W, height: H) : ciRect(b)
       let radius = full ? 0 : b.r

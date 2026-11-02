@@ -86,6 +86,9 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   out.append("")
   out.append("## Layout: default \"\(plan.defaultLayout.rawValue)\"\(plan.camera == nil ? " (no camera recorded)" : "")")
   for l in plan.layouts { out.append(line("  src \(fmtTime(l.start))-\(fmtTime(l.end)) \(l.mode.rawValue)", l.note ?? "")) }
+  for run in cameraHidesScreen(project, plan) {
+    out.append("  WARNING: full camera hides screen activity at src \(fmtTime(run.start))-\(fmtTime(run.end)) (\(run.count) clicks/keys); use pip or side there")
+  }
   if let punches = plan.camera?.punchIns, !punches.isEmpty {
     out.append("")
     out.append("## Camera punch-ins")
@@ -136,4 +139,24 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   }
   if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
   return out.joined(separator: "\n")
+}
+
+/// Kept stretches where the layout is full camera but the screen has clicks or typing: the demo the
+/// viewer should be watching is hidden behind the face. Events under a full-frame animation don't count.
+public func cameraHidesScreen(_ project: Project, _ plan: Plan) -> [(start: Double, end: Double, count: Int)] {
+  guard plan.camera != nil else { return [] }
+  let kept = mapPlan(plan)
+  let animations = plan.animationList
+  let hidden = project.events.filter { e in
+    // The last second and a half is the click that stops the recording.
+    guard e.type == .click || e.type == .key, e.t < project.source.duration - 1.5, kept.contains(where: { e.t >= $0.start && e.t < $0.end }),
+      !animations.contains(where: { e.t >= $0.start && e.t < $0.end })
+    else { return false }
+    return (plan.layouts.last { e.t >= $0.start && e.t < $0.end }?.mode ?? plan.defaultLayout) == .camera
+  }.map(\.t).sorted()
+  var runs: [(start: Double, end: Double, count: Int)] = []
+  for t in hidden {
+    if let last = runs.last, t - last.end < 10 { runs[runs.count - 1] = (last.start, t, last.count + 1) } else { runs.append((t, t, 1)) }
+  }
+  return runs
 }

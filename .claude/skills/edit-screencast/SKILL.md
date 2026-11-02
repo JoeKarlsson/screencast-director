@@ -37,12 +37,12 @@ Apply the user's instructions first. Then make a quality pass unless they asked 
 - **B-roll and markers:** `inserts` show a picture or clip from the project folder (usually `broll/`) inside the screen card or full frame; only use files that exist. `markers` are the user's named points; use them when the user mentions one.
 - **Motion:** `style.motion` (smooth, snappy, cinematic, bouncy) sets how zooms and overlays move; `enter`/`exit` on a callout or annotation overrides it (presets: fade, fade-up, slide-*, pop, zoom, blur, wipe, words, typewriter). `segments[i].transition` (crossfade, blur, dip, flash, punch, whip) styles the cut into a segment; keep those for section changes.
 - **Punch-ins** (only with a camera): `camera.punchIns` (`start`, `end`, `scale` about 1.8 to 2.2, `note`) snap the camera tighter on the framing point for a beat and snap back, with no ease. Use a few (at most about four) on punchlines or key statements while the camera is large (`camera` layout), 1 to 2 s each.
-- **Layouts** (only with a camera): `camera` for an intro or outro talking to the lens, `side` for explanations without screen action, `pip` elsewhere.
+- **Layouts** (only with a camera): `camera` for an intro or outro talking to the lens, `side` for explanations without screen action, `pip` elsewhere. A full-face stretch is a `camera` range in `layouts`, never `defaultLayout: camera`, which hides every demo. `describe` prints a WARNING wherever full camera covers clicks or typing; fix each one.
 - Keep each segment's `note` meaningful; it shows up in `describe`.
 
 ## 3. Verify before rendering
 
-- Run `bin/sd describe <name>` again and read it as a viewer would: does every cut land between sentences? Is any narration sped up?
+- Run `bin/sd describe <name>` again and read it as a viewer would: does every cut land between sentences? Is any narration sped up? Is any layout WARNING left?
 - Spot-check frames instead of rendering the whole video: render stills at the moments you changed and look at them (zoom framing, callout text, layout):
   `macos/.build/release/director still projects/<name> <frame> /tmp/f.png` (`still` writes only inside the project, e.g. `.checks/`, or a temp folder, and never through a symlink)
 

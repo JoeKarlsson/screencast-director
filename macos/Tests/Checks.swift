@@ -514,6 +514,32 @@ struct Checks {
     edited[path: "center.logo"] = nil
     expect(edited[path: "center.label"]?.string == "your dot" && edited[path: "title"]?.string == "Hi" && edited[path: "center.logo"] == nil, "dotted paths set and clear fields")
 
+    // Two parts of one animation across a cut: no fade where they meet, and no screen marks on top.
+    var seam = buildPlan(p)
+    seam.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 8, end: 12, speed: 1)]
+    seam.inserts = [
+      Insert(start: 2, end: 4, file: "a.mp4", placement: "full"), Insert(start: 8, end: 10, file: "b.mp4", placement: "full"),
+    ]
+    let ss = Scene(plan: seam, words: [], clicks: [], shortcuts: [])
+    let partA = ss.inserts[0], partB = ss.inserts[1]
+    expect(ss.insertPose(partA, frame: partA.e - 1).opacity == 1 && ss.insertPose(partB, frame: partB.s).opacity == 1, "no fade where animations meet")
+    expect(ss.insertPose(partA, frame: partA.s).opacity < 0.5 && ss.insertPose(partB, frame: partB.e - 1).opacity < 0.5, "outer edges still fade")
+    expect(ss.fullFrameCovers(partA.e - 1) && !ss.fullFrameCovers(partA.s), "screen marks hide only while fully covered")
+
+    // Full camera over a demo is flagged.
+    var hide = p
+    hide.source.camera = nil
+    var hp = buildPlan(p)
+    hp.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+    hp.defaultLayout = .camera
+    hp.layouts = [LayoutRange(start: 0, end: 4, mode: .camera)]
+    hide.events = [InputEvent(t: 1, type: .click, x: 0.5, y: 0.5), InputEvent(t: 5.2, type: .key, x: 0.5, y: 0.5)]
+    let flagged = cameraHidesScreen(hide, hp)
+    expect(flagged.count == 1 && flagged[0].count == 2, "full-camera demo flagged (\(flagged))")
+    hp.defaultLayout = .pip
+    hp.layouts = []
+    expect(cameraHidesScreen(hide, hp).isEmpty, "pip over the demo is fine")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

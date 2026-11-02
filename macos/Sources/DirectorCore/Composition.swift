@@ -165,7 +165,17 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     let from = min(ins.a.from ?? 0, max(0, dur.seconds - 0.1))
     let length = min((ins.e - ins.s) / Double(fps), dur.seconds - from)
     guard length > 0.05, let track = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
-    try insert(track, CMTimeRange(start: t(from), duration: t(length)), of: src, at: CMTime(value: CMTimeValue(ins.s), timescale: fps), "B-roll")
+    let at = CMTime(value: CMTimeValue(ins.s), timescale: fps)
+    try insert(track, CMTimeRange(start: t(from), duration: t(length)), of: src, at: at, "B-roll")
+    // A clip a little shorter than its slot holds its last frame to the end; otherwise the track's
+    // end padding (a sliver of the clip's first frame) would flash in before the slot ends.
+    let slotEnd = CMTime(value: CMTimeValue(ins.e.rounded(.up)), timescale: fps)
+    if track.timeRange.end < slotEnd {
+      let held = CMTimeRange(start: t(from + length - 0.05), duration: t(0.05))
+      let holdAt = track.timeRange.end
+      try insert(track, held, of: src, at: holdAt, "B-roll hold")
+      track.scaleTimeRange(CMTimeRange(start: holdAt, duration: held.duration), toDuration: CMTimeSubtract(slotEnd, holdAt))
+    }
     insertTracks[ins.index] = track.trackID
     insertFills.append((track, src))
   }

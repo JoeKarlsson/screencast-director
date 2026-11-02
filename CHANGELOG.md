@@ -83,6 +83,10 @@ Each release lists what changed for people using the app or the CLI. The version
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
 
 ### Motion
+- Two parts of one animation that meet across a cut play straight through, instead of fading out and in with your face and the screen flashing between them.
+- The cursor, click ripples, shortcut chips and annotations no longer draw over a full-frame animation.
+- A B-roll or animation clip a little shorter than its slot holds its last frame, instead of flashing its first frame at the end.
+- `describe` warns when the full-camera layout hides clicks or typing, so a demo can't end up behind your face.
 - Motion styles (Smooth, Snappy, Cinematic, Bouncy) set how every move in the video eases: zooms, layout changes, and how titles and other overlays come and go. Classic keeps the old look.
 - Zooms ease along real curves (or springs), change scale evenly and keep the point they zoom toward still on screen, so a zoom into a corner no longer swings out and back. Each zoom can pick its own ease and speed.
 - Titles, shortcut chips and captions animate in and out: fade, fade up, slide, pop, zoom, blur, wipe, word by word or typewriter.
