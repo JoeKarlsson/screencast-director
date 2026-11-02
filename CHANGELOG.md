@@ -90,6 +90,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Captions skip words in sped-up stretches. Those play muted, so their words showed up on screen without being heard.
 - The One Hub animation's background field of logos no longer repeats the grid's apps over and over: give it its own list (The rest) and each logo shows once.
 - Normalize voice now evens out your voice phrase by phrase, the way a voice-over engineer rides the fader: trailing-off or leaning-away moments come up and loud ones come down (most of the way, so it still sounds natural), and pauses aren't pumped up.
+- Warm voice (Audio tab): a deeper, fuller voice from a desk mic. More chest, less boxiness, gentle compression and a touch of saturation, at the same loudness. Settings > General > New recordings can turn Normalize and Warm voice on for every new recording.
 - Attach a sound to a title, an annotation or an animation's beat (Sound in the inspector), and it plays as that thing appears and moves with it, so it can't drift away or land in a cut. `describe` warns about a free-standing sound effect that's in a cut.
 
 ### Motion

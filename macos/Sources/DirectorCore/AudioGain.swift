@@ -76,12 +76,16 @@ public enum AudioGain {
     /// Linear gain per output frame (a leveling curve), or empty for the fixed gain.
     let curve: [Float]
     let fps: Double
+    /// Run the warm voice chain after the gain (built in prepare, when the format is known).
+    let warm: Bool
+    var chain: WarmVoice?
     var isFloat = true
     var sampleRate = 48000.0
-    init(_ gain: Float, curve: [Float], fps: Double) {
+    init(_ gain: Float, curve: [Float], fps: Double, warm: Bool) {
       self.gain = gain
       self.curve = curve
       self.fps = fps
+      self.warm = warm
     }
     /// The gain at output time `t` (seconds), interpolated between frames.
     func gain(at t: Double) -> Float {
@@ -93,9 +97,11 @@ public enum AudioGain {
     }
   }
 
-  /// A tap applying `gainDB`, times `curveDB` (dB per output frame at `fps`) when given.
-  public static func tap(gainDB: Double, curveDB: [Double] = [], fps: Int = 30) -> MTAudioProcessingTap? {
-    let box = Unmanaged.passRetained(Box(Float(pow(10, gainDB / 20)), curve: curveDB.map { Float(pow(10, $0 / 20)) }, fps: Double(fps)))
+  /// A tap applying `gainDB`, times `curveDB` (dB per output frame at `fps`) when given, then the
+  /// warm voice chain when `warm`.
+  public static func tap(gainDB: Double, curveDB: [Double] = [], fps: Int = 30, warm: Bool = false) -> MTAudioProcessingTap? {
+    let box = Unmanaged.passRetained(
+      Box(Float(pow(10, gainDB / 20)), curve: curveDB.map { Float(pow(10, $0 / 20)) }, fps: Double(fps), warm: warm))
     var callbacks = MTAudioProcessingTapCallbacks(
       version: kMTAudioProcessingTapCallbacksVersion_0,
       clientInfo: box.toOpaque(),
@@ -105,15 +111,17 @@ public enum AudioGain {
         let b = Unmanaged<Box>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue()
         b.isFloat = format.pointee.mFormatFlags & kAudioFormatFlagIsFloat != 0 && format.pointee.mBitsPerChannel == 32
         b.sampleRate = format.pointee.mSampleRate
+        if b.warm { b.chain = WarmVoice(sampleRate: b.sampleRate, channels: Int(format.pointee.mChannelsPerFrame)) }
       },
       unprepare: nil,
       process: { tap, frames, _, bufferList, framesOut, flagsOut in
         var range = CMTimeRange.zero
         guard MTAudioProcessingTapGetSourceAudio(tap, frames, bufferList, flagsOut, &range, framesOut) == noErr else { return }
         let b = Unmanaged<Box>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue()
-        guard b.isFloat, b.gain != 1 || !b.curve.isEmpty else { return }
+        guard b.isFloat, b.gain != 1 || !b.curve.isEmpty || b.chain != nil else { return }
         let start = range.start.isValid ? range.start.seconds : 0
-        for buffer in UnsafeMutableAudioBufferListPointer(bufferList) {
+        let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
+        for (bufferIndex, buffer) in buffers.enumerated() {
           guard let data = buffer.mData else { continue }
           let n = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
           let channels = max(1, Int(buffer.mNumberChannels))
@@ -128,7 +136,9 @@ public enum AudioGain {
               next = b.gain(at: start + Double(frame + 64) / b.sampleRate)
             }
             let u = Float(frame % 64) / 64
-            let y = p[i] * (g + (next - g) * u)
+            var y = p[i] * (g + (next - g) * u)
+            // Interleaved: channel by position; one buffer per channel: channel by buffer.
+            if let chain = b.chain { y = chain.process(y, channel: buffers.count > 1 ? bufferIndex : i % channels) }
             let a = abs(y)
             // Soft knee from 0.8 with a ceiling at 0.94 (about -0.5 dBFS), so boosted peaks round off.
             p[i] = a <= 0.8 ? y : (y < 0 ? -1 : 1) * (0.8 + 0.14 * tanh((a - 0.8) / 0.14))

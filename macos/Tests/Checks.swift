@@ -789,6 +789,29 @@ struct Checks {
       [Word(text: "heard", start: 0.5, end: 1), Word(text: "muted", start: 4, end: 4.5)], mutedMap, fps: fps, maxWords: 7)
     expect(mutedPages.flatMap { $0.words.map(\.0) } == ["heard"], "no captions for words in a muted sped-up segment")
 
+    // Warm voice, at the leveled voice's levels: more chest (80 Hz) and less boxiness (350 Hz) than
+    // 1 kHz, normal speech keeps about its level, and loud speech is pulled in a few dB.
+    func warmLevel(_ hz: Double, _ amp: Double) -> Double {
+      let chain = WarmVoice(sampleRate: 48000, channels: 1)
+      var sum = 0.0
+      for i in 0..<48000 {
+        let y = Double(chain.process(Float(amp * sin(2 * Double.pi * hz * Double(i) / 48000)), channel: 0))
+        if i >= 24000 { sum += y * y }
+      }
+      return 10 * log10(sum / 24000)
+    }
+    let quiet = 0.03, normal = 0.14, loud = 0.5  // about -33, -20 and -9 dBFS RMS
+    let ref = warmLevel(1000, quiet)
+    expect(warmLevel(80, quiet) - ref > 1.5, "warm voice adds chest below 120 Hz (\(warmLevel(80, quiet) - ref))")
+    expect(warmLevel(350, quiet) - ref < -1.5, "warm voice cuts boxiness around 350 Hz (\(warmLevel(350, quiet) - ref))")
+    expect(warmLevel(8000, quiet) - ref < -1, "warm voice softens the top end (\(warmLevel(8000, quiet) - ref))")
+    let normalOut = warmLevel(1000, normal) - 20 * log10(normal / sqrt(2))
+    expect(normalOut > -1 && normalOut < 4.5, "normal speech keeps about its level (\(normalOut) dB)")
+    let squeezed = (warmLevel(1000, loud) - warmLevel(1000, normal)) - 20 * log10(loud / normal)
+    expect(squeezed < -3 && squeezed > -9, "loud speech is pulled in a few dB (\(squeezed))")
+    let polished = AudioSettings.polished(AudioSettings(gainDB: 2))
+    expect(polished.normalize == true && polished.warm == true && polished.gainDB == 2, "new recordings can start leveled and warm")
+
     // Leveling: a phrase 10 dB quieter gets about 7 dB more than a normal one, and the pause between
     // them (room noise) doesn't pull the gain up. Built in steps so CI's compiler can type-check it.
     var phrases: [(Double, Double)] = []

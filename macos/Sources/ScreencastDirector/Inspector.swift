@@ -798,6 +798,15 @@ struct InspectorView: View {
             p.audio = a
           }
         }))
+      toggle("Warm voice", "More chest, less boxiness, gentle compression and a touch of warmth.",
+        Binding(get: { plan.audio?.warm ?? false }, set: { v in
+          project.apply { p in
+            var a = p.audio ?? AudioSettings()
+            a.warm = v
+            p.audio = a
+          }
+        }))
+        .help("Warm voice: EQ for more chest and less boxiness, gentle compression, and light saturation.")
       toggle("Clean up voice", "Removes room noise, hum and echo. The first time takes a few seconds.",
         Binding(get: { plan.audio?.cleanup ?? false }, set: { v in
           project.apply { p in

@@ -20,6 +20,8 @@ final class AppSettings: ObservableObject {
   /// "App: window title", for messages when the window has closed.
   @Published var captureWindowLabel: String { didSet { d.set(captureWindowLabel, forKey: "captureWindowLabel") } }
   @Published var pauseLevel: PauseLevel { didSet { d.set(pauseLevel.rawValue, forKey: "pauseLevel") } }
+  /// New recordings start with Normalize voice and Warm voice on.
+  @Published var polishVoice: Bool { didSet { d.set(polishVoice, forKey: "polishVoice") } }
   @Published var autoName: Bool { didSet { d.set(autoName, forKey: "autoName") } }
   @Published var smoothCursor: Bool { didSet { d.set(smoothCursor, forKey: "smoothCursor") } }
   /// The display to record when not recording a window; 0 is the main display.
@@ -42,6 +44,7 @@ final class AppSettings: ObservableObject {
     captureWindowID = 0
     captureWindowLabel = ""
     pauseLevel = PauseLevel(rawValue: d.string(forKey: "pauseLevel") ?? "") ?? .normal
+    polishVoice = d.bool(forKey: "polishVoice")
     autoName = d.object(forKey: "autoName") as? Bool ?? true
     smoothCursor = d.object(forKey: "smoothCursor") as? Bool ?? true
     displayID = d.integer(forKey: "displayID")

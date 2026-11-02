@@ -98,7 +98,10 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
       return curve[min(curve.count - 1, max(0, Int(((src - curve[0].t) / step).rounded())))].gainDB
     }
   }
-  if abs(gainDB) > 0.05 || !curveDB.isEmpty { audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps) }
+  let warm = plan.audio?.warm == true
+  if abs(gainDB) > 0.05 || !curveDB.isEmpty || warm {
+    audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps, warm: warm)
+  }
 
   for s in scene.mapped {
     let at = CMTime(value: CMTimeValue(s.outStart), timescale: fps)

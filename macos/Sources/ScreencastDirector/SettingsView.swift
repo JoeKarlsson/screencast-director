@@ -50,6 +50,8 @@ struct GeneralSettings: View {
         Picker("Pause trimming", selection: $settings.pauseLevel) {
           ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
         }
+        Toggle("Level and warm up my voice", isOn: $settings.polishVoice)
+          .help("New recordings start with Normalize voice and Warm voice on (Audio tab).")
         Toggle("Name them from what you said", isOn: $settings.autoName)
       }
     }

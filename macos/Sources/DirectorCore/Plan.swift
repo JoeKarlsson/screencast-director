@@ -381,10 +381,13 @@ public struct AudioSettings: Codable, Equatable {
   public var gainDB: Double?
   /// Remove room noise and echo from the voice (Apple's voice isolation, cached as voice-clean.m4a).
   public var cleanup: Bool?
-  public init(normalize: Bool? = nil, gainDB: Double? = nil, cleanup: Bool? = nil) {
+  /// Warm the voice: chest EQ, less boxiness, gentle compression and light saturation (`WarmVoice`).
+  public var warm: Bool?
+  public init(normalize: Bool? = nil, gainDB: Double? = nil, cleanup: Bool? = nil, warm: Bool? = nil) {
     self.normalize = normalize
     self.gainDB = gainDB
     self.cleanup = cleanup
+    self.warm = warm
   }
 }
 
@@ -400,6 +403,16 @@ public struct Music: Codable, Equatable {
     self.file = file
     self.volumeDB = volumeDB
     self.duckDB = duckDB
+  }
+}
+
+extension AudioSettings {
+  /// `settings` with Normalize voice and Warm voice on, for new recordings when Settings asks.
+  public static func polished(_ settings: AudioSettings?) -> AudioSettings {
+    var a = settings ?? AudioSettings()
+    a.normalize = true
+    a.warm = true
+    return a
   }
 }
 

@@ -1271,6 +1271,7 @@ final class ProjectModel: ObservableObject {
       let silences = Analyzer.silences(try await Analyzer.loudness(fresh, video: draft.source.video), minLength: 0.2)
       draft.retrimPauses(words: fresh.words, level: level, silences: silences, paused: fresh.paused)
       draft.pauses = level
+      if AppSettings.shared.polishVoice { draft.audio = AudioSettings.polished(draft.audio) }
       if draft.camera != nil, let face = try await Publish.faceCenter(project: try Project.load(dir), plan: draft) {
         draft.camera?.x = face.x
         draft.camera?.y = face.y
