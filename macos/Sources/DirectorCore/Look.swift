@@ -85,13 +85,40 @@ public struct Profile: Codable, Equatable {
   public var captions: Plan.Captions?
   /// A default background track for videos with this profile (path relative to the profile folder).
   public var music: Music?
+  /// Voice settings; only the fields set here change a video's.
+  public var audio: AudioSettings?
+  /// Camera color and bubble; only the fields set here change a video's (and only if it has a camera).
+  public var camera: CameraDefaults?
+  public var defaultLayout: LayoutMode?
 
-  public init(name: String, style: Plan.Style, look: Look, captions: Plan.Captions? = nil, music: Music? = nil) {
+  public struct CameraDefaults: Codable, Equatable {
+    /// The whole grade; a `lut` path is relative to the profile folder.
+    public var grade: Grade?
+    public var bubbleSize: Double?
+    public var bubbleShape: String?
+    public var bubbleBorder: Bool?
+    public var bubbleShadow: Bool?
+    public init(grade: Grade? = nil, bubbleSize: Double? = nil, bubbleShape: String? = nil, bubbleBorder: Bool? = nil, bubbleShadow: Bool? = nil) {
+      self.grade = grade
+      self.bubbleSize = bubbleSize
+      self.bubbleShape = bubbleShape
+      self.bubbleBorder = bubbleBorder
+      self.bubbleShadow = bubbleShadow
+    }
+  }
+
+  public init(
+    name: String, style: Plan.Style, look: Look, captions: Plan.Captions? = nil, music: Music? = nil,
+    audio: AudioSettings? = nil, camera: CameraDefaults? = nil, defaultLayout: LayoutMode? = nil
+  ) {
     self.name = name
     self.style = style
     self.look = look
     self.captions = captions
     self.music = music
+    self.audio = audio
+    self.camera = camera
+    self.defaultLayout = defaultLayout
   }
 
   /// Loads profile.json from a folder and makes asset paths absolute.
@@ -101,6 +128,7 @@ public struct Profile: Codable, Equatable {
     p.look.fontFiles = p.look.fontFiles?.map(abs)
     if let w = p.look.watermark { p.look.watermark?.image = abs(w.image) }
     if let m = p.music { p.music?.file = abs(m.file) }
+    if let lut = p.camera?.grade?.lut { p.camera?.grade?.lut = abs(lut) }
     if let l = p.look.intro?.logo { p.look.intro?.logo = abs(l) }
     if let l = p.look.outro?.logo { p.look.outro?.logo = abs(l) }
     return p
@@ -121,6 +149,22 @@ public struct Profile: Codable, Equatable {
       if let style = captions.style { plan.captions.style = style }
     }
     if let music { plan.music = music }
+    if let audio {
+      var a = plan.audio ?? AudioSettings()
+      if let v = audio.normalize { a.normalize = v }
+      if let v = audio.gainDB { a.gainDB = v }
+      if let v = audio.cleanup { a.cleanup = v }
+      if let v = audio.warm { a.warm = v }
+      plan.audio = a
+    }
+    if let camera, plan.camera != nil {
+      if let v = camera.grade { plan.camera?.grade = v }
+      if let v = camera.bubbleSize { plan.camera?.bubbleSize = v }
+      if let v = camera.bubbleShape { plan.camera?.bubbleShape = v }
+      if let v = camera.bubbleBorder { plan.camera?.bubbleBorder = v }
+      if let v = camera.bubbleShadow { plan.camera?.bubbleShadow = v }
+    }
+    if let defaultLayout { plan.defaultLayout = defaultLayout }
     // Cards the profile switches on. Text already in the plan (typed by hand) is kept.
     func card(_ c: Card?, _ old: Card?) -> Card? {
       guard let c, c.isOn else { return old }

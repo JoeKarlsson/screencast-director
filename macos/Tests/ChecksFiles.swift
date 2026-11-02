@@ -149,6 +149,41 @@ private func projectFileChecks() {
   }
   expect((try? Profile.load(dir.appendingPathComponent("missing"))) == nil, "a folder without profile.json fails to load")
 
+  // A profile's voice, camera and layout defaults: its LUT resolves against the folder, and applying it
+  // changes only the fields it sets (and the camera only on a video that has one).
+  var series = Profile(
+    name: "Series", style: plan.style, look: Look(), audio: AudioSettings(normalize: true, gainDB: 3, warm: true),
+    camera: .init(grade: Grade(lut: "luts/soft-film.cube"), bubbleSize: 0.43), defaultLayout: .pip)
+  do {
+    try JSONEncoder().encode(series).write(to: dir.appendingPathComponent("profile.json"))
+    series = try Profile.load(dir)
+    expect(series.camera?.grade?.lut == dir.path + "/luts/soft-film.cube", "a profile's LUT resolves (\(series.camera?.grade?.lut ?? "nil"))")
+  } catch {
+    expect(false, "profile load: \(error)")
+  }
+  var filmed = plan
+  filmed.defaultLayout = .side
+  filmed.audio = AudioSettings(cleanup: true)
+  filmed.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  filmed.camera?.grade = Grade(exposure: 0.5)
+  filmed.camera?.bubbleShape = "square"
+  series.apply(to: &filmed)
+  expect(
+    filmed.audio == AudioSettings(normalize: true, gainDB: 3, cleanup: true, warm: true),
+    "a profile sets its voice settings and keeps the video's others (\(String(describing: filmed.audio)))")
+  expect(
+    filmed.camera?.grade == Grade(lut: dir.path + "/luts/soft-film.cube") && filmed.camera?.bubbleSize == 0.43
+      && filmed.camera?.bubbleShape == "square" && filmed.camera?.video == "camera.mp4",
+    "a profile sets its camera grade and bubble size and keeps the shape it doesn't name")
+  expect(filmed.defaultLayout == .pip, "a profile sets the default layout")
+  var screenOnly = plan
+  series.apply(to: &screenOnly)
+  expect(screenOnly.camera == nil, "a profile's camera settings don't add a camera to a screen-only video")
+  var plain = plan
+  plain.defaultLayout = .side
+  Profile(name: "Plain", style: plan.style, look: Look()).apply(to: &plain)
+  expect(plain.defaultLayout == .side && plain.audio == plan.audio, "a profile without these fields leaves them alone")
+
   // Times in describe's timeline: minutes and tenths, rolling over cleanly at the minute and ten seconds.
   expect(fmtTime(0) == "0:00.0" && fmtTime(5.4) == "0:05.4" && fmtTime(65.4) == "1:05.4", "times format as m:ss.s")
   expect(fmtTime(9.97) == "0:10.0" && fmtTime(59.97) == "1:00.0", "times round up across ten seconds and the minute (\(fmtTime(9.97)), \(fmtTime(59.97)))")
