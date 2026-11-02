@@ -498,7 +498,7 @@ final class ProjectModel: ObservableObject {
       return
     }
     let e = SoundEffect(t: playheadSrc, file: file, note: entry.item.name)
-    apply { p in p.sfx = (p.sfx ?? []) + [e] }
+    apply { p in p.sfxList.append(e) }
     if let i = plan?.sfx?.firstIndex(of: e) { select(.sfx(i), adding: false) }
     status = "\(entry.item.name) at \(fmtTime(e.t))."
   }

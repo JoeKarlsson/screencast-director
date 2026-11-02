@@ -143,8 +143,7 @@ extension Plan {
     callouts = removing(callouts, calloutIdx)
     annotationList = removing(annotationList, markIdx)
     markerList = removing(markerList, markerIdx)
-    let effects = removing(sfx ?? [], effectIdx)
-    sfx = effects.isEmpty ? nil : effects
+    sfxList = removing(sfxList, effectIdx)
     for g in restores { restore(g) }
     for r in cuts { cut(range: r) }
   }
@@ -161,7 +160,7 @@ extension Plan {
   /// Shifts the movable items among `items` by `d` seconds, normalizes, and returns where each
   /// moved item is now (normalizing re-sorts the lists).
   public mutating func shift(_ items: [Selection], by d: Double) -> [Selection] {
-    var marks = annotationList, pins = markerList, clips = insertList, anims = animationList, effects = sfx ?? []
+    var marks = annotationList, pins = markerList, clips = insertList, anims = animationList, effects = sfxList
     var moved: [(Selection, Any)] = []
     for s in items {
       switch s {
@@ -201,7 +200,7 @@ extension Plan {
     markerList = pins
     insertList = clips
     animationList = anims
-    sfx = effects.isEmpty ? nil : effects
+    sfxList = effects
     normalize()
     return moved.compactMap { s, value in
       switch (s, value) {
@@ -212,7 +211,7 @@ extension Plan {
       case (.marker, let m as Marker): return markerList.firstIndex(of: m).map { .marker($0) }
       case (.insert, let c as Insert): return insertList.firstIndex(of: c).map { .insert($0) }
       case (.animation, let a as Animation): return animationList.firstIndex(of: a).map { .animation($0) }
-      case (.sfx, let e as SoundEffect): return (sfx ?? []).firstIndex(of: e).map { .sfx($0) }
+      case (.sfx, let e as SoundEffect): return sfxList.firstIndex(of: e).map { .sfx($0) }
       default: return nil
       }
     }
@@ -382,7 +381,7 @@ private func selectedLine(_ selection: Selection, _ plan: Plan) -> String? {
     let m = plan.markerList[i]
     return "Selected marker #\(i) at source \(fmtTime(m.t))\(m.label.map { " \"\($0)\"" } ?? "")"
   case .sfx(let i):
-    let e = plan.sfx![i]
+    let e = plan.sfxList[i]
     return "Selected sound effect #\(i): \(e.file) at source \(fmtTime(e.t))"
   }
 }

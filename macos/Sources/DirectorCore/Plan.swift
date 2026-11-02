@@ -449,7 +449,7 @@ extension Plan {
   /// Every sound effect that plays: the free-standing `sfx`, plus the sounds attached to titles,
   /// annotations and animation beats at the moment each appears. Sorted by time.
   public var soundEffects: [SoundEffect] {
-    var all = sfx ?? []
+    var all = sfxList
     for c in callouts {
       if let s = c.sound { all.append(SoundEffect(t: c.start, file: s.file, gainDB: s.gainDB, note: "title \"\(c.text)\"")) }
     }

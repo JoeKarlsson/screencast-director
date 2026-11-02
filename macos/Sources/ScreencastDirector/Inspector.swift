@@ -411,14 +411,14 @@ struct InspectorView: View {
       AnimationEditor(project: project, ui: ui, i: i)
       previewButton(a.start)
       removeButton()
-    case .sfx(let i) where (plan.sfx ?? []).indices.contains(i):
-      let e = plan.sfx![i]
+    case .sfx(let i) where plan.sfxList.indices.contains(i):
+      let e = plan.sfxList[i]
       itemHeader(e.note ?? "Sound Effect", "speaker.wave.2", Theme.sfx, fmtTime(e.t))
       InspectorSection("Sound", detail: (e.file as NSString).lastPathComponent) {
         slider(
           "Volume",
           Binding(
-            get: { project.plan.flatMap { ($0.sfx ?? []).indices.contains(i) ? $0.sfx![i].gainDB : nil } ?? 0 },
+            get: { project.plan.flatMap { $0.sfxList.indices.contains(i) ? $0.sfxList[i].gainDB : nil } ?? 0 },
             set: { v in
               project.apply(coalesce: "sfxGain\(i)") {
                 guard var list = $0.sfx, list.indices.contains(i) else { return }
@@ -873,7 +873,7 @@ struct InspectorView: View {
       }
     }
     InspectorSection("Sound Effects", detail: "One-shot sounds at moments in the video. Add one at the playhead, or ask Claude.") {
-        ForEach(Array((plan.sfx ?? []).enumerated()), id: \.offset) { i, e in
+        ForEach(Array(plan.sfxList.enumerated()), id: \.offset) { i, e in
           HStack(spacing: 8) {
             Image(systemName: "speaker.wave.2").foregroundStyle(Theme.audio)
             Text(fmtTime(e.t)).monospacedDigit().foregroundStyle(.secondary)

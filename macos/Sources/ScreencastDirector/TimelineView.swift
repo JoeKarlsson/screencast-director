@@ -782,7 +782,7 @@ struct TimelineView: View {
         .accessibilityLabel("Sound \(name) on \(a.label)")
         .accessibilityAddTraits(.isButton)
       }
-      ForEach(Array((plan.sfx ?? []).enumerated()), id: \.offset) { i, e in
+      ForEach(Array(plan.sfxList.enumerated()), id: \.offset) { i, e in
         let sel = Selection.sfx(i)
         let (t, _) = range(sel, e.t, e.t)
         let selected = project.isSelected(sel)

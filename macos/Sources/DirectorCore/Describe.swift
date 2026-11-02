@@ -157,7 +157,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   }
   let effects = plan.soundEffects
   if !effects.isEmpty {
-    let free = plan.sfx ?? []
+    let free = plan.sfxList
     out.append("")
     out.append("## Sound effects (sfx #n, or attached to the item named)")
     for e in effects {

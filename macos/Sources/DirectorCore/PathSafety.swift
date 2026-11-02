@@ -64,7 +64,7 @@ public enum PathSafety {
       }
     }
     if let list = plan.sfx {
-      let known = Set((previous.sfx ?? []).map(\.file))
+      let known = Set(previous.sfxList.map(\.file))
       let kept = list.filter { known.contains($0.file) || path($0.file, isInside: project) }
       if kept.count != list.count {
         reverted.append("sfx.file")
