@@ -40,8 +40,13 @@ final class TimelineUI: ObservableObject {
   @Published var flashOpacity: Double = 0
   /// Where the track area is scrolled; set to zoom around a point or follow the playhead.
   @Published var scroll = ScrollPosition(edge: .leading)
-  /// The pointer is over the tracks (for ⌥-scroll zooming) at this source time.
+  /// The pointer is over the tracks (so ⌥-scroll zooms the timeline) at this source time.
   var pointerTime: Double?
+  /// The playhead along the axis (source or output seconds, by mode); every zoom keeps it in place.
+  var playheadTime: () -> Double = { 0 }
+  /// Where the last zoom scrolled to, until the scroll view reports it: zooms fire faster than
+  /// layout (a slider drag), so reading the laid-out position would drift away from the playhead.
+  private var pendingScrollX: Double?
   /// The timeline zoom when a pinch began.
   var pinchBase: Double?
   private var scrollMonitor: Any?
@@ -49,8 +54,12 @@ final class TimelineUI: ObservableObject {
   init() {
     // ⌥-scroll over the tracks zooms the timeline around the pointer.
     scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] e in
-      guard let self, e.modifierFlags.contains(.option), let t = self.pointerTime else { return e }
-      self.zoom(by: exp(Double(e.scrollingDeltaY) * (e.hasPreciseScrollingDeltas ? 0.01 : 0.08)), around: t)
+      guard let self, self.pointerTime != nil else { return e }
+      guard e.modifierFlags.contains(.option) else {
+        self.pendingScrollX = nil  // the user is scrolling; trust the scroll view again
+        return e
+      }
+      self.zoom(by: exp(Double(e.scrollingDeltaY) * (e.hasPreciseScrollingDeltas ? 0.01 : 0.08)), around: self.playheadTime())
       return nil
     }
   }
@@ -59,15 +68,28 @@ final class TimelineUI: ObservableObject {
     if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
   }
 
-  /// Zooms the timeline, keeping source time `t` where it is on screen.
+  /// Zooms the timeline, keeping axis time `t` (the playhead) where it is on screen, or centering
+  /// it when it's scrolled out of view.
   func zoom(by factor: Double, around t: Double) {
     let old = pxPerSec
     let new = min(400, max(minPxPerSec, old * factor))
     guard abs(new - old) > 0.01 else { return }
-    let onScreen = t * old - viewport.visible.minX
+    let visibleWidth = viewport.visible.width
+    let left = pendingScrollX ?? viewport.visible.minX
+    var onScreen = t * old - left
+    if onScreen < 0 || onScreen > visibleWidth { onScreen = visibleWidth / 2 }
     pxPerSec = new
+    let maxX = max(0, max(Double(width), axisSeconds * new) - visibleWidth)
+    let x = min(maxX, max(0, t * new - onScreen))
+    pendingScrollX = x
     // After the wider content lays out.
-    DispatchQueue.main.async { self.scroll.scrollTo(x: max(0, t * new - onScreen)) }
+    DispatchQueue.main.async { self.scroll.scrollTo(x: x) }
+  }
+
+  /// The scroll view moved: once it lands where the last zoom asked, its position is current again.
+  func scrolled(to r: CGRect) {
+    viewport.update(r)
+    if let x = pendingScrollX, abs(r.minX - x) < 1 { pendingScrollX = nil }
   }
 
   /// Scrolls a page when the playhead runs off the right edge while playing. `t` is a position
@@ -256,10 +278,10 @@ struct TimelineView: View {
                   .onChanged { v in
                     let base = ui.pinchBase ?? ui.pxPerSec
                     ui.pinchBase = base
-                    ui.zoom(by: base * v.magnification / ui.pxPerSec, around: ui.pointerTime ?? axis(project.playheadSrc))
+                    ui.zoom(by: base * v.magnification / ui.pxPerSec, around: axis(project.playheadSrc))
                   }
                   .onEnded { _ in ui.pinchBase = nil })
-              .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }) { _, r in ui.viewport.update(r) }
+              .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }) { _, r in ui.scrolled(to: r) }
               .onChange(of: project.aiChange?.id) { _, id in
                 guard id != nil, let ranges = project.aiChange?.ranges else { return }
                 flash(ranges, proxy)
@@ -267,6 +289,10 @@ struct TimelineView: View {
             }
           }
           .onAppear {
+            ui.playheadTime = { [weak project, weak ui] in
+              guard let project, let ui else { return 0 }
+              return ui.outputTime ? srcToOutClamped(project.mapped, project.playheadSrc, fps: project.fps) / Double(project.fps) : project.playheadSrc
+            }
             ui.width = geo.size.width - Self.headerWidth
             ui.axisSeconds = axisLength
             if !ui.fitted {
