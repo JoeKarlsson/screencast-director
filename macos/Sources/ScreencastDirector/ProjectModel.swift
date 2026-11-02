@@ -458,7 +458,7 @@ final class ProjectModel: ObservableObject {
     let done: (NSApplication.ModalResponse) -> Void = { [self] response in
       guard response == .OK, let url = panel.url else { return }
       do {
-        let file = try copyIntoProject(url, folder: "broll")
+        let file = try Project.importFile(url, into: "broll", dir: dir)
         Task { @MainActor in
           var length = 3.0
           if !Insert(start: 0, end: 1, file: file).isImage, let d = try? await AVURLAsset(url: dir.appendingPathComponent(file)).load(.duration) {
@@ -473,7 +473,7 @@ final class ProjectModel: ObservableObject {
         Notices.shared.show(error, "Couldn't add the B-roll")
       }
     }
-    if let window = AppDelegate.shared?.window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
+    presentPanel(panel, then: done)
   }
 
   /// Asks for a `.cube` LUT, copies it into the project's luts/ folder, and grades the camera with it.
@@ -486,7 +486,7 @@ final class ProjectModel: ObservableObject {
       guard response == .OK, let url = panel.url else { return }
       do {
         _ = try CubeLUT.load(url)
-        let file = try copyIntoProject(url, folder: "luts")
+        let file = try Project.importFile(url, into: "luts", dir: dir)
         apply { p in
           var g = p.camera?.grade ?? Grade()
           g.lut = file
@@ -496,7 +496,7 @@ final class ProjectModel: ObservableObject {
         Notices.shared.show(error, "Couldn't use that LUT")
       }
     }
-    if let window = AppDelegate.shared?.window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
+    presentPanel(panel, then: done)
   }
 
   /// A library sound at the playhead. It's copied into the project's sfx/ folder (unless the
@@ -533,19 +533,26 @@ final class ProjectModel: ObservableObject {
     status = "Music: \(entry.item.name)."
   }
 
-  /// Copies a file into a project subfolder (a new name if one's taken) and returns its plan path.
-  private func copyIntoProject(_ url: URL, folder: String) throws -> String {
-    let fm = FileManager.default
-    let target = dir.appendingPathComponent(folder)
-    try fm.createDirectory(at: target, withIntermediateDirectories: true)
-    let base = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
-    var name = url.lastPathComponent, n = 2
-    while fm.fileExists(atPath: target.appendingPathComponent(name).path) {
-      name = "\(base) \(n).\(ext)"
-      n += 1
+  /// Asks for an audio file, copies it into the project's music/ folder, and uses it as the music.
+  /// Keeps the current volume settings.
+  func chooseMusicFile() {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .aiff]
+    panel.message = "Choose a background track"
+    presentPanel(panel) { [self] response in
+      guard response == .OK, let url = panel.url else { return }
+      let file: String
+      do { file = try Project.importFile(url, into: "music", dir: dir) } catch {
+        Notices.shared.show(error, "Couldn't add the music")
+        return
+      }
+      apply { p in
+        var m = p.music ?? Music(file: file)
+        m.file = file
+        p.music = m
+      }
+      status = "Music: \(url.deletingPathExtension().lastPathComponent)."
     }
-    try fm.copyItem(at: url, to: target.appendingPathComponent(name))
-    return "\(folder)/\(name)"
   }
 
   // MARK: Markers

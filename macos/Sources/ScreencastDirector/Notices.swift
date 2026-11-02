@@ -80,3 +80,12 @@ func presentAlert(_ alert: NSAlert, then done: @escaping (NSApplication.ModalRes
     done(alert.runModal())
   }
 }
+
+/// Runs an open or save panel as a sheet on the main window when there is one, else on its own.
+func presentPanel(_ panel: NSSavePanel, then done: @escaping (NSApplication.ModalResponse) -> Void) {
+  if let window = AppDelegate.shared?.window, window.isVisible {
+    panel.beginSheetModal(for: window, completionHandler: done)
+  } else {
+    done(panel.runModal())
+  }
+}

@@ -64,7 +64,7 @@ extension InspectorView {
           project.apply(coalesce: "musicDuck") { p in p.music?.duckDB = v.rounded() }
         }), -40...0, String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB))
       } else {
-        Button { pickMusic() } label: { Label("Add Music File…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
+        Button { project.chooseMusicFile() } label: { Label("Add Music File…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
       }
       Button { openPicker(.music) } label: {
         Label(plan.music == nil ? "Music Library…" : "Change Music…", systemImage: "music.quarternote.3").frame(maxWidth: .infinity)
@@ -116,29 +116,5 @@ extension InspectorView {
     } catch {
       Notices.shared.show(error, "Couldn't load the \(kind == .sounds ? "sound" : "music") library")
     }
-  }
-
-  /// Copies the chosen track into the project folder, so the project still plays if the original moves.
-  func pickMusic() {
-    let panel = NSOpenPanel()
-    panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .aiff]
-    panel.message = "Choose a background track"
-    guard panel.runModal() == .OK, let url = panel.url else { return }
-    var name = url.lastPathComponent
-    if url.deletingLastPathComponent().standardizedFileURL != project.dir.standardizedFileURL {
-      // Never overwrite a project file (or an earlier track) that happens to share the name.
-      var n = 1
-      while FileManager.default.fileExists(atPath: project.dir.appendingPathComponent(name).path) {
-        n += 1
-        name = "\(url.deletingPathExtension().lastPathComponent) \(n).\(url.pathExtension)"
-      }
-      do {
-        try FileManager.default.copyItem(at: url, to: project.dir.appendingPathComponent(name))
-      } catch {
-        Notices.shared.show(error)
-        return
-      }
-    }
-    project.apply { p in p.music = Music(file: name) }
   }
 }

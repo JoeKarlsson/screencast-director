@@ -139,12 +139,11 @@ extension ProjectModel {
     panel.directoryURL = FileManager.default.fileExists(atPath: outURL.path) ? outURL : dir
     panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .gif, .png, .jpeg]
     panel.message = "Choose a file to upload and share"
-    let window = AppDelegate.shared?.window
     let chosen: (NSApplication.ModalResponse) -> Void = { [self] response in
       guard response == .OK, let file = panel.url else { return }
       upload(file, config: config)
     }
-    if let window { panel.beginSheetModal(for: window, completionHandler: chosen) } else { chosen(panel.runModal()) }
+    presentPanel(panel, then: chosen)
   }
 
   private func upload(_ file: URL, config: S3.Config) {

@@ -109,6 +109,22 @@ private func projectFileChecks() {
   write("source.json", "{")
   expect((try? Project.load(dir)) == nil, "a broken source.json fails to load")
 
+  // A picked file: copied into its folder under a free name, or used where it is when it's already
+  // in the project.
+  do {
+    let outside = fm.temporaryDirectory.appendingPathComponent("sd-pick-\(UUID().uuidString)")
+    try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: outside) }
+    let track = outside.appendingPathComponent("song.m4a")
+    try Data("a".utf8).write(to: track)
+    let first = try Project.importFile(track, into: "music", dir: dir), second = try Project.importFile(track, into: "music", dir: dir)
+    expect(first == "music/song.m4a" && second == "music/song 2.m4a", "a picked file is copied under a free name (\(first), \(second))")
+    let inside = try Project.importFile(dir.appendingPathComponent(first), into: "music", dir: dir)
+    expect(inside == first && !fm.fileExists(atPath: dir.appendingPathComponent("music/song 3.m4a").path), "a file already in the project is used where it is")
+  } catch {
+    expect(false, "importing a picked file: \(error)")
+  }
+
   // Writing a plan: pretty JSON ending in a newline that loads back the same; replacing a plan
   // saves the old one to history, and writing the same plan again doesn't.
   let (_, plan) = plainPlan(dir, duration: 20)

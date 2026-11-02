@@ -126,3 +126,25 @@ public func fmtTime(_ t: Double) -> String {
   let tenths = Int((t * 10).rounded())
   return String(format: "%d:%04.1f", tenths / 600, Double(tenths % 600) / 10)
 }
+
+extension Project {
+  /// The plan path for a file someone picked: where it is when it's already inside the project
+  /// folder `dir`, else a copy in the `folder` subfolder (a new name if one's taken, so nothing in
+  /// the project is overwritten).
+  public static func importFile(_ url: URL, into folder: String, dir: URL) throws -> String {
+    let root = dir.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+    let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+    if path.hasPrefix(root) { return String(path.dropFirst(root.count)) }
+    let fm = FileManager.default
+    let target = dir.appendingPathComponent(folder)
+    try fm.createDirectory(at: target, withIntermediateDirectories: true)
+    let base = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
+    var name = url.lastPathComponent, n = 2
+    while fm.fileExists(atPath: target.appendingPathComponent(name).path) {
+      name = "\(base) \(n).\(ext)"
+      n += 1
+    }
+    try fm.copyItem(at: url, to: target.appendingPathComponent(name))
+    return "\(folder)/\(name)"
+  }
+}

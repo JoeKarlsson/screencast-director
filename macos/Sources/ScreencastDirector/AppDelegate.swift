@@ -185,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
       guard response == .OK, let url = panel.url else { return }
       self?.importVideo(url)
     }
-    if let window, window.isVisible { panel.beginSheetModal(for: window, completionHandler: open) } else { open(panel.runModal()) }
+    presentPanel(panel, then: open)
   }
 
   func importVideo(_ url: URL) {
