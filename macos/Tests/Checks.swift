@@ -782,15 +782,17 @@ struct Checks {
       [Word(text: "heard", start: 0.5, end: 1), Word(text: "muted", start: 4, end: 4.5)], mutedMap, fps: fps, maxWords: 7)
     expect(mutedPages.flatMap { $0.words.map(\.0) } == ["heard"], "no captions for words in a muted sped-up segment")
 
-    // Clip leveling: a take 6 dB quieter gets 6 dB more, a clip with no talking gets the overall gain.
-    // Built in steps: as one expression, CI's compiler gives up type-checking it.
-    var clipLevels: [(Double, Double)] = []
-    for i in 0..<440 {
-      let level: Double = i < 200 ? -20 : i < 400 ? -26 : -60
-      clipLevels.append((Double(i) * 0.05, level))
+    // Leveling: a phrase 10 dB quieter gets about 7 dB more than a normal one, and the pause between
+    // them (room noise) doesn't pull the gain up. Built in steps so CI's compiler can type-check it.
+    var phrases: [(Double, Double)] = []
+    for i in 0..<600 {
+      let level: Double = i < 200 ? -20 : i < 240 ? -60 : i < 440 ? -30 : -20
+      phrases.append((Double(i) * 0.05, level))
     }
-    let cg = AudioGain.clipGains(clipLevels, clips: [(0, 10), (10, 20), (20, 22)])
-    expect(abs(cg[0]) < 0.01 && abs(cg[1] - 6) < 0.01 && abs(cg[2] - AudioGain.normalizeGain(clipLevels)) < 0.01, "clips level to the same speech level")
+    let curve = AudioGain.levelingCurve(phrases)
+    let loudG = curve[100].gainDB, quietG = curve[340].gainDB, pauseG = curve[220].gainDB
+    expect(abs((quietG - loudG) - 7) < 0.5, "a quieter phrase is raised by most of the difference (\(quietG - loudG))")
+    expect(pauseG <= quietG + 0.01 && pauseG >= loudG - 0.01, "a pause holds the gain between its phrases instead of boosting the noise")
 
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)

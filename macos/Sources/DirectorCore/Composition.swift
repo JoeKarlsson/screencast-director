@@ -85,20 +85,22 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   }
   let audioParams = aTrack.map { AVMutableAudioMixInputParameters(track: $0) }
   audioParams?.audioTimePitchAlgorithm = .spectral
-  // Voice level: normalize (each clip to the same speech level, from measured loudness) plus the
-  // manual trim. A mix's volume can't go past 1, so the tap boosts by the most any clip needs and
-  // each clip's volume takes it back down to its own level.
-  var gainDB = plan.audio?.gainDB ?? 0
-  var clipVolumes = [Float](repeating: 1, count: scene.mapped.count)
+  // Voice level: the manual trim, and with normalize a leveling curve that rides the voice phrase by
+  // phrase (from measured loudness), laid over output frames.
+  let gainDB = plan.audio?.gainDB ?? 0
+  var curveDB: [Double] = []
   if plan.audio?.normalize == true, let levels = try? await Analyzer.loudness(project, video: plan.source.video) {
-    let gains = AudioGain.clipGains(levels, clips: scene.mapped.map { ($0.start, $0.end) })
-    let top = gains.max() ?? 0
-    gainDB += top
-    clipVolumes = gains.map { Float(pow(10, ($0 - top) / 20)) }
+    let curve = AudioGain.levelingCurve(levels)
+    let step = curve.count > 1 ? curve[1].t - curve[0].t : 0.05
+    let fallback = AudioGain.normalizeGain(levels)
+    curveDB = (0..<scene.frameCount).map { f in
+      guard let src = outToSrc(scene.mapped, Double(f), fps: scene.fps), !curve.isEmpty else { return fallback }
+      return curve[min(curve.count - 1, max(0, Int(((src - curve[0].t) / step).rounded())))].gainDB
+    }
   }
-  if abs(gainDB) > 0.05 { audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB) }
+  if abs(gainDB) > 0.05 || !curveDB.isEmpty { audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps) }
 
-  for (si, s) in scene.mapped.enumerated() {
+  for s in scene.mapped {
     let at = CMTime(value: CMTimeValue(s.outStart), timescale: fps)
     let outDur = CMTime(value: CMTimeValue(s.frames), timescale: fps)
     let srcRange = CMTimeRange(start: t(s.start), end: CMTimeMinimum(t(s.end), screenDuration))
@@ -118,10 +120,9 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
       } else {
         // Short fades at each cut hide clicks in the audio.
         let fade = CMTime(value: CMTimeValue(min(fadeFrames, s.frames / 2)), timescale: fps)
-        let v = clipVolumes[si]
-        audioParams?.setVolumeRamp(fromStartVolume: 0, toEndVolume: v, timeRange: CMTimeRange(start: at, duration: fade))
+        audioParams?.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: at, duration: fade))
         audioParams?.setVolumeRamp(
-          fromStartVolume: v, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(CMTimeAdd(at, outDur), fade), duration: fade))
+          fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(CMTimeAdd(at, outDur), fade), duration: fade))
       }
     }
 
