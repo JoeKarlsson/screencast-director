@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Animation render check: adds one animation per bundled template to a synthetic project, renders
+# them with `director animate` (offscreen WebKit), and fails when a template throws, a clip is missing
+# or the wrong length, or its last frame is blank.
+#
+#   macos/animate-test.sh
+#
+# Needs ffmpeg and `say` (for the fixture). Runs on a temp project, so it never touches projects/.
+set -euo pipefail
+cd "$(dirname "$0")"
+ROOT="$(cd .. && pwd)"
+swift build -c release --product director >/dev/null
+DIRECTOR="$PWD/.build/release/director"
+
+TMP="$(mktemp -d -t sd-animate)"
+trap 'rm -rf "$TMP"' EXIT
+PROJECT="$TMP/fixture"
+"$ROOT/test/make-fixture.sh" "$PROJECT" >/dev/null
+"$DIRECTOR" plan "$PROJECT" >/dev/null
+
+# One 3 s animation per template, with the manifest's starting data and beats squeezed into it,
+# at a small size so the render is quick.
+python3 - "$PROJECT/plan.json" Resources/animations/templates <<'PY'
+import glob, json, os, sys
+plan_path, templates = sys.argv[1], sys.argv[2]
+plan = json.load(open(plan_path))
+plan["output"].update(width=480, height=270)
+plan["animations"] = []
+for i, path in enumerate(sorted(glob.glob(os.path.join(templates, "*.json")))):
+    t = json.load(open(path))
+    start = 1 + i * 4
+    squeeze = 3 / t["length"]
+    plan["animations"].append({
+        "start": start, "end": start + 3, "template": t["name"], "data": t["data"],
+        "cues": {c["key"]: round(start + c["at"] * squeeze, 3) for c in t["cues"]},
+    })
+json.dump(plan, open(plan_path, "w"), indent=2)
+PY
+
+"$DIRECTOR" animate "$PROJECT"
+templates=$(find Resources/animations/templates -name '*.json' | wc -l | tr -d ' ')
+clips=$(find "$PROJECT/.animations" -name '*.mp4' | wc -l | tr -d ' ')
+[[ "$clips" == "$templates" ]] || { echo "FAIL: $templates templates but $clips clips" >&2; exit 1; }
+
+for clip in "$PROJECT"/.animations/*.mp4; do
+  name=$(basename "$clip")
+  length=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$clip")
+  python3 -c "import sys; sys.exit(0 if abs(float(sys.argv[1]) - 3) < 0.2 else 1)" "$length" \
+    || { echo "FAIL: $name is ${length}s, not 3s" >&2; exit 1; }
+  # The last frame has the whole build on it: it must have drawing on it, not one flat color.
+  ffmpeg -v error -sseof -0.2 -i "$clip" -frames:v 1 -f rawvideo -pix_fmt gray -y "$TMP/last.gray"
+  python3 - "$TMP/last.gray" "$name" <<'PY'
+import sys
+px = open(sys.argv[1], "rb").read()
+mean = sum(px) / len(px)
+spread = (sum((p - mean) ** 2 for p in px) / len(px)) ** 0.5
+if spread < 10:
+    sys.exit(f"FAIL: {sys.argv[2]}'s last frame is blank (spread {spread:.1f})")
+print(f"ok: {sys.argv[2]} 3s, last frame drawn (spread {spread:.1f})")
+PY
+done
+echo "animation checks passed"
