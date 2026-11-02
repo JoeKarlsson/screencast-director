@@ -86,6 +86,11 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   out.append("")
   out.append("## Layout: default \"\(plan.defaultLayout.rawValue)\"\(plan.camera == nil ? " (no camera recorded)" : "")")
   for l in plan.layouts { out.append(line("  src \(fmtTime(l.start))-\(fmtTime(l.end)) \(l.mode.rawValue)", l.note ?? "")) }
+  if let punches = plan.camera?.punchIns, !punches.isEmpty {
+    out.append("")
+    out.append("## Camera punch-ins")
+    for p in punches { out.append(line("  src \(fmtTime(p.start))-\(fmtTime(p.end)) \(p.scale.formatted())x", p.note ?? "")) }
+  }
   if !plan.callouts.isEmpty {
     out.append("")
     out.append("## Callouts")

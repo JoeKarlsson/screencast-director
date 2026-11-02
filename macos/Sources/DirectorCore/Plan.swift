@@ -52,6 +52,21 @@ public struct Zoom: Codable, Equatable {
   }
 }
 
+/// A hard-cut zoom on the camera for punctuation. Times are source seconds; `scale` multiplies the
+/// camera's framing zoom (2 is twice as tight) around the framing point.
+public struct PunchIn: Codable, Equatable {
+  public var start: Double
+  public var end: Double
+  public var scale: Double
+  public var note: String?
+  public init(start: Double, end: Double, scale: Double, note: String? = nil) {
+    self.start = start
+    self.end = end
+    self.scale = scale
+    self.note = note
+  }
+}
+
 public enum LayoutMode: String, Codable, CaseIterable {
   case screen, pip, side, camera
 }
@@ -211,6 +226,8 @@ public struct Plan: Codable, Equatable {
     public var bubbleShadow: Bool?
     /// Cut the person out of the camera's background instead of showing the camera in a shape.
     public var cutout: Bool?
+    /// Punch-ins: the camera snaps tighter on the framing point for a beat, then snaps back.
+    public var punchIns: [PunchIn]?
 
     public static let defaultBubbleSize = 0.24
     public static let shapes: [(name: String, label: String)] = [("circle", "Circle"), ("rounded", "Rounded"), ("square", "Square")]

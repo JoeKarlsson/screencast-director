@@ -17,6 +17,8 @@ public final class Scene: @unchecked Sendable {
   let chips: [(f: Double, label: String)]
   let callouts: [(s: Double, e: Double, c: Callout)]
   let annotations: [(s: Double, e: Double, a: Annotation)]
+  /// Camera punch-ins in output frames.
+  let punchIns: [(s: Double, e: Double, scale: Double)]
   /// B-roll in output frames, with its index in plan.inserts (the compositor's key for its frames).
   public let inserts: [(s: Double, e: Double, a: Insert, index: Int)]
   /// Pictures for picture inserts, loaded once.
@@ -106,6 +108,10 @@ public final class Scene: @unchecked Sendable {
     annotations = (plan.annotations ?? []).compactMap { a in
       let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
       return e > s ? (s, e, a) : nil
+    }
+    punchIns = (plan.camera?.punchIns ?? []).compactMap { p in
+      let s = srcToOutClamped(m, p.start, fps: fps), e = srcToOutClamped(m, p.end, fps: fps, before: true)
+      return e > s ? (s, e, p.scale) : nil
     }
     inserts = plan.insertList.enumerated().compactMap { i, a in
       let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
@@ -236,7 +242,7 @@ public final class Scene: @unchecked Sendable {
       if plan.camera?.cutout != true, plan.camera?.bubbleShadow != false {
         image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
       }
-      image = cameraCard(camera, box: cb).composited(over: image)
+      image = cameraCard(camera, box: cb, frame: Double(f)).composited(over: image)
     }
     image = broll(image, frame: Double(f), full: true, box: b, frames: insertFrames)
     if let overlay = overlays(frame: Double(f), screen: b, cam: cam, camBox: camera != nil && plan.camera != nil ? cb : nil) {
@@ -376,21 +382,27 @@ public final class Scene: @unchecked Sendable {
     return out.cropped(to: img.extent)
   }
 
-  func cameraCard(_ src0: CIImage, box b: Box) -> CIImage {
+  func cameraCard(_ src0: CIImage, box b: Box, frame f: Double) -> CIImage {
     var src = Scene.graded(src0, plan.camera?.grade)
-    let cutout = plan.camera?.cutout == true
-    if cutout { src = Scene.personCutout(src) }
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
+    var r = ciRect(b)
+    var zoom = max(1, cam?.zoom ?? 1)
+    // The cutout is for the bubble over the screen; the full camera keeps the room behind the
+    // speaker. As the box grows from the bubble to the full camera, the background fades back in.
     // A cutout bubble has no edge to show, so it widens to the camera's shape around its center
     // and skips the framing zoom: the whole person shows, standing on the box's bottom edge,
     // instead of the box's sides and the zoom slicing off the shoulders and arms.
-    var r = ciRect(b)
-    var zoom = max(1, cam?.zoom ?? 1)
-    if cutout, r.width < r.height * cw / ch {
-      r = r.insetBy(dx: (r.width - r.height * cw / ch) / 2, dy: 0)
-      zoom = 1
+    let cut = cutoutWeight(b)
+    if cut > 0 {
+      let person = Scene.personCutout(src)
+      src = cut < 1 ? src.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: person, kCIInputTimeKey: cut]) : person
+      let wide = max(r.width, r.height * cw / ch)
+      r = r.insetBy(dx: (r.width - (r.width + (wide - r.width) * cut)) / 2, dy: 0)
+      zoom += (1 - zoom) * cut
     }
+    // A punch-in snaps tighter for its whole span, with no ease, like a cut to a closer shot.
+    if let punch = punchIns.last(where: { f >= $0.s && f < $0.e }) { zoom *= max(1, punch.scale) }
     let k = max(r.width / cw, r.height / ch) * zoom
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
     // Keep the framing point centered, clamped so the camera image always covers the box.
@@ -401,6 +413,15 @@ public final class Scene: @unchecked Sendable {
     ty = min(r.minY, max(ty, r.maxY - ch * k))
     let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
     return masked(placed, r, radius: b.r, opacity: b.opacity)
+  }
+
+  /// How far the camera box is from the full camera toward the bubble (0 full camera, 1 bubble),
+  /// when the plan cuts out the background; 0 without a cutout.
+  func cutoutWeight(_ b: Box) -> Double {
+    guard plan.camera?.cutout == true else { return 0 }
+    let full = layoutBoxes(.camera, plan: plan).cam.h, bubble = layoutBoxes(.pip, plan: plan).cam.h
+    guard full > bubble else { return 1 }
+    return min(1, max(0, (full - b.h) / (full - bubble)))
   }
 
   /// The person in a camera frame with the background made clear (Vision person segmentation).

@@ -35,6 +35,7 @@ Apply the user's instructions first. Then make a quality pass unless they asked 
 - **Annotations:** when the speaker points at something small, a `box` or `arrow` (with a short `text` label) or a `spotlight` draws the eye; `blur` hides secrets on screen. The rectangle is x, y, w, h in 0..1 screen fractions and follows zooms.
 - **B-roll and markers:** `inserts` show a picture or clip from the project folder (usually `broll/`) inside the screen card or full frame; only use files that exist. `markers` are the user's named points; use them when the user mentions one.
 - **Motion:** `style.motion` (smooth, snappy, cinematic, bouncy) sets how zooms and overlays move; `enter`/`exit` on a callout or annotation overrides it (presets: fade, fade-up, slide-*, pop, zoom, blur, wipe, words, typewriter). `segments[i].transition` (crossfade, blur, dip, flash, punch, whip) styles the cut into a segment; keep those for section changes.
+- **Punch-ins** (only with a camera): `camera.punchIns` (`start`, `end`, `scale` about 1.8 to 2.2, `note`) snap the camera tighter on the framing point for a beat and snap back, with no ease. Use a few (at most about four) on punchlines or key statements while the camera is large (`camera` layout), 1 to 2 s each.
 - **Layouts** (only with a camera): `camera` for an intro or outro talking to the lens, `side` for explanations without screen action, `pip` elsewhere.
 - Keep each segment's `note` meaningful; it shows up in `describe`.
 
