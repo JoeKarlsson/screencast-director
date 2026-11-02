@@ -218,6 +218,59 @@ extension Plan {
     }
   }
 
+  /// A timeline bar dragged or trimmed to `start`-`end`: retimes the item, normalizes, and returns
+  /// where it is now (normalizing re-sorts the lists). A dragged animation takes its beats with it;
+  /// trimming an edge leaves them where they were said. Clips, cuts and point items aren't bars
+  /// you retime this way, so they return nil and change nothing.
+  public mutating func retime(_ s: Selection, start: Double, end: Double) -> Selection? {
+    guard has(s) else { return nil }
+    var moved: Any
+    switch s {
+    case .zoom(let i):
+      zooms[i].start = start
+      zooms[i].end = end
+      moved = zooms[i]
+    case .layout(let i):
+      layouts[i].start = start
+      layouts[i].end = end
+      moved = layouts[i]
+    case .callout(let i):
+      callouts[i].start = start
+      callouts[i].end = end
+      moved = callouts[i]
+    case .annotation(let i):
+      annotationList[i].start = start
+      annotationList[i].end = end
+      moved = annotationList[i]
+    case .insert(let i):
+      insertList[i].start = start
+      insertList[i].end = end
+      moved = insertList[i]
+    case .animation(let i):
+      var a = animationList[i]
+      if abs((end - start) - (a.end - a.start)) < 1e-6 {
+        a.move(by: start - a.start)
+      } else {
+        a.start = start
+        a.end = end
+      }
+      animationList[i] = a
+      moved = a
+    case .segment, .gap, .marker, .sfx:
+      return nil
+    }
+    normalize()
+    switch moved {
+    case let z as Zoom: return zooms.firstIndex(of: z).map { .zoom($0) }
+    case let l as LayoutRange: return layouts.firstIndex(of: l).map { .layout($0) }
+    case let c as Callout: return callouts.firstIndex(of: c).map { .callout($0) }
+    case let a as Annotation: return annotationList.firstIndex(of: a).map { .annotation($0) }
+    case let c as Insert: return insertList.firstIndex(of: c).map { .insert($0) }
+    case let a as Animation: return animationList.firstIndex(of: a).map { .animation($0) }
+    default: return nil
+    }
+  }
+
   /// A copy of zoom `i` placed half a second after it, kept inside the recording.
   public func duplicateOfZoom(_ i: Int) -> Zoom? {
     guard zooms.indices.contains(i) else { return nil }

@@ -65,6 +65,15 @@ func editorActionChecks() {
   let found = moved.shift([.zoom(0), .marker(0)], by: 5)
   expect(moved.zooms.map(\.start) == [5, 6, 12] && Set(found.map { "\($0)" }) == ["zoom(1)", "marker(0)"], "moved items are found after re-sorting (\(found))")
   expect(moved.markerList[0].t == 9, "a marker moves too")
+  // Dragging or trimming a bar retimes it and finds it again after re-sorting.
+  var dragged = base
+  expect(dragged.retime(.zoom(0), start: 8, end: 9) == .zoom(1) && dragged.zooms.map(\.start) == [5, 8, 12], "a dragged zoom is found after re-sorting")
+  expect(dragged.retime(.segment(0), start: 0, end: 1) == nil && dragged.segments == base.segments, "clips aren't retimed here (they're trimmed)")
+  dragged.animationList = [Animation(start: 2, end: 4, template: "hub", data: .null, cues: ["lock": 3])]
+  _ = dragged.retime(.animation(0), start: 6, end: 8)
+  expect(dragged.animationList[0].cues == ["lock": 7], "dragging an animation takes its beats along")
+  _ = dragged.retime(.animation(0), start: 6, end: 9)
+  expect(dragged.animationList[0].end == 9 && dragged.animationList[0].cues == ["lock": 7], "trimming an animation leaves its beats")
 
   // Keyboard edits.
   expect(base.duplicateOfZoom(1).map { [$0.start, $0.end] } == [7.5, 9.5], "⌘D puts the copy half a second after")

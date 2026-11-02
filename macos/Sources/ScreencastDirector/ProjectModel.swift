@@ -411,6 +411,13 @@ final class ProjectModel: ObservableObject {
   /// The source range of a selected item (a marker is a point).
   func timeRange(_ s: Selection) -> (Double, Double)? { plan?.timeRange(of: s) }
 
+  /// A timeline bar dragged or trimmed: retimes it and keeps it selected.
+  func retime(_ s: Selection, start: Double, end: Double) {
+    var moved: Selection?
+    apply { moved = $0.retime(s, start: start, end: end) }
+    if let moved { select(moved, adding: false) }
+  }
+
   /// Moves every selected zoom, layout, title, annotation and marker by `delta` seconds, as far as
   /// the group can go without leaving the recording, and keeps them selected.
   func moveSelected(by delta: Double, coalesce: String? = nil) {

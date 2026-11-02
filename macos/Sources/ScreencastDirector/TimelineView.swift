@@ -628,45 +628,21 @@ struct TimelineView: View {
         let sel = Selection.zoom(i)
         let (a, b) = range(sel, z.start, z.end)
         bar(sel: sel, start: a, end: b, track: .zooms, color: Theme.zoom, label: "\(z.scale.formatted())×", movable: true) { s, e in
-          project.apply {
-            guard $0.zooms.indices.contains(i) else { return }
-            $0.zooms[i].start = s
-            $0.zooms[i].end = e
-          }
-          // normalize() re-sorts, so find the moved item again.
-          if let j = project.plan?.zooms.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.select(.zoom(j), adding: false)
-          }
+          project.retime(sel, start: s, end: e)
         }
       }
       ForEach(Array(plan.layouts.enumerated()), id: \.offset) { i, l in
         let sel = Selection.layout(i)
         let (a, b) = range(sel, l.start, l.end)
         bar(sel: sel, start: a, end: b, track: .layouts, color: Theme.layout, label: modeName(l.mode), movable: true) { s, e in
-          project.apply {
-            guard $0.layouts.indices.contains(i) else { return }
-            $0.layouts[i].start = s
-            $0.layouts[i].end = e
-          }
-          // normalize() re-sorts, so find the moved item again.
-          if let j = project.plan?.layouts.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.select(.layout(j), adding: false)
-          }
+          project.retime(sel, start: s, end: e)
         }
       }
       ForEach(Array(plan.callouts.enumerated()), id: \.offset) { i, c in
         let sel = Selection.callout(i)
         let (a, b) = range(sel, c.start, c.end)
         bar(sel: sel, start: a, end: b, track: .titles, color: Theme.title, label: c.text, movable: true) { s, e in
-          project.apply {
-            guard $0.callouts.indices.contains(i) else { return }
-            $0.callouts[i].start = s
-            $0.callouts[i].end = e
-          }
-          // normalize() re-sorts, so find the moved item again.
-          if let j = project.plan?.callouts.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.select(.callout(j), adding: false)
-          }
+          project.retime(sel, start: s, end: e)
         }
       }
       ForEach(Array(plan.annotationList.enumerated()), id: \.offset) { i, m in
@@ -674,14 +650,7 @@ struct TimelineView: View {
         let (a, b) = range(sel, m.start, m.end)
         let label = Annotation.kinds.first { $0.name == m.kind }?.label ?? m.kind
         bar(sel: sel, start: a, end: b, track: .marks, color: Theme.mark, label: m.text.map { "\(label): \($0)" } ?? label, movable: true) { s, e in
-          project.apply {
-            guard $0.annotationList.indices.contains(i) else { return }
-            $0.annotationList[i].start = s
-            $0.annotationList[i].end = e
-          }
-          if let j = project.plan?.annotationList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.select(.annotation(j), adding: false)
-          }
+          project.retime(sel, start: s, end: e)
         }
       }
       ForEach(Array(plan.insertList.enumerated()), id: \.offset) { i, c in
@@ -689,16 +658,7 @@ struct TimelineView: View {
         let (a, b) = range(sel, c.start, c.end)
         let name = (c.file as NSString).lastPathComponent
         bar(sel: sel, start: a, end: b, track: .broll, color: Theme.broll, label: c.isFull ? "\(name) · full" : name, movable: true) { s, e in
-          project.apply {
-            guard $0.insertList.indices.contains(i) else { return }
-            var list = $0.insertList
-            list[i].start = s
-            list[i].end = e
-            $0.insertList = list
-          }
-          if let j = project.plan?.insertList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.select(.insert(j), adding: false)
-          }
+          project.retime(sel, start: s, end: e)
         }
       }
       ForEach(Array(plan.animationList.enumerated()), id: \.offset) { i, an in
@@ -707,21 +667,7 @@ struct TimelineView: View {
         let rendering = project.animating && plan.animationsToRender(dir: project.dir).contains { $0.index == i }
         let label = "\(an.note ?? AnimationLibrary.template(an.template, project.dir)?.title ?? an.template)\(rendering ? " · rendering…" : "")"
         bar(sel: sel, start: a, end: b, track: .animations, color: Theme.animation, label: label, striped: rendering, movable: true) { s, e in
-          project.apply {
-            guard $0.animationList.indices.contains(i) else { return }
-            var list = $0.animationList
-            // A drag moves the beats with it; trimming an edge leaves them where they were said.
-            if abs((e - s) - (list[i].end - list[i].start)) < 1e-6 {
-              list[i].move(by: s - list[i].start)
-            } else {
-              list[i].start = s
-              list[i].end = e
-            }
-            $0.animationList = list
-          }
-          if let j = project.plan?.animationList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
-            project.select(.animation(j), adding: false)
-          }
+          project.retime(sel, start: s, end: e)
         }
       }
       soundEffects(plan)
