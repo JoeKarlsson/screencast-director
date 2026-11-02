@@ -13,11 +13,12 @@ enum Selection: Equatable {
   case annotation(Int)
   case marker(Int)
   case insert(Int)
+  case animation(Int)
 
   /// Items that can be dragged or nudged in time (clips are trimmed, cuts restored).
   var movable: Bool {
     switch self {
-    case .zoom, .layout, .callout, .annotation, .marker, .insert: return true
+    case .zoom, .layout, .callout, .annotation, .marker, .insert, .animation: return true
     default: return false
     }
   }
@@ -224,10 +225,49 @@ final class ProjectModel: ObservableObject {
         if wasPlaying { player.play() }
         let out = Double(built.scene.frameCount) / Double(plan.output.fps)
         status = "\(fmtTime(plan.source.duration)) recorded → \(fmtTime(out)) edited"
+        renderAnimationsIfNeeded(plan)
       } catch {
         status = "Couldn't load the plan: \(error.localizedDescription)"
         Notices.shared.show(error, "Couldn't load the plan")
       }
+    }
+  }
+
+  /// Animations whose clip hasn't been rendered yet show nothing in the preview, so render them
+  /// with the bundled `director animate` (WebKit lives there, not in the app's process) and rebuild
+  /// when it's done. One run at a time; a plan changed meanwhile is checked again by that rebuild.
+  @Published private(set) var animating = false
+
+  private func renderAnimationsIfNeeded(_ plan: Plan) {
+    let missing = plan.animationsToRender(dir: dir).count
+    guard missing > 0, !animating else { return }
+    animating = true
+    status = "Rendering \(missing) animation\(missing == 1 ? "" : "s")…"
+    let p = Process()
+    p.executableURL = Claude.director
+    p.arguments = ["animate", dir.path]
+    let errors = Pipe()
+    p.standardError = errors
+    p.standardOutput = FileHandle.nullDevice
+    p.terminationHandler = { [weak self] proc in
+      let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      Task { @MainActor in
+        guard let self else { return }
+        self.animating = false
+        if proc.terminationStatus == 0 {
+          self.rebuild(now: true)
+        } else {
+          self.status = "An animation didn't render."
+          Notices.shared.show("An animation didn't render: \(message.isEmpty ? "director animate failed" : message)", error: true)
+        }
+      }
+    }
+    do {
+      try p.run()
+    } catch {
+      animating = false
+      Notices.shared.show(error, "Couldn't render the animations")
     }
   }
 
@@ -302,6 +342,7 @@ final class ProjectModel: ObservableObject {
     case .annotation(let i) where i >= p.annotationList.count: selection = nil
     case .marker(let i) where i >= p.markerList.count: selection = nil
     case .insert(let i) where i >= p.insertList.count: selection = nil
+    case .animation(let i) where i >= p.animationList.count: selection = nil
     default: break
     }
     multi = multi.filter { Self.exists($0, in: p) }
@@ -349,7 +390,7 @@ final class ProjectModel: ObservableObject {
       // Clips are cut and cuts restored by time (indices shift as the clips change); the rest are
       // removed by index, last first.
       var cuts: [Range<Double>] = [], restores: [Gap] = []
-      var zooms: [Int] = [], layouts: [Int] = [], callouts: [Int] = [], marks: [Int] = [], markers: [Int] = [], inserts: [Int] = []
+      var zooms: [Int] = [], layouts: [Int] = [], callouts: [Int] = [], marks: [Int] = [], markers: [Int] = [], inserts: [Int] = [], animations: [Int] = []
       for s in items {
         switch s {
         case .segment(let i) where p.segments.indices.contains(i): cuts.append(p.segments[i].start..<p.segments[i].end)
@@ -360,12 +401,16 @@ final class ProjectModel: ObservableObject {
         case .annotation(let i): marks.append(i)
         case .marker(let i): markers.append(i)
         case .insert(let i): inserts.append(i)
+        case .animation(let i): animations.append(i)
         default: break
         }
       }
       var insertList = p.insertList
       for i in inserts.sorted(by: >) where insertList.indices.contains(i) { insertList.remove(at: i) }
       p.insertList = insertList
+      var animationList = p.animationList
+      for i in animations.sorted(by: >) where animationList.indices.contains(i) { animationList.remove(at: i) }
+      p.animationList = animationList
       for i in zooms.sorted(by: >) where p.zooms.indices.contains(i) { p.zooms.remove(at: i) }
       for i in layouts.sorted(by: >) where p.layouts.indices.contains(i) { p.layouts.remove(at: i) }
       for i in callouts.sorted(by: >) where p.callouts.indices.contains(i) { p.callouts.remove(at: i) }
@@ -425,6 +470,7 @@ final class ProjectModel: ObservableObject {
     case .annotation(let i): return p.annotationList.indices.contains(i)
     case .marker(let i): return p.markerList.indices.contains(i)
     case .insert(let i): return p.insertList.indices.contains(i)
+    case .animation(let i): return p.animationList.indices.contains(i)
     case .gap(let g): return p.gaps.contains(g)
     }
   }
@@ -440,6 +486,7 @@ final class ProjectModel: ObservableObject {
     case .annotation(let i): return (p.annotationList[i].start, p.annotationList[i].end)
     case .marker(let i): return (p.markerList[i].t, p.markerList[i].t)
     case .insert(let i): return (p.insertList[i].start, p.insertList[i].end)
+    case .animation(let i): return (p.animationList[i].start, p.animationList[i].end)
     case .gap(let g): return (g.start, g.end)
     }
   }
@@ -456,7 +503,7 @@ final class ProjectModel: ObservableObject {
     guard abs(d) > 1e-9 else { return }
     var moved: [(Selection, Any)] = []
     apply(coalesce: coalesce) { p in
-      var marks = p.annotationList, pins = p.markerList, clips = p.insertList
+      var marks = p.annotationList, pins = p.markerList, clips = p.insertList, anims = p.animationList
       for s in items {
         switch s {
         case .zoom(let i) where p.zooms.indices.contains(i):
@@ -482,12 +529,16 @@ final class ProjectModel: ObservableObject {
           clips[i].start += d
           clips[i].end += d
           moved.append((s, clips[i]))
+        case .animation(let i) where anims.indices.contains(i):
+          anims[i].move(by: d)
+          moved.append((s, anims[i]))
         default: break
         }
       }
       p.annotationList = marks
       p.markerList = pins
       p.insertList = clips
+      p.animationList = anims
     }
     // normalize() re-sorts, so find each moved item again.
     guard let now = self.plan else { return }
@@ -499,6 +550,7 @@ final class ProjectModel: ObservableObject {
       case (.annotation, let a as Annotation): return now.annotationList.firstIndex(of: a).map { .annotation($0) }
       case (.marker, let m as Marker): return now.markerList.firstIndex(of: m).map { .marker($0) }
       case (.insert, let c as Insert): return now.insertList.firstIndex(of: c).map { .insert($0) }
+      case (.animation, let a as Animation): return now.animationList.firstIndex(of: a).map { .animation($0) }
       default: return nil
       }
     }
@@ -1101,6 +1153,12 @@ final class ProjectModel: ObservableObject {
   func export(_ presets: [ExportPreset?] = [nil]) {
     flushWrite()
     guard let plan else { return }
+    // An export without its animations would quietly drop them.
+    guard plan.animationsToRender(dir: dir).isEmpty else {
+      Notices.shared.show("Animations are still rendering. Export again when they're done.")
+      renderAnimationsIfNeeded(plan)
+      return
+    }
     // Menus, buttons and key shortcuts all call this on the main thread.
     MainActor.assumeIsolated {
       for preset in presets {
@@ -1163,6 +1221,9 @@ final class ProjectModel: ObservableObject {
       case .insert(let i) where plan.insertList.indices.contains(i):
         let c = plan.insertList[i]
         lines.append("Selected B-roll #\(i): \(c.file) source \(fmtTime(c.start))-\(fmtTime(c.end))")
+      case .animation(let i) where plan.animationList.indices.contains(i):
+        let a = plan.animationList[i]
+        lines.append("Selected animation #\(i): \(a.template) source \(fmtTime(a.start))-\(fmtTime(a.end))")
       case .marker(let i) where plan.markerList.indices.contains(i):
         let m = plan.markerList[i]
         lines.append("Selected marker #\(i) at source \(fmtTime(m.t))\(m.label.map { " \"\($0)\"" } ?? "")")

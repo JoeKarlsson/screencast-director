@@ -46,6 +46,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Animations: Vox-style explainers with real app logos, stickers that pop in, hand-drawn lines and highlighter, timed to what you say. Two templates to start (sprawl: wiring apps up one at a time until it's a mess; hub: one connection that fans out to all of them). They sit on the B-roll track, render by themselves when they change, and move with their beats when you drag them. Ask Claude to "animate the part where I…", or run `director animate`.
 - Camera > Bubble adjusts the camera bubble while you demo: drag it anywhere in the preview, or set its size, position (or snap it to a corner), shape (circle, rounded, square), border and shadow.
 - Cut out background: show just you over the screen, with no circle, using on-device person segmentation. In a bottom corner the cutout stands on the frame's edge.
 - The background cutout shows your whole upper body. Before, the bubble's square edges and the camera zoom sliced off your shoulders and arms.

@@ -282,6 +282,8 @@ public struct Plan: Codable, Equatable {
   public var markers: [Marker]?
   /// B-roll clips and pictures.
   public var inserts: [Insert]?
+  /// Motion-graphics explainers rendered from templates (see Animation).
+  public var animations: [Animation]?
   /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
   public var look: Look?
   /// How hard silences were cut (nil: the planner's normal level).

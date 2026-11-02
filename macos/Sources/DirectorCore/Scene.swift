@@ -19,7 +19,8 @@ public final class Scene: @unchecked Sendable {
   let annotations: [(s: Double, e: Double, a: Annotation)]
   /// Camera punch-ins in output frames.
   let punchIns: [(s: Double, e: Double, scale: Double)]
-  /// B-roll in output frames, with its index in plan.inserts (the compositor's key for its frames).
+  /// B-roll in output frames, with its index in plan.inserts and then the rendered animations (the
+  /// compositor's key for its frames).
   public let inserts: [(s: Double, e: Double, a: Insert, index: Int)]
   /// Pictures for picture inserts, loaded once.
   let insertImages: [Int: CIImage]
@@ -113,7 +114,7 @@ public final class Scene: @unchecked Sendable {
       let s = srcToOutClamped(m, p.start, fps: fps), e = srcToOutClamped(m, p.end, fps: fps, before: true)
       return e > s ? (s, e, p.scale) : nil
     }
-    inserts = plan.insertList.enumerated().compactMap { i, a in
+    inserts = (plan.insertList + plan.animationInserts(dir: dir)).enumerated().compactMap { i, a in
       let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
       return e > s ? (s, e, a, i) : nil
     }

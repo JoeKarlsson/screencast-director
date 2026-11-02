@@ -19,6 +19,7 @@ let usage = """
     director analyze  <dir>
     director plan     <dir> [--force]
     director describe <dir>
+    director animate  <dir> [--force]               render the plan's animations to .animations/ (render and still do this first)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4]
     director still    <dir> <frame> <out.png> [--preset id]
@@ -97,8 +98,15 @@ do {
   case "review":
     let project = try Project.load(dir)
     print(editReview(project, try Plan.load(project.planURL)))
+  case "animate":
+    let project = try Project.load(dir)
+    let plan = try Plan.load(project.planURL)
+    let n = try await Animate.renderMissing(dir, plan, force: args.contains("--force")) { print($0) }
+    print(n == 0 ? "Animations are up to date." : "Rendered \(n) animation(s).")
   case "render":
     let project = try Project.load(dir)
+    let animated = try Plan.load(project.planURL)
+    _ = try await Animate.renderMissing(dir, animated) { print($0) }
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.mp4")
     let built = try await buildComposition(project: project, plan: try planFor(project))
     let started = Date()
@@ -120,6 +128,8 @@ do {
     if PathSafety.url(out, isInside: dir) {
       try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
+    let animated = try Plan.load(project.planURL)
+    _ = try await Animate.renderMissing(dir, animated) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     try await stillFrame(project, try planFor(project), frame: frame, to: out)
     print(positional[3])
   case "publish":

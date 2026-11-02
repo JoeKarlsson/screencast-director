@@ -218,13 +218,13 @@ struct InspectorView: View {
       items.filter {
         switch ($0, kind) {
         case (.segment, "clip"), (.gap, "cut"), (.zoom, "zoom"), (.layout, "layout"), (.callout, "title"), (.annotation, "annotation"),
-          (.marker, "marker"), (.insert, "B-roll"):
+          (.marker, "marker"), (.insert, "B-roll"), (.animation, "animation"):
           return true
         default: return false
         }
       }.count
     }
-    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll"].compactMap { k -> String? in
+    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll", "animation"].compactMap { k -> String? in
       let n = count(k)
       return n == 0 ? nil : "\(n) \(k)\(n == 1 ? "" : "s")"
     }
@@ -395,6 +395,34 @@ struct InspectorView: View {
         MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: Motion(preset: "fade", seconds: 0.3, ease: "smooth"))
         MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: Motion(preset: "fade", seconds: 0.25, ease: "ease-in"))
         previewButton(c.start)
+      }
+      removeButton()
+    case .animation(let i) where plan.animationList.indices.contains(i):
+      let a = plan.animationList[i]
+      itemHeader("Animation", "sparkles", Theme.broll, range(a.start, a.end))
+      InspectorSection(
+        a.note ?? a.template,
+        detail: "The \"\(a.template)\" template, full frame. Ask Claude to change its text, logos or beats; it re-renders by itself."
+      ) {
+        if project.animating, plan.animationsToRender(dir: project.dir).contains(where: { $0.index == i }) {
+          Label("Rendering…", systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
+        }
+        ForEach((a.cues ?? [:]).sorted { $0.value < $1.value }, id: \.key) { name, t in
+          Button {
+            project.seek(src: t)
+          } label: {
+            HStack {
+              Text(name).font(.caption.monospaced())
+              Spacer()
+              Text(project.words.first { $0.end > t }.map { "“\($0.text)” " } ?? "").font(.caption).foregroundStyle(.secondary)
+              Text(fmtTime(t)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .help("Jump to this beat")
+        }
+        previewButton(a.start)
       }
       removeButton()
     case .marker(let i) where plan.markerList.indices.contains(i):

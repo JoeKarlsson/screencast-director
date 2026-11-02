@@ -645,6 +645,29 @@ struct TimelineView: View {
           }
         }
       }
+      // Animations ride the B-roll track: they play full frame over the video like a full B-roll clip.
+      ForEach(Array(plan.animationList.enumerated()), id: \.offset) { i, an in
+        let sel = Selection.animation(i)
+        let (a, b) = range(sel, an.start, an.end)
+        let label = "✦ \(an.note ?? an.template)\(project.animating && plan.animationsToRender(dir: project.dir).contains { $0.index == i } ? " · rendering…" : "")"
+        bar(sel: sel, start: a, end: b, track: .broll, color: Theme.broll, label: label, striped: true, movable: true) { s, e in
+          project.apply {
+            guard $0.animationList.indices.contains(i) else { return }
+            var list = $0.animationList
+            // A drag moves the beats with it; trimming an edge leaves them where they were said.
+            if abs((e - s) - (list[i].end - list[i].start)) < 1e-6 {
+              list[i].move(by: s - list[i].start)
+            } else {
+              list[i].start = s
+              list[i].end = e
+            }
+            $0.animationList = list
+          }
+          if let j = project.plan?.animationList.firstIndex(where: { abs($0.start - s) < 1e-9 && abs($0.end - e) < 1e-9 }) {
+            project.select(.animation(j), adding: false)
+          }
+        }
+      }
       inOutBand(plan)
       markers(plan)
       if let m = ui.marquee {
@@ -713,6 +736,7 @@ struct TimelineView: View {
     for (i, c) in plan.callouts.enumerated() where hits(.titles, c.start, c.end) { out.append(.callout(i)) }
     for (i, m) in plan.annotationList.enumerated() where hits(.marks, m.start, m.end) { out.append(.annotation(i)) }
     for (i, c) in plan.insertList.enumerated() where hits(.broll, c.start, c.end) { out.append(.insert(i)) }
+    for (i, a) in plan.animationList.enumerated() where hits(.broll, a.start, a.end) { out.append(.animation(i)) }
     return out
   }
 
@@ -1096,6 +1120,7 @@ struct TimelineView: View {
     for m in p.annotationList { ts += [m.start, m.end] }
     ts += p.markerList.map(\.t)
     for c in p.insertList { ts += [c.start, c.end] }
+    for a in p.animationList { ts += [a.start, a.end] }
     ts += [project.inPoint, project.outPoint].compactMap { $0 }
     return ts.filter { abs($0 - start) > 1e-9 && abs($0 - end) > 1e-9 || $0 == project.playheadSrc }
   }

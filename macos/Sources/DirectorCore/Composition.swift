@@ -246,7 +246,7 @@ final class DirectorInstruction: NSObject, AVVideoCompositionInstructionProtocol
   let screenTrack: CMPersistentTrackID
   let cameraTrack: CMPersistentTrackID?
   let handleTrack: CMPersistentTrackID?
-  /// B-roll clip tracks by their index in plan.inserts.
+  /// B-roll clip tracks by their index in plan.inserts (then rendered animations, after them).
   let insertTracks: [Int: CMPersistentTrackID]
 
   init(

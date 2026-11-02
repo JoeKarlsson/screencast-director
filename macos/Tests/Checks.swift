@@ -448,6 +448,26 @@ struct Checks {
     let guess = LipSync.bestOffset(mouth: unrelated, voice: speech, windows: lipWindows, around: 0, search: 0.5)
     expect(guess?.confident == false, "lip sync isn't confident when the lips don't follow the voice (\(String(describing: guess)))")
 
+    // Animations: the cached clip's name follows what changes its frames, and moving one keeps its beats.
+    let anim = Animation(start: 10, end: 20, template: "hub", data: .object(["title": .string("One hub")]), cues: ["hub": 11.5])
+    let out1080 = Plan.Output(width: 1920, height: 1080, fps: 30)
+    var moved = anim
+    moved.move(by: 5)
+    expect(moved.start == 15 && moved.end == 25 && moved.cues == ["hub": 16.5], "moving an animation moves its cues")
+    expect(moved.clipPath(out1080) == anim.clipPath(out1080), "a moved animation reuses its clip (same frames)")
+    var retitled = anim
+    retitled.data = .object(["title": .string("Two hubs")])
+    expect(retitled.clipPath(out1080) != anim.clipPath(out1080), "new data renders a new clip")
+    var recued = anim
+    recued.cues = ["hub": 12]
+    expect(recued.clipPath(out1080) != anim.clipPath(out1080), "a new beat renders a new clip")
+    expect(anim.clipPath(Plan.Output(width: 1080, height: 1920, fps: 30)) != anim.clipPath(out1080), "another size renders a new clip")
+    let roundTrip = try! JSONDecoder().decode(Animation.self, from: JSONEncoder().encode(anim))
+    expect(roundTrip == anim, "animations round-trip through JSON")
+    var animPlan = buildPlan(p)
+    animPlan.animations = [anim]
+    expect(animPlan.animationInserts(dir: URL(fileURLWithPath: "/tmp/sd-no-such-project")).isEmpty, "an unrendered animation isn't B-roll yet")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

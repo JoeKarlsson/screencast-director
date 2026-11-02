@@ -121,6 +121,14 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
           a.fit == "fit" ? "fit" : "", a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
     }
   }
+  if !plan.animationList.isEmpty {
+    out.append("")
+    out.append("## Animations (template, cues in source time)")
+    for (i, a) in plan.animationList.enumerated() {
+      let cues = (a.cues ?? [:]).sorted { $0.value < $1.value }.map { "\($0.key) \(fmtTime($0.value))" }.joined(separator: ", ")
+      out.append(line("  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.template)", cues.isEmpty ? "" : "cues: \(cues)", a.note ?? ""))
+    }
+  }
   if let marks = plan.markers, !marks.isEmpty {
     out.append("")
     out.append("## Markers (the user's named points)")
