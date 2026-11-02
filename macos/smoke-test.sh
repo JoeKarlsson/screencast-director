@@ -106,6 +106,7 @@ for i in $(seq 1 "$bars"); do
   [[ "$inspector" == Clip* && "$inspector" == *"0:10.5–"* ]] && break
 done
 [[ "$inspector" == Clip* && "$inspector" == *"0:10.5–"* ]] || fail "inspector doesn't show the clip: $inspector"
+clip_bar=$i
 echo "ok: inspector shows: $inspector"
 [[ "$(segments)" == "$original" ]] || fail "selecting a clip changed plan.json"
 
@@ -123,6 +124,26 @@ ax 'key code 6 using command down' >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json (last clip at $(last_speed)x)"
 echo "ok: ⌘Z restored the original plan"
+
+# 4b. Clicking outside the Claude box gives the shortcuts back: with the box focused, a click on the
+# title bar takes focus out of it, so S speeds up the selected clip instead of typing an s.
+[[ "$("$AXPRESS" "$PID" focus-field)" == focused ]] || fail "no Claude box to focus"
+sleep 0.5
+front
+[[ "$("$AXPRESS" "$PID" click-title)" == clicked ]] || fail "couldn't click the title bar"
+sleep 0.5
+ax "perform action \"AXPress\" of button $clip_bar of $TIMELINE" >/dev/null
+sleep 0.6
+front
+ax 'key code 1' >/dev/null # S
+for _ in $(seq 1 20); do [[ "$(last_speed)" != 1 ]] && break; sleep 0.2; done
+[[ "$(last_speed)" != 1 ]] || fail "after clicking outside the Claude box, S still went to the box (it holds \"$("$AXPRESS" "$PID" field-value)\")"
+[[ -z "$("$AXPRESS" "$PID" field-value)" ]] || fail "S typed into the Claude box after clicking outside it"
+echo "ok: clicking outside the Claude box gave S back to the timeline"
+front
+ax 'key code 6 using command down' >/dev/null # ⌘Z
+for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
+[[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json after the Claude box step"
 
 # 5. The Audio tab's sound picker adds a library sound: plan.json names it and the project gets a copy.
 # SwiftUI buttons here have no AX title, so they're found by their help text.

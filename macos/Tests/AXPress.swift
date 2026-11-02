@@ -1,50 +1,91 @@
 import ApplicationServices
 import Foundation
 
-// Presses the first button in one process's windows whose help text (or description) matches, for
-// macos/smoke-test.sh. AppleScript's `entire contents` hands back references that name the process
-// rather than its PID, so with the installed copy running they reach that copy instead of the test's.
+// Accessibility actions on one process, by PID, for macos/smoke-test.sh. AppleScript's
+// `entire contents` hands back references that name the process rather than its PID, so with the
+// installed copy running they reach that copy instead of the test's.
 //
-//   axpress <pid> help|description <text>    prints "pressed" or "missing"; text ending in * is a prefix
+//   axpress <pid> help|description <text>   press the first button whose help or description matches
+//                                           (text ending in * is a prefix); prints "pressed" or "missing"
+//   axpress <pid> focus-field               focus the first text field; prints "focused" or "missing"
+//   axpress <pid> field-value               print the first text field's text
+//   axpress <pid> click-title               a real mouse click on the middle of the first window's title bar
 
 let args = CommandLine.arguments
-guard args.count == 4, let pid = pid_t(args[1]), ["help", "description"].contains(args[2]) else {
-  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text>\n".utf8))
+func usage() -> Never {
+  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text> | focus-field | field-value | click-title\n".utf8))
   exit(2)
 }
-let attribute = args[2] == "help" ? kAXHelpAttribute : kAXDescriptionAttribute
-let wanted = args[3]
+guard args.count >= 3, let pid = pid_t(args[1]) else { usage() }
+let app = AXUIElementCreateApplication(pid)
 
-func matches(_ value: String) -> Bool {
-  wanted.hasSuffix("*") ? value.hasPrefix(String(wanted.dropLast())) : value == wanted
-}
-
-func string(_ element: AXUIElement, _ name: String) -> String? {
+func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
   var value: CFTypeRef?
   guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
-  return value as? String
+  return value as? T
 }
 
-func find(_ element: AXUIElement, depth: Int) -> AXUIElement? {
-  if string(element, kAXRoleAttribute) == kAXButtonRole, let v = string(element, attribute), matches(v) { return element }
-  guard depth < 40 else { return nil }
-  var children: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success,
-    let list = children as? [AXUIElement]
-  else { return nil }
-  for child in list {
-    if let hit = find(child, depth: depth + 1) { return hit }
+func first(_ element: AXUIElement, depth: Int = 0, where test: (AXUIElement) -> Bool) -> AXUIElement? {
+  if test(element) { return element }
+  guard depth < 40, let children: [AXUIElement] = attribute(element, kAXChildrenAttribute) else { return nil }
+  for child in children {
+    if let hit = first(child, depth: depth + 1, where: test) { return hit }
   }
   return nil
 }
 
-guard let button = find(AXUIElementCreateApplication(pid), depth: 0) else {
-  print("missing")
-  exit(0)
+func isTextField(_ e: AXUIElement) -> Bool {
+  [kAXTextFieldRole, kAXTextAreaRole].contains(attribute(e, kAXRoleAttribute) as String? ?? "")
 }
-let result = AXUIElementPerformAction(button, kAXPressAction as CFString)
-guard result == .success else {
-  FileHandle.standardError.write(Data("axpress: pressing failed (AXError \(result.rawValue))\n".utf8))
-  exit(1)
+
+func check(_ result: AXError, _ what: String) {
+  guard result == .success else {
+    FileHandle.standardError.write(Data("axpress: \(what) failed (AXError \(result.rawValue))\n".utf8))
+    exit(1)
+  }
 }
-print("pressed")
+
+switch args[2] {
+case "help", "description":
+  guard args.count == 4 else { usage() }
+  let name = args[2] == "help" ? kAXHelpAttribute : kAXDescriptionAttribute
+  let wanted = args[3]
+  let button = first(app) { e in
+    guard attribute(e, kAXRoleAttribute) as String? == kAXButtonRole, let v: String = attribute(e, name) else { return false }
+    return wanted.hasSuffix("*") ? v.hasPrefix(String(wanted.dropLast())) : v == wanted
+  }
+  guard let button else {
+    print("missing")
+    exit(0)
+  }
+  check(AXUIElementPerformAction(button, kAXPressAction as CFString), "pressing")
+  print("pressed")
+case "focus-field":
+  guard let field = first(app, where: isTextField) else {
+    print("missing")
+    exit(0)
+  }
+  check(AXUIElementSetAttributeValue(field, kAXFocusedAttribute as CFString, kCFBooleanTrue), "focusing")
+  print("focused")
+case "field-value":
+  guard let field = first(app, where: isTextField) else { usage() }
+  print(attribute(field, kAXValueAttribute) as String? ?? "")
+case "click-title":
+  guard let windows: [AXUIElement] = attribute(app, kAXWindowsAttribute), let window = windows.first,
+    let positionValue: AXValue = attribute(window, kAXPositionAttribute), let sizeValue: AXValue = attribute(window, kAXSizeAttribute)
+  else {
+    FileHandle.standardError.write(Data("axpress: no window to click\n".utf8))
+    exit(1)
+  }
+  var origin = CGPoint.zero, size = CGSize.zero
+  AXValueGetValue(positionValue, .cgPoint, &origin)
+  AXValueGetValue(sizeValue, .cgSize, &size)
+  let point = CGPoint(x: origin.x + size.width / 2, y: origin.y + 12)
+  for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+    CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(50_000)
+  }
+  print("clicked")
+default:
+  usage()
+}
