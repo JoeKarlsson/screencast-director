@@ -2,7 +2,7 @@
 # UI smoke test: builds dist/Screencast Director.app, launches that copy on a synthetic project in a
 # temp folder, and drives it through System Events: the editor opens, pressing a timeline bar
 # selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, and the
-# Audio tab's sound picker adds a library sound.
+# Audio tab's sound and music pickers add a library sound and set a library track.
 #
 #   macos/smoke-test.sh             # build, then test
 #   macos/smoke-test.sh --no-build  # test the existing dist build
@@ -162,7 +162,20 @@ for _ in $(seq 1 20); do [[ "$(sounds)" == *sfx/pop.m4a* ]] && break; sleep 0.2;
 [[ "$(sounds)" == *sfx/pop.m4a* ]] || fail "⌘Z didn't bring the sound back"
 echo "ok: ⌘Z brought the sound back"
 
-# 7. Quit: stop the test instance by PID only.
+# 7. The Music library sets the video's music to a built-in track, copied into the project. Selecting the
+# sound showed the Selection tab, so go back to Audio first.
+[[ "$(press_help "Audio")" == pressed ]] || fail "no Audio tab in the inspector"
+sleep 1
+[[ "$(press_help "Pick background music from the library")" == pressed ]] || fail "no Music Library button in the Audio tab"
+sleep 1
+[[ "$(press_help "Use Advertime as the music")" == pressed ]] || fail "the music picker didn't list Advertime"
+music_file() { python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("music") or {}).get("file", ""))' "$PROJECT/plan.json"; }
+for _ in $(seq 1 20); do [[ "$(music_file)" == music/advertime.m4a ]] && break; sleep 0.2; done
+[[ "$(music_file)" == music/advertime.m4a ]] || fail "choosing Advertime didn't reach plan.json (music: $(music_file))"
+[[ -s "$PROJECT/music/advertime.m4a" ]] || fail "choosing Advertime didn't copy it into the project's music folder"
+echo "ok: the music picker set Advertime as the music and copied it into the project"
+
+# 8. Quit: stop the test instance by PID only.
 kill "$PID"
 for _ in $(seq 1 50); do kill -0 "$PID" 2>/dev/null || break; sleep 0.1; done
 kill -0 "$PID" 2>/dev/null && fail "test instance didn't quit"

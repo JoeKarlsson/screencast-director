@@ -183,36 +183,43 @@ struct Checks {
     expect(editPlan == ["**Sounds needed:** ding", "- at \"Click the record button\": zoom on Record · sfx ding"], "edit plan read from the header only")
     expect(scriptEditPlan("## Edit plan\n- zoom\n").isEmpty, "no header rule, no edit plan")
 
-    // Sound library: the built-in manifest matches its files; personal sounds win; freezing copies once.
+    // Audio libraries: each built-in manifest matches its files and is CC0; personal files win;
+    // freezing copies once, into sfx/ or music/.
     do {
-      let builtIns = try SoundLibrary(personal: URL(fileURLWithPath: "/nonexistent")).sounds()
-      expect(builtIns.count >= 30, "built-in sounds load")
-      expect(builtIns.allSatisfy { FileManager.default.fileExists(atPath: $0.url.path) }, "every built-in sound file exists")
-      expect(builtIns.allSatisfy { $0.sound.license == "CC0 1.0" && $0.sound.source != nil }, "every built-in sound is CC0 with a source")
-      expect(Set(builtIns.map(\.sound.file)).count == builtIns.count, "built-in sound files are unique")
-      let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("sd-sounds-\(UUID().uuidString)")
+      for kind in [AudioLibrary.Kind.sounds, .music] {
+        let builtIns = try AudioLibrary(kind, personal: URL(fileURLWithPath: "/nonexistent")).items()
+        expect(builtIns.count >= (kind == .sounds ? 30 : 10), "built-in \(kind) load")
+        expect(builtIns.allSatisfy { FileManager.default.fileExists(atPath: $0.url.path) }, "every built-in \(kind) file exists")
+        expect(builtIns.allSatisfy { $0.item.license == "CC0 1.0" && $0.item.source != nil && $0.item.author != nil }, "every built-in \(kind) item is CC0 with a source and author")
+        expect(Set(builtIns.map(\.item.file)).count == builtIns.count, "built-in \(kind) files are unique")
+      }
+      let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("sd-audio-\(UUID().uuidString)")
       let mine = tmp.appendingPathComponent("mine"), proj = tmp.appendingPathComponent("proj")
       try FileManager.default.createDirectory(at: mine, withIntermediateDirectories: true)
       try FileManager.default.createDirectory(at: proj, withIntermediateDirectories: true)
       defer { try? FileManager.default.removeItem(at: tmp) }
       try Data("mine".utf8).write(to: mine.appendingPathComponent("ding.m4a"))
       try Data("x".utf8).write(to: mine.appendingPathComponent("notes.txt"))
-      let lib = SoundLibrary(personal: mine)
-      let all = try lib.sounds()
-      expect(all.first?.sound.category == SoundLibrary.personalCategory && all.filter { $0.sound.file == "ding.m4a" }.count == 1, "a personal sound replaces the built-in one")
-      expect(!all.contains { $0.sound.file == "notes.txt" }, "non-audio files are skipped")
-      expect(try lib.entry(forPlanPath: "sfx/pop.m4a")?.sound.name == "pop" && (try lib.entry(forPlanPath: "pop.m4a")) == nil, "plan paths resolve only under sfx/")
+      let lib = AudioLibrary(.sounds, personal: mine)
+      let all = try lib.items()
+      expect(all.first?.item.category == "My Sounds" && all.filter { $0.item.file == "ding.m4a" }.count == 1, "a personal sound replaces the built-in one")
+      expect(!all.contains { $0.item.file == "notes.txt" }, "non-audio files are skipped")
+      expect(try lib.entry(forPlanPath: "sfx/pop.m4a")?.item.name == "pop" && (try lib.entry(forPlanPath: "pop.m4a")) == nil, "sound paths resolve only under sfx/")
       var sp = buildPlan(Project(dir: proj, source: src))
       sp.sfx = [SoundEffect(t: 0.5, file: "sfx/ding.m4a"), SoundEffect(t: 0.8, file: "sfx/pop.m4a"), SoundEffect(t: 0.9, file: "sfx/nope.m4a")]
-      expect(try lib.freezeMissing(sp, project: proj) == ["sfx/ding.m4a", "sfx/pop.m4a"], "missing library sounds are copied in")
-      expect((try? String(contentsOf: proj.appendingPathComponent("sfx/ding.m4a"), encoding: .utf8)) == "mine", "the personal copy is the one frozen")
-      expect(try lib.freezeMissing(sp, project: proj).isEmpty, "frozen sounds aren't copied again")
       var card = Callout(start: 0.2, end: 1, text: "Step 1")
       card.sound = Sound(file: "sfx/tada.m4a")
       sp.callouts = [card]
-      expect(try lib.freezeMissing(sp, project: proj) == ["sfx/tada.m4a"], "a sound attached to a title is copied in too")
+      let paths = sp.soundEffects.map(\.file)
+      expect(try lib.freezeMissing(paths, project: proj) == ["sfx/ding.m4a", "sfx/pop.m4a", "sfx/tada.m4a"], "missing library sounds, attached ones too, are copied in")
+      expect((try? String(contentsOf: proj.appendingPathComponent("sfx/ding.m4a"), encoding: .utf8)) == "mine", "the personal copy is the one frozen")
+      expect(try lib.freezeMissing(paths, project: proj).isEmpty, "frozen sounds aren't copied again")
+      let music = AudioLibrary(.music, personal: mine)
+      expect(try music.entry(forPlanPath: "sfx/advertime.m4a") == nil, "music paths resolve only under music/")
+      expect(try music.freezeMissing(["music/advertime.m4a"], project: proj) == ["music/advertime.m4a"], "a library track is copied into music/")
+      expect(FileManager.default.fileExists(atPath: proj.appendingPathComponent("music/advertime.m4a").path), "the track is in the project")
     } catch {
-      expect(false, "sound library: \(error)")
+      expect(false, "audio library: \(error)")
     }
     let takes = [
       Word(text: "Click", start: 0, end: 0.3), Word(text: "the", start: 0.35, end: 0.5), Word(text: "record", start: 0.55, end: 0.9),

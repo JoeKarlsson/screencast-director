@@ -629,18 +629,36 @@ final class ProjectModel: ObservableObject {
 
   /// A library sound at the playhead. It's copied into the project's sfx/ folder (unless the
   /// project already has that file), so the video keeps it if the library changes.
-  func addSound(_ entry: SoundLibrary.Entry) {
+  func addSound(_ entry: AudioLibrary.Entry) {
     let file: String
     do {
-      file = try SoundLibrary.freeze(entry, project: dir)
+      file = try AudioLibrary(.sounds).freeze(entry, project: dir)
     } catch {
-      Notices.shared.show(error, "Couldn't add \(entry.sound.name)")
+      Notices.shared.show(error, "Couldn't add \(entry.item.name)")
       return
     }
-    let e = SoundEffect(t: playheadSrc, file: file, note: entry.sound.name)
+    let e = SoundEffect(t: playheadSrc, file: file, note: entry.item.name)
     apply { p in p.sfx = (p.sfx ?? []) + [e] }
     if let i = plan?.sfx?.firstIndex(of: e) { select(.sfx(i), adding: false) }
-    status = "\(entry.sound.name) at \(fmtTime(e.t))."
+    status = "\(entry.item.name) at \(fmtTime(e.t))."
+  }
+
+  /// A library track as the video's music, copied into the project's music/ folder (unless it's
+  /// there already). Keeps the current volume settings when swapping tracks.
+  func useMusic(_ entry: AudioLibrary.Entry) {
+    let file: String
+    do {
+      file = try AudioLibrary(.music).freeze(entry, project: dir)
+    } catch {
+      Notices.shared.show(error, "Couldn't use \(entry.item.name)")
+      return
+    }
+    apply { p in
+      var m = p.music ?? Music(file: file)
+      m.file = file
+      p.music = m
+    }
+    status = "Music: \(entry.item.name)."
   }
 
   /// Copies a file into a project subfolder (a new name if one's taken) and returns its plan path.

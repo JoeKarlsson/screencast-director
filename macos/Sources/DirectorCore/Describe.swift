@@ -142,7 +142,11 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("## Markers (the user's named points)")
     for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
   }
-  let library = SoundLibrary()
+  let library = AudioLibrary(.sounds)
+  let musicLibrary = AudioLibrary(.music)
+  func inProject(_ file: String) -> Bool {
+    Scene.fileURL(file, dir: project.dir).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+  }
   let effects = plan.soundEffects
   if !effects.isEmpty {
     let free = plan.sfx ?? []
@@ -151,27 +155,35 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     for e in effects {
       let at = srcToOut(mapped, e.t, fps: fps).map { "out \(fmtTime($0 / Double(fps)))" } ?? "CUT (won't play)"
       let label = free.firstIndex(of: e).map { "sfx #\($0)" } ?? "on"
-      let inProject = Scene.fileURL(e.file, dir: project.dir).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
-      let missing = inProject || (try? library.entry(forPlanPath: e.file)) != nil ? "" : "MISSING FILE"
+      let missing = inProject(e.file) || (try? library.entry(forPlanPath: e.file)) != nil ? "" : "MISSING FILE"
       out.append(line("  \(label) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? "", missing))
     }
     for (i, e) in free.enumerated() where srcToOut(mapped, e.t, fps: fps) == nil {
       out.append("  WARNING: sfx #\(i) at src \(fmtTime(e.t)) is in a cut and won't play; move it, or attach it to the item it belongs to")
     }
   }
-  out.append("")
-  do {
-    let sounds = try library.sounds()
-    out.append("## Sound library (use as sfx file \"sfx/<file>\"; it's copied into the project when the video builds)")
-    var categories: [String] = []
-    for s in sounds where !categories.contains(s.sound.category) { categories.append(s.sound.category) }
-    for c in categories {
-      let names = sounds.filter { $0.sound.category == c }.map { s in s.sound.file + (s.sound.use.map { " (\($0))" } ?? "") }
-      out.append("  \(c): " + names.joined(separator: ", "))
-    }
-  } catch {
-    out.append("## Sound library: couldn't load (\(error.localizedDescription))")
+  if let music = plan.music {
+    out.append("")
+    let missing = inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
+    out.append("## Music: \(music.file)" + missing)
   }
+  func listLibrary(_ lib: AudioLibrary, _ heading: String) {
+    out.append("")
+    do {
+      let items = try lib.items()
+      out.append("## \(heading) (use as \"\(lib.kind.planFolder)/<file>\"; it's copied into the project when the video builds)")
+      var categories: [String] = []
+      for e in items where !categories.contains(e.item.category) { categories.append(e.item.category) }
+      for c in categories {
+        let names = items.filter { $0.item.category == c }.map { e in e.item.file + (e.item.use.map { " (\($0))" } ?? "") }
+        out.append("  \(c): " + names.joined(separator: ", "))
+      }
+    } catch {
+      out.append("## \(heading): couldn't load (\(error.localizedDescription))")
+    }
+  }
+  listLibrary(library, "Sound library, for sfx and attached sounds")
+  listLibrary(musicLibrary, "Music library, for music.file")
   if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
   return out.joined(separator: "\n")
 }

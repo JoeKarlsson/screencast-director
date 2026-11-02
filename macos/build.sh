@@ -26,8 +26,8 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/edit-prompt.md Resources/ScreencastDirector.icns "$APP/Contents/Resources/"
 # Animation templates, logos and the page `director animate` renders them with.
 cp -R Resources/animations "$APP/Contents/Resources/"
-# Built-in sound effects (CC0) and their manifest.
-cp -R Resources/sounds "$APP/Contents/Resources/"
+# Built-in sound effects and music (CC0) with their manifests.
+cp -R Resources/sounds Resources/music "$APP/Contents/Resources/"
 [[ -f Resources/tour.mp4 ]] && cp Resources/tour.mp4 "$APP/Contents/Resources/"
 # Without a bundled whisper-cli the app falls back to Homebrew's (brew install whisper-cpp).
 [[ -x .whisper/whisper-cli ]] && cp .whisper/whisper-cli "$APP/Contents/Helpers/"

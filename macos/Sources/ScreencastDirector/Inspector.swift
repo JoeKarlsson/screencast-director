@@ -35,9 +35,10 @@ final class InspectorUI: ObservableObject {
   /// An app typed into an animation's app list, before Return adds it.
   @Published var newAnimationApp = ""
   @Published var showSoundPicker = false
-  /// The sound library, loaded when the picker opens (so new files in My Sounds show up).
-  var soundEntries: [SoundLibrary.Entry] = []
-  let soundPreview = SoundPreview()
+  @Published var showMusicPicker = false
+  /// The open picker's library, loaded when it opens (so new files in My Sounds or My Music show up).
+  var pickerEntries: [AudioLibrary.Entry] = []
+  let audioPreview = AudioPreview()
   @Published var thumbnail: NSImage?
   @Published var cameraThumbnail: NSImage?
   var thumbnailFor: Double = -1
@@ -833,7 +834,14 @@ struct InspectorView: View {
           project.apply(coalesce: "musicDuck") { p in p.music?.duckDB = v.rounded() }
         }), -40...0, String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB))
       } else {
-        Button { pickMusic() } label: { Label("Add Music…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
+        Button { pickMusic() } label: { Label("Add Music File…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
+      }
+      Button { openPicker(.music) } label: {
+        Label(plan.music == nil ? "Music Library…" : "Change Music…", systemImage: "music.quarternote.3").frame(maxWidth: .infinity)
+      }
+      .help("Pick background music from the library")
+      .popover(isPresented: $ui.showMusicPicker, arrowEdge: .leading) {
+        AudioPicker(kind: .music, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.useMusic($0) }) { ui.showMusicPicker = false }
       }
     }
     InspectorSection("Sound Effects", detail: "One-shot sounds at moments in the video. Add one at the playhead, or ask Claude.") {
@@ -856,10 +864,10 @@ struct InspectorView: View {
               .accessibilityLabel("Remove")
           }
         }
-        Button { openSoundPicker() } label: { Label("Add Sound Effect…", systemImage: "speaker.wave.2").frame(maxWidth: .infinity) }
+        Button { openPicker(.sounds) } label: { Label("Add Sound Effect…", systemImage: "speaker.wave.2").frame(maxWidth: .infinity) }
           .help("Pick a sound effect to add at the playhead")
           .popover(isPresented: $ui.showSoundPicker, arrowEdge: .leading) {
-            SoundPicker(project: project, preview: ui.soundPreview, entries: ui.soundEntries) { ui.showSoundPicker = false }
+            AudioPicker(kind: .sounds, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.addSound($0) }) { ui.showSoundPicker = false }
           }
     }
     InspectorSection("Pauses", detail: "How hard to cut silence. Cuts that removed words always stay cut.") {
@@ -998,16 +1006,16 @@ struct InspectorView: View {
       set: { v in project.apply(coalesce: "card\(kp.hashValue)\(field.hashValue)") { $0[keyPath: kp]?[keyPath: field] = v } })
   }
 
-  /// Copies the chosen track into the project folder, so the project still plays if the original moves.
-  private func openSoundPicker() {
+  private func openPicker(_ kind: AudioLibrary.Kind) {
     do {
-      ui.soundEntries = try SoundLibrary().sounds()
-      ui.showSoundPicker = true
+      ui.pickerEntries = try AudioLibrary(kind).items()
+      if kind == .sounds { ui.showSoundPicker = true } else { ui.showMusicPicker = true }
     } catch {
-      Notices.shared.show(error, "Couldn't load the sound library")
+      Notices.shared.show(error, "Couldn't load the \(kind == .sounds ? "sound" : "music") library")
     }
   }
 
+  /// Copies the chosen track into the project folder, so the project still plays if the original moves.
   private func pickMusic() {
     let panel = NSOpenPanel()
     panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .aiff]

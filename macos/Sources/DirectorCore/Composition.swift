@@ -194,6 +194,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   var musicParams: AVMutableAudioMixInputParameters?
   var musicAsset: AVURLAsset?
   if let music = plan.music {
+    // A library track the plan names (music/<file>) is copied into the project the first time.
+    try AudioLibrary(.music).freezeMissing([music.file], project: project.dir)
     let url = music.file.hasPrefix("/") ? URL(fileURLWithPath: music.file) : project.dir.appendingPathComponent(music.file)
     musicAsset = AVURLAsset(url: url)
     if let musicAsset, let src = try? await musicAsset.loadTracks(withMediaType: .audio).first {
@@ -224,7 +226,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     return at < total ? (at, e) : nil
   }.sorted { $0.at < $1.at }
   // Library sounds the plan names (sfx/<file>) are copied into the project the first time.
-  if !sfxTimes.isEmpty { try SoundLibrary().freezeMissing(plan, project: project.dir) }
+  if !sfxTimes.isEmpty { try AudioLibrary(.sounds).freezeMissing(sfxTimes.map(\.effect.file), project: project.dir) }
   if !sfxTimes.isEmpty, let sfxTrack = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
     let p = AVMutableAudioMixInputParameters(track: sfxTrack)
     for (i, (at, e)) in sfxTimes.enumerated() {

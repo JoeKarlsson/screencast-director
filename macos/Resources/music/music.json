@@ -1,0 +1,132 @@
+[
+  {
+    "name": "Advertime",
+    "file": "advertime.m4a",
+    "category": "Upbeat",
+    "use": "light acoustic guitar, positive; product demos and walkthroughs",
+    "length": 134.3,
+    "author": "Rafael Krux",
+    "source": "https://freepd.com/music/Advertime.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Inspiration",
+    "file": "inspiration.m4a",
+    "category": "Upbeat",
+    "use": "uplifting and positive; intros and wins",
+    "length": 138.5,
+    "author": "Rafael Krux",
+    "source": "https://freepd.com/music/Inspiration.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Happy Whistling Ukulele",
+    "file": "happy-ukulele.m4a",
+    "category": "Upbeat",
+    "use": "cheerful ukulele and whistling; friendly tutorials",
+    "length": 123.5,
+    "author": "Rafael Krux",
+    "source": "https://freepd.com/music/Happy Whistling Ukulele.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "City Sunshine",
+    "file": "city-sunshine.m4a",
+    "category": "Upbeat",
+    "use": "bright, slightly quirky corporate",
+    "length": 185.2,
+    "author": "Kevin MacLeod",
+    "source": "https://freepd.com/music/City Sunshine.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Arpent",
+    "file": "arpent.m4a",
+    "category": "Tech",
+    "use": "uplifting synths; technology and innovation",
+    "length": 162.2,
+    "author": "Kevin MacLeod",
+    "source": "https://freepd.com/music/Arpent.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Beat One",
+    "file": "beat-one.m4a",
+    "category": "Tech",
+    "use": "minimal, cool drum and bass; coding and setup",
+    "length": 180.1,
+    "author": "Kevin MacLeod",
+    "source": "https://freepd.com/music/Beat One.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Study and Relax",
+    "file": "study-and-relax.m4a",
+    "category": "Chill",
+    "use": "lo-fi, worn-record feel; long walkthroughs",
+    "length": 223.6,
+    "author": "Kevin MacLeod",
+    "source": "https://freepd.com/music/Study and Relax.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Wisdom in the Sun",
+    "file": "wisdom-in-the-sun.m4a",
+    "category": "Chill",
+    "use": "relaxed warm guitars; calm explainers",
+    "length": 154.7,
+    "author": "Kevin MacLeod",
+    "source": "https://freepd.com/music/Wisdom in the Sun.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Fake It Til You Fake It",
+    "file": "fake-it.m4a",
+    "category": "Jazz",
+    "use": "gentle jazz piano; calm demos",
+    "length": 173.8,
+    "author": "Kevin MacLeod",
+    "source": "https://freepd.com/music/Fake It Til You Fake It.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Hold on a Sec",
+    "file": "hold-on-a-sec.m4a",
+    "category": "Jazz",
+    "use": "clean old-school funk; upbeat but laid back",
+    "length": 125.7,
+    "author": "Bryan Teoh",
+    "source": "https://freepd.com/music/Hold on a Sec.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Wakka Wakka",
+    "file": "wakka-wakka.m4a",
+    "category": "Comedy",
+    "use": "Yakety-sax chase; things going wrong, sped-up chaos",
+    "length": 121.8,
+    "author": "Bryan Teoh",
+    "source": "https://freepd.com/music/Wakka Wakka.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Llama in Pajama",
+    "file": "llama-in-pajama.m4a",
+    "category": "Comedy",
+    "use": "goofy bari sax; playful bits",
+    "length": 97.6,
+    "author": "Rafael Krux",
+    "source": "https://freepd.com/music/Llama in Pajama.mp3",
+    "license": "CC0 1.0"
+  },
+  {
+    "name": "Spec Ops",
+    "file": "spec-ops.m4a",
+    "category": "Dramatic",
+    "use": "dark action suspense; stakes, outages, security",
+    "length": 136.7,
+    "author": "Rafael Krux",
+    "source": "https://freepd.com/music/Spec Ops.mp3",
+    "license": "CC0 1.0"
+  }
+]
