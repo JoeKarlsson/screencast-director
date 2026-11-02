@@ -405,6 +405,24 @@ struct InspectorView: View {
       AnimationEditor(project: project, ui: ui, i: i)
       previewButton(a.start)
       removeButton()
+    case .sfx(let i) where (plan.sfx ?? []).indices.contains(i):
+      let e = plan.sfx![i]
+      itemHeader(e.note ?? "Sound Effect", "speaker.wave.2", Theme.sfx, fmtTime(e.t))
+      InspectorSection("Sound", detail: (e.file as NSString).lastPathComponent) {
+        slider(
+          "Volume",
+          Binding(
+            get: { project.plan.flatMap { ($0.sfx ?? []).indices.contains(i) ? $0.sfx![i].gainDB : nil } ?? 0 },
+            set: { v in
+              project.apply(coalesce: "sfxGain\(i)") {
+                guard var list = $0.sfx, list.indices.contains(i) else { return }
+                list[i].gainDB = v.rounded()
+                $0.sfx = list
+              }
+            }), -24...6, "\(Int((e.gainDB ?? 0).rounded())) dB")
+      }
+      previewButton(e.t)
+      removeButton()
     case .marker(let i) where plan.markerList.indices.contains(i):
       let m = plan.markerList[i]
       itemHeader("Marker", "flag", Theme.accent, fmtTime(m.t))

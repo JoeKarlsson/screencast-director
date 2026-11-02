@@ -83,7 +83,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Clips on the timeline show thumbnails from the recording, and after an AI edit the parts it changed glow briefly (the timeline scrolls to them).
 - The timeline has track icons, a color per track, a playhead you can drag on the ruler, and snapping to the playhead and other edges (hold ⌘ to turn it off).
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
-- Sound effects: `sfx` in plan.json plays a whoosh, pop or ding at a moment in the recording, at full volume over the voice. Ask Claude to add them; the Audio tab lists them and removes them, and `describe` shows where each lands (or that it's cut).
+- Sound effects: `sfx` in plan.json plays a whoosh, pop or ding at a moment in the recording, at full volume over the voice. Ask Claude to add them. They show on their own Sound FX row in the timeline (drag to move, ⌫ to remove, volume in the inspector), and `describe` shows where each lands (or that it's cut).
 - Captions skip words in sped-up stretches. Those play muted, so their words showed up on screen without being heard.
 
 ### Motion

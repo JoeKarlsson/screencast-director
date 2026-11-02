@@ -101,7 +101,7 @@ final class TimelineUI: ObservableObject {
 }
 
 private enum Track: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations
+  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations, sounds
 
   var height: CGFloat {
     switch self {
@@ -124,6 +124,7 @@ private enum Track: CaseIterable {
     case .marks: return "Marks"
     case .broll: return "B-roll"
     case .animations: return "Animations"
+    case .sounds: return "Sound FX"
     }
   }
   var icon: String {
@@ -138,6 +139,7 @@ private enum Track: CaseIterable {
     case .marks: return "scribble"
     case .broll: return "photo.on.rectangle"
     case .animations: return "sparkles"
+    case .sounds: return "speaker.wave.2"
     }
   }
   var color: Color {
@@ -152,6 +154,7 @@ private enum Track: CaseIterable {
     case .marks: return Theme.mark
     case .broll: return Theme.broll
     case .animations: return Theme.animation
+    case .sounds: return Theme.sfx
     }
   }
   var y: CGFloat {
@@ -710,6 +713,7 @@ struct TimelineView: View {
           }
         }
       }
+      soundEffects(plan)
       inOutBand(plan)
       markers(plan)
       if let m = ui.marquee {
@@ -779,6 +783,7 @@ struct TimelineView: View {
     for (i, m) in plan.annotationList.enumerated() where hits(.marks, m.start, m.end) { out.append(.annotation(i)) }
     for (i, c) in plan.insertList.enumerated() where hits(.broll, c.start, c.end) { out.append(.insert(i)) }
     for (i, a) in plan.animationList.enumerated() where hits(.animations, a.start, a.end) { out.append(.animation(i)) }
+    for (i, e) in (plan.sfx ?? []).enumerated() where hits(.sounds, e.t, e.t) { out.append(.sfx(i)) }
     return out
   }
 
@@ -800,6 +805,56 @@ struct TimelineView: View {
       }
       .allowsHitTesting(false)
       .accessibilityHidden(true)
+    }
+  }
+
+  /// Sound effects: a chip at each effect's start on its own row (click to jump and select, drag to move).
+  private func soundEffects(_ plan: Plan) -> some View {
+    ZStack(alignment: .topLeading) {
+      ForEach(Array((plan.sfx ?? []).enumerated()), id: \.offset) { i, e in
+        let sel = Selection.sfx(i)
+        let (t, _) = range(sel, e.t, e.t)
+        let selected = project.isSelected(sel)
+        let name = ((e.file as NSString).lastPathComponent as NSString).deletingPathExtension
+        HStack(spacing: 3) {
+          Image(systemName: "speaker.wave.2.fill").font(.system(size: 9, weight: .semibold))
+          if ui.pxPerSec > 8 { Text(name).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
+        }
+        .foregroundStyle(selected ? Color.white : Theme.sfx)
+        .padding(.horizontal, 5)
+        .frame(height: Track.sounds.height - 4)
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.sfx.opacity(selected ? 0.9 : 0.22)))
+        .overlay(alignment: .leading) { Rectangle().fill(Theme.sfx).frame(width: 2) }
+        .contentShape(Rectangle())
+        .offset(x: x(t), y: Track.sounds.y + 2)
+        .onTapGesture {
+          project.select(sel, adding: adding)
+          project.seek(src: e.t)
+        }
+        .simultaneousGesture(
+          DragGesture(minimumDistance: 2)
+            .onChanged { v in
+              var nt = time(atX: x(e.t) + v.translation.width)
+              nt += snapShift([nt], excluding: sel, start: e.t, end: e.t)
+              ui.drag = (sel, nt, nt)
+            }
+            .onEnded { _ in
+              ui.snap = nil
+              guard let d = ui.drag, d.sel == sel else { return }
+              ui.drag = nil
+              project.select(sel, adding: false)
+              project.moveSelected(by: d.start - e.t)
+            }
+        )
+        .help("Sound effect \(name) at \(fmtTime(e.t))\(e.note.map { ": \($0)" } ?? ""). Click to jump, drag to move, ⌫ to remove.")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sound effect \(name) at \(fmtTime(e.t))")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+          project.select(sel, adding: false)
+          project.seek(src: e.t)
+        }
+      }
     }
   }
 
