@@ -204,17 +204,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
   // MARK: Editor keys and menus
 
   var keyMonitor: Any?
+  var clickMonitor: Any?
   var shortcutsWindow: NSWindow?
 
   /// Editor shortcuts (Shortcuts.swift). Keys pass through while typing in a text field, in other
-  /// windows, or with no project open.
+  /// windows, or with no project open; Space still plays when the focused field is empty (the
+  /// Claude box keeps focus after an edit is sent).
   func installKeyMonitor() {
     keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
       guard let self, event.window === self.window, let project = self.library.current, project.hasPlan else { return event }
-      if event.window?.firstResponder is NSText { return event }
+      if let text = event.window?.firstResponder as? NSText {
+        let isPlainSpace = event.keyCode == 49 && event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty
+        guard isPlainSpace, text.string.isEmpty else { return event }
+      }
       guard let shortcut = Shortcut.all.first(where: { $0.matches(event) }) else { return event }
       shortcut.action(project, self.editor)
       return nil
+    }
+    // Clicking the preview, timeline or anything else that isn't text takes focus out of a text
+    // field, so the shortcuts work again.
+    clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+      guard let self, let window = event.window, window === self.window, let text = window.firstResponder as? NSText else { return event }
+      // A single-line field edits through a shared field editor whose delegate is the field itself.
+      let field = (text.delegate as? NSView) ?? text
+      if !field.convert(field.bounds, to: nil).contains(event.locationInWindow) { window.makeFirstResponder(nil) }
+      return event
     }
   }
 
