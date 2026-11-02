@@ -752,7 +752,7 @@ struct InspectorView: View {
   @ViewBuilder
   private func audioPane(_ plan: Plan) -> some View {
     PaneTitle(title: "Audio")
-    InspectorSection("Voice", detail: "Normalize brings your voice to a steady level; a limiter keeps peaks from clipping.") {
+    InspectorSection("Voice", detail: "Normalize brings every clip of your voice to the same steady level; a limiter keeps peaks from clipping.") {
       toggle("Normalize voice", (plan.audio?.normalize ?? false) && !project.levels.isEmpty
         ? String(format: "Adds %+.1f dB.", AudioGain.normalizeGain(project.levels)) : "",
         Binding(get: { plan.audio?.normalize ?? false }, set: { v in

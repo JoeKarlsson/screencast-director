@@ -11,11 +11,26 @@ public enum AudioGain {
 
   /// The gain (dB) that brings the median loudness of the loud (speaking) moments to the target.
   public static func normalizeGain(_ levels: [(Double, Double)]) -> Double {
-    let talking = levels.map(\.1).filter { $0 > -50 }.sorted()
-    guard talking.count > 20 else { return 0 }
-    // The upper half of non-silent frames is the voice; its median is a steady speech level.
-    let voice = talking[talking.count * 3 / 4]
-    return min(18, max(-12, targetDB - voice))
+    speechLevel(levels.map(\.1)).map { min(18, max(-12, targetDB - $0)) } ?? 0
+  }
+
+  /// The speaking level of a stretch: the upper half of its non-silent frames is the voice, and
+  /// their median is a steady level. Nil when there's too little talking to tell.
+  static func speechLevel(_ levels: [Double]) -> Double? {
+    let talking = levels.filter { $0 > -50 }.sorted()
+    guard talking.count > 20 else { return nil }
+    return talking[talking.count * 3 / 4]
+  }
+
+  /// Per-clip gains (dB) that bring each clip's speech to the target, so takes recorded louder or
+  /// quieter match. A clip with too little talking gets the whole recording's gain, and each clip
+  /// stays within 6 dB of it, so a whisper or a shout isn't flattened.
+  public static func clipGains(_ levels: [(Double, Double)], clips: [(start: Double, end: Double)]) -> [Double] {
+    let overall = normalizeGain(levels)
+    return clips.map { c in
+      guard let level = speechLevel(levels.filter { $0.0 >= c.start && $0.0 < c.end }.map(\.1)) else { return overall }
+      return min(overall + 6, max(overall - 6, targetDB - level))
+    }
   }
 
   final class Box {

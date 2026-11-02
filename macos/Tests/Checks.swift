@@ -583,6 +583,11 @@ struct Checks {
       [Word(text: "heard", start: 0.5, end: 1), Word(text: "muted", start: 4, end: 4.5)], mutedMap, fps: fps, maxWords: 7)
     expect(mutedPages.flatMap { $0.words.map(\.0) } == ["heard"], "no captions for words in a muted sped-up segment")
 
+    // Clip leveling: a take 6 dB quieter gets 6 dB more, a clip with no talking gets the overall gain.
+    let clipLevels: [(Double, Double)] = (0..<400).map { i in (Double(i) * 0.05, i < 200 ? -20.0 : -26.0) } + (400..<440).map { i in (Double(i) * 0.05, -60.0) }
+    let cg = AudioGain.clipGains(clipLevels, clips: [(0, 10), (10, 20), (20, 22)])
+    expect(abs(cg[0]) < 0.01 && abs(cg[1] - 6) < 0.01 && abs(cg[2] - AudioGain.normalizeGain(clipLevels)) < 0.01, "clips level to the same speech level")
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }

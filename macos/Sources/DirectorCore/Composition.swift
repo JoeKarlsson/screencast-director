@@ -85,14 +85,20 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   }
   let audioParams = aTrack.map { AVMutableAudioMixInputParameters(track: $0) }
   audioParams?.audioTimePitchAlgorithm = .spectral
-  // Voice level: normalize (from measured loudness) plus the manual trim.
+  // Voice level: normalize (each clip to the same speech level, from measured loudness) plus the
+  // manual trim. A mix's volume can't go past 1, so the tap boosts by the most any clip needs and
+  // each clip's volume takes it back down to its own level.
   var gainDB = plan.audio?.gainDB ?? 0
+  var clipVolumes = [Float](repeating: 1, count: scene.mapped.count)
   if plan.audio?.normalize == true, let levels = try? await Analyzer.loudness(project, video: plan.source.video) {
-    gainDB += AudioGain.normalizeGain(levels)
+    let gains = AudioGain.clipGains(levels, clips: scene.mapped.map { ($0.start, $0.end) })
+    let top = gains.max() ?? 0
+    gainDB += top
+    clipVolumes = gains.map { Float(pow(10, ($0 - top) / 20)) }
   }
   if abs(gainDB) > 0.05 { audioParams?.audioTapProcessor = AudioGain.tap(gainDB: gainDB) }
 
-  for s in scene.mapped {
+  for (si, s) in scene.mapped.enumerated() {
     let at = CMTime(value: CMTimeValue(s.outStart), timescale: fps)
     let outDur = CMTime(value: CMTimeValue(s.frames), timescale: fps)
     let srcRange = CMTimeRange(start: t(s.start), end: CMTimeMinimum(t(s.end), screenDuration))
@@ -112,9 +118,10 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
       } else {
         // Short fades at each cut hide clicks in the audio.
         let fade = CMTime(value: CMTimeValue(min(fadeFrames, s.frames / 2)), timescale: fps)
-        audioParams?.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: at, duration: fade))
+        let v = clipVolumes[si]
+        audioParams?.setVolumeRamp(fromStartVolume: 0, toEndVolume: v, timeRange: CMTimeRange(start: at, duration: fade))
         audioParams?.setVolumeRamp(
-          fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(CMTimeAdd(at, outDur), fade), duration: fade))
+          fromStartVolume: v, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(CMTimeAdd(at, outDur), fade), duration: fade))
       }
     }
 

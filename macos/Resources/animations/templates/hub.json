@@ -33,6 +33,7 @@
     "link": "1 plugin",
     "apps": ["Salesforce", "Slack", "Jira", "Snowflake", "Zendesk", "HubSpot", "Stripe", "Shopify", "QuickBooks", "Xero", "Asana", "Google Ads"],
     "more": "+ hundreds more",
+    "moreApps": [],
     "costs": ["sign-in", "set of permissions", "log"]
   }
 }
