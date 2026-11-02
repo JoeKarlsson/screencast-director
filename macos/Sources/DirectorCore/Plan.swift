@@ -312,7 +312,8 @@ public struct Plan: Codable, Equatable {
   /// Writes the plan, first saving the version it replaces to .history/ (see PlanHistory).
   public func write(to url: URL) throws {
     let enc = JSONEncoder()
-    enc.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+    // Sorted keys, so an unchanged plan writes the same bytes and isn't saved to history again.
+    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     var data = try enc.encode(self)
     data.append(0x0A)
     if let old = try? Data(contentsOf: url), old != data { PlanHistory.snapshot(old, planURL: url) }

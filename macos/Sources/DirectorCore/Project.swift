@@ -122,8 +122,7 @@ public struct Project {
 }
 
 public func fmtTime(_ t: Double) -> String {
-  let m = Int(t / 60)
-  let s = t - Double(m) * 60
-  let str = String(format: "%.1f", s)
-  return "\(m):\(s < 10 ? "0" : "")\(str)"
+  // Round to tenths first, so 59.97 s reads 1:00.0 rather than 0:60.0.
+  let tenths = Int((t * 10).rounded())
+  return String(format: "%d:%04.1f", tenths / 600, Double(tenths % 600) / 10)
 }
