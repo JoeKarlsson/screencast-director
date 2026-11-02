@@ -884,6 +884,10 @@ struct Checks {
     expect(abs((quietG - loudG) - 7) < 0.5, "a quieter phrase is raised by most of the difference (\(quietG - loudG))")
     expect(pauseG <= quietG + 0.01 && pauseG >= loudG - 0.01, "a pause holds the gain between its phrases instead of boosting the noise")
 
+    fileAndFormatChecks()
+    sceneDrawingChecks()
+    audioChecks()
+
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)
   }
