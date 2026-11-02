@@ -1,7 +1,8 @@
 // "hub": one connection to a hub that fans out to many apps, with one of each cost. The answer to "sprawl".
 //
 // data: title, highlight, center {logo, label}, hub {logo, label}, link (tag on the one line),
-//       apps [up to 12 names, a 3-wide grid], more (label for the field of extra logos), costs [3 row labels]
+//       apps [up to 12 names, a 3-wide grid], more (label for the field of extra logos),
+//       moreApps [names for that field, each shown once before any repeats; default: apps], costs [3 row labels]
 // cues: hub, link, apps, more, cost1, cost2, cost3 (seconds from the start)
 "use strict";
 TEMPLATES.hub = function (data, cues, duration) {
@@ -14,12 +15,15 @@ TEMPLATES.hub = function (data, cues, duration) {
   const apps = names.map((name, i) => ({ name, home: [1300 + (i % 3) * 175, 250 + Math.floor(i / 3) * 165], t: T.apps + i * .1, rot: (rand(i + 9)() - .5) * 8 }));
   apps.forEach((a, i) => { a.line = path(4, "var(--ink)"); a.node = el("sticker", logoHTML(a.name)); a.seed = i + 1; });
   const ghosts = [];
-  if (data.more && names.length) {
+  // The field behind the grid: its own apps if given (each once before any repeats), else the grid's.
+  const extra = (data.moreApps || []).filter(n => !names.includes(n));
+  const field = extra.length ? extra : names;
+  if (data.more && field.length) {
     const r = rand(77);
     for (let gx = 0; gx < 6; gx++) for (let gy = 0; gy < 9; gy++) {
       const x = 1210 + gx * 120 + (r() - .5) * 30, y = 120 + gy * 100 + (r() - .5) * 26;
       if (gx <= 4 && gy >= 1 && gy <= 7 && x > 1240 && x < 1880) continue; // keep the named grid clear
-      ghosts.push({ node: el("ghost", logoHTML(names[Math.floor(r() * names.length)])), at: [x, y], t: T.more + r() * 1.1 });
+      ghosts.push({ node: el("ghost", logoHTML(field[ghosts.length % field.length])), at: [x, y], t: T.more + r() * 1.1 });
     }
   }
   const main = path(12, "var(--ink)");

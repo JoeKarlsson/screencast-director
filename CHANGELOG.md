@@ -85,6 +85,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - The inspector has icon tabs (Selection, Background & Frame, Camera, Audio, Cursor & Overlays, Format, Transcript), with controls grouped in cards.
 - Sound effects: `sfx` in plan.json plays a whoosh, pop or ding at a moment in the recording, at full volume over the voice. Ask Claude to add them. They show on their own Sound FX row in the timeline (drag to move, ⌫ to remove, volume in the inspector), and `describe` shows where each lands (or that it's cut).
 - Captions skip words in sped-up stretches. Those play muted, so their words showed up on screen without being heard.
+- The One Hub animation's background field of logos no longer repeats the grid's apps over and over: give it its own list (The rest) and each logo shows once.
 
 ### Motion
 - A video that opens (or ends) on the full camera starts and stays there, instead of easing in from the bubble over the first frames.

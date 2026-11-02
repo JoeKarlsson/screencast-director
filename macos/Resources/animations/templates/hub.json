@@ -13,6 +13,7 @@
     { "key": "link", "label": "Tag on the line", "type": "text" },
     { "key": "apps", "label": "Apps", "type": "logos", "max": 12 },
     { "key": "more", "label": "Label for the rest", "type": "text", "help": "Leave empty for no field of extra logos." },
+    { "key": "moreApps", "label": "The rest", "type": "logos", "help": "Logos for the field behind the grid, each shown once (about 26 fit). Empty repeats the grid's apps." },
     { "key": "costs", "label": "Costs, once each", "type": "texts", "max": 3 }
   ],
   "cues": [
