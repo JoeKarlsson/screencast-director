@@ -77,9 +77,21 @@ enum Claude {
     }
   }
 
-  /// Runs the edit, reporting steps and text as it goes; returns the exit status. Cancelling the
-  /// calling task stops Claude.
-  static func edit(project: URL, instruction: String, onEvent: @escaping @Sendable (Event) -> Void) async throws -> Int32 {
+  /// How an edit ended: Claude Code's exit status and the end of what it wrote to stderr (why it
+  /// stopped, when it fails before saying anything: not signed in, rate limited, a crash).
+  struct Outcome {
+    var status: Int32
+    var errors: String
+  }
+
+  /// Claude processes still running, so quitting the app can stop them instead of leaving them
+  /// editing a plan in the background.
+  private static let running = RunningProcesses()
+
+  static func stopAll() { running.terminateAll() }
+
+  /// Runs the edit, reporting steps and text as it goes. Cancelling the calling task stops Claude.
+  static func edit(project: URL, instruction: String, onEvent: @escaping @Sendable (Event) -> Void) async throws -> Outcome {
     guard let claude = executable else {
       throw NSError(
         domain: "Claude", code: 1, userInfo: [NSLocalizedDescriptionKey: "Claude Code isn't installed (no `claude` on your PATH)."])
@@ -111,7 +123,8 @@ enum Claude {
     ]
     let pipe = Pipe()
     p.standardOutput = pipe
-    p.standardError = FileHandle.nullDevice
+    let errPipe = Pipe()
+    p.standardError = errPipe
     // stream-json is one JSON object per line; a read can end mid-line, so keep the remainder.
     let buffer = LineBuffer()
     pipe.fileHandleForReading.readabilityHandler = { h in
@@ -121,15 +134,22 @@ enum Claude {
         for e in events(line, director: dir) { onEvent(e) }
       }
     }
+    let errors = TailBuffer(limit: 4000)
+    errPipe.fileHandleForReading.readabilityHandler = { h in errors.append(h.availableData) }
+    // Watch for the exit before starting, so a Claude that exits at once is still noticed.
+    let exited = ExitSignal()
+    p.terminationHandler = { _ in exited.fire() }
     try p.run()
+    running.add(p)
+    defer { running.remove(p) }
     await withTaskCancellationHandler {
-      await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-        p.terminationHandler = { _ in c.resume() }
-      }
+      await exited.wait()
     } onCancel: {
       p.terminate()
     }
     pipe.fileHandleForReading.readabilityHandler = nil
+    errPipe.fileHandleForReading.readabilityHandler = nil
+    errors.append(errPipe.fileHandleForReading.readDataToEndOfFile())
     // Put back any file path Claude pointed outside the project (a prompt-injected transcript
     // could ask for that); the app's file poll then picks up the corrected plan.
     if let before, let after = try? Plan.load(planURL) {
@@ -138,7 +158,81 @@ enum Claude {
         onEvent(.text("Kept the previous \(reverted.joined(separator: ", ")): the edit pointed outside the project folder."))
       }
     }
-    return p.terminationStatus
+    return Outcome(status: p.terminationStatus, errors: errors.text)
+  }
+}
+
+/// Resumes its waiter once the process has exited, whether that happens before or after the wait.
+final class ExitSignal: @unchecked Sendable {
+  private let lock = NSLock()
+  private var fired = false
+  private var waiter: CheckedContinuation<Void, Never>?
+
+  func fire() {
+    lock.lock()
+    fired = true
+    let w = waiter
+    waiter = nil
+    lock.unlock()
+    w?.resume()
+  }
+
+  func wait() async {
+    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+      lock.lock()
+      if fired {
+        lock.unlock()
+        c.resume()
+      } else {
+        waiter = c
+        lock.unlock()
+      }
+    }
+  }
+}
+
+/// The last `limit` bytes written, as text.
+final class TailBuffer: @unchecked Sendable {
+  private let lock = NSLock()
+  private var data = Data()
+  private let limit: Int
+  init(limit: Int) { self.limit = limit }
+
+  func append(_ d: Data) {
+    lock.lock()
+    data.append(d)
+    if data.count > limit { data = data.suffix(limit) }
+    lock.unlock()
+  }
+
+  var text: String {
+    lock.lock()
+    defer { lock.unlock() }
+    return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}
+
+final class RunningProcesses: @unchecked Sendable {
+  private let lock = NSLock()
+  private var all: [ObjectIdentifier: Process] = [:]
+
+  func add(_ p: Process) {
+    lock.lock()
+    all[ObjectIdentifier(p)] = p
+    lock.unlock()
+  }
+
+  func remove(_ p: Process) {
+    lock.lock()
+    all[ObjectIdentifier(p)] = nil
+    lock.unlock()
+  }
+
+  func terminateAll() {
+    lock.lock()
+    let list = Array(all.values)
+    lock.unlock()
+    for p in list where p.isRunning { p.terminate() }
   }
 }
 

@@ -14,6 +14,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 
 ### App
+- An AI edit no longer shows "Claude is editing…" forever. Each reply goes to the request it answers, an edit that fails says why (Claude Code's own error, like being signed out), and one that finishes silently says so. Quitting the app stops a Claude edit still running instead of leaving it changing your plan in the background. Old edits stuck this way now say they didn't finish.
 - Zooming the timeline all the way out shows the whole timeline, however long the video is, and it stays fitted when the window or the edit's length changes.
 - When the timeline is zoomed out too far to read words, the Words row marks where you speak instead of going blank.
 - The timeline starts in output time, so cuts close up and sped-up clips draw at their real length. Clips show their frames in both modes; the toggle by Fit switches back to the whole recording.

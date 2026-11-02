@@ -84,7 +84,6 @@ final class ProjectModel: ObservableObject {
   @Published private(set) var busy = false
   @Published private(set) var previewReady = false
   @Published var instruction = ""
-  @Published private(set) var claudeLog = ""
   /// What you've asked the AI to do in this session, and what it said back.
   @Published private(set) var asks: [Ask] = []
   /// What the last AI edit changed, in source seconds; the timeline flashes these ranges. A new
@@ -128,7 +127,12 @@ final class ProjectModel: ObservableObject {
     loadFromDisk()
     watchPlan()
     loadAsks()
+    quitObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) {
+      [weak self] _ in MainActor.assumeIsolated { self?.stopForQuit() }
+    }
   }
+
+  private var quitObserver: NSObjectProtocol?
 
   var name: String { dir.lastPathComponent }
   var planURL: URL { dir.appendingPathComponent("plan.json") }
@@ -1342,72 +1346,113 @@ final class ProjectModel: ObservableObject {
     let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty, !busy else { return }
     flushWrite()
-    claudeLog = ""
     asks.append(Ask(instruction: text))
+    // Everything below writes to this ask by its index, never "the newest one": a reply or wrap-up
+    // that lands after another request has started must not end up on it.
+    let n = asks.count - 1
     planBeforeAsk = plan
     let ai = AISettings.shared
     let request = "\(text)\n\n(Where I am in the editor, for words like \"here\" or \"this\":\n\(askContext()))"
     if ai.provider != .claudeCode {
       run("\(ai.provider.shortName) is editing…") { [self] in
-        defer { finishAsk() }
-        try await readScreenTextIfNeeded()
-        guard let plan, let project else { return }
-        asks[asks.count - 1].steps.append("Sending the timeline to \(ai.provider.shortName)")
-        let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: request, settings: ai)
-        apply { $0 = newPlan }
-        claudeLog = summary
-        asks[asks.count - 1].reply = summary
-        instruction = ""
-        status = "Edited by \(ai.provider == .anthropic ? ai.anthropicModel : ai.model). ⌘Z undoes it."
+        var outcome = ""
+        defer { finishAsk(n, outcome) }
+        do {
+          try await readScreenTextIfNeeded()
+          guard let plan, let project else {
+            outcome = "There was no plan to edit."
+            return
+          }
+          asks[n].steps.append("Sending the timeline to \(ai.provider.shortName)")
+          let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: request, settings: ai)
+          apply { $0 = newPlan }
+          asks[n].reply = summary
+          instruction = ""
+          status = "Edited by \(ai.provider == .anthropic ? ai.anthropicModel : ai.model). ⌘Z undoes it."
+        } catch {
+          outcome = Task.isCancelled ? "Stopped." : "\(ai.provider.shortName) couldn't make the edit: \(error.localizedDescription)"
+          throw error
+        }
       }
       return
     }
     aiEditing = true
     run("Claude is editing…") { [self] in
-      defer { finishAsk() }
-      try await readScreenTextIfNeeded()
-      let code = try await Claude.edit(project: dir, instruction: request) { event in
-        Task { @MainActor in
-          guard !self.asks.isEmpty else { return }
-          switch event {
-          case .step(let s): self.asks[self.asks.count - 1].steps.append(s)
-          case .text(let t):
-            self.claudeLog += (self.claudeLog.isEmpty ? "" : "\n\n") + t
-            self.asks[self.asks.count - 1].reply = self.claudeLog
+      var outcome = ""
+      defer { finishAsk(n, outcome) }
+      do {
+        try await readScreenTextIfNeeded()
+        let result = try await Claude.edit(project: dir, instruction: request) { event in
+          Task { @MainActor in
+            guard self.asks.indices.contains(n) else { return }
+            switch event {
+            case .step(let s): self.asks[n].steps.append(s)
+            case .text(let t):
+              let reply = self.asks[n].reply
+              self.asks[n].reply = reply + (reply.isEmpty ? "" : "\n\n") + t
+            }
           }
         }
-      }
-      instruction = ""
-      if Task.isCancelled {
-        status = "Stopped. ⌘Z undoes anything it changed."
-      } else {
-        status = code == 0 ? "Claude finished. ⌘Z undoes its edit." : "Claude exited with status \(code)."
+        instruction = ""
+        if Task.isCancelled {
+          status = "Stopped. ⌘Z undoes anything it changed."
+          outcome = "Stopped. What it already changed stays, and ⌘Z undoes it."
+        } else if result.status != 0 {
+          status = "Claude Code stopped with an error."
+          // Its own words say why (signed out, rate limited, a crash); they used to be thrown away.
+          outcome = "Claude Code stopped with an error (exit status \(result.status))"
+            + (result.errors.isEmpty ? "." : ":\n\(result.errors.split(separator: "\n").suffix(8).joined(separator: "\n"))")
+        } else {
+          status = "Claude finished. ⌘Z undoes its edit."
+          outcome = "Claude finished without saying anything."
+        }
+      } catch {
+        outcome = Task.isCancelled ? "Stopped." : "Couldn't run Claude Code: \(error.localizedDescription)"
+        throw error
       }
     }
   }
 
-  private func finishAsk() {
-    guard !asks.isEmpty else { return }
-    asks[asks.count - 1].running = false
-    // Claude Code writes plan.json itself and the watcher picks it up within a second.
+  /// Closes out ask `n`. `outcome` is how it ended; it becomes the reply when Claude said nothing,
+  /// and is added to it after an error, so an ask never shows "editing…" once it's over.
+  private func finishAsk(_ n: Int, _ outcome: String) {
+    guard asks.indices.contains(n) else { return }
+    asks[n].running = false
+    let failed = outcome.hasPrefix("Claude Code stopped with an error") || outcome.hasPrefix("Couldn't") || outcome.contains("couldn't make")
+    if asks[n].reply.isEmpty {
+      asks[n].reply = outcome
+    } else if failed {
+      asks[n].reply += "\n\n" + outcome
+    }
+    saveAsks()
+    // Claude Code writes plan.json itself and the watcher picks it up within a second; compare then.
+    let old = planBeforeAsk
+    planBeforeAsk = nil
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
-      let wasEditing = aiEditing
-      aiEditing = false
-      guard let old = planBeforeAsk, let new = plan else { return }
-      planBeforeAsk = nil
+      // A newer ask that started meanwhile owns aiEditing now.
+      let latest = asks.count - 1 == n
+      let wasEditing = aiEditing && latest
+      if latest { aiEditing = false }
+      guard let old, let new = plan else { return }
       if wasEditing, old != new {
         undoStack.append(old)
         redoStack.removeAll()
       }
       let ranges = changedRanges(from: old, to: new)
       if !ranges.isEmpty { aiChange = (UUID(), ranges) }
-      if !asks.isEmpty { asks[asks.count - 1].changes = planChanges(from: old, to: new) }
+      if asks.indices.contains(n) { asks[n].changes = planChanges(from: old, to: new) }
     }
-    // On a failure, run() sets the status after this; pick it up on the next turn.
-    DispatchQueue.main.async { [self] in
-      if !asks.isEmpty, asks[asks.count - 1].reply.isEmpty { asks[asks.count - 1].reply = claudeLog.isEmpty ? status : claudeLog }
-      saveAsks()
-    }
+  }
+
+  /// The app is quitting: stop any Claude still editing (or it carries on in the background,
+  /// changing the plan with nobody watching) and record that the ask was stopped.
+  func stopForQuit() {
+    guard asks.last?.running == true else { return }
+    Claude.stopAll()
+    let n = asks.count - 1
+    asks[n].running = false
+    asks[n].reply += (asks[n].reply.isEmpty ? "" : "\n\n") + "Stopped when the app quit. What it already changed stays."
+    saveAsks()
   }
 
   /// Recordings analyzed before screen text existed get it once, before their first AI edit, so the
@@ -1438,7 +1483,14 @@ final class ProjectModel: ObservableObject {
 
   private func loadAsks() {
     guard let data = try? Data(contentsOf: asksURL), let saved = try? JSONDecoder().decode([SavedAsk].self, from: data) else { return }
-    asks = saved.map { Ask(instruction: $0.instruction, reply: $0.reply, running: false, steps: $0.steps ?? []) }
+    asks = saved.map { s in
+      // Older versions could save the "is editing…" status as the reply of an edit that never
+      // finished, which then looked stuck forever.
+      let lost = s.reply.hasSuffix(" is editing…")
+      return Ask(
+        instruction: s.instruction, reply: lost ? "This edit didn't finish, and its reply was lost. Ask again if the change isn't there." : s.reply,
+        running: false, steps: s.steps ?? [])
+    }
   }
 
   /// Keeps the last 50 asks with the project, so the history survives switching recordings.
