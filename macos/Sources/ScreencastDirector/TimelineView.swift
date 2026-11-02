@@ -926,7 +926,20 @@ struct TimelineView: View {
     let fps = project.fps
     let output = ui.outputTime
     return Canvas { ctx, size in
-      guard pps >= 10 else { return }
+      // Zoomed out too far for readable labels: mark where words are spoken instead.
+      guard pps >= 10 else {
+        let barH: CGFloat = 4
+        for w in ws {
+          let out = srcToOut(mapped, w.start, fps: fps)
+          if output && out == nil { continue }
+          let px = output ? (out ?? 0) / Double(fps) * pps : w.start * pps
+          let rect = CGRect(x: px, y: (size.height - barH) / 2, width: max(1, (w.end - w.start) * pps), height: barH)
+          ctx.fill(
+            Path(roundedRect: rect, cornerRadius: 1),
+            with: .color(out != nil ? Color.primary.opacity(0.45) : Color.secondary.opacity(0.2)))
+        }
+        return
+      }
       var lastEnd: CGFloat = -1000
       for w in ws {
         let out = srcToOut(mapped, w.start, fps: fps)
