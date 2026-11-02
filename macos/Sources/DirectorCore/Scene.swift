@@ -652,8 +652,8 @@ public final class Scene: @unchecked Sendable {
       }
     case "slate", "chapter":
       let chapter = c.style == "chapter"
-      // The scrim only fades; the text does the moving.
-      ctx.setFillColor(CGColor(gray: 0, alpha: (chapter ? 0.45 : 0.62) * min(1, pose.opacity)))
+      // The scrim only fades; the text does the moving. It's dark enough to read over a busy screen.
+      ctx.setFillColor(CGColor(gray: 0, alpha: (chapter ? 0.72 : 0.62) * min(1, pose.opacity)))
       ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
       let title = Scene.text(c.text, size: (chapter ? 76 : 92) * u, weight: .bold, font: look.titleFont, color: "#ffffff")
       let label = c.subtitle.map {

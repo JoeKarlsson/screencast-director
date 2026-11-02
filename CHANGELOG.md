@@ -50,6 +50,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Cut out background: show just you over the screen, with no circle, using on-device person segmentation. In a bottom corner the cutout stands on the frame's edge.
 - The background cutout shows your whole upper body. Before, the bubble's square edges and the camera zoom sliced off your shoulders and arms.
 - The background cutout only applies to the camera bubble over your screen. Full-camera stretches keep your room behind you, and it fades back in as the camera grows to full screen.
+- Chapter cards darken the video behind them more, so the title reads over a busy screen.
 - Camera punch-ins (`camera.punchIns` in the plan): the camera snaps tighter on your face for a beat, then snaps back, for punctuation on a key line.
 - Pause trimming drops clips stranded between cuts: anything under a second, or under two seconds and mostly silence. The cut runs on to where you start talking again, instead of flickering through a stray word or a sliver of silence.
 - In a narrated recording, the draft cuts silent scrolling and pointing longer than 3 seconds instead of keeping it at 1.5x. Shorter moves, and recordings with no narration, still play at 1.5x.
