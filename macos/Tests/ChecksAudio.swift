@@ -1,7 +1,240 @@
+import AVFoundation
 import CoreImage
 import Foundation
 
 // Audio processing: music ducking, the gain tap and voice cleanup. Called from Checks.main; run with macos/test.sh.
 
+/// Runs async work from the synchronous checks.
+private func blocking<T>(_ body: @escaping () async throws -> T) -> Result<T, Error> {
+  var result: Result<T, Error>?
+  let done = DispatchSemaphore(value: 0)
+  Task.detached {
+    do { result = .success(try await body()) } catch { result = .failure(error) }
+    done.signal()
+  }
+  done.wait()
+  return result!
+}
+
+/// Writes mono 48 kHz float PCM, one sample per index from `sample`.
+private func writeTone(_ url: URL, seconds: Double, _ sample: (Int) -> Float) throws {
+  let fmt = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
+  let file = try AVAudioFile(forWriting: url, settings: fmt.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+  let n = Int(seconds * 48000)
+  let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(n))!
+  for i in 0..<n { buf.floatChannelData![0][i] = sample(i) }
+  buf.frameLength = AVAudioFrameCount(n)
+  try file.write(from: buf)
+}
+
+/// A sine's samples: `db` is its RMS level in dBFS.
+private func sine(_ hz: Double, db: Double) -> (Int) -> Float {
+  let amp = pow(10, db / 20) * sqrt(2)
+  return { Float(amp * sin(2 * Double.pi * hz * Double($0) / 48000)) }
+}
+
+/// RMS level in dBFS of `samples[from..<to]` (sample indices at 48 kHz).
+private func rmsDB(_ samples: [Float], _ from: Int, _ to: Int) -> Double {
+  let part = samples[max(0, from)..<min(samples.count, to)]
+  let power = part.reduce(0.0) { $0 + Double($1 * $1) } / Double(max(1, part.count))
+  return 10 * log10(max(power, 1e-20))
+}
+
+/// Mono samples of `url` played through `tap` (an audio mix on an asset reader, the export's path).
+private func readThroughTap(_ url: URL, _ tap: MTAudioProcessingTap?) throws -> [Float] {
+  let asset = AVURLAsset(url: url)
+  let track = try blocking { try await asset.loadTracks(withMediaType: .audio).first! }.get()
+  let params = AVMutableAudioMixInputParameters(track: track)
+  params.audioTapProcessor = tap
+  let mix = AVMutableAudioMix()
+  mix.inputParameters = [params]
+  let reader = try AVAssetReader(asset: asset)
+  let output = AVAssetReaderAudioMixOutput(
+    audioTracks: [track],
+    audioSettings: [
+      AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 48000, AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 32,
+      AVLinearPCMIsFloatKey: true, AVLinearPCMIsNonInterleaved: false, AVLinearPCMIsBigEndianKey: false,
+    ])
+  output.audioMix = mix
+  reader.add(output)
+  guard reader.startReading() else { throw reader.error ?? NSError(domain: "checks", code: 1) }
+  var samples: [Float] = []
+  while let sb = output.copyNextSampleBuffer() {
+    guard let block = CMSampleBufferGetDataBuffer(sb) else { continue }
+    let bytes = CMBlockBufferGetDataLength(block)
+    var chunk = [Float](repeating: 0, count: bytes / 4)
+    chunk.withUnsafeMutableBytes { _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: bytes, destination: $0.baseAddress!) }
+    samples += chunk
+  }
+  return samples
+}
+
+private func readMono(_ url: URL) throws -> [Float] {
+  let file = try AVAudioFile(forReading: url)
+  let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))!
+  try file.read(into: buf)
+  return Array(UnsafeBufferPointer(start: buf.floatChannelData![0], count: Int(buf.frameLength)))
+}
+
 func audioChecks() {
+  musicDuckChecks()
+  gainTapChecks()
+  voiceCleanupChecks()
+}
+
+/// The music's volume ramps: (start volume, end volume, start s, end s) for the ramp at `t`, if any.
+private func volumeRamp(_ p: AVMutableAudioMixInputParameters, at t: Double) -> (Float, Float, Double, Double)? {
+  var a: Float = 0, b: Float = 0
+  var range = CMTimeRange.zero
+  guard p.getVolumeRamp(for: CMTime(seconds: t, preferredTimescale: 60000), startVolume: &a, endVolume: &b, timeRange: &range) else { return nil }
+  return (a, b, range.start.seconds, range.end.seconds)
+}
+
+private func musicDuckChecks() {
+  let up = Float(pow(10, -14.0 / 20)), down = Float(pow(10, -32.0 / 20))
+  func near(_ r: (Float, Float, Double, Double)?, _ want: (Float, Float, Double, Double)) -> Bool {
+    guard let r else { return false }
+    return abs(r.0 - want.0) < 1e-4 && abs(r.1 - want.1) < 1e-4 && abs(r.2 - want.2) < 1e-3 && abs(r.3 - want.3) < 1e-3
+  }
+  func ramps(_ music: Music, speech: [(Double, Double)], total: Double) -> AVMutableAudioMixInputParameters {
+    let p = AVMutableAudioMixInputParameters()
+    MusicDuck.apply(music, to: p, speech: speech, total: total)
+    return p
+  }
+
+  // Talking from 5 to 8 s of a 20 s video: fade in, duck 0.3 s ahead of the voice, back up over 0.6 s, fade out.
+  let talk = ramps(Music(file: "m.m4a"), speech: [(5, 8)], total: 20)
+  expect(near(volumeRamp(talk, at: 0.5), (0, up, 0, 1)), "music fades in over the first second (\(String(describing: volumeRamp(talk, at: 0.5))))")
+  expect(near(volumeRamp(talk, at: 4.8), (up, down, 4.7, 5)), "music ducks 18 dB in the 0.3 s before the voice (\(String(describing: volumeRamp(talk, at: 4.8))))")
+  expect(near(volumeRamp(talk, at: 8.3), (down, up, 8, 8.6)), "music comes back up over 0.6 s after the voice (\(String(describing: volumeRamp(talk, at: 8.3))))")
+  expect(near(volumeRamp(talk, at: 19), (up, 0, 18, 20)), "music fades out over the last two seconds (\(String(describing: volumeRamp(talk, at: 19))))")
+  // Between ramps AVFoundation reports the next one; the volume holds where the last one ended.
+  expect(near(volumeRamp(talk, at: 6.5), (down, up, 8, 8.6)), "the music holds ducked while the voice talks")
+
+  // Talking from the start: fade in to the ducked level, not up and straight back down.
+  let early = ramps(Music(file: "m.m4a"), speech: [(0.5, 3)], total: 10)
+  expect(near(volumeRamp(early, at: 0.5), (0, down, 0, 1)), "talking at the start fades in to the ducked level (\(String(describing: volumeRamp(early, at: 0.5))))")
+  expect(near(volumeRamp(early, at: 3.3), (down, up, 3, 3.6)), "and comes up after the first line")
+  expect(near(volumeRamp(early, at: 9), (up, 0, 8, 10)), "a short video still fades out over two seconds")
+
+  // Still talking at the end: the fade out starts from the ducked level, with no swell before it.
+  let late = ramps(Music(file: "m.m4a"), speech: [(5, 19)], total: 20)
+  expect(near(volumeRamp(late, at: 19), (down, 0, 18, 20)), "talking into the end fades out from the ducked level (\(String(describing: volumeRamp(late, at: 19))))")
+  expect(!(1..<36).contains { volumeRamp(late, at: Double($0) * 0.5).map { $0.1 == up && $0.2 > 4 } ?? false }, "the music never comes back up before the fade")
+
+  // A plan's own levels: -6 dB music, ducking 10 dB.
+  let custom = ramps(Music(file: "m.m4a", volumeDB: -6, duckDB: -10), speech: [(5, 8)], total: 20)
+  expect(near(volumeRamp(custom, at: 4.8), (Float(pow(10, -6.0 / 20)), Float(pow(10, -16.0 / 20)), 4.7, 5)), "a plan's music and duck levels are used")
+
+  // No talking: just the fades, full level between.
+  let quiet = ramps(Music(file: "m.m4a"), speech: [], total: 10)
+  expect(near(volumeRamp(quiet, at: 0.5), (0, up, 0, 1)) && near(volumeRamp(quiet, at: 9), (up, 0, 8, 10)), "with no talking only the fades ramp")
+  expect(near(volumeRamp(quiet, at: 5), (up, 0, 8, 10)), "and the music holds its level between (the next ramp is the fade out)")
+}
+
+private func gainTapChecks() {
+  // Box: a fixed gain, or the gain times a per-frame curve interpolated between frames and held at the end.
+  let fixed = AudioGain.Box(2, curve: [], fps: 10, warm: false)
+  expect(fixed.gain(at: 0) == 2 && fixed.gain(at: 99) == 2, "with no curve the gain is fixed")
+  let curved = AudioGain.Box(2, curve: [1, 0.5, 0.25], fps: 10, warm: false)
+  expect(curved.gain(at: 0) == 2 && abs(curved.gain(at: 0.05) - 1.5) < 1e-6 && abs(curved.gain(at: 0.15) - 0.75) < 1e-6, "the curve is interpolated between frames")
+  expect(curved.gain(at: 5) == 0.5 && curved.gain(at: -1) == 2, "the curve holds its ends")
+
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-audio-tap-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: dir) }
+  do {
+    // A 2 s 1 kHz tone at -26 dB RMS, through the tap the preview and export use.
+    let tone = dir.appendingPathComponent("tone.caf")
+    try writeTone(tone, seconds: 2, sine(1000, db: -26))
+    let dry = try readThroughTap(tone, nil)
+    expect(abs(rmsDB(dry, 0, dry.count) + 26) < 0.2 && dry.count == 96000, "the dry tone reads back at -26 dB (\(rmsDB(dry, 0, dry.count)), \(dry.count) samples)")
+    let boosted = try readThroughTap(tone, AudioGain.tap(gainDB: 6))
+    let boost = rmsDB(boosted, 0, boosted.count) - rmsDB(dry, 0, dry.count)
+    expect(abs(boost - 6) < 0.2, "a 6 dB tap raises the voice 6 dB (\(boost))")
+    let unity = try readThroughTap(tone, AudioGain.tap(gainDB: 0))
+    expect(unity.count == dry.count && zip(unity, dry).allSatisfy { abs($0 - $1) < 1e-6 }, "a 0 dB tap leaves the samples untouched")
+
+    // A leveling curve: 0 dB for the first second, -12 dB from 1.1 s on (30 fps frames).
+    let curve = (0..<60).map { $0 < 30 ? 0.0 : -12.0 }
+    let leveled = try readThroughTap(tone, AudioGain.tap(gainDB: 0, curveDB: curve, fps: 30))
+    let first = rmsDB(leveled, 0, 46000) - rmsDB(dry, 0, 46000), second = rmsDB(leveled, 53000, 96000) - rmsDB(dry, 53000, 96000)
+    expect(abs(first) < 0.2 && abs(second + 12) < 0.2, "the tap follows the leveling curve over time (\(first), \(second))")
+
+    // A boost past full scale rounds off below -0.5 dBFS instead of clipping.
+    let hot = dir.appendingPathComponent("hot.caf")
+    try writeTone(hot, seconds: 1, sine(1000, db: -6))
+    let limited = try readThroughTap(hot, AudioGain.tap(gainDB: 12))
+    let peak = limited.map { abs($0) }.max() ?? 0
+    expect(peak <= 0.94 && peak > 0.9, "boosted peaks stay under -0.5 dBFS (peak \(peak))")
+    expect(rmsDB(limited, 0, limited.count) > rmsDB(dry, 0, dry.count) + 15, "and the boost still makes it louder")
+
+    // Warm voice in the tap: an 80 Hz tone gets more chest.
+    let low = dir.appendingPathComponent("low.caf")
+    try writeTone(low, seconds: 1, sine(80, db: -33))
+    let lowDry = try readThroughTap(low, nil), lowWarm = try readThroughTap(low, AudioGain.tap(gainDB: 0, warm: true))
+    let chest = rmsDB(lowWarm, 24000, 48000) - rmsDB(lowDry, 24000, 48000)
+    expect(chest > 1.5, "the tap runs the warm voice chain (80 Hz +\(chest) dB)")
+  } catch {
+    expect(false, "gain tap: \(error)")
+  }
+}
+
+private func voiceCleanupChecks() {
+  // The fallback's expander, threshold -40 dB: room noise 20 dB under it drops the full 12 dB,
+  // noise 3 dB under drops 3 dB, speech passes, and it opens fast and closes slowly.
+  func expanded(_ parts: [(seconds: Double, db: Double)]) -> [Float] {
+    var x: [Float] = []
+    for part in parts {
+      let s = sine(300, db: part.db), offset = x.count
+      x += (0..<Int(part.seconds * 48000)).map { s(offset + $0) }
+    }
+    let expander = VoiceCleanup.Expander(threshold: -40)
+    x.withUnsafeMutableBufferPointer { expander.process($0.baseAddress!, count: $0.count) }
+    return x
+  }
+  let noise = expanded([(1, -60)])
+  expect(abs(rmsDB(noise, 24000, 48000) + 72) < 0.5, "room noise 20 dB under the threshold drops 12 dB (\(rmsDB(noise, 24000, 48000)))")
+  let near = expanded([(1, -43)])
+  expect(abs(rmsDB(near, 24000, 48000) + 46) < 0.5, "noise 3 dB under the threshold drops 3 dB (\(rmsDB(near, 24000, 48000)))")
+  let voice = expanded([(1, -20)])
+  expect(abs(rmsDB(voice, 0, 48000) + 20) < 0.05, "speech passes at its level (\(rmsDB(voice, 0, 48000)))")
+  let opening = expanded([(1, -60), (1, -20)])
+  expect(abs(rmsDB(opening, 48000 + 2400, 48000 + 4800) + 20) < 1, "a word after a pause is at full level within 50 ms (\(rmsDB(opening, 50400, 52800)))")
+  let closing = expanded([(1, -20), (1, -45)])
+  let tailGain = rmsDB(closing, 48000 + 1440, 48000 + 2400) + 45, settled = rmsDB(closing, 48000 + 24000, 96000) + 45
+  expect(tailGain > -2.5 && settled < -4.5, "the end of a word isn't clipped: 30-50 ms on it's down \(tailGain) dB, later \(settled) dB")
+
+  // The filter fallback end to end: a 3 s mono file, room noise, a second of voice, room noise.
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-voice-clean-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: dir) }
+  do {
+    let src = dir.appendingPathComponent("screen.caf"), out = dir.appendingPathComponent(VoiceCleanup.fileName)
+    let room = sine(300, db: -60), talk = sine(300, db: -20)
+    try writeTone(src, seconds: 3) { $0 >= 48000 && $0 < 96000 ? talk($0) : room($0) }
+    let levels = (0..<60).map { i in (Double(i) * 0.05, i >= 20 && i < 40 ? -20.0 : -60.0) }
+    try blocking { try await VoiceCleanup.render(source: src, to: out, method: .filter, levels: levels) }.get()
+    let cleaned = try readMono(out)
+    expect(abs(Double(cleaned.count) - 144000) < 2048, "the cleaned voice is as long as the recording (\(cleaned.count) samples)")
+    expect(abs(rmsDB(cleaned, 60000, 84000) + 20) < 1, "the voice keeps its level (\(rmsDB(cleaned, 60000, 84000)))")
+    // Threshold: the quietest tenth (-60) + 12 = -48, less 3 for the expander, so -60 noise drops 9 dB.
+    let roomOut = rmsDB(cleaned, 120000, 140000)
+    expect(roomOut < -66 && roomOut > -72, "room noise between words drops about 9 dB (\(roomOut))")
+    let onset = cleaned.firstIndex { abs($0) > 0.05 } ?? -1
+    expect(abs(onset - 48000) < 240, "the cleaned voice lines up with the recording (voice starts at sample \(onset), want 48000)")
+    // A fresh cleaned file is reused, not rendered again.
+    try Data("cached".utf8).write(to: out)
+    let project = Project(dir: dir, source: Project.Source(video: "screen.caf", width: 16, height: 16, duration: 3, captureStart: nil, camera: nil))
+    let reused = try blocking { try await VoiceCleanup.cleaned(project, video: "screen.caf") }.get()
+    expect(reused == out && (try? String(contentsOf: out, encoding: .utf8)) == "cached", "a cleaned voice newer than the recording is reused")
+    expect(VoiceCleanup.Method(rawValue: "filter") == .filter && VoiceCleanup.Method(rawValue: "isolation") == .isolation, "cleanup methods by name")
+    // No audio track: a clear error instead of a silent file.
+    let empty = dir.appendingPathComponent("empty.mov")
+    try Data().write(to: empty)
+    let failed = blocking { try await VoiceCleanup.render(source: empty, to: dir.appendingPathComponent("x.m4a"), method: .filter, levels: []) }
+    if case .success = failed { expect(false, "a file with no audio fails to clean") }
+  } catch {
+    expect(false, "voice cleanup: \(error)")
+  }
 }
