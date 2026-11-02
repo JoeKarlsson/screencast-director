@@ -77,6 +77,13 @@ private func readMono(_ url: URL) throws -> [Float] {
 }
 
 func audioChecks() {
+  // New Recording's mic check: quiet only after 3 s with nothing over -55 dB; any sound resets it.
+  var watch = SilenceWatch(start: 10)
+  expect(!watch.isSilent(at: 12.9) && watch.isSilent(at: 13), "a mic that hears nothing is flagged after 3 s, not before")
+  watch.hear(peakDB: -60, at: 12)
+  expect(watch.isSilent(at: 13), "peaks under -55 dB don't count as sound")
+  watch.hear(peakDB: -30, at: 14)
+  expect(!watch.isSilent(at: 16.5) && watch.isSilent(at: 17), "speech clears the flag, and 3 s of quiet after it sets it again")
   musicDuckChecks()
   gainTapChecks()
   voiceCleanupChecks()

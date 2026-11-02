@@ -85,7 +85,7 @@ struct RecordingSettings: View {
           ForEach(AppSettings.microphones, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
         }
         Toggle("Record camera (for split screen and the camera bubble)", isOn: $settings.useCamera)
-        Picker("Camera", selection: $settings.cameraID) {
+        Picker("Camera", selection: settings.cameraSelection) {
           ForEach(AppSettings.cameras, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
         }
         .disabled(!settings.useCamera)

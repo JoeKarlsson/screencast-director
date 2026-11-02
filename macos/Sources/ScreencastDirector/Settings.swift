@@ -71,6 +71,13 @@ final class AppSettings: ObservableObject {
     AppSettings.cameras.first { $0.uniqueID == cameraID } ?? AppSettings.cameras.first
   }
 
+  /// The camera pickers' selection: the camera a recording would use. When the saved camera isn't
+  /// connected that's the fallback, so the picker never shows blank; the saved choice is kept, so
+  /// plugging that camera back in picks it again.
+  var cameraSelection: Binding<String> {
+    Binding(get: { self.cameraDevice?.uniqueID ?? "" }, set: { self.cameraID = $0 })
+  }
+
   /// The mic a recording uses: the picked one if it's connected, otherwise the system default.
   var microphoneDevice: AVCaptureDevice? {
     AppSettings.microphones.first { $0.uniqueID == micID } ?? AVCaptureDevice.default(for: .audio)

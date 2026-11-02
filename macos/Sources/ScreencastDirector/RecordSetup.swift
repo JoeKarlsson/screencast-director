@@ -115,6 +115,10 @@ struct RecordSetupView: View {
               Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).frame(width: 44).help(problem)
             } else {
               MicMeter(level: micCheck.level).frame(width: 44).help("Microphone level: speak to check it's working")
+              if micCheck.silent {
+                Text("No sound").font(.caption.weight(.medium)).foregroundStyle(.orange).fixedSize()
+                  .help("The mic hasn't heard anything for a few seconds. Say something, and check it isn't muted.")
+              }
             }
           }
           .onChange(of: settings.micID) { _, _ in micCheck.run(settings.microphoneDevice) }
@@ -123,7 +127,7 @@ struct RecordSetupView: View {
           rowLabel("Camera", "video")
           HStack {
             Toggle("Camera", isOn: $settings.useCamera).labelsHidden().toggleStyle(.switch).controlSize(.small)
-            Picker("Camera", selection: $settings.cameraID) {
+            Picker("Camera", selection: settings.cameraSelection) {
               ForEach(AppSettings.cameras, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
             }
             .labelsHidden()
@@ -250,16 +254,24 @@ final class MicCheck: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
   @Published private(set) var level: Float = 0
   /// Why there's no level (no mic, access off, couldn't open), shown instead of the meter.
   @Published private(set) var problem: String?
+  /// Nothing heard for a few seconds (`SilenceWatch`). Checked on a timer, so a mic that sends no
+  /// audio at all is caught too.
+  @Published private(set) var silent = false
   private var generation = 0
+  private var watch = SilenceWatch(start: 0)
+  private var silenceTimer: Timer?
   private let queue = DispatchQueue(label: "mic-check")
   // Touched only on `queue`.
   private var session: AVCaptureSession?
+  private var sessionGeneration = 0
   private var lastPost = 0.0
 
   func run(_ device: AVCaptureDevice?) {
     generation += 1
     let gen = generation
     level = 0
+    silent = false
+    silenceTimer?.invalidate()
     guard let device else {
       stop()
       problem = "No microphone found."
@@ -268,6 +280,7 @@ final class MicCheck: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     switch AVCaptureDevice.authorizationStatus(for: .audio) {
     case .authorized: problem = nil
     case .notDetermined:
+      problem = "Waiting for microphone access: answer the macOS prompt."
       AVCaptureDevice.requestAccess(for: .audio) { granted in
         DispatchQueue.main.async {
           guard gen == self.generation else { return }
@@ -278,6 +291,12 @@ final class MicCheck: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     default:
       problem = "Microphone access is off. Allow it in System Settings > Privacy & Security > Microphone."
       return
+    }
+    watch = SilenceWatch(start: CACurrentMediaTime())
+    silenceTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+      guard let self else { return }
+      let silent = self.watch.isSilent(at: CACurrentMediaTime())
+      if silent != self.silent { self.silent = silent }
     }
     queue.async {
       self.closeSession()
@@ -295,11 +314,12 @@ final class MicCheck: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         output.setSampleBufferDelegate(self, queue: self.queue)
         session.addOutput(output)
         session.commitConfiguration()
-        self.session = session
+        (self.session, self.sessionGeneration) = (session, gen)
         session.startRunning()
       } catch {
         DispatchQueue.main.async {
           guard gen == self.generation else { return }
+          self.silenceTimer?.invalidate()
           self.problem = "Couldn't open \(device.localizedName): \(error.localizedDescription)"
         }
       }
@@ -309,6 +329,8 @@ final class MicCheck: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
   func stop() {
     generation += 1
     level = 0
+    silent = false
+    silenceTimer?.invalidate()
     queue.async { self.closeSession() }
   }
 
@@ -325,11 +347,13 @@ final class MicCheck: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         for i in 0..<Int(buffer.mDataByteSize) / MemoryLayout<Float>.size { peak = max(peak, abs(samples[i])) }
       }
     }
-    let level = max(0, min(1, (20 * log10(max(peak, 1e-6)) + 60) / 60))
-    let gen = generation
+    let db = 20 * log10(max(Double(peak), 1e-6))
+    let level = Float(max(0, min(1, (db + 60) / 60)))
+    let gen = sessionGeneration
     DispatchQueue.main.async {
       guard gen == self.generation else { return }
       self.level = level
+      self.watch.hear(peakDB: db, at: CACurrentMediaTime())
     }
   }
 
@@ -385,7 +409,7 @@ final class CameraCheck: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
     switch AVCaptureDevice.authorizationStatus(for: .video) {
     case .authorized: break
     case .notDetermined:
-      state = .checking
+      state = .failed("Waiting for camera access: answer the macOS prompt.")
       AVCaptureDevice.requestAccess(for: .video) { granted in
         DispatchQueue.main.async {
           guard gen == self.generation else { return }
