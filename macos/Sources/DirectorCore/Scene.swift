@@ -380,10 +380,10 @@ public final class Scene: @unchecked Sendable {
         "CIColorControls", parameters: ["inputContrast": g.contrast ?? 1, "inputSaturation": g.saturation ?? 1, "inputBrightness": 0])
     }
     if let w = g.warmth, w != 0 {
-      // Telling Core Image the light was cooler than it was warms the picture, and the reverse.
+      // A target neutral below the source's warms the picture, above it cools it.
       out = out.applyingFilter(
         "CITemperatureAndTint",
-        parameters: ["inputNeutral": CIVector(x: 6500, y: 0), "inputTargetNeutral": CIVector(x: 6500 + w * 2500, y: 0)])
+        parameters: ["inputNeutral": CIVector(x: 6500, y: 0), "inputTargetNeutral": CIVector(x: 6500 - w * 2500, y: 0)])
     }
     return out.cropped(to: img.extent)
   }

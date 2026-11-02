@@ -228,6 +228,8 @@ func sceneDrawingChecks() {
   let mid = CIImage(color: CIColor(red: 0.4, green: 0.4, blue: 0.4)).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8))
   let brighter = pixel(Scene.graded(mid, Grade(exposure: 1)), x: 4, y: 4), darker = pixel(Scene.graded(mid, Grade(exposure: -1)), x: 4, y: 4)
   expect(brighter[1] > 0.5 && darker[1] < 0.3, "exposure brightens and darkens (\(brighter[1]), \(darker[1]))")
+  let warm = pixel(Scene.graded(mid, Grade(warmth: 1)), x: 4, y: 4), cool = pixel(Scene.graded(mid, Grade(warmth: -1)), x: 4, y: 4)
+  expect(warm[0] > warm[2] + 0.05 && cool[2] > cool[0] + 0.05, "warmth pushes toward red, coolness toward blue (\(warm), \(cool))")
   let flat = pixel(Scene.graded(CIImage(color: CIColor(red: 0.3, green: 0.5, blue: 0.7)).cropped(to: mid.extent), Grade(contrast: 0)), x: 4, y: 4)
   expect(flat.max()! - flat.min()! < 0.3 && Scene.graded(mid, nil) === mid, "contrast 0 flattens; no grade leaves the picture alone (\(flat))")
 
