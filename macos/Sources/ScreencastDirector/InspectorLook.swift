@@ -94,6 +94,13 @@ extension InspectorView {
       .disabled(!plan.captions.enabled)
       captionLook(plan).disabled(!plan.captions.enabled)
     }
+    InspectorSection("Chapters") {
+      toggle("Checklist", "Vertical step chips list the earlier steps under them, ticked.", bind("checklist", { $0.look?.chapterChecklist == true }, { p, on in
+        var look = p.look ?? Look()
+        look.chapterChecklist = on ? true : nil
+        p.look = look
+      }))
+    }
     InspectorSection("Keyboard") {
       toggle("Shortcut labels", "Shows chips like ⌘K when you press a shortcut.", bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
     }
@@ -116,6 +123,15 @@ extension InspectorView {
       ColorPicker("Highlight", selection: lookBind("capHL", { $0.captionHighlight }, { $0.captionHighlight = $1 }, plan.look?.accent ?? "#ffe500"))
         .help("The word being spoken")
       ColorPicker("Box", selection: lookBind("capBG", { $0.captionBackground }, { $0.captionBackground = $1 }, "#0a0a0e"))
+    }
+    LabeledContent("Emphasis") {
+      TextField("home lab, Linux", text: bind("capEmphasis", { ($0.captions.emphasis ?? []).joined(separator: ", ") }, { p, text in
+        let words = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        p.captions.emphasis = words.isEmpty ? nil : words
+      }))
+      .help("Words or phrases drawn bigger in the emphasis color, separated by commas")
+      ColorPicker("Emphasis color", selection: lookBind("capEmph", { $0.captionEmphasis }, { $0.captionEmphasis = $1 }, plan.look?.accent ?? "#ffe500"))
+        .labelsHidden()
     }
     if bold {
       toggle("Box behind the words", "A box in the box color, for words over a busy picture.",

@@ -283,6 +283,9 @@ public struct Plan: Codable, Equatable {
     public var box: Bool?
     /// Text size relative to the style's (1 is the style's own; nil is 1).
     public var size: Double?
+    /// Words or phrases ("home lab") drawn bigger in the look's `captionEmphasis` color wherever
+    /// they're said. Case and punctuation don't matter.
+    public var emphasis: [String]?
 
     public static let styles: [(name: String, label: String)] = [
       ("pill", "Pill"), ("karaoke", "Karaoke"), ("pop", "Word Pop"), ("bold", "Bold"), ("social", "Social (big, for vertical)"),

@@ -124,21 +124,23 @@ TEMPLATES.storyboard = function (data, cues, duration) {
       }
       if (l.label) { const m = curve.at(.5); place(l.label, m[0] - 60, m[1] - 50, hidden ? 0 : popScale(t, l.s.t + .3) * (1 - out), -3, 1 - .78 * dim); }
     });
+    // In a vertical video's square card the stage is about half as wide, so nodes draw bigger.
+    const big = STAGE.reflow ? 1.7 : 1;
     Object.values(nodes).forEach(n => {
       const out = gone(n.board, t);
       const hide = easeOut((t - n.hideT) / .3);
-      const s = popScale(t, n.t) * (1 - out) * (1 - hide);
+      const s = popScale(t, n.t) * (1 - out) * (1 - hide) * big;
       const dim = easeOut((t - n.dimT) / .5);
       const [x, y] = at(n);
       place(n.node, x, y, s, n.kind === "sticker" ? n.rot * (1 - .3 * s) : 0, 1 - .78 * dim, popBlur(t, n.t));
       if (dim > .01) n.node.style.filter += ` grayscale(${dim})`;
       if (n.label) {
-        const below = n.kind === "dot" ? 118 : 86;
-        place(n.label, x - (n.kind === "dot" ? 95 : 50), y + below, popScale(t, n.t + .25) * (1 - out) * (1 - hide), -3, 1 - .78 * dim);
+        const below = (n.kind === "dot" ? 118 : 86) * big;
+        place(n.label, x - (n.kind === "dot" ? 95 : 50), y + below, popScale(t, n.t + .25) * (1 - out) * (1 - hide) * big, -3, 1 - .78 * dim);
         setHL(n.label.querySelector(".hl"), (t - n.t - .5) / .4);
       }
       if (n.kind === "label") setHL(n.node.querySelector(".hl"), (t - n.t - .3) / .4);
-      const r = n.kind === "dot" ? 120 : n.kind === "card" ? 190 : 86;
+      const r = (n.kind === "dot" ? 120 : n.kind === "card" ? 190 : 86) * big;
       n.ring.style.width = n.ring.style.height = `${2 * r}px`;
       n.ring.style.margin = `${-r}px 0 0 ${-r}px`;
       place(n.ring, x, y, popScale(t, n.hlT, .5) * (1 - out) * (1 - hide), 0, .9);

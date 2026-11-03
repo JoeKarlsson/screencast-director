@@ -21,6 +21,9 @@ Each release lists what changed for people using the app or the CLI. The version
 ### App
 - A punch-in can move the camera's framing point (`x`, `y`) and widen (`scale` below 1), to cut to something held up beside your face that a vertical crop would cut off.
 - Captions: drag them anywhere in the preview, and set their text, highlight and box colors, box opacity, font and size in Cursor & Overlays > Captions. Bold and social captions can have a box behind the words (`captions.box`, `x`, `y`, `size`).
+- Caption emphasis: words or phrases you list (Captions > Emphasis) draw bigger in their own color wherever they're said.
+- Vertical step chips can list the earlier steps under them, ticked, like a checklist (Cursor & Overlays > Chapters).
+- Storyboard animations draw their stickers and labels bigger in a vertical video's square card.
 - Big vertical captions shrink a word too wide for the frame ("CUSTOMIZABILITY") instead of breaking it across two lines.
 - Camera > Mirror flips a camera that records mirrored, so a page or device you hold up reads the right way (`camera.mirror`).
 - Recordings sort by when you last opened them (Recently Opened, the new default), and the menu bar's Recent list shows the ones you opened last instead of the newest.

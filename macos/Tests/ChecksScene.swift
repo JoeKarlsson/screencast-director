@@ -83,6 +83,28 @@ func sceneDrawingChecks() {
   expect(movedTop.white > 200 && movedBottom.white == 0 && movedBottom.dark == 0,
     "captions draw where captions.x/y put them (top \(movedTop), bottom \(movedBottom))")
   expect(Fonts.choices(nil).isEmpty, "no font choices without a look")
+  // Checklist: a vertical step chip lists the earlier steps under it when the look asks for it.
+  var tall = base
+  tall.output.width = 1080
+  tall.output.height = 1920
+  tall.style.screenAspect = 1
+  tall.callouts = [Callout(start: 0, end: 1, text: "Install it", style: "chapter"), Callout(start: 2, end: 4, text: "Configure it", style: "chapter")]
+  let underChip = CGRect(x: 60, y: 1920 - 420, width: 500, height: 260)
+  let noList = counts(Scene(plan: tall, words: [], clicks: [], shortcuts: []).render(frame: 90, screen: screen, camera: nil), underChip)
+  tall.look = Look()
+  tall.look?.chapterChecklist = true
+  let withList = counts(Scene(plan: tall, words: [], clicks: [], shortcuts: []).render(frame: 90, screen: screen, camera: nil), underChip)
+  expect(withList.dark > noList.dark + 2000, "the checklist draws the earlier step under the chip (\(noList.dark) -> \(withList.dark))")
+  // Emphasis: words and phrases, ignoring case and punctuation.
+  let emphasisMarked = Scene.emphasized(["my", "Home", "lab,", "is", "e-waste"], ["home lab", "E-Waste", "nope words"])
+  expect(emphasisMarked == [1, 2, 4], "emphasis finds words and phrases (\(emphasisMarked.sorted()))")
+  var emphasisCaptions = captioned
+  emphasisCaptions.captions.emphasis = ["world"]
+  emphasisCaptions.look = Look()
+  emphasisCaptions.look?.captionEmphasis = "#ffe000"
+  let plainYellow = counts(render(captioned, frame: 85, words: said), captionRow).yellow
+  let emphasisYellow = counts(render(emphasisCaptions, frame: 85, words: said), captionRow).yellow
+  expect(plainYellow < 50 && emphasisYellow > 300, "an emphasized word draws in the emphasis color (\(plainYellow) -> \(emphasisYellow))")
   // A word wider than the caption box shrinks to fit on one line instead of breaking mid-word.
   let longWord = NSMutableAttributedString(attributedString: Scene.text("CUSTOMIZABILITY", size: 92, weight: .heavy))
   longWord.append(Scene.text(" OVER", size: 92, weight: .heavy))

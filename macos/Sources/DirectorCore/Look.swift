@@ -26,6 +26,10 @@ public struct Look: Codable, Equatable {
   public var captionHighlight: String?
   public var captionBackground: String?
   public var captionBackgroundOpacity: Double?
+  /// Color of the caption words in `captions.emphasis`; nil is the accent.
+  public var captionEmphasis: String?
+  /// Vertical chapter chips list the earlier chapters under them, ticked, like a checklist.
+  public var chapterChecklist: Bool?
   public var titleText: String?
   public var titleBackground: String?
   public var chipText: String?

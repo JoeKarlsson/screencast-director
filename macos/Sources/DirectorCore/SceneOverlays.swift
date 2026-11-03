@@ -229,11 +229,30 @@ extension Scene {
       let padX = 28 * u, padY = 12 * u
       let origin = b.opacity > 0.5 ? CGPoint(x: b.x + 30 * u, y: b.y + 30 * u) : CGPoint(x: ins.margin, y: ins.margin * 2)
       let rect = CGRect(x: origin.x, y: origin.y, width: size.width + 2 * padX, height: size.height + 2 * padY)
-      animated(ctx, rect, pose, blurred: &blurred) { g in
+      // The checklist: earlier chapters, ticked, in rows under the chip.
+      let done = look.chapterChecklist == true
+        ? plan.callouts.filter { $0.style == "chapter" && $0.start < c.start }.sorted { $0.start < $1.start } : []
+      let rows = done.map { Scene.text("✓  " + $0.text, size: 34 * u, weight: .semibold, font: look.captionFont, color: look.chipText ?? "#ffffff") }
+      let rowSizes = rows.map { Scene.measure($0, maxWidth: W * 0.8) }
+      let rowPadX = 20 * u, rowPadY = 8 * u, gap = 10 * u
+      var rowRects: [CGRect] = []
+      var y = rect.maxY + gap
+      for size in rowSizes {
+        rowRects.append(CGRect(x: rect.minX, y: y, width: size.width + 2 * rowPadX, height: size.height + 2 * rowPadY))
+        y += size.height + 2 * rowPadY + gap
+      }
+      let whole = rowRects.reduce(rect) { $0.union($1) }
+      animated(ctx, whole, pose, blurred: &blurred) { g in
         g.setFillColor(Scene.color(self.look.titleBackground ?? accent))
         g.addPath(CGPath(roundedRect: rect, cornerWidth: 14 * self.u, cornerHeight: 14 * self.u, transform: nil))
         g.fillPath()
         self.drawText(g, reveal(s), at: CGPoint(x: rect.minX + padX, y: rect.minY + padY), size: size)
+        for (k, r) in rowRects.enumerated() {
+          g.setFillColor(Scene.color(self.look.chipBackground ?? "#111318").copy(alpha: 0.88)!)
+          g.addPath(CGPath(roundedRect: r, cornerWidth: 10 * self.u, cornerHeight: 10 * self.u, transform: nil))
+          g.fillPath()
+          self.drawText(g, rows[k], at: CGPoint(x: r.minX + rowPadX, y: r.minY + rowPadY), size: rowSizes[k])
+        }
       }
     case "slate", "chapter":
       let chapter = c.style == "chapter"
@@ -305,6 +324,7 @@ extension Scene {
     var current: NSRange?
     var wordRanges: [NSRange] = []
     let highlight = look.captionHighlight ?? (style == "pill" ? nil : look.accent ?? "#ffe500")
+    let emphasized = Scene.emphasized(page.words.map(\.text), plan.captions.emphasis ?? [])
     for (i, w) in page.words.enumerated() {
       let spoken = f >= w.startF
       let isCurrent = spoken && (i + 1 == page.words.count || f < page.words[i + 1].startF)
@@ -316,12 +336,13 @@ extension Scene {
       }
       var color = look.captionText ?? "#ffffff"
       if isCurrent, let highlight { color = style == "karaoke" ? Scene.readableOn(highlight) : highlight }
+      if emphasized.contains(i), style != "karaoke" || !isCurrent { color = look.captionEmphasis ?? look.accent ?? "#ffe500" }
       let wordRange = NSRange(location: s.length, length: (text as NSString).length - (i < page.words.count - 1 ? 1 : 0))
       wordRanges.append(wordRange)
       if isCurrent { current = wordRange }
       s.append(
         Scene.text(
-          text, size: (social ? 92 : bold ? 64 : 42) * sizeScale * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
+          text, size: (social ? 92 : bold ? 64 : 42) * sizeScale * (emphasized.contains(i) ? 1.2 : 1) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
           color: color, stroke: social || boxed ? 0 : bold ? 7 : 0))
     }
     // Social captions stay clear of the like and share buttons down the right edge.

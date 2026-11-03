@@ -124,6 +124,19 @@ extension Scene {
     return NSAttributedString(string: str, attributes: attrs)
   }
 
+  /// Which of `words` belong to an emphasis entry (a word or a phrase), ignoring case and punctuation.
+  static func emphasized(_ words: [String], _ entries: [String]) -> Set<Int> {
+    func norm(_ s: String) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
+    let said = words.map(norm)
+    var out: Set<Int> = []
+    for entry in entries {
+      let tokens = entry.split(separator: " ").map { norm(String($0)) }.filter { !$0.isEmpty }
+      guard !tokens.isEmpty, tokens.count <= said.count else { continue }
+      for i in 0...(said.count - tokens.count) where Array(said[i..<i + tokens.count]) == tokens { out.formUnion(i..<i + tokens.count) }
+    }
+    return out
+  }
+
   /// Shrinks the text until its widest word fits `maxWidth`, so a long word ("CUSTOMIZABILITY" in
   /// big vertical captions) isn't broken mid-word across lines.
   static func shrinkToFitWords(_ s: NSMutableAttributedString, _ words: [NSRange], maxWidth: Double) {
