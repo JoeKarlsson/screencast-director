@@ -58,6 +58,9 @@ public func planFrames(_ plan: Plan) -> Int {
   return (mapped.last.map { $0.outStart + $0.frames } ?? max(1, cards.intro)) + cards.outro
 }
 
+/// Length of the final video in seconds.
+public func planSeconds(_ plan: Plan) -> Double { Double(planFrames(plan)) / Double(plan.output.fps) }
+
 /// Output frame (fractional) for a source time, or nil if that moment is cut.
 public func srcToOut(_ mapped: [MappedSegment], _ t: Double, fps: Int) -> Double? {
   for s in mapped where t >= s.start && t < s.end {

@@ -850,7 +850,7 @@ final class ProjectModel: ObservableObject {
   func versions() -> [Version] {
     PlanHistory.list(planURL: planURL).map { e in
       let old = try? Plan.load(e.url)
-      let length = old.map { Double(planFrames($0)) / Double($0.output.fps) }
+      let length = old.map(planSeconds)
       let summary = old.flatMap { o in plan.map { PlanHistory.summary(from: $0, to: o) } } ?? "unreadable"
       return Version(id: e.url, date: e.date, length: length, summary: summary)
     }

@@ -131,12 +131,12 @@ do {
     guard positional.count == 3, let level = PauseLevel(rawValue: positional[2]) else { fail(usage) }
     let project = try Project.load(dir)
     var plan = try Plan.load(project.planURL)
-    let before = Double(planFrames(plan)) / Double(plan.output.fps)
+    let before = planSeconds(plan)
     let levels = try await Analyzer.loudness(project, video: plan.source.video)
     plan.retrimPauses(words: project.words, level: level, silences: Analyzer.silences(levels, minLength: 0.2), paused: project.paused)
     plan.pauses = level
     try plan.write(to: project.planURL)
-    let after = Double(planFrames(plan)) / Double(plan.output.fps)
+    let after = planSeconds(plan)
     print("pauses \(level.rawValue): \(fmtTime(before)) -> \(fmtTime(after))")
   case "frame-camera":
     let project = try Project.load(dir)
@@ -164,10 +164,10 @@ do {
     guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
     let project = try Project.load(dir)
     var plan = try Plan.load(project.planURL)
-    let before = Double(planFrames(plan)) / Double(plan.output.fps)
+    let before = planSeconds(plan)
     if args[0] == "cut" { plan.cut(range: a..<b) } else { plan.restore(range: a..<b) }
     try plan.write(to: project.planURL)
-    let after = Double(planFrames(plan)) / Double(plan.output.fps)
+    let after = planSeconds(plan)
     print("\(args[0]) \(fmtTime(a))-\(fmtTime(b)): \(fmtTime(before)) -> \(fmtTime(after))")
   case "gif":
     let project = try Project.load(dir)

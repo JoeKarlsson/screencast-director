@@ -21,7 +21,7 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
     var onlyClips = old
     onlyClips.segments = new.segments
     let ranges = changedRanges(from: old, to: onlyClips)
-    let before = Double(planFrames(old)) / Double(old.output.fps), after = Double(planFrames(new)) / Double(new.output.fps)
+    let before = planSeconds(old), after = planSeconds(new)
     let oldSegments = old.segments
     out.append(
       PlanChange(

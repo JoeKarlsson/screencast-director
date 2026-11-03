@@ -31,7 +31,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   out.append("# \(project.dir.path)")
   out.append("motion style: \(MotionStyle.named(plan.style.motion).name), moves \(plan.style.transition.formatted()) s")
   out.append(
-    "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(Double(planFrames(plan)) / Double(fps))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
+    "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(planSeconds(plan))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
   )
   out.append("")
   out.append("## Timeline (source times; out = position in the final video)")
