@@ -124,6 +124,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - The camera bubble's border no longer draws over a full-frame animation.
 - Two parts of one animation that meet across a cut play straight through, instead of fading out and in with your face and the screen flashing between them.
 - An animation or full-frame B-roll that runs to the end of the video (an end card) stays up through the last frame, instead of fading out to show the footage under it.
+- Exporting in another format (4K, vertical, square, feed) renders the animations at that size first. Before, the export quietly left every animation out, and `director render --preset` did the same.
 - The cursor, click ripples, shortcut chips and annotations no longer draw over a full-frame animation.
 - A B-roll or animation clip a little shorter than its slot holds its last frame, instead of flashing its first frame at the end.
 - `describe` warns when the full-camera layout hides clicks or typing, so a demo can't end up behind your face.

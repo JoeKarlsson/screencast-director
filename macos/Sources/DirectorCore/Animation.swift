@@ -112,6 +112,14 @@ extension Plan {
     }
   }
 
+  /// Clip file names to keep in `.animations/`: each animation at this plan's size and at every
+  /// export preset's, so an export in another format doesn't delete the preview's clips (or the
+  /// preview's render delete an export's).
+  public func animationClipNames(dir: URL) -> Set<String> {
+    let outputs = [output] + ExportPreset.all.map { $0.applied(to: self).output }
+    return Set(outputs.flatMap { o in animationList.map { ($0.clipPath(o, dir: dir) as NSString).lastPathComponent } })
+  }
+
   /// Animations whose clip is missing, with the clip path each should be rendered to.
   public func animationsToRender(dir: URL) -> [(index: Int, animation: Animation, path: String)] {
     animationList.enumerated().compactMap { i, a in

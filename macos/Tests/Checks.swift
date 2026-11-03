@@ -572,6 +572,13 @@ struct Checks {
     var animPlan = buildPlan(p)
     animPlan.animations = [anim]
     expect(animPlan.animationInserts(dir: URL(fileURLWithPath: "/tmp/sd-no-such-project")).isEmpty, "an unrendered animation isn't B-roll yet")
+    let noProject = URL(fileURLWithPath: "/tmp/sd-no-such-project")
+    let fourK = ExportPreset.all.first { $0.id == "youtube-4k" }!.applied(to: animPlan)
+    let keep = animPlan.animationClipNames(dir: noProject)
+    let clipName = { (o: Plan.Output) in (anim.clipPath(o, dir: noProject) as NSString).lastPathComponent }
+    expect(keep.contains(clipName(animPlan.output)) && keep.contains(clipName(fourK.output)), "clip cleanup keeps the preview's clips and a 4K export's")
+    expect(!keep.contains((retitled.clipPath(fourK.output, dir: noProject) as NSString).lastPathComponent), "clip cleanup still drops clips of old data")
+    expect(fourK.animationsToRender(dir: noProject).first?.path == anim.clipPath(fourK.output, dir: noProject), "a 4K export needs its own 4K clips")
 
     // Every bundled template has a manifest the editor can read, and a new one spreads its beats over its own stretch.
     let templateDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Resources/animations/templates")

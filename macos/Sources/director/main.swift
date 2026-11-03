@@ -10,7 +10,7 @@ let usage = """
     director analyze  <dir>
     director plan     <dir> [--force]
     director describe <dir>
-    director animate  <dir> [--force]               render the plan's animations to .animations/ (render and still do this first)
+    director animate  <dir> [--force] [--preset id]   render the plan's animations to .animations/ (render, still and gif do this first)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4]
     director still    <dir> <frame> <out.png> [--preset id]
@@ -97,15 +97,16 @@ do {
     print(editReview(project, try Plan.load(project.planURL)))
   case "animate":
     let project = try Project.load(dir)
-    let plan = try Plan.load(project.planURL)
+    let plan = try planFor(project)
     let n = try await Animate.renderMissing(dir, plan, force: args.contains("--force")) { print($0) }
     print(n == 0 ? "Animations are up to date." : "Rendered \(n) animation(s).")
   case "render":
     let project = try Project.load(dir)
-    let animated = try Plan.load(project.planURL)
-    _ = try await Animate.renderMissing(dir, animated) { print($0) }
+    // Animations render at the output size (a preset's, if given) before the video is built.
+    let plan = try planFor(project)
+    _ = try await Animate.renderMissing(dir, plan) { print($0) }
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.mp4")
-    let built = try await buildComposition(project: project, plan: try planFor(project))
+    let built = try await buildComposition(project: project, plan: plan)
     printWarnings(built)
     let started = Date()
     try await export(built, to: out) { p in
@@ -126,9 +127,9 @@ do {
     if PathSafety.url(out, isInside: dir) {
       try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
-    let animated = try Plan.load(project.planURL)
-    _ = try await Animate.renderMissing(dir, animated) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
-    try await stillFrame(project, try planFor(project), frame: frame, to: out)
+    let plan = try planFor(project)
+    _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+    try await stillFrame(project, plan, frame: frame, to: out)
     print(positional[3])
   case "publish":
     let project = try Project.load(dir)
@@ -180,7 +181,9 @@ do {
   case "gif":
     let project = try Project.load(dir)
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.gif")
-    let built = try await buildComposition(project: project, plan: try planFor(project))
+    let plan = try planFor(project)
+    _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+    let built = try await buildComposition(project: project, plan: plan)
     printWarnings(built)
     let opts = GIF.Options(from: number("--from"), to: number("--to"), width: Int(number("--width") ?? 720), fps: Int(number("--fps") ?? 12))
     let started = Date()

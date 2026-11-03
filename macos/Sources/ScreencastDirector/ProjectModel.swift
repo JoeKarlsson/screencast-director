@@ -255,14 +255,16 @@ final class ProjectModel: ObservableObject {
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
   }
 
-  private func renderAnimationsIfNeeded(_ plan: Plan) {
-    let missing = plan.animationsToRender(dir: dir).count
+  /// Renders missing animation clips in the background, at a preset's size when one is given.
+  private func renderAnimationsIfNeeded(_ plan: Plan, preset: ExportPreset? = nil) {
+    let target = preset.map { $0.applied(to: plan) } ?? plan
+    let missing = target.animationsToRender(dir: dir).count
     guard missing > 0, !animating else { return }
     animating = true
     status = "Rendering \(missing) animation\(missing == 1 ? "" : "s")…"
     let p = Process()
     p.executableURL = Claude.director
-    p.arguments = ["animate", dir.path]
+    p.arguments = ["animate", dir.path] + (preset.map { ["--preset", $0.id] } ?? [])
     let errors = Pipe()
     p.standardError = errors
     p.standardOutput = FileHandle.nullDevice
@@ -1160,10 +1162,10 @@ final class ProjectModel: ObservableObject {
   func export(_ presets: [ExportPreset?] = [nil]) {
     flushWrite()
     guard let plan else { return }
-    // An export without its animations would quietly drop them.
-    guard plan.animationsToRender(dir: dir).isEmpty else {
-      Notices.shared.show("Animations are still rendering. Export again when they're done.")
-      renderAnimationsIfNeeded(plan)
+    // An export without its animations would quietly drop them, and each format has its own clips.
+    if let preset = presets.first(where: { ($0.map { $0.applied(to: plan) } ?? plan).animationsToRender(dir: dir).count > 0 }) {
+      Notices.shared.show("Animations are still rendering\(preset.map { " for \($0.name)" } ?? ""). Export again when they're done.")
+      renderAnimationsIfNeeded(plan, preset: preset)
       return
     }
     // Menus, buttons and key shortcuts all call this on the main thread.

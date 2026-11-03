@@ -28,7 +28,7 @@ enum Animate {
     }
     let folder = dir.appendingPathComponent(".animations")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let wanted = Set(plan.animationList.map { ($0.clipPath(plan.output, dir: dir) as NSString).lastPathComponent })
+    let wanted = plan.animationClipNames(dir: dir)
     for f in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !wanted.contains(f) {
       try? FileManager.default.removeItem(at: folder.appendingPathComponent(f))
     }
