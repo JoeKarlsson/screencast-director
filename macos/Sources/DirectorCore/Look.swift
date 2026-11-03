@@ -33,7 +33,8 @@ public struct Look: Codable, Equatable {
   /// Click ripples and the bracket frame.
   public var accent: String?
   public var cameraBorder: String?
-  /// "none" or "brackets" (corner brackets around the screen).
+  /// "none", "brackets" (corner brackets around the screen) or "window" (a title bar with three
+  /// dots over the screen card and a square or rectangular camera, when padded).
   public var frame: String?
   public var watermark: Watermark?
   /// Intro and outro cards for videos made with this look. The title may hold "{title}" (the
@@ -141,6 +142,7 @@ public struct Profile: Codable, Equatable {
     plan.style.padding = style.padding
     plan.style.radius = style.radius
     plan.style.transition = style.transition
+    plan.style.joinSide = style.joinSide
     if let motion = style.motion { plan.style.motion = motion }
     var look = self.look
     look.name = name

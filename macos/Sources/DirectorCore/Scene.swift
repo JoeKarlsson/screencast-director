@@ -240,19 +240,29 @@ public final class Scene: @unchecked Sendable {
     var image = background()
 
     let b = boxes.screen
+    let cb = boxes.cam
+    let hasCamera = camera != nil && plan.camera != nil && cb.opacity > 0.01
+    let camShadow = plan.camera?.cutout != true && plan.camera?.bubbleShadow != false
+    let camChrome = hasCamera ? windowChromeOpacity(cb) : 0
+    // Joined side by side: the camera's shadow goes under the screen, not across it.
+    let joined = plan.style.joinSide == true && abs(cb.x - (b.x + b.w)) < 1
+    if hasCamera, camShadow, joined {
+      image = shadow(withWindowBar(cb, camChrome), opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
+    }
     if let screen, b.opacity > 0.01 {
-      image = shadow(b, opacity: 0.45, blur: 40 * u, drop: 30 * u).composited(over: image)
+      image = shadow(withWindowBar(b, 1), opacity: 0.45, blur: 40 * u, drop: 30 * u).composited(over: image)
+      if let chrome = windowChrome(b, opacity: b.opacity) { image = chrome.composited(over: image) }
       let blur = cameraMotion(f, box: b, cam: cam, base: base)
       image = screenCard(screen, box: b, cam: cam, blur: blur).composited(over: image)
       image = privacyBlurs(image, frame: Double(f), screen: b, cam: cam)
       image = broll(image, frame: Double(f), full: false, box: b, frames: insertFrames)
     }
-    let cb = boxes.cam
-    if let camera, plan.camera != nil, cb.opacity > 0.01 {
+    if let camera, hasCamera {
       // A cutout has no shape to cast a shadow from.
-      if plan.camera?.cutout != true, plan.camera?.bubbleShadow != false {
-        image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
+      if camShadow, !joined {
+        image = shadow(withWindowBar(cb, camChrome), opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
       }
+      if let chrome = windowChrome(cb, opacity: cb.opacity * camChrome) { image = chrome.composited(over: image) }
       image = cameraCard(camera, box: cb, frame: Double(f)).composited(over: image)
       // Portrait split: an accent seam where the screen's square meets the camera.
       if socialTop(plan) != nil, cb.y > 1 {
@@ -267,6 +277,59 @@ public final class Scene: @unchecked Sendable {
     }
     image = cutTransition(image, frame: Double(f))
     return image.cropped(to: CGRect(x: 0, y: 0, width: W, height: H))
+  }
+
+  /// How much of a window frame's title bar the camera gets: all of it on a square or rectangular
+  /// card, none on a round bubble or a cutout, easing between them as a layout change reshapes it.
+  func windowChromeOpacity(_ b: Box) -> Double {
+    guard plan.camera?.cutout != true else { return 0 }
+    let roundness = b.r / max(1, min(b.w, b.h) / 2)
+    return min(1, max(0, (0.5 - roundness) / 0.3))
+  }
+
+  /// The box with a window frame's title bar on top, for its shadow (unchanged without one).
+  func withWindowBar(_ b: Box, _ amount: Double) -> Box {
+    let bar = windowBarHeight(plan) * amount
+    return Box(x: b.x, y: b.y - bar, w: b.w, h: b.h + bar, r: b.r, opacity: b.opacity)
+  }
+
+  /// A window frame's title bar over a card: dark, with three dots, its top corners rounded like
+  /// the card's. It reaches under the card's top corners so they read as the window's inner corners.
+  func windowChrome(_ b: Box, opacity: Double) -> CIImage? {
+    let bar = windowBarHeight(plan)
+    guard bar > 0, opacity > 0.01 else { return nil }
+    let r = min(b.r, b.w / 2, bar)
+    let w = Int(b.w.rounded(.up)), h = Int((bar + r + 1).rounded(.up))
+    guard
+      w > 0,
+      let ctx = CGContext(
+        data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
+        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return nil }
+    ctx.setAlpha(opacity)
+    // Core Graphics is bottom-up: the bar's top edge is at y = top.
+    let width = Double(w), top = Double(h)
+    let path = CGMutablePath()
+    path.move(to: CGPoint(x: 0, y: 0))
+    path.addLine(to: CGPoint(x: 0, y: top - r))
+    path.addArc(tangent1End: CGPoint(x: 0, y: top), tangent2End: CGPoint(x: r, y: top), radius: r)
+    path.addLine(to: CGPoint(x: width - r, y: top))
+    path.addArc(tangent1End: CGPoint(x: width, y: top), tangent2End: CGPoint(x: width, y: top - r), radius: r)
+    path.addLine(to: CGPoint(x: width, y: 0))
+    path.closeSubpath()
+    ctx.addPath(path)
+    ctx.setFillColor(Scene.color("#1a1d24"))
+    ctx.fillPath()
+    // A hairline where the bar meets the card.
+    ctx.setFillColor(Scene.color("#2a2d34"))
+    ctx.fill(CGRect(x: 0, y: top - bar, width: width, height: max(1, bar / 36)))
+    let d = bar * 0.3, step = bar * 0.5, cy = top - bar / 2
+    ctx.setFillColor(Scene.color("#4a4d54"))
+    for i in 0..<3 {
+      ctx.fillEllipse(in: CGRect(x: bar * 0.45 + Double(i) * step, y: cy - d / 2, width: d, height: d))
+    }
+    guard let cg = ctx.makeImage() else { return nil }
+    return CIImage(cgImage: cg).transformed(by: CGAffineTransform(translationX: b.x, y: H - (b.y - bar) - top))
   }
 
   /// A box (top-left coordinates) as a Core Image rect (bottom-left origin).

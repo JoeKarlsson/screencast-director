@@ -285,6 +285,13 @@ public func socialTop(_ plan: Plan) -> Double? {
   return H > W * 1.05 ? min(W, H * 0.5625).rounded() : nil
 }
 
+/// The title bar a "window" frame draws over each card, in output pixels: 0 without that frame,
+/// at full bleed and in portrait.
+public func windowBarHeight(_ plan: Plan) -> Double {
+  guard plan.look?.frame == "window", !insets(plan).fullBleed, socialTop(plan) == nil else { return 0 }
+  return (0.034 * Double(min(plan.output.width, plan.output.height))).rounded()
+}
+
 public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let W = Double(plan.output.width), H = Double(plan.output.height)
   let pad = plan.style.padding * min(W, H)
@@ -293,7 +300,9 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   // Full bleed has square edges; the radius only applies to padded cards.
   let r = ins.fullBleed ? 0 : plan.style.radius * min(W, H) / 1080
   let edge = ins.fullBleed ? ins.safe : pad
-  let full = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad)
+  // A window frame's title bars sit above the cards, so the cards start lower.
+  let bar = windowBarHeight(plan)
+  let full = (x: pad, y: pad + bar, w: W - 2 * pad, h: H - 2 * pad - bar)
   func box(_ f: (x: Double, y: Double, w: Double, h: Double), r: Double, opacity: Double = 1) -> Box {
     Box(x: f.x, y: f.y, w: f.w, h: f.h, r: r, opacity: opacity)
   }
@@ -342,8 +351,17 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
         screen: Box(x: s.x, y: s.y, w: s.w, h: s.h, r: 0, opacity: 1),
         cam: Box(x: W - camW, y: 0, w: camW, h: H, r: 0, opacity: 1))
     }
+    if plan.style.joinSide == true {
+      // One card: the screen, then a camera column 0.3 of the width at the screen's height.
+      let total = min(full.w, full.h * aspect / 0.7)
+      let sw = total * 0.7, h = sw / aspect
+      let x = full.x + (full.w - total) / 2, y = full.y + (full.h - h) / 2
+      return LayoutBoxes(
+        screen: Box(x: x, y: y, w: sw, h: h, r: r, opacity: 1),
+        cam: Box(x: x + sw, y: y, w: total - sw, h: h, r: r, opacity: 1))
+    }
     let camW = (W - 3 * pad) * 0.3
-    let s = fit((pad, pad, W - 3 * pad - camW, H - 2 * pad), aspect: aspect)
+    let s = fit((pad, full.y, W - 3 * pad - camW, full.h), aspect: aspect)
     let camH = min(s.h, camW * 16 / 9)
     return LayoutBoxes(
       screen: Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1),

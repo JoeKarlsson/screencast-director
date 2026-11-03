@@ -69,6 +69,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- A profile can frame the screen and camera as windows (`look.frame: "window"`: a dark title bar with three dots over each padded card, including a square camera), and join side by side into one card with no gap (`style.joinSide`).
 - Clips: name a stretch of the edit and a format (vertical for Shorts, Reels and TikTok, square, feed) and export it from Export > Clips, alone or all at once. Clips render from the main edit, so a fix there shows up in every clip, with no copied projects. Claude can add them too.
 - Clips go out ready to post: a clip can run tighter than the main edit (`pace`, re-cut from the measured silences, never inside an animation), its captions file is written beside it, a clip that opens partway into an animation leaves it out, and vertical keeps its logo, titles and captions clear of the TikTok and Reels tabs and buttons.
 - An animation whose start is cut picks up where the edit does, instead of playing from its beginning out of step with the words.

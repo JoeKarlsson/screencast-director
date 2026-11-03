@@ -82,6 +82,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
   }
   ```
 
+  `frame` is `"none"`, `"brackets"` (corner brackets around the screen) or `"window"` (a dark title bar with three dots over the screen card and over a square or rectangular camera, when the layout is padded). `style.joinSide: true` makes side by side one card: the screen and camera touch at the same height instead of sitting apart.
+
   Fonts are named by their PostScript names. Profiles stay on your Mac: they aren't part of this repo or the app, so a company's fonts and logos never ship with it.
 - **Voice, camera and layout defaults:** a profile can also set `audio` (`normalize`, `gainDB`, `warm`, `cleanup`), `camera` (`grade`, with a `lut` relative to the profile folder, and `bubbleSize`, `bubbleShape`, `bubbleBorder`, `bubbleShadow`) and `defaultLayout`. Applying it changes only the fields it sets, and the camera ones only on a video with a camera. **Save This Look as a Profile** doesn't save these yet; add them to `profile.json` by hand.
 - **Intro and outro cards:** full-frame title cards (about 2.5 s) before and after the video, in the profile's background, title font, accent color, logo and brackets. Switch them on in the Style tab and edit the title, subtitle and length. A profile can switch them on for every video: its `look.intro` / `look.outro` take `enabled` (on unless `false`), `duration`, `title` (`{title}` is the recording's name), `subtitle` and `logo` (default: the watermark), and **Save This Look as a Profile** saves the current video's cards. The video itself starts after the intro, so captions, zooms, SRT and chapters all shift with it. Audio is silent during the cards.

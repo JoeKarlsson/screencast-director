@@ -171,6 +171,31 @@ func sceneDrawingChecks() {
   let corner = at(render(bracketed, frame: 90), arm.x, arm.y), bare = at(plain, arm.x, arm.y)
   expect(near(corner, [1, 0.9, 0], 0.08) && !near(bare, [1, 0.9, 0], 0.3), "brackets draw at the card's corner (\(corner), was \(bare))")
 
+  // Window frame: a dark title bar with dots over the padded screen card, which moves down to make room.
+  var padded = base
+  padded.style.padding = 0.06
+  var windowed = padded
+  windowed.look = Look()
+  windowed.look?.frame = "window"
+  let bar = windowBarHeight(windowed)
+  let framed = layoutBoxes(.screen, plan: windowed).screen
+  expect(bar > 0 && framed.y > layoutBoxes(.screen, plan: padded).screen.y, "a window frame leaves room for its bar (\(bar), \(framed.y))")
+  let windowFrame = render(windowed, frame: 90)
+  let barPixel = at(windowFrame, framed.x + framed.w / 2, framed.y - bar / 2)
+  expect(near(barPixel, [0.102, 0.114, 0.141], 0.03), "the window bar is drawn over the card (\(barPixel))")
+  let dot = at(windowFrame, framed.x + bar * 0.6, framed.y - bar / 2)
+  expect(near(dot, [0.29, 0.3, 0.33], 0.04), "the window bar has its dots (\(dot))")
+  var bleed = windowed
+  bleed.style.padding = 0
+  expect(windowBarHeight(bleed) == 0, "full bleed has no window bar")
+  // Joined side by side: the camera starts where the screen ends, at the same height.
+  var joinedSide = windowed
+  joinedSide.style.joinSide = true
+  let side = layoutBoxes(.side, plan: joinedSide)
+  expect(
+    abs(side.cam.x - (side.screen.x + side.screen.w)) < 0.5 && side.cam.y == side.screen.y && side.cam.h == side.screen.h,
+    "joined side by side has no gap (\(side))")
+
   // Watermark: the logo in the margin's bottom-right by default; full bleed puts it inside the frame's corner.
   let red = solidPNG(red: 1, green: 0, blue: 0, width: 200, height: 100)
   defer { try? FileManager.default.removeItem(atPath: red) }

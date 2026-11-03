@@ -255,6 +255,9 @@ public struct Plan: Codable, Equatable {
     /// Width/height of the screen card. nil shows the whole screen; vertical and square formats
     /// crop (e.g. 0.8 is 4:5) and pan to follow zooms and clicks.
     public var screenAspect: Double?
+    /// Side by side: the screen and camera touch at the same height, like one card, instead of
+    /// sitting apart. Padded layouts only.
+    public var joinSide: Bool?
   }
   public struct Captions: Codable, Equatable {
     public var enabled: Bool
