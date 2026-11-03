@@ -227,6 +227,7 @@ final class ProjectModel: ObservableObject {
         if wasPlaying { player.play() }
         let out = Double(built.scene.frameCount) / Double(plan.output.fps)
         status = "\(fmtTime(plan.source.duration)) recorded → \(fmtTime(out)) edited"
+        for warning in built.warnings { Notices.shared.show(warning, error: true) }
         scheduleAnimationRender()
       } catch {
         guard generation == previewGeneration else { return }

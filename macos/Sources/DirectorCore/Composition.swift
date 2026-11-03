@@ -9,6 +9,9 @@ public struct BuiltComposition {
   public let videoComposition: AVMutableVideoComposition
   public let audioMix: AVMutableAudioMix
   public let scene: Scene
+  /// Things that didn't come out as the plan asked but didn't stop the build (the app shows them in
+  /// the banner; the CLI prints them).
+  public let warnings: [String]
 
   public func playerItem() -> AVPlayerItem {
     let item = AVPlayerItem(asset: asset)
@@ -47,11 +50,18 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   var srcAudio = try await screenAsset.loadTracks(withMediaType: .audio).first
   let screenDuration = try await screenAsset.load(.duration)
   // Clean up voice: same timing, audio from the cached voice-clean.m4a. If the render fails, keep
-  // the original audio rather than failing the whole preview.
+  // the original audio rather than failing the whole preview, and say so.
+  var warnings: [String] = []
   var cleanAsset: AVURLAsset?
-  if plan.audio?.cleanup == true, srcAudio != nil, let url = try? await VoiceCleanup.cleaned(project, video: plan.source.video) {
-    cleanAsset = AVURLAsset(url: url)
-    if let track = try? await cleanAsset?.loadTracks(withMediaType: .audio).first { srcAudio = track }
+  if plan.audio?.cleanup == true, srcAudio != nil {
+    do {
+      let asset = AVURLAsset(url: try await VoiceCleanup.cleaned(project, video: plan.source.video))
+      guard let track = try await asset.loadTracks(withMediaType: .audio).first else { throw CompositionError.noAudio("voice-clean.m4a") }
+      cleanAsset = asset
+      srcAudio = track
+    } catch {
+      warnings.append("Clean up voice didn't work, so this plays the original voice: \(error.localizedDescription)")
+    }
   }
   let audioEnd = try await srcAudio?.load(.timeRange).end ?? screenDuration
   // Measured voice loudness, for normalizing and music ducking (nothing to measure without audio).
@@ -307,7 +317,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
 
   let mix = AVMutableAudioMix()
   mix.inputParameters = [audioParams, musicParams, sfxParams].compactMap { $0 }
-  return BuiltComposition(asset: comp, videoComposition: vc, audioMix: mix, scene: scene)
+  return BuiltComposition(asset: comp, videoComposition: vc, audioMix: mix, scene: scene, warnings: warnings)
 }
 
 final class DirectorInstruction: NSObject, AVVideoCompositionInstructionProtocol, @unchecked Sendable {

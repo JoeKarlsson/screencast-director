@@ -178,6 +178,15 @@ struct Media {
     expect(
       silences.count == 2 && abs(silences[0].0 - 1) < 0.15 && abs(silences[0].1 - 2) < 0.15 && abs(silences[1].0 - 3) < 0.15,
       "silences found between the tones (\(silences))")
+    // Clean up voice that can't be read keeps the original voice and says so, rather than failing
+    // the build (a folder in the cache file's place stands in for a broken render).
+    try FileManager.default.createDirectory(at: dir.appendingPathComponent(VoiceCleanup.fileName), withIntermediateDirectories: true)
+    var cleanPlan = buildPlan(loaded)
+    cleanPlan.audio = AudioSettings(cleanup: true)
+    let cleaned = try await buildComposition(project: loaded, plan: cleanPlan)
+    expect(cleaned.warnings.count == 1 && cleaned.warnings[0].contains("Clean up voice"), "a failed voice cleanup is a warning (\(cleaned.warnings))")
+    expect(cleaned.asset.tracks(withMediaType: .audio).count == 1, "and the original voice still plays")
+    try FileManager.default.removeItem(at: dir.appendingPathComponent(VoiceCleanup.fileName))
     // Cached: a second read doesn't need the video.
     try FileManager.default.removeItem(at: video)
     let cached = try await Analyzer.loudness(loaded, video: "screen.mp4")

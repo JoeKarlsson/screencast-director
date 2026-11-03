@@ -50,8 +50,14 @@ func number(_ flag: String) -> Double? {
 }
 let positional = args.enumerated().filter { i, a in !flags.contains(a) && (i == 0 || !flags.contains(args[i - 1])) }.map(\.element)
 
+/// The build's warnings, on stderr.
+func printWarnings(_ built: BuiltComposition) {
+  for w in built.warnings { FileHandle.standardError.write(Data("warning: \(w)\n".utf8)) }
+}
+
 func stillFrame(_ project: Project, _ plan: Plan, frame: Int, to out: URL) async throws {
   let built = try await buildComposition(project: project, plan: plan)
+  printWarnings(built)
   try Publish.writePNG(try await stillImage(built, frame: frame), to: out)
 }
 
@@ -79,6 +85,7 @@ do {
   case "debug":
     let project = try Project.load(dir)
     let built = try await buildComposition(project: project, plan: try Plan.load(project.planURL))
+    printWarnings(built)
     print("asset duration", built.asset.duration.seconds, "frames", built.scene.frameCount)
     for t in built.asset.tracks { print(t.trackID, t.mediaType.rawValue, t.timeRange.start.seconds, t.timeRange.duration.seconds, t.segments.count) }
     for i in built.videoComposition.instructions { print("instr", i.timeRange.start.seconds, i.timeRange.duration.seconds) }
@@ -99,6 +106,7 @@ do {
     _ = try await Animate.renderMissing(dir, animated) { print($0) }
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.mp4")
     let built = try await buildComposition(project: project, plan: try planFor(project))
+    printWarnings(built)
     let started = Date()
     try await export(built, to: out) { p in
       FileHandle.standardError.write(Data("\(Int(p * 100))%\n".utf8))
@@ -173,6 +181,7 @@ do {
     let project = try Project.load(dir)
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.gif")
     let built = try await buildComposition(project: project, plan: try planFor(project))
+    printWarnings(built)
     let opts = GIF.Options(from: number("--from"), to: number("--to"), width: Int(number("--width") ?? 720), fps: Int(number("--fps") ?? 12))
     let started = Date()
     let frames = try await GIF.export(built, to: out, options: opts)
