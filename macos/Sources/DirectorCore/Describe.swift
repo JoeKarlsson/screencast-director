@@ -159,7 +159,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("")
     out.append("## Clips (exported on their own: a source range of this edit, in a format)")
     for c in plan.clipList {
-      let segs = plan.trimmed(to: c).segments
+      let segs = plan.trimmed(to: c, words: project.words, silences: project.silences).segments
       let seconds = Double(totalFrames(mapSegments(segs, fps: plan.output.fps))) / Double(plan.output.fps)
       let length = segs.isEmpty ? "WARNING: entirely cut, nothing to export" : "\(fmtTime(seconds)) long"
       out.append(line("  \"\(c.name)\" src \(fmtTime(c.start))-\(fmtTime(c.end))", c.preset?.name ?? "current format", length, said(c.start, c.start + 3)))

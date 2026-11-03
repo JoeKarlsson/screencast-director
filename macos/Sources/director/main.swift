@@ -52,16 +52,16 @@ func clipArg(_ plan: Plan) -> Clip? {
   }
   return clip
 }
-/// A clip's plan: the edit cut to its range, in its format.
-func clipPlan(_ plan: Plan, _ clip: Clip) -> Plan {
-  let p = plan.trimmed(to: clip)
+/// A clip's plan: the edit cut to its range, in its format, its pauses re-cut from `words`.
+func clipPlan(_ plan: Plan, _ clip: Clip, words: [Word], silences: [(Double, Double)]?) -> Plan {
+  let p = plan.trimmed(to: clip, words: words, silences: silences)
   if p.segments.isEmpty { fail("the clip \"\(clip.name)\" is entirely cut from the edit") }
   return p
 }
 /// The plan for --clip, or reshaped by --preset, or as saved (the saved plan is untouched).
 func planFor(_ project: Project) throws -> Plan {
   let plan = try Plan.load(project.planURL)
-  if let clip = clipArg(plan) { return clipPlan(plan, clip) }
+  if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
 let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps"]
@@ -125,10 +125,10 @@ do {
     // --clips renders every clip; otherwise the video or one --clip, at a preset's size if given.
     // Animations render at each output's size before its video is built.
     let saved = try Plan.load(project.planURL)
-    let jobs: [(plan: Plan, out: URL)] =
+    let jobs: [(plan: Plan, out: URL, clip: Bool)] =
       args.contains("--clips")
-      ? saved.clipList.map { (clipPlan(saved, $0), exportURL(dir: dir, clip: $0)) }
-      : [(try planFor(project), positional.count > 2 ? URL(fileURLWithPath: positional[2]) : exportURL(dir: dir, preset: presetArg(), clip: clipArg(saved)))]
+      ? saved.clipList.map { (clipPlan(saved, $0, words: project.words, silences: project.silences), exportURL(dir: dir, clip: $0), true) }
+      : [(try planFor(project), positional.count > 2 ? URL(fileURLWithPath: positional[2]) : exportURL(dir: dir, preset: presetArg(), clip: clipArg(saved)), clipArg(saved) != nil)]
     if jobs.isEmpty { fail("the plan has no clips") }
     for job in jobs {
       _ = try await Animate.renderMissing(dir, job.plan) { print($0) }
@@ -139,6 +139,12 @@ do {
         FileHandle.standardError.write(Data("\(Int(p * 100))%\n".utf8))
       }
       print(String(format: "Rendered %@ in %.1fs", job.out.path, Date().timeIntervalSince(started)))
+      // A clip goes out on its own, so its captions file goes beside it (for platforms that take one).
+      if job.clip {
+        let srt = job.out.deletingPathExtension().appendingPathExtension("srt")
+        try Publish.srt(Scene(plan: job.plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts)).write(to: srt, atomically: true, encoding: .utf8)
+        print("wrote \(srt.path)")
+      }
     }
   case "still":
     guard positional.count == 4, let frame = Int(positional[2]) else { fail(usage) }

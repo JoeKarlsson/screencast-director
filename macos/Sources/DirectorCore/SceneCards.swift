@@ -262,7 +262,8 @@ extension Scene {
       // Same inset as every other overlay, in the chosen corner.
       let corner = w.corner ?? "topLeft"
       let x = corner == "top" || corner == "bottom" ? (W - width) / 2 : corner.hasSuffix("Left") ? ins.safe : W - ins.safe - width
-      let y = corner.hasPrefix("top") ? ins.safe : H - ins.safe - h
+      // Portrait: below the top tenth, where TikTok and Reels lay their own tabs over the video.
+      let y = corner.hasPrefix("top") ? (corner == "top" && socialTop(plan) != nil ? H * 0.1 : ins.safe) : H - ins.safe - h
       ctx.saveGState()
       ctx.setAlpha(w.opacity ?? 0.9)
       ctx.translateBy(x: x, y: y + h)

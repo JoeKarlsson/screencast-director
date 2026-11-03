@@ -271,10 +271,11 @@ extension Scene {
       // Portrait titles are hooks: big, wrapped, under the logo.
       let portrait = socialTop(plan) != nil
       let s = Scene.text(c.text, size: (portrait ? 80 : look.titleFont == nil ? 40 : 46) * u, weight: .bold, font: look.titleFont, color: titleColor)
-      let maxW = portrait ? W * 0.84 : W
+      // Portrait keeps clear of the platforms' tabs up top and buttons down the right edge.
+      let maxW = portrait ? W * 0.76 : W
       let size = Scene.measure(s, maxWidth: maxW)
       let padX = 28 * u, padY = 14 * u
-      let top = portrait ? H * 0.075 : ins.fullBleed ? ins.safe : H * 0.06
+      let top = portrait ? H * 0.14 : ins.fullBleed ? ins.safe : H * 0.06
       let rect = CGRect(x: W / 2 - size.width / 2 - padX, y: top, width: size.width + 2 * padX, height: size.height + 2 * padY)
       animated(ctx, rect, pose, blurred: &blurred) { g in
         self.pill(g, reveal(s), centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: panel, maxWidth: maxW)
@@ -318,7 +319,8 @@ extension Scene {
           text, size: (social ? 92 : bold ? 64 : 42) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
           color: color, stroke: social ? 0 : bold ? 7 : 0))
     }
-    let maxW = social ? W * 0.88 : W * 0.8 - 52 * u
+    // Social captions stay clear of the like and share buttons down the right edge.
+    let maxW = social ? W * 0.76 : W * 0.8 - 52 * u
     let size = Scene.measure(s, maxWidth: maxW)
     let padX = bold ? 0 : 26 * u, padY = bold ? 0 : 12 * u
     let seam = camBox.flatMap { $0.y > 1 && $0.opacity > 0.5 ? $0.y : nil }

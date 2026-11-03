@@ -70,6 +70,8 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### Editing
 - Clips: name a stretch of the edit and a format (vertical for Shorts, Reels and TikTok, square, feed) and export it from Export > Clips, alone or all at once. Clips render from the main edit, so a fix there shows up in every clip, with no copied projects. Claude can add them too.
+- Clips go out ready to post: a clip can run tighter than the main edit (`pace`, re-cut from the measured silences, never inside an animation), its captions file is written beside it, a clip that opens partway into an animation leaves it out, and vertical keeps its logo, titles and captions clear of the TikTok and Reels tabs and buttons.
+- An animation whose start is cut picks up where the edit does, instead of playing from its beginning out of step with the words.
 - Exports are named after the project (Connect AI and Dots.mp4, Connect AI and Dots (4K).mp4, Connect AI and Dots - Hook.mp4) instead of out.mp4.
 - Vertical videos look like Shorts: you fill the frame when you talk to the lens, and the screen goes in a square card on ink with you full width under it and an accent seam between. Captions are big, bold and a few words at a time on the seam, chapter titles become step chips on the screen card, and animations play in the card with a layout of their own shape (storyboard, and any template that sets `reflows`). A clip can open on a hook title and carry a logo at the top.
 - Lip sync no longer sets the camera about 80 ms early. Lips open a little before the sound comes out, and the measurement now allows for it: in-sync footage measures within 20 ms of in sync, where it used to read 60-96 ms early. Run Camera > Lip sync again on videos synced before this.

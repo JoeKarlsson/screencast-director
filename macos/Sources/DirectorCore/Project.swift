@@ -124,6 +124,14 @@ public func fmtTime(_ t: Double) -> String {
 }
 
 extension Project {
+  /// Silences measured from the cached loudness (loudness.json), for re-cutting pauses without
+  /// measuring again; nil when the project hasn't been measured.
+  public var silences: [(Double, Double)]? {
+    (try? SampleSeries.read(dir.appendingPathComponent("loudness.json"))).map { Analyzer.silences($0, minLength: 0.2) }
+  }
+}
+
+extension Project {
   /// The plan path for a file someone picked: where it is when it's already inside the project
   /// folder `dir`, else a copy in the `folder` subfolder (a new name if one's taken, so nothing in
   /// the project is overwritten).

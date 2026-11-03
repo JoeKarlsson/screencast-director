@@ -110,7 +110,7 @@ extension Plan {
     return animationList.compactMap { a in
       let path = a.clipPath(animationOutput, dir: dir)
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
-      return Insert(start: a.start, end: a.end, file: path, placement: placement, fit: "fill", note: a.note)
+      return Insert(start: a.start, end: a.end, file: path, from: animationSeek(a), placement: placement, fit: "fill", note: a.note)
     }
   }
 
@@ -120,6 +120,13 @@ extension Plan {
   public func animationClipNames(dir: URL) -> Set<String> {
     let outputs = [animationOutput] + ExportPreset.all.map { $0.applied(to: self).animationOutput }
     return Set(outputs.flatMap { o in animationList.map { ($0.clipPath(o, dir: dir) as NSString).lastPathComponent } })
+  }
+
+  /// Seconds into an animation's clip where it starts playing: past the part the edit cuts from its
+  /// start (a clip opening partway into it), so its beats stay on their words; nil from the top.
+  public func animationSeek(_ a: Animation) -> Double? {
+    let firstKept = segments.first { $0.end > a.start }.map { max($0.start, a.start) } ?? a.start
+    return firstKept > a.start + 0.01 ? firstKept - a.start : nil
   }
 
   /// The size animation clips render at: the frame, or in portrait the screen card they play in.

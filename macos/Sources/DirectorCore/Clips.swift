@@ -12,14 +12,17 @@ public struct Clip: Codable, Equatable {
   public var title: String?
   /// A logo image (relative to the project, or absolute) shown small at the top center throughout.
   public var logo: String?
+  /// How hard to cut the clip's pauses (social runs tighter than the main edit); nil keeps the edit's.
+  public var pace: PauseLevel?
 
-  public init(name: String, start: Double, end: Double, format: String? = nil, title: String? = nil, logo: String? = nil) {
+  public init(name: String, start: Double, end: Double, format: String? = nil, title: String? = nil, logo: String? = nil, pace: PauseLevel? = nil) {
     self.name = name
     self.start = start
     self.end = end
     self.format = format
     self.title = title
     self.logo = logo
+    self.pace = pace
   }
 
   /// How long the hook title stays up.
@@ -35,9 +38,11 @@ extension Plan {
     set { clips = newValue.isEmpty ? nil : newValue }
   }
 
-  /// The edit cut down to a clip's range and reshaped for its format. Only the animations it
-  /// overlaps stay (so only those render), and the intro and outro cards are left out.
-  public func trimmed(to clip: Clip) -> Plan {
+  /// The edit cut down to a clip's range and reshaped for its format. Only the animations that
+  /// start inside it stay (so only those render), and the intro and outro cards are left out. With a
+  /// `pace`, the clip's pauses are re-cut: from measured `silences` when there are some (the better
+  /// judge), else from gaps between `words` (the transcript).
+  public func trimmed(to clip: Clip, words: [Word] = [], silences: [(Double, Double)]? = nil) -> Plan {
     var p = self
     p.segments = segments.compactMap { s in
       let lo = max(s.start, clip.start), hi = min(s.end, clip.end)
@@ -49,7 +54,16 @@ extension Plan {
     }
     // The clip opens on a plain cut, not on the main edit's transition into that segment.
     if !p.segments.isEmpty { p.segments[0].transition = nil }
-    p.animationList = animationList.filter { $0.end > clip.start && $0.start < clip.end }
+    // Only animations that start inside the clip: opening on the tail of an explainer reads as a glitch.
+    p.animationList = animationList.filter { $0.start >= clip.start - 0.1 && $0.start < clip.end }
+    if let pace = clip.pace, !words.isEmpty, !p.segments.isEmpty {
+      // Animations keep their timing: a stand-in word over each, and no measured silence inside one,
+      // leaves no pause to cut there.
+      let guards = p.animationList.map { Word(text: "", start: $0.start, end: $0.end) }
+      let quiet = silences.map { all in all.filter { s in !p.animationList.contains { $0.start < s.1 && $0.end > s.0 } } }
+      p.retrimPauses(words: words + guards, level: pace, silences: quiet)
+      if !p.segments.isEmpty { p.segments[0].transition = nil }
+    }
     p.clips = nil
     p.intro = nil
     p.outro = nil

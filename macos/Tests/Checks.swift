@@ -643,6 +643,7 @@ struct Checks {
     let hookPlan = clipped.trimmed(to: hook)
     expect(hookPlan.segments.map { [$0.start, $0.end] } == [[3, 4], [6, 8]] && hookPlan.segments[1].transition == "dip", "a clip keeps the edit inside its range")
     expect(hookPlan.animationList.map(\.start) == [7] && hookPlan.clips == nil, "a clip keeps only the animations it overlaps")
+    expect(clipped.trimmed(to: Clip(name: "late", start: 7.5, end: 10)).animationList.isEmpty, "a clip opening partway into an animation leaves it out")
     expect(hookPlan.output.width == 1080 && hookPlan.output.height == 1920, "a vertical clip renders vertical")
     expect(hookPlan.captions.style == "social" && hookPlan.captions.maxWords <= 3, "vertical captions are big, a few words at a time")
     expect(hookPlan.callouts.contains { $0.text == "Connect your dot" && $0.start == 3 && $0.end == 3 + Clip.titleSeconds }, "a clip's hook title opens it")
@@ -657,6 +658,20 @@ struct Checks {
     let hookOut = layoutsToOut(hookPlan, mapSegments(hookPlan.segments, fps: 30))
     expect(hookOut.last?.mode == .pip && hookOut.last?.startF == 60, "the split shows while a portrait animation plays")
     expect(clipped.trimmed(to: clipped.clipList[1]).segments.isEmpty, "a clip inside a cut has nothing to export")
+    // A clip that opens partway into an animation picks it up there; a clip's pace re-cuts its pauses.
+    expect(hookPlan.animationSeek(hookPlan.animationList[0]) == nil, "an animation inside the clip plays from its start")
+    var lateStart = clipped
+    lateStart.segments = [Segment(start: 7.5, end: 10, speed: 1)]
+    expect(lateStart.animationSeek(clipped.animationList[1]) == 0.5, "an animation whose start is cut picks up where the edit does")
+    var paced = buildPlan(p)
+    paced.segments = [Segment(start: 0, end: 10, speed: 1)]
+    let gappy = [Word(text: "one", start: 1, end: 2), Word(text: "two", start: 4, end: 5), Word(text: "three", start: 6, end: 9)]
+    let tight = paced.trimmed(to: Clip(name: "t", start: 0, end: 10, pace: .tight), words: gappy)
+    expect(tight.segments.count > 1 && planSeconds(tight) < 9, "a tight clip cuts the edit's pauses (\(tight.segments.map { [$0.start, $0.end] }))")
+    paced.animations = [Animation(start: 1.5, end: 4.5, template: "hub", data: .object([:]))]
+    let guarded = paced.trimmed(to: Clip(name: "t", start: 0, end: 10, pace: .tight), words: gappy)
+    expect(!guarded.segments.contains { $0.start > 1.6 && $0.start < 4.4 }, "a tight clip doesn't cut inside an animation")
+    expect(paced.trimmed(to: Clip(name: "t", start: 0, end: 10), words: gappy).segments.count == 1, "no pace keeps the edit's pauses")
     let clipDir = URL(fileURLWithPath: "/m/Connect AI and Dots")
     expect(exportURL(dir: clipDir).lastPathComponent == "Connect AI and Dots.mp4", "exports are named after the project")
     expect(exportURL(dir: clipDir, preset: ExportPreset.all.first { $0.id == "youtube-4k" }).lastPathComponent == "Connect AI and Dots (4K).mp4", "a preset export says its format")

@@ -1178,10 +1178,20 @@ final class ProjectModel: ObservableObject {
   func exportClips(_ clips: [Clip]) {
     flushWrite()
     guard let plan else { return }
-    let jobs = clips.map { ExportJob(plan: plan.trimmed(to: $0), url: exportURL(dir: dir, clip: $0), label: $0.name, animateArgs: ["--clip", $0.name]) }
+    let jobs = clips.map { ExportJob(plan: plan.trimmed(to: $0, words: words, silences: project?.silences), url: exportURL(dir: dir, clip: $0), label: $0.name, animateArgs: ["--clip", $0.name]) }
     if let empty = jobs.first(where: { $0.plan.segments.isEmpty }) {
       Notices.shared.show("The clip \(empty.label) is entirely cut from the edit, so there's nothing to export.", error: true)
       return
+    }
+    // Each clip's captions file goes beside its video, for platforms that take one.
+    if let project {
+      for job in jobs {
+        let srt = job.url.deletingPathExtension().appendingPathExtension("srt")
+        do {
+          try Publish.srt(Scene(plan: job.plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts))
+            .write(to: srt, atomically: true, encoding: .utf8)
+        } catch { Notices.shared.show(error, "Couldn't write the captions for \(job.label)") }
+      }
     }
     enqueue(jobs)
   }
