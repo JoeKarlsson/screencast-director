@@ -247,9 +247,9 @@ public enum Publish {
     ctx.setFillColor(Scene.color(bgHex))
     ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
 
-    // The photo: the bottom 55%, cropped to that shape around the face (y-up drawing below).
+    // The photo: the bottom 52%, cropped to that shape around the face (y-up drawing below).
     let photo = asShown(person, plan: plan)
-    let photoH = H * 0.55
+    let photoH = H * 0.52
     let iw = Double(photo.width), ih = Double(photo.height)
     let cropW = min(iw, ih * W / photoH), cropH = cropW * photoH / W
     let fx = plan.camera?.mirror == true ? 1 - faceX : faceX
@@ -262,29 +262,44 @@ public enum Publish {
     let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
 
-    // The title: white lines, then the last on the chip, left aligned in the top 45%.
-    let margin = 70.0, chipPadX = 26.0, chipPadY = 10.0
-    let (lines, size) = coverTitle(title, font: look.titleFont, maxWidth: W - 2 * margin - 2 * chipPadX)
-    let lineH = size * 1.08
-    let blockH = Double(lines.count) * lineH + 2 * chipPadY
-    var y = H - max(200, (H - photoH - blockH) / 2 - 40)  // top of the block, centered in the title area
-    for (k, line) in lines.enumerated() {
+    // The title: white lines, then the last on the chip, each centered, the block centered in the
+    // dark area above the photo with even margins.
+    let margin = 80.0, chipPadX = 30.0, chipPadY = 14.0
+    // The area runs from the top of the frame down to where the photo starts to show through its
+    // fade; the title gets the largest size that fits it with a margin all round.
+    let areaBottom = photoH - 60
+    var start = 132.0
+    var lines: [String] = [], texts: [NSAttributedString] = [], sizes: [CGSize] = []
+    var gap = 0.0, blockH = 0.0
+    repeat {
+      let fit = coverTitle(title, font: look.titleFont, maxWidth: W - 2 * margin - 2 * chipPadX, start: start)
+      lines = fit.lines
+      texts = lines.enumerated().map { k, line in
+        Scene.text(
+          line, size: fit.size, weight: .heavy, font: look.titleFont,
+          color: k == lines.count - 1 ? (look.titleText ?? "#111318") : (look.captionText ?? "#F3F4F6"), align: .left)
+      }
+      sizes = texts.map { Scene.measure($0, maxWidth: .greatestFiniteMagnitude) }
+      gap = fit.size * 0.14
+      blockH = sizes.reduce(0) { $0 + $1.height } + gap * Double(lines.count - 1) + 2 * chipPadY + gap
+      start = fit.size - 6
+    } while blockH > H - areaBottom - 2 * margin && start > 48
+    var y = areaBottom + (H - areaBottom) / 2 + blockH / 2  // the block's top, y up
+    for (k, s) in texts.enumerated() {
+      let m = sizes[k]
       let chip = k == lines.count - 1
-      let s = Scene.text(line, size: size, weight: .heavy, font: look.titleFont, color: chip ? (look.titleText ?? "#111318") : (look.captionText ?? "#F3F4F6"), align: .left)
-      let m = Scene.measure(s, maxWidth: .greatestFiniteMagnitude)
       if chip {
-        y -= chipPadY
-        let r = CGRect(x: margin, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
+        y -= gap + chipPadY
+        let r = CGRect(x: (W - m.width) / 2 - chipPadX, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
         ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
-        ctx.addPath(CGPath(roundedRect: r, cornerWidth: 18, cornerHeight: 18, transform: nil))
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: 20, cornerHeight: 20, transform: nil))
         ctx.fillPath()
       }
-      let x = margin + (chip ? chipPadX : 0)
       let frame = CTFramesetterCreateFrame(
         CTFramesetterCreateWithAttributedString(s), CFRange(location: 0, length: 0),
-        CGPath(rect: CGRect(x: x, y: y - m.height, width: m.width + 2, height: m.height), transform: nil), nil)
+        CGPath(rect: CGRect(x: (W - m.width) / 2, y: y - m.height, width: m.width + 2, height: m.height), transform: nil), nil)
       CTFrameDraw(frame, ctx)
-      y -= lineH
+      y -= m.height + gap
     }
     return ctx.makeImage()
   }
