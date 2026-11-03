@@ -14,12 +14,13 @@ public enum ShotScan {
     public var length: Double { end - start }
   }
 
-  /// A cut needs the frame to differ from the one before by this share of full range (mean over
-  /// pixels and channels), and by that much more than the smaller of its neighbors' differences.
-  /// ffmpeg's `select='gt(scene,0.25)'` uses 0.25 the same way, which caught the real cuts; 0.2
-  /// leaves room for cuts between similar shots (a punch-in on the same face). Talking, scrolling and
-  /// camera moves change frames gradually, so their neighbors differ about as much and don't count.
-  public static let cutThreshold = 0.2
+  /// A cut needs the frame to differ from the one before by `cutThreshold` (mean over pixels and
+  /// channels, as a share of full range), and by `cutJump` more than the smaller of its neighbors'
+  /// differences. Measured on a real export: cuts between shots of the same face (a punch-in ending,
+  /// a jump cut) were 0.12-0.2, while talking and hand moves peaked near 0.1 and change gradually, so
+  /// their neighbors differ about as much and don't count.
+  public static let cutThreshold = 0.1
+  public static let cutJump = 0.07
   /// Shots shorter than this between two others are reported.
   public static let shortShot = 1.0
   /// Frames are decoded this wide (height keeps the aspect), which keeps a 4K scan fast.
@@ -49,7 +50,7 @@ public enum ShotScan {
       let after = i + 1 < diffs.count ? diffs[i + 1] : 0
       // Comparing with the smaller neighbor keeps both edges of a one-frame shot (each edge's other
       // neighbor is still).
-      if d >= cutThreshold && d - min(before, after) >= cutThreshold { cuts.append(times[i]) }
+      if d >= cutThreshold && d - min(before, after) >= cutJump { cuts.append(times[i]) }
     }
     return cuts
   }

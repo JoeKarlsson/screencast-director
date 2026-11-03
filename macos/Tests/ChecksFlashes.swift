@@ -59,4 +59,13 @@ func flashChecks() {
   plan.camera?.punchIns = nil
   plan.segments = [Segment(start: 0, end: 5, speed: 1), Segment(start: 6, end: 6.5, speed: 1), Segment(start: 8, end: 20, speed: 1)]
   expect(flashes(plan).contains { $0.what.contains("clip src 0:06.0") }, "half a second of another clip of the face is a flash")
+
+  // The pixel scan (ShotScan) on frame differences measured from a real export around 0:17: talking
+  // and hand moves up to 0.1, a punch-in ending (0.201) and a jump cut 0.27 s later (0.125). Both
+  // cuts count, the motion doesn't, and the 0.27 s between them is a short shot.
+  let diffs = [0, 0.007, 0.009, 0.012, 0.017, 0.032, 0.055, 0.061, 0.096, 0.201, 0.065, 0.062, 0.050, 0.043, 0.018, 0.007, 0.014, 0.125, 0.005, 0.009]
+  let times = diffs.indices.map { Double($0) / 30 }
+  let cuts = ShotScan.cutTimes(times: times, diffs: diffs)
+  expect(cuts == [times[9], times[17]], "same-face cuts count and motion doesn't (\(cuts))")
+  expect(ShotScan.shortShots(cuts: cuts).count == 1, "the sliver between them is a short shot")
 }
