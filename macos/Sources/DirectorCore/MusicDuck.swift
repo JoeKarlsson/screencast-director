@@ -2,14 +2,15 @@ import AVFoundation
 import Foundation
 
 /// Background music levels: steady at `volumeDB`, dropping by `duckDB` while the voice is talking
-/// (0.3 s down, 0.6 s back up), fading in over the first second and out over the last two.
+/// (0.3 s down, 0.6 s back up), starting and stopping with the video (a 0.15 s ramp, no long fades).
 public enum MusicDuck {
   public static let defaultVolumeDB = -14.0
   public static let defaultDuckDB = -18.0
   static let attack = 0.3
   static let release = 0.6
-  static let fadeIn = 1.0
-  static let fadeOut = 2.0
+  // Just enough to start and stop without a pop: a long fade at the end reads as the video trailing off.
+  static let fadeIn = 0.15
+  static let fadeOut = 0.15
 
   /// Output-time spans where the voice is above the silence threshold. Sped-up clips are muted, so
   /// they don't count as talking.

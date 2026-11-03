@@ -109,34 +109,34 @@ private func musicDuckChecks() {
     return p
   }
 
-  // Talking from 5 to 8 s of a 20 s video: fade in, duck 0.3 s ahead of the voice, back up over 0.6 s, fade out.
+  // Talking from 5 to 8 s of a 20 s video: a 0.15 s ramp in, duck 0.3 s ahead of the voice, back up
+  // over 0.6 s, and a 0.15 s ramp out. No long fades: they read as the video trailing off.
   let talk = ramps(Music(file: "m.m4a"), speech: [(5, 8)], total: 20)
-  expect(near(volumeRamp(talk, at: 0.5), (0, up, 0, 1)), "music fades in over the first second (\(String(describing: volumeRamp(talk, at: 0.5))))")
+  expect(near(volumeRamp(talk, at: 0.05), (0, up, 0, 0.15)), "music starts with a 0.15 s ramp (\(String(describing: volumeRamp(talk, at: 0.05))))")
   expect(near(volumeRamp(talk, at: 4.8), (up, down, 4.7, 5)), "music ducks 18 dB in the 0.3 s before the voice (\(String(describing: volumeRamp(talk, at: 4.8))))")
   expect(near(volumeRamp(talk, at: 8.3), (down, up, 8, 8.6)), "music comes back up over 0.6 s after the voice (\(String(describing: volumeRamp(talk, at: 8.3))))")
-  expect(near(volumeRamp(talk, at: 19), (up, 0, 18, 20)), "music fades out over the last two seconds (\(String(describing: volumeRamp(talk, at: 19))))")
+  expect(near(volumeRamp(talk, at: 19.9), (up, 0, 19.85, 20)), "music stops with a 0.15 s ramp, no long fade (\(String(describing: volumeRamp(talk, at: 19.9))))")
   // Between ramps AVFoundation reports the next one; the volume holds where the last one ended.
   expect(near(volumeRamp(talk, at: 6.5), (down, up, 8, 8.6)), "the music holds ducked while the voice talks")
 
-  // Talking from the start: fade in to the ducked level, not up and straight back down.
-  let early = ramps(Music(file: "m.m4a"), speech: [(0.5, 3)], total: 10)
-  expect(near(volumeRamp(early, at: 0.5), (0, down, 0, 1)), "talking at the start fades in to the ducked level (\(String(describing: volumeRamp(early, at: 0.5))))")
+  // Talking from the start: ramp in to the ducked level, not up and straight back down.
+  let early = ramps(Music(file: "m.m4a"), speech: [(0.2, 3)], total: 10)
+  expect(near(volumeRamp(early, at: 0.05), (0, down, 0, 0.15)), "talking at the start ramps in to the ducked level (\(String(describing: volumeRamp(early, at: 0.05))))")
   expect(near(volumeRamp(early, at: 3.3), (down, up, 3, 3.6)), "and comes up after the first line")
-  expect(near(volumeRamp(early, at: 9), (up, 0, 8, 10)), "a short video still fades out over two seconds")
 
-  // Still talking at the end: the fade out starts from the ducked level, with no swell before it.
-  let late = ramps(Music(file: "m.m4a"), speech: [(5, 19)], total: 20)
-  expect(near(volumeRamp(late, at: 19), (down, 0, 18, 20)), "talking into the end fades out from the ducked level (\(String(describing: volumeRamp(late, at: 19))))")
-  expect(!(1..<36).contains { volumeRamp(late, at: Double($0) * 0.5).map { $0.1 == up && $0.2 > 4 } ?? false }, "the music never comes back up before the fade")
+  // Still talking at the end: the ramp out starts from the ducked level, with no swell before it.
+  let late = ramps(Music(file: "m.m4a"), speech: [(5, 19.8)], total: 20)
+  expect(near(volumeRamp(late, at: 19.9), (down, 0, 19.85, 20)), "talking into the end stops from the ducked level (\(String(describing: volumeRamp(late, at: 19.9))))")
+  expect(!(1..<39).contains { volumeRamp(late, at: Double($0) * 0.5).map { $0.1 == up && $0.2 > 4 } ?? false }, "the music never comes back up before the end")
 
   // A plan's own levels: -6 dB music, ducking 10 dB.
   let custom = ramps(Music(file: "m.m4a", volumeDB: -6, duckDB: -10), speech: [(5, 8)], total: 20)
   expect(near(volumeRamp(custom, at: 4.8), (Float(pow(10, -6.0 / 20)), Float(pow(10, -16.0 / 20)), 4.7, 5)), "a plan's music and duck levels are used")
 
-  // No talking: just the fades, full level between.
+  // No talking: just the short ramps, full level between.
   let quiet = ramps(Music(file: "m.m4a"), speech: [], total: 10)
-  expect(near(volumeRamp(quiet, at: 0.5), (0, up, 0, 1)) && near(volumeRamp(quiet, at: 9), (up, 0, 8, 10)), "with no talking only the fades ramp")
-  expect(near(volumeRamp(quiet, at: 5), (up, 0, 8, 10)), "and the music holds its level between (the next ramp is the fade out)")
+  expect(near(volumeRamp(quiet, at: 0.05), (0, up, 0, 0.15)) && near(volumeRamp(quiet, at: 9.9), (up, 0, 9.85, 10)), "with no talking only the start and stop ramps")
+  expect(near(volumeRamp(quiet, at: 5), (up, 0, 9.85, 10)), "and the music holds its level between (the next ramp is the stop)")
 }
 
 private func gainTapChecks() {

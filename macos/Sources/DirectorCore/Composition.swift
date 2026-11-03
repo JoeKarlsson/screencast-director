@@ -34,7 +34,8 @@ public enum CompositionError: LocalizedError {
   }
 }
 
-private let fadeFrames = 3
+/// The voice's ramp at each cut: just long enough to stop a click, short enough not to eat a word.
+private let cutRamp = 0.012
 
 private func t(_ s: Double) -> CMTime { CMTime(seconds: s, preferredTimescale: 60000) }
 
@@ -131,7 +132,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
         audioParams?.setVolume(0, at: at)
       } else {
         // Short fades at each cut hide clicks in the audio.
-        let fade = CMTime(value: CMTimeValue(min(fadeFrames, s.frames / 2)), timescale: fps)
+        let fade = CMTime(seconds: min(cutRamp, Double(s.frames) / Double(fps) / 2), preferredTimescale: 48000)
         audioParams?.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: at, duration: fade))
         audioParams?.setVolumeRamp(
           fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(CMTimeAdd(at, outDur), fade), duration: fade))

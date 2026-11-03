@@ -680,7 +680,7 @@ struct Checks {
     let clipText = describe(p, clipped)
     expect(clipText.contains("\"Hook\" src 0:03.0-0:08.0") && clipText.contains("WARNING: entirely cut"), "describe lists clips and flags an empty one")
 
-    // Two parts of one animation across a cut: no fade where they meet, and no screen marks on top.
+    // B-roll and animations cut in and out hard unless they ask for a motion: no fades by default.
     var seam = buildPlan(p)
     seam.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 8, end: 12, speed: 1)]
     seam.inserts = [
@@ -689,8 +689,12 @@ struct Checks {
     let ss = Scene(plan: seam, words: [], clicks: [], shortcuts: [])
     let partA = ss.inserts[0], partB = ss.inserts[1]
     expect(ss.insertPose(partA, frame: partA.e - 1).opacity == 1 && ss.insertPose(partB, frame: partB.s).opacity == 1, "no fade where animations meet")
-    expect(ss.insertPose(partA, frame: partA.s).opacity < 0.5 && ss.insertPose(partB, frame: partB.e - 1).opacity < 0.5, "outer edges still fade")
-    expect(ss.fullFrameCovers(partA.e - 1) && !ss.fullFrameCovers(partA.s), "screen marks hide only while fully covered")
+    expect(ss.insertPose(partA, frame: partA.s).opacity == 1 && ss.insertPose(partB, frame: partB.e - 1).opacity == 1, "outer edges cut hard too")
+    expect(ss.fullFrameCovers(partA.s) && ss.fullFrameCovers(partA.e - 1), "screen marks hide for the whole insert")
+    var faded = seam
+    faded.inserts?[0].enter = Motion(preset: "fade", seconds: 0.3)
+    let fs = Scene(plan: faded, words: [], clicks: [], shortcuts: [])
+    expect(fs.insertPose(fs.inserts[0], frame: fs.inserts[0].s).opacity < 0.5 && !fs.fullFrameCovers(fs.inserts[0].s), "an insert that asks for a fade still fades")
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam
@@ -698,7 +702,7 @@ struct Checks {
     let es = Scene(plan: ending, words: [], clicks: [], shortcuts: [])
     let endCard = es.inserts[0]
     expect(endCard.e == Double(es.frameCount), "an end card past the last segment ends on the video's last frame")
-    expect(es.insertPose(endCard, frame: endCard.e - 1).opacity == 1 && es.insertPose(endCard, frame: endCard.s).opacity < 0.5, "an end card fades in but doesn't fade out")
+    expect(es.insertPose(endCard, frame: endCard.e - 1).opacity == 1 && es.insertPose(endCard, frame: endCard.s).opacity == 1, "an end card cuts in and holds to the end")
 
     // A camera range on the first and last frames holds there: no ease in at 0 or out at the end.
     var opener = buildPlan(p)
