@@ -16,7 +16,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - The recording widget floats above full-screen apps and other floating windows, and the arrow on its right shrinks it to just the clock and Stop.
 - If the recording stops on its own (mic unplugged, window closed), what was recorded is saved and the app says why. Before, the app kept acting as if it were still recording.
 - `sd plan` (and `director plan`) on a recording that hasn't been analyzed says to run `sd analyze` first, instead of writing a draft that cuts the whole video.
-- `sd record` stops if remuxing the recording fails, instead of saving a project that names a camera file that isn't there.
+- `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
 - Plan the edit in the script. An `## Edit plan` in the header of the Followspot script you record with (zooms, annotations, callouts, animations, sound effects, punch-ins, layouts, each tied to the words you say) shows up in `describe`, and Claude applies it when it edits.
@@ -34,6 +34,9 @@ Each release lists what changed for people using the app or the CLI. The version
 - Export > GIF with a layout, B-roll or animation selected exports that stretch, instead of the whole video.
 - Dragging an item on the timeline snaps to sound effects.
 - The preview and export no longer re-read the camera's LUT file for every frame.
+- A watermark or intro/outro logo named relative to the project now shows. Before, it was looked up from the app's working folder and silently left out.
+- When Clean up voice fails, the preview plays the original voice and the banner says why, instead of silently skipping it.
+- Inspector controls (the voice toggles, Pauses, Shape and Resolution) always show the current plan, not the value from when the pane was drawn.
 - Add Music File opens as a sheet instead of blocking the app, copies the track into the project's music/ folder like the library does, and keeps the music's volume settings.
 - `describe` warns, in a Fonts section, about a font file that can't be read and about a title, caption or chip font that isn't installed, instead of silently drawing another font.
 - A recording whose motion.json or loudness.json is corrupt says so when it opens, instead of planning as if there were no motion.
