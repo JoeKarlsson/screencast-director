@@ -123,6 +123,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - A video that opens (or ends) on the full camera starts and stays there, instead of easing in from the bubble over the first frames.
 - The camera bubble's border no longer draws over a full-frame animation.
 - Two parts of one animation that meet across a cut play straight through, instead of fading out and in with your face and the screen flashing between them.
+- An animation or full-frame B-roll that runs to the end of the video (an end card) stays up through the last frame, instead of fading out to show the footage under it.
 - The cursor, click ripples, shortcut chips and annotations no longer draw over a full-frame animation.
 - A B-roll or animation clip a little shorter than its slot holds its last frame, instead of flashing its first frame at the end.
 - `describe` warns when the full-camera layout hides clicks or typing, so a demo can't end up behind your face.

@@ -631,6 +631,14 @@ struct Checks {
     expect(ss.insertPose(partA, frame: partA.s).opacity < 0.5 && ss.insertPose(partB, frame: partB.e - 1).opacity < 0.5, "outer edges still fade")
     expect(ss.fullFrameCovers(partA.e - 1) && !ss.fullFrameCovers(partA.s), "screen marks hide only while fully covered")
 
+    // An end card that runs past the last segment holds to the final frame instead of fading out.
+    var ending = seam
+    ending.inserts = [Insert(start: 10, end: 14, file: "end.mp4", placement: "full")]
+    let es = Scene(plan: ending, words: [], clicks: [], shortcuts: [])
+    let endCard = es.inserts[0]
+    expect(endCard.e == Double(es.frameCount), "an end card past the last segment ends on the video's last frame")
+    expect(es.insertPose(endCard, frame: endCard.e - 1).opacity == 1 && es.insertPose(endCard, frame: endCard.s).opacity < 0.5, "an end card fades in but doesn't fade out")
+
     // A camera range on the first and last frames holds there: no ease in at 0 or out at the end.
     var opener = buildPlan(p)
     opener.camera = Plan.Camera(video: "camera.mp4", offset: 0)

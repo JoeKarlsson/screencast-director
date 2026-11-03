@@ -417,12 +417,14 @@ extension Scene {
   }
 
   /// How an insert enters and leaves. Full-frame inserts that meet across a cut (two parts of one
-  /// animation) skip the fade where they touch, so the screen and camera never flash through.
+  /// animation) skip the fade where they touch, so the screen and camera never flash through, and
+  /// one that runs to the video's last frame (an end card) holds instead of revealing the footage under it.
   func insertPose(_ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Double) -> OverlayPose {
     let neighbors = ins.a.isFull ? inserts.filter { $0.index != ins.index && $0.a.isFull } : []
     let none = Motion(preset: "none")
+    let endsVideo = ins.a.isFull && ins.e >= Double(frameCount)
     let enter = ins.a.enter ?? (neighbors.contains { $0.e == ins.s } ? none : Motion(preset: "fade", seconds: 0.3, ease: "smooth"))
-    let exit = ins.a.exit ?? (neighbors.contains { $0.s == ins.e } ? none : Motion(preset: "fade", seconds: 0.25, ease: "ease-in"))
+    let exit = ins.a.exit ?? (endsVideo || neighbors.contains { $0.s == ins.e } ? none : Motion(preset: "fade", seconds: 0.25, ease: "ease-in"))
     return Motion.pose(frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: enter, exit: exit, style: motion)
   }
 
