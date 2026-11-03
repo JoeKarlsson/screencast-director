@@ -125,6 +125,8 @@ check "render writes the video at the plan's size ($(dims "$TMP/out.mp4"))" test
 check "the video is as long as the plan ($(stream_duration "$TMP/out.mp4" v) vs $want s)" near "$(stream_duration "$TMP/out.mp4" v)" "$want" 0.02
 # AAC pads its last packets, by a varying amount, so the sound can run a little past the picture.
 check "the sound runs the length of the video ($(stream_duration "$TMP/out.mp4" a) s)" near "$(stream_duration "$TMP/out.mp4" a)" "$want" 0.2
+scan=$("$DIRECTOR" scan "$TMP/out.mp4")
+check "scan finds no short shots in the render ($scan)" test "$scan" = "No shots under a second."
 dbg=$("$DIRECTOR" debug "$P")
 check "debug prints the composition's tracks" grep -q "asset duration" <<<"$dbg"
 

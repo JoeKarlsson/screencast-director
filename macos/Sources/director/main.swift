@@ -26,6 +26,7 @@ let usage = """
     director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director upload   <file>                        S3-compatible PUT; prints the public URL (S3_* env vars)
+    director scan     <video.mp4>                   find shots under a second between two others in a finished video
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
@@ -254,6 +255,11 @@ do {
     let frames = try await GIF.export(built, to: out, options: opts)
     let size = (try? FileManager.default.attributesOfItem(atPath: out.path)[.size] as? Int) ?? 0
     print(String(format: "Wrote %@: %d frames, %.1f MB in %.1fs", out.path, frames, Double(size) / 1e6, Date().timeIntervalSince(started)))
+  case "scan":
+    // args[1] is the video here, not a project folder.
+    let shots = try await ShotScan.shortShots(in: dir)
+    if shots.isEmpty { print("No shots under a second.") }
+    for shot in shots { print(ShotScan.describe(shot)) }
   case "upload":
     // args[1] is the file here, not a project folder.
     let env = ProcessInfo.processInfo.environment

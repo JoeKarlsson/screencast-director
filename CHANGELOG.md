@@ -82,6 +82,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ### Editing
 - Drag a clip on the timeline to reorder it: a white line shows where it will land, and it plays there when you let go (output-time view; in the recording-order view clips stay put). ⌥⌘← and ⌥⌘→ play the selected clip earlier or later.
 - Repeat a clip: play a moment again as a cold open while it stays in its place too (Order > Repeat as Cold Open, or `director repeat <dir> <start> <end> [--before <t>]`). Zooms, punch-ins, B-roll and captions play in both showings, titles and sounds only in the original.
+- After an export finishes, the app scans the video itself for shots under a second (a sliver of a punch-in, a frame of B-roll) and banners the first with a button to jump to it. `director scan <video.mp4>` runs the same check.
 - Exports end in their resolution: "Name 2160x3840.mp4", "Name - Hook 1080x1920.mp4".
 - Punch-ins can't leave a sliver of the wide shot: one ending (or starting) within a second of its clip's cut runs to the cut. The flash check now also catches short punch-ins and quick cuts between two clips of your face.
 - No fades nobody asked for: B-roll and animations cut in and out hard unless they set a motion, the voice ramps for 12 ms at each cut (it was 100 ms, which clipped words), and music starts and stops with a 0.15 s ramp instead of fading in over a second and out over two.

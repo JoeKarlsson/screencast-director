@@ -124,6 +124,7 @@ struct Media {
       try await join(root)
       try await gifAndPublish(root)
       try await exportQueue(root)
+      try await shortShots(root)
       try await faces(root)
       try await transcription(root)
     } catch {
@@ -392,6 +393,46 @@ struct Media {
   }
 
   /// A file in test/fixtures (see its README). media-test.sh runs from macos/.
+  /// The pixel scan of a finished video finds shots under a second between two others, and not a
+  /// gradient sliding across the frame (camera motion) or the first and last shots.
+  static func shortShots(_ root: URL) async throws {
+    let dir = try folder(root, "shots")
+    let video = dir.appendingPathComponent("shots.mp4")
+    let (w, h) = (360, 640)
+    // Red 0-2 s, blue 2-2.3 s, red 2.3-4.3 s, green 4.3-7.3 s with one white frame at 5.8 s, then a
+    // gradient sliding a full width over 3 s, then a 0.5 s red tail (the last shot, not flagged).
+    func solid(_ ctx: CGContext, _ r: Double, _ g: Double, _ b: Double) {
+      ctx.setFillColor(CGColor(red: r, green: g, blue: b, alpha: 1))
+      ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    }
+    let gradient = CGGradient(
+      colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [CGColor(red: 1, green: 0.5, blue: 0, alpha: 1), CGColor(red: 0, green: 0.2, blue: 0.8, alpha: 1)] as CFArray,
+      locations: [0, 1])!
+    try await writeVideo(to: video, width: w, height: h, seconds: 10.8) { ctx, i in
+      switch i {
+      case 0..<60, 69..<129, 309...: solid(ctx, 1, 0, 0)
+      case 60..<69: solid(ctx, 0, 0, 1)
+      case 174: solid(ctx, 1, 1, 1)
+      case 129..<219: solid(ctx, 0, 0.8, 0)
+      default:
+        let x = Double(w) * Double(i - 219) / 90
+        ctx.drawLinearGradient(
+          gradient, start: CGPoint(x: x - Double(w), y: 0), end: CGPoint(x: x + Double(w), y: Double(h)),
+          options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+      }
+    }
+    let started = Date()
+    let shots = try await ShotScan.shortShots(in: video)
+    let seconds = Date().timeIntervalSince(started)
+    let found = shots.map { String(format: "%.2f-%.2f", $0.start, $0.end) }
+    expect(
+      shots.count == 2 && abs(shots[0].start - 2) < 0.02 && abs(shots[0].length - 0.3) < 0.02 && abs(shots[1].start - 5.8) < 0.02
+        && abs(shots[1].length - 1.0 / 30) < 0.01,
+      "the scan finds the 0.3 s blue shot and the one white frame, not the sliding gradient (\(found), \(String(format: "%.1f", seconds)) s)")
+    let line = shots.first.map(ShotScan.describe) ?? "nothing"
+    expect(line == "short shot at 0:02.0 for 0.30 s", "a short shot reads \"\(line)\"")
+  }
+
   static func fixture(_ name: String) throws -> URL {
     let url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("../test/fixtures/\(name)").standardized
     guard FileManager.default.fileExists(atPath: url.path) else {

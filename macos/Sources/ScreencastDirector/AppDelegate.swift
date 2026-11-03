@@ -32,9 +32,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     AppDelegate.shared = self
   }
 
+  /// Scans a finished export's pixels for shots under a second (the plan check misses some, like a
+  /// punch-in sliver) and banners the first, with a button that seeks to it in the open project.
+  /// The scan is nonisolated async work, so it runs off the main thread.
+  @MainActor
+  private func scanForShortShots(_ job: ExportQueue.Job) {
+    Task { @MainActor [weak self] in
+      let shots: [ShotScan.ShortShot]
+      do {
+        shots = try await ShotScan.shortShots(in: job.url)
+      } catch {
+        Notices.shared.show(error, "Couldn't check \(job.url.lastPathComponent) for short shots")
+        return
+      }
+      guard let first = shots.first else { return }
+      let more = shots.count > 1 ? " (\(shots.count) in all)" : ""
+      Notices.shared.show("\(job.url.lastPathComponent) has a \(ShotScan.describe(first))\(more).", error: true, action: "Show") {
+        guard let model = self?.library.current, model.dir.standardizedFileURL == job.projectDir.standardizedFileURL else { return }
+        model.seek(outFrame: first.start * Double(model.fps))
+      }
+    }
+  }
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     MainActor.assumeIsolated {
-      ExportQueue.shared.onFinished = { NSWorkspace.shared.activateFileViewerSelecting([$0.url]) }
+      ExportQueue.shared.onFinished = { [weak self] job in
+        NSWorkspace.shared.activateFileViewerSelecting([job.url])
+        self?.scanForShortShots(job)
+      }
     }
     installKeyMonitor()
     hotKeys.onToggle = { [weak self] in self?.toggleRecording() }
