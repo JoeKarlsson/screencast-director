@@ -145,8 +145,9 @@ extension Scene {
     let k = maxWidth / widest * 0.98
     let key = NSAttributedString.Key(kCTFontAttributeName as String)
     s.enumerateAttribute(key, in: NSRange(location: 0, length: s.length)) { value, range, _ in
-      guard let value else { return }
-      let font = value as! CTFont
+      // Only CTFonts are set under this key (Scene.text); check the type rather than force-cast.
+      guard let value, CFGetTypeID(value as CFTypeRef) == CTFontGetTypeID() else { return }
+      let font = unsafeDowncast(value as AnyObject, to: CTFont.self)
       s.addAttribute(key, value: CTFontCreateCopyWithAttributes(font, CTFontGetSize(font) * k, nil, nil), range: range)
     }
   }
