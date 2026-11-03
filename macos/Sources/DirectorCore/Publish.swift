@@ -355,7 +355,8 @@ public enum Publish {
     }
 
     log("Finding your best camera frames…")
-    let faces = try await bestFaces(project: project, plan: plan, at: coverAt)
+    // Moments picked on the command line, else the ones saved in the plan, else the best faces.
+    let faces = try await bestFaces(project: project, plan: plan, at: coverAt ?? plan.coverAt)
     let built = try await buildComposition(project: project, plan: plan)
     // One thumbnail per good face; without a camera, one per title moment (or the middle).
     // A vertical video gets vertical covers: the title over the camera frame, framed on the face.

@@ -802,14 +802,32 @@ struct PublishView: View {
       }
       .disabled(project.busy)
 
+      // The moments covers are made from: the playhead's frame, or the clearest faces when none are picked.
+      let covers = project.plan?.coverAt ?? []
+      HStack {
+        Button("Use Playhead Frame for a Cover") {
+          let t = project.playheadSrc
+          project.apply { $0.addCover(at: t) }
+        }
+        .help("Make a cover from the camera frame at the playhead (up to three; Make Thumbnails uses them)")
+        Text(covers.isEmpty ? "Covers pick your clearest camera frames" : "Covers from " + covers.map { fmtTime($0) }.joined(separator: ", "))
+          .font(.caption).foregroundStyle(.secondary)
+        if !covers.isEmpty {
+          Button("Clear") { project.apply { $0.coverAt = nil } }.controlSize(.small)
+            .help("Go back to picking the clearest camera frames")
+        }
+      }
+      .disabled(project.busy)
+
       let thumbs = project.publishFiles.filter { $0.pathExtension == "png" }
       if !thumbs.isEmpty {
-        Text("Thumbnails: your clearest smiling camera frames, with the title in your profile's style").font(.headline)
+        Text(covers.isEmpty ? "Thumbnails: your clearest camera frames, with the title in your profile's style" : "Thumbnails: the frames you picked, with the title in your profile's style").font(.headline)
         ScrollView(.horizontal) {
           HStack(spacing: 10) {
             ForEach(thumbs, id: \.self) { url in
               if let img = NSImage(contentsOf: url) {
-                Image(nsImage: img).resizable().aspectRatio(16 / 9, contentMode: .fit).frame(height: 150)
+                // Each at its own shape: vertical covers stay vertical.
+                Image(nsImage: img).resizable().aspectRatio(contentMode: .fit).frame(height: 220)
                   .clipShape(RoundedRectangle(cornerRadius: 8))
                   .onTapGesture { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                   .help(url.lastPathComponent)

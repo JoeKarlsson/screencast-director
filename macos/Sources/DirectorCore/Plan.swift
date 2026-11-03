@@ -338,6 +338,17 @@ public struct Plan: Codable, Equatable {
   /// back to the look's card, then the look's watermark.
   public var intro: Card?
   public var outro: Card?
+  /// Source seconds the publish covers are made from (up to three, oldest dropped first); nil
+  /// picks the clearest camera frames.
+  public var coverAt: [Double]?
+
+  /// Adds a moment to make a cover from, replacing one within a second of it and keeping the
+  /// three most recent.
+  public mutating func addCover(at t: Double) {
+    var list = (coverAt ?? []).filter { abs($0 - t) >= 1 }
+    list.append((t * 100).rounded() / 100)
+    coverAt = Array(list.suffix(3))
+  }
 
   /// The segments in the order they play.
   public var playSegments: [Segment] { version >= 2 ? segments : segments.sorted { $0.start < $1.start } }

@@ -40,4 +40,11 @@ func coverChecks() {
   let flipped = Publish.verticalThumbnail(plan: plan, person: frame, faceX: 0.2, title: "Kindle")!
   let fb = px(flipped, 540, 1800)
   expect(fb[0] > 0.7 && fb[2] < 0.3, "a mirrored cover flips the frame and keeps the face in view (\(fb))")
+
+  // Picked cover moments: a second apart or replaced, the three most recent kept.
+  var picks = plan
+  for t in [4.8, 5.2, 30, 62, 85] { picks.addCover(at: t) }
+  expect(picks.coverAt == [30, 62, 85], "covers keep the three latest picks, a near-duplicate replacing the earlier one (\(picks.coverAt ?? []))")
+  picks.addCover(at: 30.4)
+  expect(picks.coverAt == [62, 85, 30.4], "picking near an existing cover replaces it (\(picks.coverAt ?? []))")
 }
