@@ -166,7 +166,20 @@ struct TimelineView: View {
         .frame(width: 28, height: 22)
         .accessibilityLabel("Annotate")
         .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
-        iconButton("B-roll", "photo.on.rectangle", help: "Show a picture or clip over the video from the playhead", action: project.addInsert)
+        Menu {
+          Button { project.addInsert() } label: { Label("Pick a Picture or Clip…", systemImage: "photo") }
+          Button { project.recordBroll() } label: { Label("Record B-roll…", systemImage: "video.badge.plus") }
+        } label: {
+          Image(systemName: "photo.on.rectangle")
+        } primaryAction: {
+          project.addInsert()
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 28, height: 22)
+        .accessibilityLabel("B-roll")
+        .help("Show a picture or clip over the video from the playhead; hold to record B-roll from the camera or screen")
         Menu {
           ForEach(AnimationLibrary.templates(project.dir).map(\.template), id: \.name) { t in
             Button { project.addAnimation(t) } label: { Text("\(t.title): \(t.summary)") }

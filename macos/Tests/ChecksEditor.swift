@@ -134,3 +134,23 @@ func editorActionChecks() {
   dropped.moveSegment(1, to: clipDrop(moving: 1, atFrame: 0, mapped: mapPlan(base))!.target)
   expect(dropped.segments.map(\.start) == [10, 0], "the drop's target is what moveSegment takes (\(dropped.segments.map(\.start)))")
 }
+
+// Record B-roll: the file it records into and the full-frame insert it adds at the playhead.
+func recordedBrollChecks() {
+  let utc = TimeZone(identifier: "UTC")!
+  let date = Date(timeIntervalSince1970: 1_793_712_345)  // 2026-11-03 13:25:45 UTC
+  let first = RecordedBroll.file(at: date, timeZone: utc) { _ in false }
+  expect(first == "broll/broll-20261103-132545.mov", "B-roll file name (\(first))")
+  let taken: Set = ["broll/broll-20261103-132545.mov", "broll/broll-20261103-132545-2.mov"]
+  let third = RecordedBroll.file(at: date, timeZone: utc) { taken.contains($0) }
+  expect(third == "broll/broll-20261103-132545-3.mov", "a name taken in the same second gets a number (\(third))")
+
+  let mid = RecordedBroll.insert(file: "broll/a.mov", playhead: 4, length: 2.5, duration: 20)
+  expect(mid == Insert(start: 4, end: 6.5, file: "broll/a.mov", placement: "full"), "full-frame at the playhead for the clip's length (\(mid))")
+  let late = RecordedBroll.insert(file: "broll/a.mov", playhead: 19, length: 3, duration: 20)
+  expect(late.start == 17 && late.end == 20, "near the end it starts earlier to fit (\(late))")
+  let long = RecordedBroll.insert(file: "broll/a.mov", playhead: 5, length: 30, duration: 20)
+  expect(long.start == 0 && long.end == 20, "a clip longer than the recording covers it all (\(long))")
+  let before = RecordedBroll.insert(file: "broll/a.mov", playhead: -1, length: 2, duration: 20)
+  expect(before.start == 0 && before.end == 2, "a playhead before the start clamps to 0 (\(before))")
+}

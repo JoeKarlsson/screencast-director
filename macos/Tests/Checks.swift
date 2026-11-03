@@ -1003,6 +1003,7 @@ struct Checks {
     sceneDrawingChecks()
     audioChecks()
     editorActionChecks()
+    recordedBrollChecks()
     reorderChecks()
     flashChecks()
     coverChecks()

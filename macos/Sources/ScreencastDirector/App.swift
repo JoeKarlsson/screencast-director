@@ -72,6 +72,8 @@ struct AppCommands: Commands {
         .disabled(!recorder.isRecording)
       Divider()
       Button("Import Video…") { app.importVideo() }.keyboardShortcut("i")
+      Button("Record B-roll…") { library.current?.recordBroll() }
+        .disabled(library.current?.hasPlan != true || recorder.isRecording)
       Button("Join Recordings…") { library.promptJoin() }
       Button("Refresh Library") { library.refresh() }
     }

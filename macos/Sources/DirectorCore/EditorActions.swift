@@ -396,3 +396,34 @@ private func selectedLine(_ selection: Selection, _ plan: Plan) -> String? {
     return "Selected sound effect #\(i): \(e.file) at source \(fmtTime(e.t))"
   }
 }
+
+// MARK: Recorded B-roll
+
+/// B-roll recorded from inside the app (Record B-roll): the file it records into and the insert
+/// that shows it.
+public enum RecordedBroll {
+  /// `broll/broll-<yyyyMMdd-HHmmss>.mov`, with -2, -3… when `taken` says a name is in use (two
+  /// clips in the same second).
+  public static func file(at date: Date, timeZone: TimeZone = .current, taken: (String) -> Bool) -> String {
+    let fmt = DateFormatter()
+    fmt.locale = Locale(identifier: "en_US_POSIX")
+    fmt.timeZone = timeZone
+    fmt.dateFormat = "yyyyMMdd-HHmmss"
+    let base = "broll/broll-\(fmt.string(from: date))"
+    var name = "\(base).mov", n = 2
+    while taken(name) {
+      name = "\(base)-\(n).mov"
+      n += 1
+    }
+    return name
+  }
+
+  /// A full-frame insert of a `length`-second clip from the playhead (source seconds), ending by
+  /// the end of a recording `duration` long. A playhead near the end starts it earlier, so the
+  /// clip still shows for as long as it runs (or for the whole recording, if that's shorter).
+  public static func insert(file: String, playhead: Double, length: Double, duration: Double) -> Insert {
+    let length = min(max(0, length), duration)
+    let start = min(max(0, playhead), duration - length)
+    return Insert(start: start, end: start + length, file: file, placement: "full")
+  }
+}

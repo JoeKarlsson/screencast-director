@@ -483,6 +483,9 @@ final class ProjectModel: ObservableObject {
     let panel = NSOpenPanel()
     panel.allowedContentTypes = [.image, .movie]
     panel.message = "Pick a picture or clip to show over the video"
+    // Opens on the project's B-roll (clips recorded with Record B-roll are there) when it has some.
+    let broll = dir.appendingPathComponent("broll")
+    if FileManager.default.fileExists(atPath: broll.path) { panel.directoryURL = broll }
     let start = playheadSrc
     let done: (NSApplication.ModalResponse) -> Void = { [self] response in
       guard response == .OK, let url = panel.url else { return }
@@ -503,6 +506,21 @@ final class ProjectModel: ObservableObject {
       }
     }
     presentPanel(panel, then: done)
+  }
+
+  /// Record B-roll: records a clip from the camera or screen into broll/ (`BrollRecorder`).
+  func recordBroll() {
+    guard let app = AppDelegate.shared, !app.recorder.isRecording else { return }
+    app.brollRecorder.show(for: self)
+  }
+
+  /// A clip Record B-roll just saved in broll/: full frame from the playhead, for its length.
+  func addRecordedBroll(_ file: String, length: Double) {
+    guard let plan else { return }
+    let ins = RecordedBroll.insert(file: file, playhead: playheadSrc, length: length, duration: plan.source.duration)
+    apply { $0.insertList.append(ins) }
+    if let i = self.plan?.insertList.firstIndex(of: ins) { select(.insert(i), adding: false) }
+    status = "Recorded B-roll at \(fmtTime(ins.start)) (\(file))."
   }
 
   /// Asks for a `.cube` LUT, copies it into the project's luts/ folder, and grades the camera with it.

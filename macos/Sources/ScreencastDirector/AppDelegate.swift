@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
   lazy var hud = RecordingHUD(recorder: recorder)
   let countdown = Countdown()
   let recordSetup = RecordSetup()
+  let brollRecorder = BrollRecorder()
   /// The main window, once SwiftUI has made it.
   private(set) var window: NSWindow?
   /// Opens the main window when it's been closed (set from the commands, which have openWindow).

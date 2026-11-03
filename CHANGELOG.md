@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Recording
+- Record B-roll into the open video (File > Record B-roll…, or hold the B-roll button): a small panel with a live preview records a clip from the camera or the screen into its broll/ folder, then shows it full frame from the playhead for the clip's length. One undo takes it off.
 - A floating recording widget: clock, mic level, camera preview, retake count, and Pause, Restart, Discard and Stop. It never shows up in the recording.
 - Pause while recording. The paused stretch is cut from the draft.
 - A 3-2-1 countdown before recording starts (Settings > Recording; ⌃⌥⌘R during it cancels).

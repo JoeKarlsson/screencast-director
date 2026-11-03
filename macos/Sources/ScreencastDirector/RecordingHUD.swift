@@ -287,6 +287,8 @@ struct MicMeter: View {
 /// A live preview of the camera being recorded.
 struct CameraPreview: NSViewRepresentable {
   let session: AVCaptureSession
+  /// Like a mirror (the recorder's widget). Record B-roll shows the camera as it records.
+  var mirrored = true
 
   func makeNSView(context: Context) -> NSView {
     let v = NSView()
@@ -295,7 +297,7 @@ struct CameraPreview: NSViewRepresentable {
     layer.videoGravity = .resizeAspectFill
     if let c = layer.connection, c.isVideoMirroringSupported {
       c.automaticallyAdjustsVideoMirroring = false
-      c.isVideoMirrored = true
+      c.isVideoMirrored = mirrored
     }
     v.layer = layer
     return v
