@@ -60,11 +60,14 @@ public enum Publish {
     public var score: Double
     public var smiling: Bool
     public var image: CGImage
+    /// The face's center in the image, fractions with y down (0.5, 0.4 when unknown).
+    public var faceX: Double = 0.5
+    public var faceY: Double = 0.4
   }
 
   /// Scores camera frames (every half second of kept video) for a sharp, smiling, eyes-open face
   /// and returns the best few, at least 3 s apart.
-  public static func bestFaces(project: Project, plan: Plan, count: Int = 3) async throws -> [Candidate] {
+  public static func bestFaces(project: Project, plan: Plan, count: Int = 3, at chosen: [Double]? = nil) async throws -> [Candidate] {
     guard let camera = plan.camera else { return [] }
     let asset = AVURLAsset(url: project.dir.appendingPathComponent(camera.video))
     let gen = AVAssetImageGenerator(asset: asset)
@@ -75,18 +78,27 @@ public enum Publish {
     let duration = try await asset.load(.duration).seconds
     let detector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: [CIDetectorAccuracy: CIDetectorAccuracyHigh])!
 
+    // Chosen moments (source seconds) are taken as they are, face or not; otherwise every half
+    // second of real-time video is scored.
+    var times: [Double] = []
+    if let chosen, !chosen.isEmpty {
+      times = chosen
+    } else {
+      for s in plan.segments where s.speed <= 1.01 { times += Array(stride(from: s.start + 0.25, to: s.end, by: 0.5)) }
+    }
     var found: [Candidate] = []
-    for s in plan.segments where s.speed <= 1.01 {
-      var t = s.start + 0.25
-      while t < s.end {
+    for t in times {
+      do {
         let ct = t + camera.offset
-        defer { t += 0.5 }
         guard ct >= 0, ct < duration, let img = try? await gen.image(at: CMTime(seconds: ct, preferredTimescale: 600)).image else {
           continue
         }
         let quality = VNDetectFaceCaptureQualityRequest()
         try? VNImageRequestHandler(cgImage: img).perform([quality])
-        guard let face = quality.results?.max(by: { ($0.faceCaptureQuality ?? 0) < ($1.faceCaptureQuality ?? 0) }) else { continue }
+        guard let face = quality.results?.max(by: { ($0.faceCaptureQuality ?? 0) < ($1.faceCaptureQuality ?? 0) }) else {
+          if chosen != nil { found.append(Candidate(sourceTime: t, score: 0, smiling: false, image: img)) }
+          continue
+        }
         let features = detector.features(in: CIImage(cgImage: img), options: [CIDetectorSmile: true, CIDetectorEyeBlink: true])
           .compactMap { $0 as? CIFaceFeature }
         let main = features.max { $0.bounds.width < $1.bounds.width }
@@ -95,9 +107,11 @@ public enum Publish {
         // Quality first; a smile is a big bonus, a blink a big penalty; bigger faces read better.
         let score = Double(face.faceCaptureQuality ?? 0) + (smiling ? 0.5 : 0) - (blinking ? 0.6 : 0)
           + Double(face.boundingBox.width) * 0.3
-        found.append(Candidate(sourceTime: t, score: score, smiling: smiling, image: img))
+        let box = face.boundingBox  // Vision: normalized, y up
+        found.append(Candidate(sourceTime: t, score: score, smiling: smiling, image: img, faceX: box.midX, faceY: 1 - box.midY))
       }
     }
+    if let chosen, !chosen.isEmpty { return found }
     var picked: [Candidate] = []
     for c in found.sorted(by: { $0.score > $1.score }) where picked.allSatisfy({ abs($0.sourceTime - c.sourceTime) >= 3 }) {
       picked.append(c)
@@ -169,7 +183,7 @@ public enum Publish {
     CTFrameDraw(frame, ctx)
 
     // Left column: the person, cropped to their outline, standing on the bottom edge.
-    if let person, let cut = cutout(person), let cg = CIContext().createCGImage(cut, from: cut.extent), let tight = cropToAlpha(cg) {
+    if let person, let cut = cutout(asShown(person, plan: scene.plan)), let cg = CIContext().createCGImage(cut, from: cut.extent), let tight = cropToAlpha(cg) {
       let ph = H * 0.94
       var pw = ph * Double(tight.width) / Double(tight.height)
       var drawH = ph
@@ -181,6 +195,96 @@ public enum Publish {
       ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 30, color: CGColor(gray: 0, alpha: 0.45))
       ctx.draw(tight, in: CGRect(x: W * 0.215 - pw / 2, y: 0, width: pw, height: drawH))
       ctx.restoreGState()
+    }
+    return ctx.makeImage()
+  }
+
+  /// A camera frame as the video shows it: flipped when the plan mirrors the camera.
+  static func asShown(_ image: CGImage, plan: Plan) -> CGImage {
+    guard plan.camera?.mirror == true,
+      let ctx = CGContext(
+        data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
+        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return image }
+    ctx.translateBy(x: Double(image.width), y: 0)
+    ctx.scaleBy(x: -1, y: 1)
+    ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    return ctx.makeImage() ?? image
+  }
+
+  /// The title's lines for a vertical cover: uppercase, broken greedily to fit `maxWidth` at the
+  /// largest size (down from `start`) where every word fits and it takes at most four lines. The last
+  /// line goes on the accent chip.
+  static func coverTitle(_ title: String, font: String?, maxWidth: Double, start: Double = 140) -> (lines: [String], size: Double) {
+    let words = title.uppercased().split(separator: " ").map(String.init)
+    var size = start
+    while size > 48 {
+      func width(_ s: String) -> Double { Scene.measure(Scene.text(s, size: size, weight: .heavy, font: font), maxWidth: .greatestFiniteMagnitude).width }
+      if words.allSatisfy({ width($0) <= maxWidth }) {
+        var lines: [String] = []
+        for w in words {
+          if let last = lines.last, width(last + " " + w) <= maxWidth { lines[lines.count - 1] = last + " " + w } else { lines.append(w) }
+        }
+        if lines.count <= 4 { return (lines, size) }
+      }
+      size -= 6
+    }
+    return ([title.uppercased()], size)
+  }
+
+  /// A 1080x1920 cover for a vertical video: the title big on the look's dark color at the top, the
+  /// last line on the accent chip, and the camera frame filling the bottom, framed on the face.
+  public static func verticalThumbnail(plan: Plan, person: CGImage, faceX: Double, title: String) -> CGImage? {
+    let W = 1080.0, H = 1920.0
+    let look = plan.look ?? Look()
+    Fonts.register(look.fontFiles)
+    guard
+      let ctx = CGContext(
+        data: nil, width: Int(W), height: Int(H), bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
+        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return nil }
+    let bgHex = look.chipBackground ?? look.captionBackground ?? "#111318"
+    ctx.setFillColor(Scene.color(bgHex))
+    ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
+
+    // The photo: the bottom 55%, cropped to that shape around the face (y-up drawing below).
+    let photo = asShown(person, plan: plan)
+    let photoH = H * 0.55
+    let iw = Double(photo.width), ih = Double(photo.height)
+    let cropW = min(iw, ih * W / photoH), cropH = cropW * photoH / W
+    let fx = plan.camera?.mirror == true ? 1 - faceX : faceX
+    let cx = min(max(fx * iw - cropW / 2, 0), iw - cropW)
+    if let crop = photo.cropping(to: CGRect(x: cx, y: (ih - cropH) / 2, width: cropW, height: cropH)) {
+      ctx.draw(crop, in: CGRect(x: 0, y: 0, width: W, height: photoH))
+    }
+    // Fade the photo's top edge into the background.
+    let bg = Scene.color(bgHex)
+    let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
+    ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
+
+    // The title: white lines, then the last on the chip, left aligned in the top 45%.
+    let margin = 70.0, chipPadX = 26.0, chipPadY = 10.0
+    let (lines, size) = coverTitle(title, font: look.titleFont, maxWidth: W - 2 * margin - 2 * chipPadX)
+    let lineH = size * 1.08
+    let blockH = Double(lines.count) * lineH + 2 * chipPadY
+    var y = H - max(200, (H - photoH - blockH) / 2 - 40)  // top of the block, centered in the title area
+    for (k, line) in lines.enumerated() {
+      let chip = k == lines.count - 1
+      let s = Scene.text(line, size: size, weight: .heavy, font: look.titleFont, color: chip ? (look.titleText ?? "#111318") : (look.captionText ?? "#F3F4F6"), align: .left)
+      let m = Scene.measure(s, maxWidth: .greatestFiniteMagnitude)
+      if chip {
+        y -= chipPadY
+        let r = CGRect(x: margin, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
+        ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: 18, cornerHeight: 18, transform: nil))
+        ctx.fillPath()
+      }
+      let x = margin + (chip ? chipPadX : 0)
+      let frame = CTFramesetterCreateFrame(
+        CTFramesetterCreateWithAttributedString(s), CFRange(location: 0, length: 0),
+        CGPath(rect: CGRect(x: x, y: y - m.height, width: m.width + 2, height: m.height), transform: nil), nil)
+      CTFrameDraw(frame, ctx)
+      y -= lineH
     }
     return ctx.makeImage()
   }
@@ -216,7 +320,8 @@ public enum Publish {
 
   /// Writes publish/captions.srt, publish/chapters.txt (when titles allow), publish/transcript.txt and
   /// publish/thumbnail-N.png. Returns the files written.
-  public static func run(project: Project, plan: Plan, title: String, log: (String) -> Void = { _ in }) async throws -> [URL] {
+  /// `coverAt`: source seconds to make the covers from, instead of the best-scoring faces.
+  public static func run(project: Project, plan: Plan, title: String, coverAt: [Double]? = nil, log: (String) -> Void = { _ in }) async throws -> [URL] {
     let out = project.dir.appendingPathComponent("publish")
     try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     let scene = Scene(plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts)
@@ -235,9 +340,20 @@ public enum Publish {
     }
 
     log("Finding your best camera frames…")
-    let faces = try await bestFaces(project: project, plan: plan)
+    let faces = try await bestFaces(project: project, plan: plan, at: coverAt)
     let built = try await buildComposition(project: project, plan: plan)
     // One thumbnail per good face; without a camera, one per title moment (or the middle).
+    // A vertical video gets vertical covers: the title over the camera frame, framed on the face.
+    if plan.output.height > plan.output.width, !faces.isEmpty {
+      for (i, f) in faces.enumerated() {
+        log("Composing cover \(i + 1) of \(faces.count)…")
+        guard let thumb = verticalThumbnail(plan: plan, person: f.image, faceX: f.faceX, title: title) else { continue }
+        let u = out.appendingPathComponent("thumbnail-\(i + 1).png")
+        try writePNG(thumb, to: u)
+        files.append(u)
+      }
+      return files
+    }
     var moments: [(Double, CGImage?)] = faces.map { ($0.sourceTime, $0.image) }
     if moments.isEmpty {
       let titled = plan.callouts.map { $0.start + 0.5 }

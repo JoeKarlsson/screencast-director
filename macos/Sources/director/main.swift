@@ -22,7 +22,7 @@ let usage = """
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director move     <dir> <start> <end> [--before <t>]   play a source-time range first (a cold open), or just before source time t
-    director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
+    director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director upload   <file>                        S3-compatible PUT; prints the public URL (S3_* env vars)
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
@@ -65,7 +65,7 @@ func planFor(_ project: Project) throws -> Plan {
   if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -168,7 +168,8 @@ do {
   case "publish":
     let project = try Project.load(dir)
     let title = args.firstIndex(of: "--title").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? dir.lastPathComponent
-    let files = try await Publish.run(project: project, plan: try planFor(project), title: title) { print($0) }
+    let at = args.firstIndex(of: "--at").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }?.split(separator: ",").compactMap { Double($0) }
+    let files = try await Publish.run(project: project, plan: try planFor(project), title: title, coverAt: at) { print($0) }
     files.forEach { print("wrote \($0.path)") }
   case "pauses":
     guard positional.count == 3, let level = PauseLevel(rawValue: positional[2]) else { fail(usage) }
