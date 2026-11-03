@@ -7,6 +7,12 @@ func inputEventChecks() {
   let screen = CGRect(x: 0, y: 0, width: 2000, height: 1000)
   func key(_ code: CGKeyCode, _ flags: CGEventFlags = [], repeating: Bool = false) -> CGEvent {
     let e = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)!
+    // The character a US layout types, set on the event so the checks don't depend on the Mac's
+    // current input source (a Greek layout turns P into Π).
+    if let ch = [35: "p", 8: "c"][Int(code)] {
+      let units = Array(ch.utf16)
+      e.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+    }
     e.flags = flags
     if repeating { e.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
     return e
