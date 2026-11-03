@@ -53,11 +53,15 @@ public struct Zoom: Codable, Equatable {
 }
 
 /// A hard-cut zoom on the camera for punctuation. Times are source seconds; `scale` multiplies the
-/// camera's framing zoom (2 is twice as tight) around the framing point.
+/// camera's framing zoom (2 is twice as tight, below 1 wider, never past the whole camera) around
+/// the framing point. `x`/`y` move the framing point for the punch (camera-file fractions, like
+/// `camera.x`/`y`), for a cut to something held up beside the face.
 public struct PunchIn: Codable, Equatable {
   public var start: Double
   public var end: Double
   public var scale: Double
+  public var x: Double?
+  public var y: Double?
   public var note: String?
   public init(start: Double, end: Double, scale: Double, note: String? = nil) {
     self.start = start

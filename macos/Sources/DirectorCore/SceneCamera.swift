@@ -51,8 +51,11 @@ extension Scene {
     let k = max(r.width / cw, r.height / ch) * zoom
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
     // Keep the framing point centered, clamped so the camera image always covers the box.
-    // The framing point is in the file's coordinates, so it mirrors with the picture.
-    let fx = mirrored ? 1 - (cam?.x ?? 0.5) : cam?.x ?? 0.5, fy = cam?.y ?? 0.5
+    // The framing point is in the file's coordinates, so it mirrors with the picture. A punch-in
+    // can move it for its span.
+    let punch = punchIns.last(where: { f >= $0.s && f < $0.e })
+    let px = punch?.x ?? cam?.x ?? 0.5, fy = punch?.y ?? cam?.y ?? 0.5
+    let fx = mirrored ? 1 - px : px
     var tx = r.midX - fx * cw * k
     var ty = r.midY - (1 - fy) * ch * k
     tx = min(r.minX, max(tx, r.maxX - cw * k))
@@ -79,7 +82,7 @@ extension Scene {
     // The portrait split's camera is a short, wide strip: frame the face tighter, like a closer shot.
     if socialTop(plan) != nil, b.y > 1 { zoom *= 1.35 }
     // A punch-in snaps tighter for its whole span, with no ease, like a cut to a closer shot.
-    if let punch = punchIns.last(where: { f >= $0.s && f < $0.e }) { zoom *= max(1, punch.scale) }
+    if let punch = punchIns.last(where: { f >= $0.s && f < $0.e }) { zoom = max(1, zoom * punch.scale) }
     return (r, zoom)
   }
 

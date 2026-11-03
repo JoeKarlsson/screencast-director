@@ -301,6 +301,7 @@ extension Scene {
     let bold = style == "bold" || social
     let s = NSMutableAttributedString()
     var current: NSRange?
+    var wordRanges: [NSRange] = []
     let highlight = look.captionHighlight ?? (style == "pill" ? nil : look.accent ?? "#ffe500")
     for (i, w) in page.words.enumerated() {
       let spoken = f >= w.startF
@@ -313,7 +314,9 @@ extension Scene {
       }
       var color = look.captionText ?? "#ffffff"
       if isCurrent, let highlight { color = style == "karaoke" ? Scene.readableOn(highlight) : highlight }
-      if isCurrent { current = NSRange(location: s.length, length: (text as NSString).length - (i < page.words.count - 1 ? 1 : 0)) }
+      let wordRange = NSRange(location: s.length, length: (text as NSString).length - (i < page.words.count - 1 ? 1 : 0))
+      wordRanges.append(wordRange)
+      if isCurrent { current = wordRange }
       s.append(
         Scene.text(
           text, size: (social ? 92 : bold ? 64 : 42) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
@@ -321,6 +324,7 @@ extension Scene {
     }
     // Social captions stay clear of the like and share buttons down the right edge.
     let maxW = social ? W * 0.76 : W * 0.8 - 52 * u
+    Scene.shrinkToFitWords(s, wordRanges, maxWidth: maxW)
     let size = Scene.measure(s, maxWidth: maxW)
     let padX = bold ? 0 : 26 * u, padY = bold ? 0 : 12 * u
     let seam = camBox.flatMap { $0.y > 1 && $0.opacity > 0.5 ? $0.y : nil }

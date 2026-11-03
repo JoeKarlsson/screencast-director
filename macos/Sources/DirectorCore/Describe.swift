@@ -110,7 +110,10 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   if let punches = plan.camera?.punchIns, !punches.isEmpty {
     out.append("")
     out.append("## Camera punch-ins")
-    for p in punches { out.append(line("  src \(fmtTime(p.start))-\(fmtTime(p.end)) \(p.scale.formatted())x", p.note ?? "")) }
+    for p in punches {
+      let at = p.x != nil || p.y != nil ? " at (\((p.x ?? 0.5).formatted()), \((p.y ?? 0.5).formatted()))" : ""
+      out.append(line("  src \(fmtTime(p.start))-\(fmtTime(p.end)) \(p.scale.formatted())x\(at)", p.note ?? ""))
+    }
   }
   if !plan.callouts.isEmpty {
     out.append("")

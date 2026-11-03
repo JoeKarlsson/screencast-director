@@ -67,6 +67,13 @@ func sceneDrawingChecks() {
   }
   let withCaption = counts(render(captioned, frame: 85, words: said), captionRow)
   let beforeCaption = counts(render(captioned, frame: 30, words: said), captionRow)
+  // A word wider than the caption box shrinks to fit on one line instead of breaking mid-word.
+  let longWord = NSMutableAttributedString(attributedString: Scene.text("CUSTOMIZABILITY", size: 92, weight: .heavy))
+  longWord.append(Scene.text(" OVER", size: 92, weight: .heavy))
+  let wordRanges = [NSRange(location: 0, length: 15), NSRange(location: 16, length: 4)]
+  Scene.shrinkToFitWords(longWord, wordRanges, maxWidth: 600)
+  let longWidth = Scene.measure(longWord.attributedSubstring(from: wordRanges[0]), maxWidth: .greatestFiniteMagnitude).width
+  expect(longWidth <= 600 && longWidth > 540, "a too-wide caption word shrinks just enough to fit (\(longWidth))")
   expect(withCaption.dark > 2000 && withCaption.white > 200, "a caption pill with white words is drawn (\(withCaption))")
   expect(beforeCaption.dark == 0 && beforeCaption.white == 0, "no caption before the words are said (\(beforeCaption))")
   // Karaoke marks the word being said with a yellow box (fillMark); the plain pill has none.
@@ -276,6 +283,21 @@ func sceneDrawingChecks() {
   talking.camera?.mirror = true
   let leftMirrored = at(render(talking, frame: 90, camera: redBlue), 200, 540)
   expect(near(leftPlain, [0.9, 0.1, 0.1]) && near(leftMirrored, [0.1, 0.1, 0.9]), "mirror flips the camera (\(leftPlain) -> \(leftMirrored))")
+  // A punch-in with a framing point cuts to that side of the camera (in file coordinates, so mirrored too).
+  talking.camera?.mirror = nil
+  talking.camera?.punchIns = [PunchIn(start: 2, end: 4, scale: 2)]
+  talking.camera?.punchIns?[0].x = 0.85
+  let toRight = at(render(talking, frame: 90, camera: redBlue), 960, 540)
+  talking.camera?.punchIns?[0].x = 0.15
+  let toLeft = at(render(talking, frame: 90, camera: redBlue), 960, 540)
+  talking.camera?.mirror = true
+  let toLeftMirrored = at(render(talking, frame: 90, camera: redBlue), 960, 540)
+  expect(near(toRight, [0.1, 0.1, 0.9]) && near(toLeft, [0.9, 0.1, 0.1]) && near(toLeftMirrored, [0.9, 0.1, 0.1]),
+    "a punch-in's framing point moves the camera (\(toRight), \(toLeft), mirrored \(toLeftMirrored))")
+  talking.camera?.punchIns?[0].scale = 0.5
+  talking.camera?.zoom = 1.5
+  let widened = Scene(plan: talking, words: [], clicks: [], shortcuts: []).cameraFraming(layoutBoxes(.camera, plan: talking).cam, frame: 90, cameraWidth: 1280, cameraHeight: 720).zoom
+  expect(widened == 1, "a punch-in below 1 widens the framing, never past the whole camera (\(widened))")
   let mid = CIImage(color: CIColor(red: 0.4, green: 0.4, blue: 0.4)).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8))
   let brighter = pixel(Scene.graded(mid, Grade(exposure: 1)), x: 4, y: 4), darker = pixel(Scene.graded(mid, Grade(exposure: -1)), x: 4, y: 4)
   expect(brighter[1] > 0.5 && darker[1] < 0.3, "exposure brightens and darkens (\(brighter[1]), \(darker[1]))")

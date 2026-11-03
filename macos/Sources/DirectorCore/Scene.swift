@@ -18,7 +18,7 @@ public final class Scene: @unchecked Sendable {
   let callouts: [(s: Double, e: Double, c: Callout)]
   let annotations: [(s: Double, e: Double, a: Annotation)]
   /// Camera punch-ins in output frames.
-  let punchIns: [(s: Double, e: Double, scale: Double)]
+  let punchIns: [(s: Double, e: Double, scale: Double, x: Double?, y: Double?)]
   /// B-roll in output frames, with its index in plan.inserts and then the rendered animations (the
   /// compositor's key for its frames).
   public let inserts: [(s: Double, e: Double, a: Insert, index: Int)]
@@ -116,7 +116,7 @@ public final class Scene: @unchecked Sendable {
     }
     punchIns = (plan.camera?.punchIns ?? []).compactMap { p in
       let s = srcToOutClamped(m, p.start, fps: fps), e = srcToOutClamped(m, p.end, fps: fps, before: true)
-      return e > s ? (s, e, p.scale) : nil
+      return e > s ? (s, e, p.scale, p.x, p.y) : nil
     }
     inserts = (plan.insertList + plan.animationInserts(dir: dir)).enumerated().compactMap { i, a in
       let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)

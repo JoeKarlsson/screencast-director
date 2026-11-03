@@ -124,6 +124,20 @@ extension Scene {
     return NSAttributedString(string: str, attributes: attrs)
   }
 
+  /// Shrinks the text until its widest word fits `maxWidth`, so a long word ("CUSTOMIZABILITY" in
+  /// big vertical captions) isn't broken mid-word across lines.
+  static func shrinkToFitWords(_ s: NSMutableAttributedString, _ words: [NSRange], maxWidth: Double) {
+    let widest = words.map { measure(s.attributedSubstring(from: $0), maxWidth: .greatestFiniteMagnitude).width }.max() ?? 0
+    guard widest > maxWidth else { return }
+    let k = maxWidth / widest * 0.98
+    let key = NSAttributedString.Key(kCTFontAttributeName as String)
+    s.enumerateAttribute(key, in: NSRange(location: 0, length: s.length)) { value, range, _ in
+      guard let value else { return }
+      let font = value as! CTFont
+      s.addAttribute(key, value: CTFontCreateCopyWithAttributes(font, CTFontGetSize(font) * k, nil, nil), range: range)
+    }
+  }
+
   static func measure(_ s: NSAttributedString, maxWidth: Double) -> CGSize {
     let fs = CTFramesetterCreateWithAttributedString(s)
     let size = CTFramesetterSuggestFrameSizeWithConstraints(
