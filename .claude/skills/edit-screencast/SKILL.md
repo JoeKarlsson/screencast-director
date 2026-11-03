@@ -10,7 +10,7 @@ Arguments: a project name (folder under `projects/`), plus optional instructions
 ## Plan rules that are easy to break
 
 - All plan times are **source seconds** (positions in `screen.mp4`), never output seconds.
-- `segments` play in the order listed and must not overlap. Anything not covered is cut. Keep them in recording order unless moving one: `director move <dir> <start> <end> [--before <t>]` plays a source range first (a cold open) or just before another moment, and everything timed inside it moves along.
+- `segments` play in the order listed and must not overlap. Anything not covered is cut. Keep them in recording order unless moving one: `director move <dir> <start> <end> [--before <t>]` plays a source range first (a cold open) or just before another moment, and everything timed inside it moves along. To show a moment again instead (a cold open that stays in its sentence), `director repeat <dir> <start> <end> [--before <t>]` adds a segment with `repeats: true`, the one kind allowed to overlap; zooms, punch-ins, B-roll and captions play in both showings, titles and sounds only in the original.
 - Segments with `speed > 1` render muted. Never speed up a segment where the user is talking.
 - Zooms that touch hand off as a pan; a gap shorter than `style.transition` reads as a quick out-and-in.
 - `zoom.x`/`zoom.y` are 0..1 fractions of the recorded screen; scale 1.4 to 2.2 looks natural.

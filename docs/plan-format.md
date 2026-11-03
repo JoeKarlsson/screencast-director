@@ -14,7 +14,7 @@ Each project folder holds the recording and a `plan.json` that describes the edi
 }
 ```
 
-- `segments` play in the order they're listed (plan `version` 2; version 1 plans play in recording order) and must not overlap. Anything not covered is cut. Usually they're in recording order; listing a later one first makes a cold open, and every zoom, title, caption and sound stays in source time and moves with its clip (`director move <dir> <start> <end> [--before <t>]`).
+- `segments` play in the order they're listed (plan `version` 2; version 1 plans play in recording order) and must not overlap. Anything not covered is cut. Usually they're in recording order; listing a later one first makes a cold open, and every zoom, title, caption and sound stays in source time and moves with its clip (`director move <dir> <start> <end> [--before <t>]`). A segment with `repeats: true` is a second showing of a moment that also plays in its own place, the only kind allowed to overlap (`director repeat <dir> <start> <end> [--before <t>]`): zooms, punch-ins, B-roll and captions play in both showings, titles and sound effects only in the original.
 - Segments with `speed > 1` render muted.
 - `intro` / `outro` (macOS app only): `{ "enabled": true, "title": "...", "subtitle": "...", "duration": 2.5 }` adds a full-frame card before or after the video. A card is shown unless `"enabled": false`. Source times don't change; the output starts after the intro.
 

@@ -75,4 +75,28 @@ func reorderChecks() {
   // Describe marks the jump and lists the cuts.
   let text = describe(Project(dir: URL(fileURLWithPath: "/tmp/sd-reorder"), source: src), moved)
   expect(text.contains("MOVED") && text.contains("CUT  src 0:12.0-0:20.0"), "describe marks moved clips and lists the cuts")
+
+  // Repeats: a moment plays again first and still in its place. Zooms and captions play with both
+  // showings; titles only with the first (the original).
+  var twice = plan
+  twice.captions.enabled = true
+  twice.zooms = [Zoom(start: 21, end: 22, x: 0.5, y: 0.5, scale: 2)]
+  expect(twice.repeatRange(20.5..<22, before: nil), "repeat a range at the start")
+  twice.normalize()
+  expect(twice.segments.count == 4 && twice.segments[0].repeats == true && twice.segments[0].start == 20.5, "the repeat plays first and survives normalize (\(twice.segments.map { [$0.start, $0.end] }))")
+  let tm = mapPlan(twice)
+  expect(abs(planSeconds(twice) - planSeconds(plan) - 1.5) < 0.05, "the video is longer by the repeat")
+  expect(srcToOut(tm, 21, fps: fps) == (1.5 + 12 + 1) * Double(fps), "a repeated moment maps to its original showing (\(String(describing: srcToOut(tm, 21, fps: fps))))")
+  expect(zoomsToOut(twice.zooms, tm, fps: fps).count == 2, "a zoom inside a repeat plays in both showings")
+  let twiceScene = Scene(plan: twice, words: [Word(text: "open", start: 21, end: 21.4)], clicks: [], shortcuts: [])
+  expect(twiceScene.callouts.count == 1 && twiceScene.callouts[0].s == (1.5 + 12.5) * Double(fps), "a title plays only at the original")
+  expect(twiceScene.pages.count == 2, "captions play in both showings (\(twiceScene.pages.map(\.startF)))")
+  var moveAround = twice
+  _ = moveAround.move(range: 20..<25, before: nil)
+  expect(moveAround.segments.filter { $0.repeats == true }.count == 1 && moveAround.segments[0].repeats != true, "moving a range leaves its repeat alone")
+  var trimRepeat = twice
+  trimRepeat.trimSegment(0, start: 19)
+  expect(trimRepeat.segments[0].start == 19, "a repeat trims freely over the clips it repeats")
+  expect(describe(Project(dir: URL(fileURLWithPath: "/tmp/sd-reorder"), source: src), twice).contains("REPEAT"), "describe marks a repeat")
+  expect(!twice.repeatRange(13..<18, before: nil), "can't repeat a range that's entirely cut")
 }

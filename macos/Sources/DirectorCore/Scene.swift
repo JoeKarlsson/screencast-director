@@ -202,7 +202,8 @@ public final class Scene: @unchecked Sendable {
       // The clip the word is heard in: the one holding most of it. Word timings are a little off, so
       // a word can straddle a cut, starting in the clip before it (with clips moved, a clip that
       // plays somewhere else entirely). Under 40% kept, it was cut on purpose.
-      let overlaps = mapped.indices.map { max(0, min(w.end, mapped[$0].end) - max(w.start, mapped[$0].start)) }
+      // Repeats get their own pages below; here each word is placed at its first showing.
+      let overlaps = mapped.indices.map { mapped[$0].repeats ? 0 : max(0, min(w.end, mapped[$0].end) - max(w.start, mapped[$0].start)) }
       guard let best = overlaps.indices.max(by: { overlaps[$0] < overlaps[$1] }),
         overlaps[best] >= 0.4 * max(0.001, w.end - w.start) || (w.start >= mapped[best].start && w.start < mapped[best].end)
       else { continue }
@@ -225,6 +226,12 @@ public final class Scene: @unchecked Sendable {
       pages[pages.count - 1].words.append((w.text, startF))
       pages[pages.count - 1].endF = endF
       lastEnd = w.end
+    }
+    // A repeat captions its words again where it plays.
+    for r in mapped where r.repeats {
+      var single = r
+      single.repeats = false
+      pages += captionPages(words.filter { $0.end > r.start && $0.start < r.end }, [single], fps: fps, maxWords: maxWords)
     }
     return pages.sorted { $0.startF < $1.startF }
   }

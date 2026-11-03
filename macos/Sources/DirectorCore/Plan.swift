@@ -11,13 +11,18 @@ public struct Segment: Codable, Equatable {
   public var note: String?
   /// How the cut into this segment looks: one of `Segment.transitions` (nil is a plain cut).
   public var transition: String?
+  /// A second showing of a moment that also plays in another clip, like a cold open that stays in
+  /// its sentence too. It may overlap other clips. Zooms, punch-ins, B-roll and captions play again
+  /// with it; titles and sound effects only at the first showing.
+  public var repeats: Bool?
 
-  public init(start: Double, end: Double, speed: Double, note: String? = nil, transition: String? = nil) {
+  public init(start: Double, end: Double, speed: Double, note: String? = nil, transition: String? = nil, repeats: Bool? = nil) {
     self.start = start
     self.end = end
     self.speed = speed
     self.note = note
     self.transition = transition
+    self.repeats = repeats
   }
 
   public static let transitions: [(name: String, label: String)] = [

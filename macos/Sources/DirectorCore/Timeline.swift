@@ -11,6 +11,8 @@ public struct MappedSegment: Equatable {
   /// First output frame of this segment.
   public var outStart: Int
   public var frames: Int
+  /// A second showing (`Segment.repeats`): single-time lookups prefer the original.
+  public var repeats: Bool = false
 }
 
 /// Segments in the order they play (`Plan.playSegments`), mapped to output frames.
@@ -21,7 +23,9 @@ public func mapSegments(_ segments: [Segment], fps: Int) -> [MappedSegment] {
     let frames = Int(((s.end - s.start) / s.speed * Double(fps)).rounded())
     if frames < 1 { continue }
     out.append(
-      MappedSegment(start: s.start, end: s.end, speed: s.speed, note: s.note, transition: s.transition, outStart: outStart, frames: frames))
+      MappedSegment(
+        start: s.start, end: s.end, speed: s.speed, note: s.note, transition: s.transition, outStart: outStart, frames: frames,
+        repeats: s.repeats == true))
     outStart += frames
   }
   return out
@@ -62,9 +66,10 @@ public func planFrames(_ plan: Plan) -> Int {
 /// Length of the final video in seconds.
 public func planSeconds(_ plan: Plan) -> Double { Double(planFrames(plan)) / Double(plan.output.fps) }
 
-/// Output frame (fractional) for a source time, or nil if that moment is cut.
+/// Output frame (fractional) for a source time, or nil if that moment is cut. A moment that plays
+/// twice (a repeat) maps to its first showing in the original clip.
 public func srcToOut(_ mapped: [MappedSegment], _ t: Double, fps: Int) -> Double? {
-  for s in mapped where t >= s.start && t < s.end {
+  for s in mapped.filter({ !$0.repeats }) + mapped.filter(\.repeats) where t >= s.start && t < s.end {
     return Double(s.outStart) + (t - s.start) * Double(fps) / s.speed
   }
   return nil

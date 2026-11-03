@@ -22,6 +22,7 @@ let usage = """
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director move     <dir> <start> <end> [--before <t>]   play a source-time range first (a cold open), or just before source time t
+    director repeat   <dir> <start> <end> [--before <t>]   play a source-time range again first (or before t), keeping it in its place too
     director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director upload   <file>                        S3-compatible PUT; prints the public URL (S3_* env vars)
@@ -231,6 +232,16 @@ do {
     try plan.write(to: project.planURL)
     let at = srcRangeToOut(mapPlan(plan), a, b, fps: plan.output.fps).first.map { fmtTime($0.startF / Double(plan.output.fps)) } ?? "?"
     print("move \(fmtTime(a))-\(fmtTime(b)): now plays at \(at)")
+  case "repeat":
+    guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    let before = number("--before")
+    guard plan.repeatRange(a..<b, before: before) else {
+      fail("nothing kept in \(fmtTime(a))-\(fmtTime(b)) to repeat\(before.map { ", or \(fmtTime($0)) is inside it" } ?? "")")
+    }
+    try plan.write(to: project.planURL)
+    print("repeat \(fmtTime(a))-\(fmtTime(b)): plays again, \(fmtTime(planSeconds(plan))) total")
   case "gif":
     let project = try Project.load(dir)
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.gif")

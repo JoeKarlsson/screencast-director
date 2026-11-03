@@ -21,8 +21,9 @@ extension Plan {
     return out
   }
 
+  /// The clip playing source time `t` (the original, not a repeat of it).
   public func segmentIndex(at t: Double) -> Int? {
-    segments.firstIndex { t >= $0.start && t < $0.end }
+    segments.firstIndex { t >= $0.start && t < $0.end && $0.repeats != true } ?? segments.firstIndex { t >= $0.start && t < $0.end }
   }
 
   /// Splits the segment under `t` in two. Returns false if `t` is in a cut or too near an edge.
@@ -67,7 +68,8 @@ extension Plan {
     for var s in segments {
       s.start = max(0, s.start)
       s.end = min(dur, s.end)
-      for o in segs where s.start < o.end && s.end > o.start {
+      // Repeats may overlap; everything else plays each moment once.
+      for o in segs where s.repeats != true && o.repeats != true && s.start < o.end && s.end > o.start {
         if s.start >= o.start { s.start = o.end } else { s.end = min(s.end, o.start) }
       }
       if s.end - s.start >= 0.04 { segs.append(s) }
@@ -131,8 +133,9 @@ extension Plan {
     guard segments.indices.contains(i) else { return }
     // Its neighbors in the recording, wherever they play.
     let me = segments[i]
-    let lo = segments.filter { $0.end <= me.start + 1e-6 }.map(\.end).max() ?? 0
-    let hi = segments.filter { $0.start >= me.end - 1e-6 }.map(\.start).min() ?? source.duration
+    let others = me.repeats == true ? [] : segments.filter { $0.repeats != true }
+    let lo = others.filter { $0.end <= me.start + 1e-6 }.map(\.end).max() ?? 0
+    let hi = others.filter { $0.start >= me.end - 1e-6 }.map(\.start).min() ?? source.duration
     if let start { segments[i].start = min(max(start, lo), segments[i].end - 0.05) }
     if let end { segments[i].end = max(min(end, hi), segments[i].start + 0.05) }
   }
@@ -176,7 +179,7 @@ extension Plan {
     // moved out of recording order has no gap to its neighbor to join).
     var joined: [Segment] = []
     for s in playSegments {
-      if var last = joined.last, s.start >= last.end - 1e-6, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1,
+      if var last = joined.last, s.repeats != true, last.repeats != true, s.start >= last.end - 1e-6, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1,
         !paused.contains(where: { $0.0 < s.start && $0.1 > last.end })
       {
         last.end = s.end
@@ -293,7 +296,7 @@ extension Plan {
     _ = split(at: range.lowerBound)
     _ = split(at: range.upperBound)
     if let before { _ = split(at: before) }
-    let inRange = { (s: Segment) in s.start >= range.lowerBound - 1e-6 && s.end <= range.upperBound + 1e-6 }
+    let inRange = { (s: Segment) in s.repeats != true && s.start >= range.lowerBound - 1e-6 && s.end <= range.upperBound + 1e-6 }
     let moving = segments.filter(inRange)
     guard !moving.isEmpty else { return false }
     segments.removeAll(where: inRange)
@@ -304,6 +307,25 @@ extension Plan {
         ?? segments.count
     }
     segments.insert(contentsOf: moving, at: at)
+    return true
+  }
+
+  /// Plays a source range a second time, just before the moment at `before` (the next kept moment if
+  /// that's cut) or first when nil, leaving it where it already plays too: a cold open that stays
+  /// in its sentence. Returns false when none of the range is in the edit.
+  @discardableResult
+  public mutating func repeatRange(_ range: Range<Double>, before: Double?) -> Bool {
+    if let before, range.contains(before) { return false }
+    if version < 2 { normalize() }
+    guard segments.contains(where: { $0.repeats != true && $0.start < range.upperBound && $0.end > range.lowerBound }) else { return false }
+    if let before { _ = split(at: before) }
+    var at = 0
+    if let before {
+      at = segments.firstIndex { before >= $0.start - 1e-6 && before < $0.end && $0.repeats != true }
+        ?? segments.indices.filter { segments[$0].start >= before && segments[$0].repeats != true }.min { segments[$0].start < segments[$1].start }
+        ?? segments.count
+    }
+    segments.insert(Segment(start: range.lowerBound, end: range.upperBound, speed: 1, note: "repeat", repeats: true), at: at)
     return true
   }
 

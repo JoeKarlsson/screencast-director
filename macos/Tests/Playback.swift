@@ -233,6 +233,25 @@ struct Playback {
       expect(false, "camera sync composition: \(error)")
     }
 
+    // A repeat plays the same stretch of the recording twice: every track carries it both times and
+    // still ends with the video.
+    do {
+      let project = try Project.load(dir)
+      var plan = built.scene.plan
+      plan.intro = nil
+      plan.outro = nil
+      plan.inserts = nil
+      plan.segments = [Segment(start: 2, end: 3, speed: 1, repeats: true), Segment(start: 0, end: 4, speed: 1)]
+      let twice = try composition(project, plan)
+      expect(twice.scene.frameCount == 150, "a 1 s repeat before 4 s makes 5 s (got \(twice.scene.frameCount) frames)")
+      expect(twice.asset.tracks.allSatisfy { $0.timeRange.end == twice.asset.duration }, "every track ends with the repeated video")
+      let screen = twice.asset.tracks(withMediaType: .video).first!
+      let sources = screen.segments.filter { !$0.isEmpty }.map(\.timeMapping.source.start.seconds)
+      expect(sources.first.map { abs($0 - 2) < 0.01 } == true && sources.contains { abs($0) < 0.01 }, "the screen plays src 2 s first, then from 0 (\(sources))")
+    } catch {
+      expect(false, "repeat composition: \(error)")
+    }
+
     // A B-roll file or music track that's missing fails the build with its name, instead of
     // quietly leaving it out of the video.
     do {

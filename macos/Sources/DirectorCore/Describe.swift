@@ -55,11 +55,13 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     }
   }
   for s in mapped {
-    if s.start < cursor - 0.001 {
+    if s.repeats {
+      out.append("  REPEAT: plays src \(fmtTime(s.start))-\(fmtTime(s.end)) again (it also plays in its own place)")
+    } else if s.start < cursor - 0.001 {
       out.append("  MOVED: jumps back to src \(fmtTime(s.start))")
     } else if s.start - cursor > 0.05 {
       cuts(cursor, s.start)
-      if let moved = mapped.first(where: { $0.start < s.start && $0.end > cursor }) {
+      if let moved = mapped.first(where: { !$0.repeats && $0.start < s.start && $0.end > cursor }) {
         out.append("  SKIPS src \(fmtTime(max(cursor, moved.start)))-\(fmtTime(min(s.start, moved.end))) (moved, plays elsewhere)")
       }
     }
@@ -69,7 +71,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
       line(
         "  \(speed)  src \(fmtTime(s.start))-\(fmtTime(s.end))  out \(fmtTime(Double(s.outStart) / Double(fps)))  (\(s.note ?? ""))",
         said(s.start, s.end), activity(s.start, s.end)))
-    cursor = s.end
+    if !s.repeats { cursor = s.end }
   }
   cuts(0, plan.source.duration)
   if cards.outro > 0 {

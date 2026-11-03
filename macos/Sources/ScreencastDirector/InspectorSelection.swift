@@ -107,6 +107,17 @@ extension InspectorView {
         }
         .controlSize(.small)
         .disabled(plan.segments.count < 2)
+        if s.repeats == true {
+          Text("A repeat: this moment also plays in its own place.").font(.caption).foregroundStyle(.secondary)
+        } else {
+          Button {
+            let range = s.start..<s.end
+            project.apply { _ = $0.repeatRange(range, before: nil) }
+            project.selection = .segment(0)
+          } label: { Label("Repeat as Cold Open", systemImage: "repeat").frame(maxWidth: .infinity) }
+          .controlSize(.small)
+          .help("Play this clip again at the very start, keeping it where it is too")
+        }
       }
       HStack(spacing: 8) {
         Button(action: project.splitAtPlayhead) { Label("Split at Playhead", systemImage: "scissors").frame(maxWidth: .infinity) }
