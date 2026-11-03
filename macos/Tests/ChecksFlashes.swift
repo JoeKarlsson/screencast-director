@@ -44,4 +44,19 @@ func flashChecks() {
   plan.inserts = [Insert(start: 2, end: 5, file: "broll/a.mov", placement: "full"), Insert(start: 5.034, end: 9, file: "broll/b.mov", placement: "full")]
   let blip = flashes(plan)
   expect(blip.count == 1 && describeFlash(blip[0], plan).contains("2 frames"), "a two-frame flash is caught and told in frames (\(blip.map { describeFlash($0, plan) }))")
+
+  // Punch-ins change the shot too. One ending a moment before its clip's cut runs to the cut (no
+  // sliver of the wide shot); one under a second is a flash; a cut between two clips of the face
+  // half a second apart is a flash.
+  plan.inserts = nil
+  plan.segments = [Segment(start: 0, end: 10, speed: 1), Segment(start: 12, end: 20, speed: 1)]
+  plan.camera?.punchIns = [PunchIn(start: 7, end: 9.7, scale: 2)]
+  let snapped = Scene(plan: plan, words: [], clicks: [], shortcuts: [])
+  expect(snapped.punchIns.first.map { $0.e == 10 * 30 } == true, "a punch-in ending 0.3 s before a cut runs to the cut (\(snapped.punchIns.map(\.e)))")
+  expect(flashes(plan).isEmpty, "so there's no sliver of the wide shot")
+  plan.camera?.punchIns = [PunchIn(start: 4, end: 4.6, scale: 2)]
+  expect(flashes(plan).count == 1, "a 0.6 s punch-in is a flash")
+  plan.camera?.punchIns = nil
+  plan.segments = [Segment(start: 0, end: 5, speed: 1), Segment(start: 6, end: 6.5, speed: 1), Segment(start: 8, end: 20, speed: 1)]
+  expect(flashes(plan).contains { $0.what.contains("clip src 0:06.0") }, "half a second of another clip of the face is a flash")
 }

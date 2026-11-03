@@ -43,7 +43,16 @@ func frameContents(_ scene: Scene) -> [String] {
     }
     var mode = scene.plan.defaultLayout
     for l in scene.layouts where fd >= l.startF && fd < l.endF { mode = l.mode }
-    if mode != .camera, let card = covering.last { out.append("\(insertName(card.a)) in \(layoutName(mode))") } else { out.append(layoutName(mode)) }
+    var name = mode != .camera ? covering.last.map { "\(insertName($0.a)) in \(layoutName(mode))" } ?? layoutName(mode) : layoutName(mode)
+    // With the camera in view, a punch-in ending or a cut to another clip changes the shot too: a
+    // punch-in that ends a moment before a cut leaves a sliver of the wide shot.
+    if mode != .screen, scene.plan.camera != nil {
+      if scene.punchIns.contains(where: { fd >= $0.s && fd < $0.e }) { name += ", punched in" }
+      if let clip = scene.mapped.first(where: { fd >= Double($0.outStart) && fd < Double($0.outStart + $0.frames) }) {
+        name += " [clip src \(fmtTime(clip.start))]"
+      }
+    }
+    out.append(name)
   }
   return out
 }
@@ -70,7 +79,9 @@ public func flashes(_ plan: Plan, dir: URL? = nil, minSeconds: Double = 1.0) -> 
   }
   // A clip under half a second is a flicker even when what's on screen stays the same kind of thing.
   let mapped = scene.mapped
-  for (k, m) in mapped.enumerated() where Double(m.frames) < 0.5 * fps && mapped.count > 1 {
+  for (k, m) in mapped.enumerated() where Double(m.frames) < 0.5 * fps && mapped.count > 1
+    && !out.contains(where: { $0.startF < Double(m.outStart + m.frames) && $0.endF > Double(m.outStart) })
+  {
     out.append(
       Flash(
         startF: Double(m.outStart), endF: Double(m.outStart + m.frames), what: "clip src \(fmtTime(m.start))-\(fmtTime(m.end))",

@@ -115,7 +115,21 @@ public final class Scene: @unchecked Sendable {
       return (s, run.endF, c)
     }
     annotations = (plan.annotations ?? []).flatMap { a in srcRangeToOut(m, a.start, a.end, fps: fps).map { ($0.startF, $0.endF, a) } }
-    punchIns = (plan.camera?.punchIns ?? []).flatMap { p in srcRangeToOut(m, p.start, p.end, fps: fps).map { ($0.startF, $0.endF, p.scale, p.x, p.y) } }
+    // A punch-in within a second of its clip's cut runs to the cut: otherwise the wide shot shows for
+    // a sliver between the punch and the cut, which pops.
+    punchIns = (plan.camera?.punchIns ?? []).flatMap { p in
+      srcRangeToOut(m, p.start, p.end, fps: fps).map { r -> (s: Double, e: Double, scale: Double, x: Double?, y: Double?) in
+        var (s, e) = (r.startF, r.endF)
+        if let clip = m.first(where: { s >= Double($0.outStart) && s < Double($0.outStart + $0.frames) }), s - Double(clip.outStart) < Double(fps) {
+          s = Double(clip.outStart)
+        }
+        if let clip = m.first(where: { e - 1 >= Double($0.outStart) && e - 1 < Double($0.outStart + $0.frames) }) {
+          let clipEnd = Double(clip.outStart + clip.frames)
+          if clipEnd - e < Double(fps) { e = clipEnd }
+        }
+        return (s, e, p.scale, p.x, p.y)
+      }
+    }
     // A clip split by a move picks up where its previous piece left off.
     inserts = (plan.insertList + plan.animationInserts(dir: dir)).enumerated().flatMap { i, a in
       var played = 0.0

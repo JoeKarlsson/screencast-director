@@ -79,6 +79,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Punch-ins can't leave a sliver of the wide shot: one ending (or starting) within a second of its clip's cut runs to the cut. The flash check now also catches short punch-ins and quick cuts between two clips of your face.
 - No fades nobody asked for: B-roll and animations cut in and out hard unless they set a motion, the voice ramps for 12 ms at each cut (it was 100 ms, which clipped words), and music starts and stops with a 0.15 s ramp instead of fading in over a second and out over two.
 - Publish makes vertical covers for a vertical video: the title big on the profile's dark color with the last word on the accent chip, over a camera frame framed on the face. `director publish --at 4.8,85` makes them from moments you pick (like holding the product up). Thumbnails now follow the camera's Mirror setting.
 - Flash warnings: anything on screen for under a second between two other things (the face between two B-roll clips, a layout switching away and back, a clip too short to register) shows in a banner with a Show button, and as a WARNING in `describe` and `review`.
