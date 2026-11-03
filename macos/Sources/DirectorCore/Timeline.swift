@@ -292,6 +292,15 @@ public func windowBarHeight(_ plan: Plan) -> Double {
   return (0.034 * Double(min(plan.output.width, plan.output.height))).rounded()
 }
 
+/// True when the screen is cropped to fill a full-bleed frame (`style.fill`); not in portrait,
+/// which has its own split.
+public func fillsFrame(_ plan: Plan) -> Bool {
+  plan.style.fill == true && insets(plan).fullBleed && socialTop(plan) == nil
+}
+
+/// True when the screen card shows a crop of the screen that pans to follow the action.
+public func cropsScreen(_ plan: Plan) -> Bool { plan.style.screenAspect != nil || fillsFrame(plan) }
+
 public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let W = Double(plan.output.width), H = Double(plan.output.height)
   let pad = plan.style.padding * min(W, H)
@@ -327,7 +336,8 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
     }
   }
 
-  let s = fit(full, aspect: aspect)
+  let fill = fillsFrame(plan)
+  let s = fill ? full : fit(full, aspect: aspect)
   let screenFull = Box(x: s.x, y: s.y, w: s.w, h: s.h, r: r, opacity: 1)
   let bubble = (min(W, H) * (plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize)).rounded()
   let place = bubblePlacement(plan)
@@ -346,7 +356,7 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
     if ins.fullBleed {
       // Screen on the left, camera filling a full-height column on the right.
       let camW = (W * 0.3).rounded()
-      let s = fit((0, 0, W - camW, H), aspect: aspect)
+      let s = fill ? (x: 0, y: 0, w: W - camW, h: H) : fit((0, 0, W - camW, H), aspect: aspect)
       return LayoutBoxes(
         screen: Box(x: s.x, y: s.y, w: s.w, h: s.h, r: 0, opacity: 1),
         cam: Box(x: W - camW, y: 0, w: camW, h: H, r: 0, opacity: 1))

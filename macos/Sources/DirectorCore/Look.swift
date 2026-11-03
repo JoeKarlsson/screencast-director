@@ -143,6 +143,7 @@ public struct Profile: Codable, Equatable {
     plan.style.radius = style.radius
     plan.style.transition = style.transition
     plan.style.joinSide = style.joinSide
+    plan.style.fill = style.fill
     if let motion = style.motion { plan.style.motion = motion }
     var look = self.look
     look.name = name

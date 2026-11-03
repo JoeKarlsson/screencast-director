@@ -47,6 +47,11 @@ extension InspectorView {
     }
     InspectorSection("Frame", detail: "Space around the screen and how round its corners are.") {
       slider("Padding", bind("padding", { $0.style.padding }, { $0.style.padding = ($1 * 200).rounded() / 200 }), 0...0.15, "\(Int(plan.style.padding * 100))%")
+      if plan.style.padding == 0 {
+        toggle(
+          "Fill the frame", "Crop the screen so no background shows. It pans to follow zooms and clicks.",
+          bind("fill", { $0.style.fill == true }, { $0.style.fill = $1 ? true : nil }))
+      }
       slider("Corners", bind("radius", { $0.style.radius }, { $0.style.radius = $1.rounded() }), 0...40, "\(Int(plan.style.radius)) pt")
     }
     InspectorSection("Motion", detail: "One style for every move: how zooms ease and how titles come and go.") {

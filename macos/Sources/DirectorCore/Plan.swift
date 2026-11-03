@@ -258,6 +258,9 @@ public struct Plan: Codable, Equatable {
     /// Side by side: the screen and camera touch at the same height, like one card, instead of
     /// sitting apart. Padded layouts only.
     public var joinSide: Bool?
+    /// With no padding, crop the screen to fill the frame (and pan to follow zooms and clicks)
+    /// instead of showing the whole screen with background around it. Landscape, square and feed.
+    public var fill: Bool?
   }
   public struct Captions: Codable, Equatable {
     public var enabled: Bool

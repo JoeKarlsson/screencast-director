@@ -196,6 +196,22 @@ func sceneDrawingChecks() {
     abs(side.cam.x - (side.screen.x + side.screen.w)) < 0.5 && side.cam.y == side.screen.y && side.cam.h == side.screen.h,
     "joined side by side has no gap (\(side))")
 
+  // Fill the frame: with no padding the screen covers the whole square frame (it shows whole, with
+  // background above and below, without it); portrait keeps its split.
+  var squareFill = ExportPreset.all.first { $0.id == "square" }!.applied(to: base)
+  squareFill.style.padding = 0
+  let fitted = layoutBoxes(.pip, plan: squareFill).screen
+  squareFill.style.fill = true
+  let filled = layoutBoxes(.pip, plan: squareFill).screen
+  expect(fitted.h < 1080 && filled.x == 0 && filled.y == 0 && filled.w == 1080 && filled.h == 1080, "fill covers the frame (\(fitted) -> \(filled))")
+  expect(cropsScreen(squareFill), "a filled screen pans like a cropped one")
+  let sideFilled = layoutBoxes(.side, plan: squareFill)
+  expect(sideFilled.screen.h == 1080 && sideFilled.screen.x + sideFilled.screen.w == sideFilled.cam.x, "fill covers the screen's side of side by side (\(sideFilled))")
+  var verticalFill = ExportPreset.all.first { $0.id == "vertical" }!.applied(to: base)
+  verticalFill.style.padding = 0
+  verticalFill.style.fill = true
+  expect(!fillsFrame(verticalFill), "portrait keeps its own split")
+
   // Watermark: the logo in the margin's bottom-right by default; full bleed puts it inside the frame's corner.
   let red = solidPNG(red: 1, green: 0, blue: 0, width: 200, height: 100)
   defer { try? FileManager.default.removeItem(atPath: red) }

@@ -140,7 +140,7 @@ public final class Scene: @unchecked Sendable {
     } else {
       camSteps = cameraSteps(
         zooms: zooms, fps: fps, transition: plan.style.transition, style: motion, lead: Scene.zoomLead,
-        restClicks: plan.style.screenAspect == nil ? nil : focusClicks)
+        restClicks: cropsScreen(plan) ? focusClicks : nil)
       layoutSteps = Scene.layoutSteps(plan, layouts, frames: frameCount, style: motion)
     }
   }
@@ -226,7 +226,7 @@ public final class Scene: @unchecked Sendable {
     // A cropped screen (vertical, square) rests on the last click instead of the center.
     let clicks = focusClicks
     let base: ((Int) -> (Double, Double))? =
-      plan.style.screenAspect == nil
+      !cropsScreen(plan)
       ? nil
       : { frame in clicks.last(where: { $0.f <= Double(frame) }).map { ($0.x, $0.y) } ?? (0.5, 0.5) }
     let cam = cameraState(f, base: base)
