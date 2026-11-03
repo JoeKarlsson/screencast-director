@@ -67,6 +67,22 @@ func sceneDrawingChecks() {
   }
   let withCaption = counts(render(captioned, frame: 85, words: said), captionRow)
   let beforeCaption = counts(render(captioned, frame: 30, words: said), captionRow)
+  // Bold captions get a box only when asked; dragged captions draw where they were put.
+  var boldCaptions = captioned
+  boldCaptions.captions.style = "bold"
+  let boldBare = counts(render(boldCaptions, frame: 85, words: said), captionRow)
+  boldCaptions.captions.box = true
+  let boldBoxed = counts(render(boldCaptions, frame: 85, words: said), captionRow)
+  expect(boldBoxed.dark > boldBare.dark + 3000, "a box behind bold captions when captions.box is on (\(boldBare.dark) -> \(boldBoxed.dark))")
+  var movedCaptions = captioned
+  movedCaptions.captions.x = 0.3
+  movedCaptions.captions.y = 0.15
+  let movedFrame = render(movedCaptions, frame: 85, words: said)
+  let topLeftRow = CGRect(x: 276, y: 1080 - 0.15 * 1080 - 40, width: 600, height: 80)
+  let movedTop = counts(movedFrame, topLeftRow), movedBottom = counts(movedFrame, captionRow)
+  expect(movedTop.white > 200 && movedBottom.white == 0 && movedBottom.dark == 0,
+    "captions draw where captions.x/y put them (top \(movedTop), bottom \(movedBottom))")
+  expect(Fonts.choices(nil).isEmpty, "no font choices without a look")
   // A word wider than the caption box shrinks to fit on one line instead of breaking mid-word.
   let longWord = NSMutableAttributedString(attributedString: Scene.text("CUSTOMIZABILITY", size: 92, weight: .heavy))
   longWord.append(Scene.text(" OVER", size: 92, weight: .heavy))

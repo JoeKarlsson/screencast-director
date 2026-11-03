@@ -274,6 +274,15 @@ public struct Plan: Codable, Equatable {
     public var maxWords: Int
     /// One of `Plan.Captions.styles` (nil is "pill").
     public var style: String?
+    /// Where the captions sit: the center of the caption block as fractions of the output frame.
+    /// nil keeps the style's place (the bottom, or the seam for social).
+    public var x: Double?
+    public var y: Double?
+    /// A box behind bold and social captions, in the look's caption background color and opacity.
+    /// The pill styles always have one.
+    public var box: Bool?
+    /// Text size relative to the style's (1 is the style's own; nil is 1).
+    public var size: Double?
 
     public static let styles: [(name: String, label: String)] = [
       ("pill", "Pill"), ("karaoke", "Karaoke"), ("pop", "Word Pop"), ("bold", "Bold"), ("social", "Social (big, for vertical)"),

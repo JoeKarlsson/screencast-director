@@ -92,9 +92,61 @@ extension InspectorView {
           .labelsHidden()
       }
       .disabled(!plan.captions.enabled)
+      captionLook(plan).disabled(!plan.captions.enabled)
     }
     InspectorSection("Keyboard") {
       toggle("Shortcut labels", "Shows chips like ⌘K when you press a shortcut.", bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
+    }
+  }
+
+  /// Caption colors, box, font, size and place. Colors and font live in the look (the profile's),
+  /// size, box and place in the captions.
+  @ViewBuilder
+  func captionLook(_ plan: Plan) -> some View {
+    let bold = ["bold", "social"].contains(plan.captions.style ?? "pill")
+    let lookBind = { (key: String, get: @escaping (Look) -> String?, set: @escaping (inout Look, String) -> Void, fallback: String) in
+      self.bind(key, { hexColor(get($0.look ?? Look()) ?? fallback) }, { p, c in
+        var look = p.look ?? Look()
+        set(&look, hexString(c))
+        p.look = look
+      })
+    }
+    HStack(spacing: 14) {
+      ColorPicker("Text", selection: lookBind("capText", { $0.captionText }, { $0.captionText = $1 }, "#ffffff"))
+      ColorPicker("Highlight", selection: lookBind("capHL", { $0.captionHighlight }, { $0.captionHighlight = $1 }, plan.look?.accent ?? "#ffe500"))
+        .help("The word being spoken")
+      ColorPicker("Box", selection: lookBind("capBG", { $0.captionBackground }, { $0.captionBackground = $1 }, "#0a0a0e"))
+    }
+    if bold {
+      toggle("Box behind the words", "A box in the box color, for words over a busy picture.",
+        bind("capBox", { $0.captions.box == true }, { $0.captions.box = $1 ? true : nil }))
+    }
+    slider("Box opacity", bind("capOpacity", { $0.look?.captionBackgroundOpacity ?? 0.78 }, { p, v in
+      var look = p.look ?? Look()
+      look.captionBackgroundOpacity = (v * 100).rounded() / 100
+      p.look = look
+    }), 0...1, "\(Int(((plan.look?.captionBackgroundOpacity ?? 0.78) * 100).rounded()))%")
+    .disabled(bold && plan.captions.box != true)
+    LabeledContent("Font") {
+      Picker("Font", selection: bind("capFont", { $0.look?.captionFont ?? "" }, { p, name in
+        var look = p.look ?? Look()
+        look.captionFont = name.isEmpty ? nil : name
+        p.look = look
+      })) {
+        Text("System").tag("")
+        ForEach(Fonts.choices(plan.look), id: \.self) { Text($0).tag($0) }
+      }
+      .labelsHidden()
+    }
+    slider("Size", bind("capSize", { $0.captions.size ?? 1 }, { $0.captions.size = abs($1 - 1) < 0.02 ? nil : ($1 * 20).rounded() / 20 }), 0.5...2,
+      "\(Int(((plan.captions.size ?? 1) * 100).rounded()))%")
+    LabeledContent("Place") {
+      Text(plan.captions.y == nil ? "Style's own (drag them in the preview)" : "Dragged").foregroundStyle(.secondary)
+      Spacer(minLength: 0)
+      if plan.captions.y != nil {
+        Button("Reset") { project.apply { $0.captions.x = nil; $0.captions.y = nil } }.controlSize(.small)
+          .help("Put the captions back in the style's place")
+      }
     }
   }
 

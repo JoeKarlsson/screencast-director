@@ -20,6 +20,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### App
 - A punch-in can move the camera's framing point (`x`, `y`) and widen (`scale` below 1), to cut to something held up beside your face that a vertical crop would cut off.
+- Captions: drag them anywhere in the preview, and set their text, highlight and box colors, box opacity, font and size in Cursor & Overlays > Captions. Bold and social captions can have a box behind the words (`captions.box`, `x`, `y`, `size`).
 - Big vertical captions shrink a word too wide for the frame ("CUSTOMIZABILITY") instead of breaking it across two lines.
 - Camera > Mirror flips a camera that records mirrored, so a page or device you hold up reads the right way (`camera.mirror`).
 - Recordings sort by when you last opened them (Recently Opened, the new default), and the menu bar's Recent list shows the ones you opened last instead of the newest.

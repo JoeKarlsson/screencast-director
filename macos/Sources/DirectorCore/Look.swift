@@ -214,6 +214,20 @@ public enum Fonts {
     return out
   }
 
+  /// The fonts a caption or title can use: the PostScript names in the look's font files, then the
+  /// named font if it's somewhere else (installed), deduplicated in that order.
+  public static func choices(_ look: Look?) -> [String] {
+    var out: [String] = []
+    for path in look?.fontFiles ?? [] {
+      let descriptors = CTFontManagerCreateFontDescriptorsFromURL(URL(fileURLWithPath: path) as CFURL) as? [CTFontDescriptor] ?? []
+      for d in descriptors {
+        if let name = CTFontDescriptorCopyAttribute(d, kCTFontNameAttribute) as? String, !out.contains(name) { out.append(name) }
+      }
+    }
+    for name in [look?.captionFont, look?.titleFont].compactMap({ $0 }) where !out.contains(name) { out.append(name) }
+    return out
+  }
+
   /// Whether CoreText finds this font by PostScript, full or family name rather than substituting one.
   static func isAvailable(_ name: String) -> Bool {
     let font = CTFontCreateWithName(name as CFString, 12, nil)
