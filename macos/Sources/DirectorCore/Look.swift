@@ -151,7 +151,7 @@ public struct Profile: Codable, Equatable {
     }
     if let music { plan.music = music }
     if let audio {
-      var a = plan.audio ?? AudioSettings()
+      var a = plan.audioSettings
       if let v = audio.normalize { a.normalize = v }
       if let v = audio.gainDB { a.gainDB = v }
       if let v = audio.cleanup { a.cleanup = v }

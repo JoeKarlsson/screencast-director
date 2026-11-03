@@ -86,6 +86,18 @@ extension Plan {
     set { markers = newValue.isEmpty ? nil : newValue.sorted { $0.t < $1.t } }
   }
 
+  /// `audio`, starting from the defaults when the plan has none.
+  public var audioSettings: AudioSettings {
+    get { audio ?? AudioSettings() }
+    set { audio = newValue }
+  }
+
+  /// `cursor`, starting from the defaults when the plan has none.
+  public var cursorSettings: CursorSettings {
+    get { cursor ?? CursorSettings() }
+    set { cursor = newValue }
+  }
+
   /// `sfx` as a plain list (empty when there are none).
   public var sfxList: [SoundEffect] {
     get { sfx ?? [] }

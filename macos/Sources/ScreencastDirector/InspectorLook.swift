@@ -67,27 +67,9 @@ extension InspectorView {
       ? "Drawn from your mouse moves, so it glides instead of jittering."
       : "This recording has the system cursor baked in. Record with the cursor hidden to restyle and smooth it.") {
       if project.project?.source.cursorHidden == true {
-        toggle("Show cursor", Binding(get: { !(plan.cursor?.hidden ?? false) }, set: { v in
-          project.apply { p in
-            var c = p.cursor ?? CursorSettings()
-            c.hidden = v ? nil : true
-            p.cursor = c
-          }
-        }))
-        slider("Size", Binding(get: { project.plan?.cursor?.size ?? 32 }, set: { v in
-          project.apply(coalesce: "cursorSize") { p in
-            var c = p.cursor ?? CursorSettings()
-            c.size = v.rounded()
-            p.cursor = c
-          }
-        }), 16...72, "\(Int(plan.cursor?.size ?? 32)) pt")
-        slider("Smoothing", Binding(get: { project.plan?.cursor?.smoothing ?? 0.12 }, set: { v in
-          project.apply(coalesce: "cursorSmoothing") { p in
-            var c = p.cursor ?? CursorSettings()
-            c.smoothing = (v * 100).rounded() / 100
-            p.cursor = c
-          }
-        }), 0...0.4, String(format: "%.2f s", plan.cursor?.smoothing ?? 0.12))
+        toggle("Show cursor", bind(nil, { !($0.cursorSettings.hidden ?? false) }, { $0.cursorSettings.hidden = $1 ? nil : true }))
+        slider("Size", bind("cursorSize", { $0.cursorSettings.size ?? 32 }, { $0.cursorSettings.size = $1.rounded() }), 16...72, "\(Int(plan.cursor?.size ?? 32)) pt")
+        slider("Smoothing", bind("cursorSmoothing", { $0.cursorSettings.smoothing ?? 0.12 }, { $0.cursorSettings.smoothing = ($1 * 100).rounded() / 100 }), 0...0.4, String(format: "%.2f s", plan.cursor?.smoothing ?? 0.12))
       }
       toggle("Click ripples", "A ring where you click.", bind("ripples", { $0.clickRipples }, { $0.clickRipples = $1 }))
     }
@@ -118,13 +100,13 @@ extension InspectorView {
     PaneTitle(title: "Format", detail: "\(plan.output.width)×\(plan.output.height) at \(plan.output.fps) fps")
     InspectorSection("Shape", detail: "The Export menu also renders other formats without changing this one.") {
       LabeledContent("Shape") {
-        Picker("Shape", selection: Binding(get: { Aspect.of(plan.output) }, set: { project.setFormat(aspect: $0) })) {
+        Picker("Shape", selection: Binding(get: { project.plan.map { Aspect.of($0.output) } ?? Aspect.of(plan.output) }, set: { project.setFormat(aspect: $0) })) {
           ForEach(Aspect.allCases, id: \.self) { Text($0.label).tag($0) }
         }
         .labelsHidden()
       }
       LabeledContent("Resolution") {
-        Picker("Resolution", selection: Binding(get: { Resolution.of(plan.output) }, set: { project.setFormat(resolution: $0) })) {
+        Picker("Resolution", selection: Binding(get: { project.plan.map { Resolution.of($0.output) } ?? Resolution.of(plan.output) }, set: { project.setFormat(resolution: $0) })) {
           ForEach(Resolution.allCases, id: \.self) { Text($0.label).tag($0) }
         }
         .labelsHidden()
@@ -173,15 +155,11 @@ extension InspectorView {
     if plan[keyPath: kp]?.isOn == true {
       TextField("Title", text: cardText(kp, \.title)).textFieldStyle(.roundedBorder)
       TextField("Subtitle", text: cardText(kp, \.subtitle)).textFieldStyle(.roundedBorder)
-      slider("Length", Binding(get: { project.plan?[keyPath: kp]?.seconds ?? Card.defaultDuration }, set: { v in
-        project.apply(coalesce: "\(title)Length") { $0[keyPath: kp]?.duration = (v * 10).rounded() / 10 }
-      }), 1...6, String(format: "%.1f s", plan[keyPath: kp]?.seconds ?? Card.defaultDuration))
+      slider("Length", bind("\(title)Length", { $0[keyPath: kp]?.seconds ?? Card.defaultDuration }, { $0[keyPath: kp]?.duration = ($1 * 10).rounded() / 10 }), 1...6, String(format: "%.1f s", plan[keyPath: kp]?.seconds ?? Card.defaultDuration))
     }
   }
 
   func cardText(_ kp: WritableKeyPath<Plan, Card?>, _ field: WritableKeyPath<Card, String?>) -> Binding<String> {
-    Binding(
-      get: { project.plan?[keyPath: kp]?[keyPath: field] ?? "" },
-      set: { v in project.apply(coalesce: "card\(kp.hashValue)\(field.hashValue)") { $0[keyPath: kp]?[keyPath: field] = v } })
+    bind("card\(kp.hashValue)\(field.hashValue)", { $0[keyPath: kp]?[keyPath: field] ?? "" }, { $0[keyPath: kp]?[keyPath: field] = $1 })
   }
 }

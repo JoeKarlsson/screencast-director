@@ -133,14 +133,7 @@ extension InspectorView {
         }
         slider(
           "Length",
-          Binding(
-            get: { project.plan.flatMap { $0.zooms.indices.contains(i) ? $0.zooms[i].seconds : nil } ?? plan.style.transition },
-            set: { v in
-              project.apply(coalesce: "zoomSeconds\(i)") {
-                guard $0.zooms.indices.contains(i) else { return }
-                $0.zooms[i].seconds = (v * 10).rounded() / 10
-              }
-            }), 0.2...2, "\((z.seconds ?? plan.style.transition).formatted()) s")
+          bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2, "\((z.seconds ?? plan.style.transition).formatted()) s")
         previewButton(z.start)
       }
       removeButton()
@@ -168,14 +161,7 @@ extension InspectorView {
         if (c.style ?? "title") != "title" {
           TextField(
             c.style == "chapter" ? "Label above, e.g. Part 2" : c.style == "lower-third" ? "Second line, e.g. a role" : "Second line",
-            text: Binding(
-              get: { project.plan.flatMap { $0.callouts.indices.contains(i) ? $0.callouts[i].subtitle : nil } ?? "" },
-              set: { v in
-                project.apply(coalesce: "calloutSub\(i)") {
-                  guard $0.callouts.indices.contains(i) else { return }
-                  $0.callouts[i].subtitle = v.isEmpty ? nil : v
-                }
-              })
+            text: bindItem("calloutSub\(i)", \.callouts, i, \.subtitle, or: "", store: emptyAsNil)
           )
           .textFieldStyle(.roundedBorder)
         }
@@ -204,16 +190,7 @@ extension InspectorView {
         if !c.isImage {
           slider(
             "Start at",
-            Binding(
-              get: { project.plan.flatMap { $0.insertList.indices.contains(i) ? $0.insertList[i].from : nil } ?? 0 },
-              set: { v in
-                project.apply(coalesce: "insertFrom\(i)") {
-                  guard $0.insertList.indices.contains(i) else { return }
-                  var list = $0.insertList
-                  list[i].from = (v * 10).rounded() / 10
-                  $0.insertList = list
-                }
-              }), 0...30, "\((c.from ?? 0).formatted()) s")
+            bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 }, 0...30, "\((c.from ?? 0).formatted()) s")
         }
       }
       InspectorSection("Animation") {
@@ -234,15 +211,7 @@ extension InspectorView {
       InspectorSection("Sound", detail: (e.file as NSString).lastPathComponent) {
         slider(
           "Volume",
-          Binding(
-            get: { project.plan.flatMap { $0.sfxList.indices.contains(i) ? $0.sfxList[i].gainDB : nil } ?? 0 },
-            set: { v in
-              project.apply(coalesce: "sfxGain\(i)") {
-                guard var list = $0.sfx, list.indices.contains(i) else { return }
-                list[i].gainDB = v.rounded()
-                $0.sfx = list
-              }
-            }), -24...6, "\(Int((e.gainDB ?? 0).rounded())) dB")
+          bindItem("sfxGain\(i)", \.sfxList, i, \.gainDB, or: 0) { $0.rounded() }, -24...6, "\(Int((e.gainDB ?? 0).rounded())) dB")
       }
       previewButton(e.t)
       removeButton()
@@ -252,16 +221,7 @@ extension InspectorView {
       InspectorSection("Name", detail: "A note to yourself, or to the AI: \"zoom in after the intro marker\". ; and ' jump between markers.") {
         TextField(
           "Intro ends",
-          text: Binding(
-            get: { project.plan.flatMap { $0.markerList.indices.contains(i) ? $0.markerList[i].label : nil } ?? "" },
-            set: { v in
-              project.apply(coalesce: "markerLabel\(i)") {
-                guard $0.markerList.indices.contains(i) else { return }
-                var pins = $0.markerList
-                pins[i].label = v.isEmpty ? nil : v
-                $0.markerList = pins
-              }
-            })
+          text: bindItem("markerLabel\(i)", \.markerList, i, \.label, or: "", store: emptyAsNil)
         )
         .textFieldStyle(.roundedBorder)
       }
@@ -285,14 +245,7 @@ extension InspectorView {
         InspectorSection("Label") {
           TextField(
             "Optional label",
-            text: Binding(
-              get: { project.plan.flatMap { $0.annotationList.indices.contains(i) ? $0.annotationList[i].text : nil } ?? "" },
-              set: { v in
-                project.apply(coalesce: "markText\(i)") {
-                  guard $0.annotationList.indices.contains(i) else { return }
-                  $0.annotationList[i].text = v.isEmpty ? nil : v
-                }
-              })
+            text: bindItem("markText\(i)", \.annotationList, i, \.text, or: "", store: emptyAsNil)
           )
           .textFieldStyle(.roundedBorder)
         }

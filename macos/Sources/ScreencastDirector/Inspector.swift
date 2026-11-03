@@ -120,8 +120,9 @@ struct InspectorView: View {
     }
   }
 
-  /// A binding into the plan; every change is saved (slider drags coalesce into one undo step).
-  func bind<T>(_ key: String, _ get: @escaping (Plan) -> T, _ set: @escaping (inout Plan, T) -> Void) -> Binding<T> {
+  /// A binding into the plan; every change is saved. Changes with the same `key` coalesce into one
+  /// undo step (slider drags); a nil key (toggles, pickers) makes each change its own step.
+  func bind<T>(_ key: String?, _ get: @escaping (Plan) -> T, _ set: @escaping (inout Plan, T) -> Void) -> Binding<T> {
     // SwiftUI can read a binding after the plan changed under it; fall back to the value it was built with.
     let fallback = get(project.plan!)
     return Binding(
@@ -147,6 +148,19 @@ struct InspectorView: View {
         }
       })
   }
+
+  /// `bindItem` for an optional field: reads `fallback` while it's unset, and writes what `store`
+  /// makes of the new value (nil clears the field).
+  func bindItem<E, T>(
+    _ key: String, _ list: WritableKeyPath<Plan, [E]>, _ i: Int, _ field: WritableKeyPath<E, T?>, or fallback: T,
+    store: @escaping (T) -> T? = { $0 }
+  ) -> Binding<T> {
+    let item = bindItem(key, list, i, field)
+    return Binding(get: { item.wrappedValue ?? fallback }, set: { item.wrappedValue = store($0) })
+  }
+
+  /// For text fields over optional strings: an emptied field clears the value.
+  func emptyAsNil(_ s: String) -> String? { s.isEmpty ? nil : s }
 
   // MARK: Rows
 

@@ -12,38 +12,14 @@ extension InspectorView {
     InspectorSection("Voice", detail: "Normalize evens out your voice phrase by phrase, so quiet and loud moments sit at the same steady level; a limiter keeps peaks from clipping.") {
       toggle("Normalize voice", (plan.audio?.normalize ?? false) && !project.levels.isEmpty
         ? String(format: "Adds %+.1f dB.", AudioGain.normalizeGain(project.levels)) : "",
-        Binding(get: { plan.audio?.normalize ?? false }, set: { v in
-          project.apply { p in
-            var a = p.audio ?? AudioSettings()
-            a.normalize = v
-            p.audio = a
-          }
-        }))
+        bind(nil, { $0.audioSettings.normalize ?? false }, { $0.audioSettings.normalize = $1 }))
       toggle("Warm voice", "More chest, less boxiness, gentle compression and a touch of warmth.",
-        Binding(get: { plan.audio?.warm ?? false }, set: { v in
-          project.apply { p in
-            var a = p.audio ?? AudioSettings()
-            a.warm = v
-            p.audio = a
-          }
-        }))
+        bind(nil, { $0.audioSettings.warm ?? false }, { $0.audioSettings.warm = $1 }))
         .help("Warm voice: EQ for more chest and less boxiness, gentle compression, and light saturation.")
       toggle("Clean up voice", "Removes room noise, hum and echo. The first time takes a few seconds.",
-        Binding(get: { plan.audio?.cleanup ?? false }, set: { v in
-          project.apply { p in
-            var a = p.audio ?? AudioSettings()
-            a.cleanup = v
-            p.audio = a
-          }
-        }))
+        bind(nil, { $0.audioSettings.cleanup ?? false }, { $0.audioSettings.cleanup = $1 }))
         .help("Removes room noise, hum and echo with Apple's voice isolation. The first time takes a few seconds.")
-      slider("Volume", Binding(get: { project.plan?.audio?.gainDB ?? 0 }, set: { v in
-        project.apply(coalesce: "gain") { p in
-          var a = p.audio ?? AudioSettings()
-          a.gainDB = (v * 2).rounded() / 2
-          p.audio = a
-        }
-      }), -12...12, String(format: "%+.1f dB", plan.audio?.gainDB ?? 0))
+      slider("Volume", bind("gain", { $0.audioSettings.gainDB ?? 0 }, { $0.audioSettings.gainDB = ($1 * 2).rounded() / 2 }), -12...12, String(format: "%+.1f dB", plan.audio?.gainDB ?? 0))
     }
     InspectorSection("Music", detail: "A background track, looped to the video's length. It drops while you talk.") {
       if let music = plan.music {
@@ -57,12 +33,8 @@ extension InspectorView {
             .help("Remove the music")
             .accessibilityLabel("Remove")
         }
-        slider("Volume", Binding(get: { project.plan?.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, set: { v in
-          project.apply(coalesce: "musicVolume") { p in p.music?.volumeDB = v.rounded() }
-        }), -40...0, String(format: "%.0f dB", music.volumeDB ?? MusicDuck.defaultVolumeDB))
-        slider("Under voice", Binding(get: { project.plan?.music?.duckDB ?? MusicDuck.defaultDuckDB }, set: { v in
-          project.apply(coalesce: "musicDuck") { p in p.music?.duckDB = v.rounded() }
-        }), -40...0, String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB))
+        slider("Volume", bind("musicVolume", { $0.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, { $0.music?.volumeDB = $1.rounded() }), -40...0, String(format: "%.0f dB", music.volumeDB ?? MusicDuck.defaultVolumeDB))
+        slider("Under voice", bind("musicDuck", { $0.music?.duckDB ?? MusicDuck.defaultDuckDB }, { $0.music?.duckDB = $1.rounded() }), -40...0, String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB))
       } else {
         Button { project.chooseMusicFile() } label: { Label("Add Music File…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
       }
@@ -101,7 +73,7 @@ extension InspectorView {
           }
     }
     InspectorSection("Pauses", detail: "How hard to cut silence. Cuts that removed words always stay cut.") {
-      Picker("Pauses", selection: Binding(get: { plan.pauses ?? .normal }, set: { project.setPauses($0) })) {
+      Picker("Pauses", selection: Binding(get: { project.plan?.pauses ?? .normal }, set: { project.setPauses($0) })) {
         ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
       }
       .pickerStyle(.segmented)

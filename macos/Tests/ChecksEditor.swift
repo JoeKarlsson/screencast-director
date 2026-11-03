@@ -75,6 +75,14 @@ func editorActionChecks() {
   _ = dragged.retime(.animation(0), start: 6, end: 9)
   expect(dragged.animationList[0].end == 9 && dragged.animationList[0].cues == ["lock": 7], "trimming an animation leaves its beats")
 
+  // Settings accessors start from the defaults and create the setting on first write.
+  var settings = base
+  settings.audio = nil
+  settings.cursor = nil
+  settings.audioSettings.normalize = true
+  settings.cursorSettings.size = 40
+  expect(settings.audio?.normalize == true && settings.cursor?.size == 40 && base.audioSettings == (base.audio ?? AudioSettings()), "audio and cursor settings write through")
+
   // Keyboard edits.
   expect(base.duplicateOfZoom(1).map { [$0.start, $0.end] } == [7.5, 9.5], "⌘D puts the copy half a second after")
   var late = base

@@ -12,18 +12,14 @@ extension InspectorView {
     if plan.camera != nil {
       InspectorSection("Framing", detail: "Drag to pick what stays centered; zoom in to reframe.") {
         CameraFramer(project: project, ui: ui)
-        slider("Zoom", Binding(get: { project.plan?.camera?.zoom ?? 1 }, set: { v in
-          project.apply(coalesce: "camZoom") { $0.camera?.zoom = (v * 20).rounded() / 20 }
-        }), 1...2.5, "\((plan.camera?.zoom ?? 1).formatted())×")
+        slider("Zoom", bind("camZoom", { $0.camera?.zoom ?? 1 }, { $0.camera?.zoom = ($1 * 20).rounded() / 20 }), 1...2.5, "\((plan.camera?.zoom ?? 1).formatted())×")
         Button(action: project.centerCameraOnFace) {
           Label("Center on My Face", systemImage: "face.smiling").frame(maxWidth: .infinity)
         }
       }
       InspectorSection("Lip sync", detail: "Slide right if your lips move after you speak, left if before.") {
         let offset = plan.camera?.offset ?? 0
-        slider("Camera", Binding(get: { project.plan?.camera?.offset ?? 0 }, set: { v in
-          project.apply(coalesce: "camOffset") { $0.camera?.offset = (v * 100).rounded() / 100 }
-        }), min(-1, offset)...max(1, offset), String(format: "%+.2f s", offset))
+        slider("Camera", bind("camOffset", { $0.camera?.offset ?? 0 }, { $0.camera?.offset = ($1 * 100).rounded() / 100 }), min(-1, offset)...max(1, offset), String(format: "%+.2f s", offset))
         Button(action: project.syncCameraToVoice) {
           Label("Sync to My Voice", systemImage: "waveform.and.person.filled").frame(maxWidth: .infinity)
         }
@@ -31,9 +27,8 @@ extension InspectorView {
       InspectorSection("Bubble", detail: "The camera while you demo. Drag it anywhere in the preview, or set it here.") {
         let cam = plan.camera
         let place = bubblePlacement(plan)
-        slider("Size", Binding(get: { project.plan?.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize }, set: { v in
-          project.apply(coalesce: "bubbleSize") { $0.camera?.bubbleSize = (v * 100).rounded() / 100 }
-        }), 0.12...0.6, "\(Int((cam?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
+        slider(
+          "Size", bind("bubbleSize", { $0.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize }, { $0.camera?.bubbleSize = ($1 * 100).rounded() / 100 }), 0.12...0.6, "\(Int((cam?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
         slider("Across", Binding(get: { project.plan.map { bubblePlacement($0).x } ?? place.x }, set: { v in
           project.apply(coalesce: "bubbleMove") { p in
             let y = bubblePlacement(p).y
@@ -67,26 +62,18 @@ extension InspectorView {
           .controlSize(.small)
         }
         LabeledContent("Shape") {
-          Picker("Shape", selection: Binding(get: { project.plan?.camera?.bubbleShape ?? "circle" }, set: { v in
-            project.apply { $0.camera?.bubbleShape = v == "circle" ? nil : v }
-          })) {
+          Picker("Shape", selection: bind(nil, { $0.camera?.bubbleShape ?? "circle" }, { $0.camera?.bubbleShape = $1 == "circle" ? nil : $1 })) {
             ForEach(Plan.Camera.shapes, id: \.name) { Text($0.label).tag($0.name) }
           }
           .pickerStyle(.segmented)
           .labelsHidden()
         }
         .disabled(cam?.cutout == true)
-        Toggle("Border", isOn: Binding(get: { project.plan?.camera?.bubbleBorder != false }, set: { on in
-          project.apply { $0.camera?.bubbleBorder = on ? nil : false }
-        }))
+        Toggle("Border", isOn: bind(nil, { $0.camera?.bubbleBorder != false }, { $0.camera?.bubbleBorder = $1 ? nil : false }))
         .disabled(cam?.cutout == true)
-        Toggle("Shadow", isOn: Binding(get: { project.plan?.camera?.bubbleShadow != false }, set: { on in
-          project.apply { $0.camera?.bubbleShadow = on ? nil : false }
-        }))
+        Toggle("Shadow", isOn: bind(nil, { $0.camera?.bubbleShadow != false }, { $0.camera?.bubbleShadow = $1 ? nil : false }))
         .disabled(cam?.cutout == true)
-        Toggle("Cut out background (just you, no shape)", isOn: Binding(get: { project.plan?.camera?.cutout == true }, set: { on in
-          project.apply { $0.camera?.cutout = on ? true : nil }
-        }))
+        Toggle("Cut out background (just you, no shape)", isOn: bind(nil, { $0.camera?.cutout == true }, { $0.camera?.cutout = $1 ? true : nil }))
       }
       InspectorSection("Color", detail: "Start from a preset, then fine-tune.") {
         FlowLayout(spacing: 6, lineSpacing: 6) {
@@ -131,13 +118,12 @@ extension InspectorView {
     _ title: String, _ kp: WritableKeyPath<Grade, Double?>, _ neutral: Double, _ range: ClosedRange<Double>, _ fmt: String
   ) -> some View {
     let value = project.plan?.camera?.grade?[keyPath: kp] ?? neutral
-    return slider(title, Binding(get: { project.plan?.camera?.grade?[keyPath: kp] ?? neutral }, set: { v in
-      project.apply(coalesce: "grade\(title)") { p in
-        var g = p.camera?.grade ?? Grade()
-        g[keyPath: kp] = (v * 100).rounded() / 100
-        p.camera?.grade = g
-      }
-    }), range, String(format: fmt, value))
+    let binding = bind("grade\(title)", { $0.camera?.grade?[keyPath: kp] ?? neutral }) { p, v in
+      var g = p.camera?.grade ?? Grade()
+      g[keyPath: kp] = (v * 100).rounded() / 100
+      p.camera?.grade = g
+    }
+    return slider(title, binding, range, String(format: fmt, value))
   }
 }
 
