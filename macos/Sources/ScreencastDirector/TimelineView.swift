@@ -309,6 +309,13 @@ struct TimelineView: View {
 
   private func x(_ t: Double) -> CGFloat { CGFloat(axis(t) * ui.pxPerSec) }
 
+  /// Where a range's (exclusive) end sits: in output mode, the end of the kept moment before it, so
+  /// a clip moved out of recording order doesn't stretch to wherever the next recorded moment plays.
+  private func xEnd(_ t: Double) -> CGFloat {
+    guard ui.outputTime else { return x(t) }
+    return CGFloat(srcToOutClamped(project.mapped, t, fps: project.fps, before: true) / Double(project.fps) * ui.pxPerSec)
+  }
+
   /// The source time at a point along the axis (in output mode, a card or the end snaps to the
   /// nearest kept moment).
   private func time(atX px: CGFloat) -> Double {
@@ -353,8 +360,9 @@ struct TimelineView: View {
         let sel = Selection.segment(i)
         let (a, b) = range(sel, s.start, s.end)
         let fast = s.speed > 1.01
-        let lo = i > 0 ? plan.segments[i - 1].end : 0
-        let hi = i + 1 < plan.segments.count ? plan.segments[i + 1].start : plan.source.duration
+        // Trim limits: its neighbors in the recording, wherever they play.
+        let lo = plan.segments.filter { $0.end <= s.start + 1e-6 }.map(\.end).max() ?? 0
+        let hi = plan.segments.filter { $0.start >= s.end - 1e-6 }.map(\.start).min() ?? plan.source.duration
         bar(
           sel: sel, start: a, end: b, track: .clips, color: Theme.clip, label: s.note ?? "",
           badge: s.speed == 1 ? nil : "\(s.speed.formatted())×", striped: fast, movable: false, bounds: lo...max(lo, hi)
@@ -471,7 +479,7 @@ struct TimelineView: View {
   private func items(in box: CGRect, _ plan: Plan) -> [Selection] {
     plan.allItems.filter { s in
       guard let track = Track.of(s), let (a, b) = plan.timeRange(of: s) else { return false }
-      return box.intersects(CGRect(x: x(a), y: track.y, width: max(3, x(b) - x(a)), height: track.height))
+      return box.intersects(CGRect(x: x(a), y: track.y, width: max(3, xEnd(b) - x(a)), height: track.height))
     }
   }
 
@@ -482,7 +490,7 @@ struct TimelineView: View {
       let a = project.inPoint ?? 0, b = project.outPoint ?? plan.source.duration
       ZStack(alignment: .topLeading) {
         Rectangle().fill(Theme.accent.opacity(0.1))
-          .frame(width: max(1, x(b) - x(a)), height: Track.total - Track.ruler.height)
+          .frame(width: max(1, xEnd(b) - x(a)), height: Track.total - Track.ruler.height)
           .offset(x: x(a), y: Track.ruler.height)
         if let i = project.inPoint {
           InOutBracket(left: true).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: Track.total - 2).offset(x: x(i), y: 1)
@@ -795,7 +803,7 @@ struct TimelineView: View {
     // Trim handles only when this is the one selected item.
     let trimmable = project.selection == sel && project.multi.isEmpty
     let hovered = ui.hover == sel
-    let w = max(3, x(end) - x(start))
+    let w = max(3, xEnd(end) - x(start))
     let limits = bounds ?? 0...(project.plan?.source.duration ?? 0)
     let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
     let base = selected ? 1 : hovered ? 0.85 : 0.7

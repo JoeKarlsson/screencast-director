@@ -127,7 +127,7 @@ enum APIEditor {
   static let instructions = """
     You edit a screencast by rewriting its plan.json. Rules:
     - All times are SOURCE seconds (positions in the raw recording), never output seconds.
-    - `segments` are the kept ranges, ascending and non-overlapping; anything not covered is cut. Speed 1 is real time; faster segments are muted, so never speed up narration.
+    - `segments` are the kept ranges, played in the order listed (usually recording order; move one earlier for a cold open), never overlapping; anything not covered is cut. Everything else stays in source times and follows its clip. Speed 1 is real time; faster segments are muted, so never speed up narration.
     - `zooms`: {start, end, x, y, scale, note, ease?, seconds?}; x/y are 0..1 fractions of the screen (y down); scale 1.4 to 2.2; at least ~1.5 s each. Touching zooms pan.
     - `layouts` (only when `camera` is set): {start, end, mode} with mode screen | pip | side | camera.
     - `callouts`: {start, end, text, style?, subtitle?, enter?, exit?}; style title (2-5 words at the top, default) | lower-third (name + subtitle) | slate (full-screen opener or wrap) | chapter (section card, subtitle is the small label).

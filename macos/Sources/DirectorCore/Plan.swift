@@ -292,7 +292,9 @@ public struct Plan: Codable, Equatable {
     ]
   }
 
-  public var version: Int = 1
+  /// 2: `segments` play in the order they're listed, so a clip can move ahead of earlier moments
+  /// (a cold open). 1 (plans saved before that): they play in recording order.
+  public var version: Int = 2
   public var source: Source
   public var camera: Camera?
   public var output: Output
@@ -331,6 +333,9 @@ public struct Plan: Codable, Equatable {
   /// back to the look's card, then the look's watermark.
   public var intro: Card?
   public var outro: Card?
+
+  /// The segments in the order they play.
+  public var playSegments: [Segment] { version >= 2 ? segments : segments.sorted { $0.start < $1.start } }
 
   public static func load(_ url: URL) throws -> Plan {
     try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url))

@@ -21,6 +21,7 @@ let usage = """
     director screentext <dir>                        read the text around each click (screentext.json)
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
+    director move     <dir> <start> <end> [--before <t>]   play a source-time range first (a cold open), or just before source time t
     director publish  <dir> [--title "..."] [--preset id]   captions.srt, chapters, transcript, thumbnails
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director upload   <file>                        S3-compatible PUT; prints the public URL (S3_* env vars)
@@ -64,7 +65,7 @@ func planFor(_ project: Project) throws -> Plan {
   if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -211,6 +212,17 @@ do {
     try plan.write(to: project.planURL)
     let after = planSeconds(plan)
     print("\(args[0]) \(fmtTime(a))-\(fmtTime(b)): \(fmtTime(before)) -> \(fmtTime(after))")
+  case "move":
+    guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    let before = number("--before")
+    guard plan.move(range: a..<b, before: before) else {
+      fail("nothing kept in \(fmtTime(a))-\(fmtTime(b)) to move\(before.map { ", or \(fmtTime($0)) is inside it" } ?? "")")
+    }
+    try plan.write(to: project.planURL)
+    let at = srcRangeToOut(mapPlan(plan), a, b, fps: plan.output.fps).first.map { fmtTime($0.startF / Double(plan.output.fps)) } ?? "?"
+    print("move \(fmtTime(a))-\(fmtTime(b)): now plays at \(at)")
   case "gif":
     let project = try Project.load(dir)
     let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.gif")

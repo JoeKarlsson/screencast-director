@@ -21,6 +21,9 @@ Each release lists what changed for people using the app or the CLI. The version
 ### App
 - A punch-in can move the camera's framing point (`x`, `y`) and widen (`scale` below 1), to cut to something held up beside your face that a vertical crop would cut off.
 - Captions: drag them anywhere in the preview, and set their text, highlight and box colors, box opacity, font and size in Cursor & Overlays > Captions. Bold and social captions can have a box behind the words (`captions.box`, `x`, `y`, `size`).
+- Reorder clips: play any part of the recording first (a cold open) or anywhere else. Select a clip and use Order > First, Earlier, Later, Last, or `director move <dir> <start> <end> [--before <t>]`. Its zooms, titles, captions, B-roll and sounds move with it. Older videos keep playing in recording order.
+- Space at the end of the video plays it again from the start.
+- The caption controls fit the inspector: Style is a menu, and the color swatches sit in one row.
 - Caption emphasis: words or phrases you list (Captions > Emphasis) draw bigger in their own color wherever they're said.
 - Vertical step chips can list the earlier steps under them, ticked, like a checklist (Cursor & Overlays > Chapters).
 - Storyboard animations draw their stickers and labels bigger in a vertical video's square card.

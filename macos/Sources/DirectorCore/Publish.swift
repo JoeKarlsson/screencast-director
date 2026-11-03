@@ -35,8 +35,8 @@ public enum Publish {
   public static func chapters(_ scene: Scene) -> String? {
     let fps = Double(scene.fps)
     var marks: [(Double, String)] = [(0, "Intro")]
-    for c in scene.plan.callouts.sorted(by: { $0.start < $1.start }) {
-      guard let f = srcToOut(scene.mapped, c.start, fps: scene.fps) else { continue }
+    let placed = scene.plan.callouts.compactMap { c in srcToOut(scene.mapped, c.start, fps: scene.fps).map { ($0, c) } }
+    for (f, c) in placed.sorted(by: { $0.0 < $1.0 }) {
       let t = f / fps
       if t - (marks.last?.0 ?? 0) >= 10 { marks.append((t, c.text)) } else if t < 10 { marks[0].1 = c.text }
     }

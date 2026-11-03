@@ -94,6 +94,20 @@ extension InspectorView {
           previewButton(s.start)
         }
       }
+      InspectorSection("Order", detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
+        HStack(spacing: 6) {
+          Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
+            .help("Play this clip first")
+          Button { project.moveSelectedClip(to: i - 1) } label: { Label("Earlier", systemImage: "arrow.left") }
+            .help("Play this clip one place earlier")
+          Button { project.moveSelectedClip(to: i + 1) } label: { Label("Later", systemImage: "arrow.right") }
+            .help("Play this clip one place later")
+          Button { project.moveSelectedClip(to: plan.segments.count - 1) } label: { Label("Last", systemImage: "arrow.right.to.line") }
+            .help("Play this clip last")
+        }
+        .controlSize(.small)
+        .disabled(plan.segments.count < 2)
+      }
       HStack(spacing: 8) {
         Button(action: project.splitAtPlayhead) { Label("Split at Playhead", systemImage: "scissors").frame(maxWidth: .infinity) }
         removeButton("Cut Clip")

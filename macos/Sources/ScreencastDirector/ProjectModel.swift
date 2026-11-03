@@ -388,6 +388,15 @@ final class ProjectModel: ObservableObject {
     apply { _ = $0.split(at: t) }
   }
 
+  /// Plays the selected clip at position `to` in the video (0 is first); the selection follows it.
+  func moveSelectedClip(to: Int) {
+    guard case .segment(let i) = selection, let count = plan?.segments.count, (0..<count).contains(i) else { return }
+    let target = min(max(0, to), count - 1)
+    guard target != i else { return }
+    apply { $0.moveSegment(i, to: target) }
+    selection = .segment(target)
+  }
+
   func deleteSelection() {
     if transcriptSel != nil {
       cutTranscriptSelection()
@@ -952,7 +961,11 @@ final class ProjectModel: ObservableObject {
 
   func togglePlay() {
     if player.rate != 0 { player.pause() } else {
-      if outFrame >= Double(totalOutFrames - 1) { seek(outFrame: 0) }
+      // Stopped at the end (the playhead often rests a frame or two short of the last one, and the
+      // player's own clock is the better judge): play again from the top.
+      let endF = Double(totalOutFrames - 1)
+      let playerF = player.currentTime().seconds * Double(fps)
+      if outFrame >= endF - Double(fps) * 0.25 || (playerF.isFinite && playerF >= endF - Double(fps) * 0.25) { seek(outFrame: 0) }
       player.play()
     }
   }

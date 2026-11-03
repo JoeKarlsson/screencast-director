@@ -125,7 +125,7 @@ extension Plan {
   /// Seconds into an animation's clip where it starts playing: past the part the edit cuts from its
   /// start (a clip opening partway into it), so its beats stay on their words; nil from the top.
   public func animationSeek(_ a: Animation) -> Double? {
-    let firstKept = segments.first { $0.end > a.start }.map { max($0.start, a.start) } ?? a.start
+    let firstKept = segments.filter { $0.end > a.start }.min { $0.start < $1.start }.map { max($0.start, a.start) } ?? a.start
     return firstKept > a.start + 0.01 ? firstKept - a.start : nil
   }
 

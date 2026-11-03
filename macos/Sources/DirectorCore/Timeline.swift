@@ -13,10 +13,11 @@ public struct MappedSegment: Equatable {
   public var frames: Int
 }
 
+/// Segments in the order they play (`Plan.playSegments`), mapped to output frames.
 public func mapSegments(_ segments: [Segment], fps: Int) -> [MappedSegment] {
   var out: [MappedSegment] = []
   var outStart = 0
-  for s in segments.sorted(by: { $0.start < $1.start }) {
+  for s in segments {
     let frames = Int(((s.end - s.start) / s.speed * Double(fps)).rounded())
     if frames < 1 { continue }
     out.append(
@@ -44,7 +45,7 @@ public func cardFrames(_ plan: Plan) -> (intro: Int, outro: Int) {
 /// anything placed in the final video, so captions, zooms and chapters move with the intro.
 public func mapPlan(_ plan: Plan) -> [MappedSegment] {
   let intro = cardFrames(plan).intro
-  return mapSegments(plan.segments, fps: plan.output.fps).map {
+  return mapSegments(plan.playSegments, fps: plan.output.fps).map {
     var s = $0
     s.outStart += intro
     return s
@@ -69,15 +70,34 @@ public func srcToOut(_ mapped: [MappedSegment], _ t: Double, fps: Int) -> Double
   return nil
 }
 
-/// Like srcToOut, but a cut moment snaps to the next kept frame (or the previous one if `before`).
+/// Like srcToOut, but a cut moment snaps to the next kept moment in the recording (or the previous
+/// one if `before`), wherever that plays.
 public func srcToOutClamped(_ mapped: [MappedSegment], _ t: Double, fps: Int, before: Bool = false) -> Double {
   if let exact = srcToOut(mapped, t, fps: fps) { return exact }
   if before {
-    for s in mapped.reversed() where s.end <= t { return Double(s.outStart + s.frames) }
+    if let s = mapped.filter({ $0.end <= t }).max(by: { $0.end < $1.end }) { return Double(s.outStart + s.frames) }
     return Double(mapped.first?.outStart ?? 0)
   }
-  for s in mapped where s.start >= t { return Double(s.outStart) }
+  if let s = mapped.filter({ $0.start >= t }).min(by: { $0.start < $1.start }) { return Double(s.outStart) }
   return Double(totalFrames(mapped))
+}
+
+/// Where a source time range plays: one output range per stretch that plays back to back, in output
+/// order. Clips moved out of recording order split a range that spans them.
+public func srcRangeToOut(_ mapped: [MappedSegment], _ a: Double, _ b: Double, fps: Int) -> [(startF: Double, endF: Double)] {
+  var pieces: [(startF: Double, endF: Double)] = []
+  for s in mapped {
+    let lo = max(a, s.start), hi = min(b, s.end)
+    guard hi > lo else { continue }
+    let k = Double(fps) / s.speed
+    pieces.append((Double(s.outStart) + (lo - s.start) * k, Double(s.outStart) + (hi - s.start) * k))
+  }
+  pieces.sort { $0.startF < $1.startF }
+  var out: [(startF: Double, endF: Double)] = []
+  for p in pieces {
+    if let last = out.last, p.startF - last.endF < 0.5 { out[out.count - 1].endF = max(last.endF, p.endF) } else { out.append(p) }
+  }
+  return out
 }
 
 public func outToSrc(_ mapped: [MappedSegment], _ f: Double, fps: Int) -> Double? {
@@ -143,13 +163,11 @@ public struct OutZoom: Equatable {
 
 public func zoomsToOut(_ zooms: [Zoom], _ mapped: [MappedSegment], fps: Int) -> [OutZoom] {
   zooms
-    .map {
-      OutZoom(
-        startF: srcToOutClamped(mapped, $0.start, fps: fps),
-        endF: srcToOutClamped(mapped, $0.end, fps: fps, before: true),
-        x: $0.x, y: $0.y, scale: $0.scale, ease: $0.ease, seconds: $0.seconds)
+    .flatMap { z in
+      srcRangeToOut(mapped, z.start, z.end, fps: fps).map {
+        OutZoom(startF: $0.startF, endF: $0.endF, x: z.x, y: z.y, scale: z.scale, ease: z.ease, seconds: z.seconds)
+      }
     }
-    .filter { $0.endF > $0.startF }
     .sorted { $0.startF < $1.startF }
 }
 
@@ -394,12 +412,7 @@ public func layoutsToOut(_ plan: Plan, _ mapped: [MappedSegment]) -> [OutLayout]
   // In portrait an animation plays in the screen card, so the split shows while it does (last range wins).
   let animated = socialTop(plan) == nil ? [] : plan.animationList.map { LayoutRange(start: $0.start, end: $0.end, mode: .pip) }
   return (plan.layouts + animated)
-    .map {
-      OutLayout(
-        startF: srcToOutClamped(mapped, $0.start, fps: fps),
-        endF: srcToOutClamped(mapped, $0.end, fps: fps, before: true), mode: $0.mode)
-    }
-    .filter { $0.endF > $0.startF }
+    .flatMap { l in srcRangeToOut(mapped, l.start, l.end, fps: fps).map { OutLayout(startF: $0.startF, endF: $0.endF, mode: l.mode) } }
 }
 
 public func layoutAt(_ f: Int, plan: Plan, ranges: [OutLayout], halfWidth: Int) -> LayoutBoxes {

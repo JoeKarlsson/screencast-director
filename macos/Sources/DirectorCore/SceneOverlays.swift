@@ -230,8 +230,10 @@ extension Scene {
       let origin = b.opacity > 0.5 ? CGPoint(x: b.x + 30 * u, y: b.y + 30 * u) : CGPoint(x: ins.margin, y: ins.margin * 2)
       let rect = CGRect(x: origin.x, y: origin.y, width: size.width + 2 * padX, height: size.height + 2 * padY)
       // The checklist: earlier chapters, ticked, in rows under the chip.
+      // Earlier in the video, which isn't recording order when clips are moved.
+      let shownAt = callouts.first { $0.c == c }?.s ?? 0
       let done = look.chapterChecklist == true
-        ? plan.callouts.filter { $0.style == "chapter" && $0.start < c.start }.sorted { $0.start < $1.start } : []
+        ? callouts.filter { $0.c.style == "chapter" && $0.s < shownAt }.sorted { $0.s < $1.s }.map(\.c) : []
       let rows = done.map { Scene.text("✓  " + $0.text, size: 34 * u, weight: .semibold, font: look.captionFont, color: look.chipText ?? "#ffffff") }
       let rowSizes = rows.map { Scene.measure($0, maxWidth: W * 0.8) }
       let rowPadX = 20 * u, rowPadY = 8 * u, gap = 10 * u

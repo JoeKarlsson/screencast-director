@@ -38,18 +38,38 @@ extension Plan {
 
   /// Puts a cut range back at real-time speed.
   public mutating func restore(_ gap: Gap) {
-    segments.append(Segment(start: gap.start, end: gap.end, speed: 1, note: "restored"))
+    insertInRecordingOrder(Segment(start: gap.start, end: gap.end, speed: 1, note: "restored"))
     normalize()
   }
 
-  /// Sorts everything, clips overlaps, clamps to the recording and drops slivers.
+  /// Adds a clip where it falls in the recording: right after the clip that ends before it, so a
+  /// restored piece plays next to its neighbors even when clips have been moved.
+  mutating func insertInRecordingOrder(_ s: Segment) {
+    if let i = segments.indices.filter({ segments[$0].end <= s.start + 1e-6 }).max(by: { segments[$0].end < segments[$1].end }) {
+      segments.insert(s, at: i + 1)
+    } else if let j = segments.indices.filter({ segments[$0].start >= s.end - 1e-6 }).min(by: { segments[$0].start < segments[$1].start }) {
+      segments.insert(s, at: j)
+    } else {
+      segments.append(s)
+    }
+  }
+
+  /// Keeps the clips in play order (a plan from before reordering is put in recording order once),
+  /// clips overlaps so each moment plays once, clamps to the recording, sorts everything else and
+  /// drops slivers.
   public mutating func normalize() {
     let dur = source.duration
+    if version < 2 {
+      segments.sort { $0.start < $1.start }
+      version = 2
+    }
     var segs: [Segment] = []
-    for var s in segments.sorted(by: { $0.start < $1.start }) {
+    for var s in segments {
       s.start = max(0, s.start)
       s.end = min(dur, s.end)
-      if let last = segs.last, s.start < last.end { s.start = last.end }
+      for o in segs where s.start < o.end && s.end > o.start {
+        if s.start >= o.start { s.start = o.end } else { s.end = min(s.end, o.start) }
+      }
       if s.end - s.start >= 0.04 { segs.append(s) }
     }
     segments = segs
@@ -109,8 +129,10 @@ extension Plan {
   /// Moves one edge of segment `i`, keeping it inside its neighbors.
   public mutating func trimSegment(_ i: Int, start: Double? = nil, end: Double? = nil) {
     guard segments.indices.contains(i) else { return }
-    let lo = i > 0 ? segments[i - 1].end : 0
-    let hi = i + 1 < segments.count ? segments[i + 1].start : source.duration
+    // Its neighbors in the recording, wherever they play.
+    let me = segments[i]
+    let lo = segments.filter { $0.end <= me.start + 1e-6 }.map(\.end).max() ?? 0
+    let hi = segments.filter { $0.start >= me.end - 1e-6 }.map(\.start).min() ?? source.duration
     if let start { segments[i].start = min(max(start, lo), segments[i].end - 0.05) }
     if let end { segments[i].end = max(min(end, hi), segments[i].start + 0.05) }
   }
@@ -150,10 +172,11 @@ extension Plan {
       return quiet >= 0.8 * (b - a)
     }
 
-    // 1. Undo pause cuts: join neighbors across gaps that were silence.
+    // 1. Undo pause cuts: join clips that play back to back across gaps that were silence (a clip
+    // moved out of recording order has no gap to its neighbor to join).
     var joined: [Segment] = []
-    for s in segments.sorted(by: { $0.start < $1.start }) {
-      if var last = joined.last, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1,
+    for s in playSegments {
+      if var last = joined.last, s.start >= last.end - 1e-6, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1,
         !paused.contains(where: { $0.0 < s.start && $0.1 > last.end })
       {
         last.end = s.end
@@ -204,7 +227,7 @@ extension Plan {
   /// where speech resumes. Clips that play back to back count as one.
   public mutating func dropSlivers(silences: [(Double, Double)]) {
     var islands: [[Segment]] = []
-    for s in segments.sorted(by: { $0.start < $1.start }) {
+    for s in playSegments {
       if let last = islands.last?.last, s.start - last.end < 0.01 { islands[islands.count - 1].append(s) } else { islands.append([s]) }
     }
     guard islands.count > 1 else { return }
@@ -255,9 +278,41 @@ extension Plan {
 
   public mutating func restore(range: Range<Double>) {
     for g in gaps where g.end > range.lowerBound && g.start < range.upperBound {
-      segments.append(Segment(start: max(g.start, range.lowerBound), end: min(g.end, range.upperBound), speed: 1, note: "restored"))
+      insertInRecordingOrder(Segment(start: max(g.start, range.lowerBound), end: min(g.end, range.upperBound), speed: 1, note: "restored"))
     }
     normalize()
+  }
+
+  /// Moves the clips in a source range (split at its edges) to play just before the moment at source
+  /// time `before` (the next kept moment if that's cut), or first when `before` is nil: a cold open.
+  /// Returns false when nothing in the range is kept, or `before` is inside it.
+  @discardableResult
+  public mutating func move(range: Range<Double>, before: Double?) -> Bool {
+    if let before, range.contains(before) { return false }
+    if version < 2 { normalize() }
+    _ = split(at: range.lowerBound)
+    _ = split(at: range.upperBound)
+    if let before { _ = split(at: before) }
+    let inRange = { (s: Segment) in s.start >= range.lowerBound - 1e-6 && s.end <= range.upperBound + 1e-6 }
+    let moving = segments.filter(inRange)
+    guard !moving.isEmpty else { return false }
+    segments.removeAll(where: inRange)
+    var at = 0
+    if let before {
+      at = segments.firstIndex { before >= $0.start - 1e-6 && before < $0.end }
+        ?? segments.indices.filter { segments[$0].start >= before }.min { segments[$0].start < segments[$1].start }
+        ?? segments.count
+    }
+    segments.insert(contentsOf: moving, at: at)
+    return true
+  }
+
+  /// Moves clip `i` to play at position `to` (0 is first), keeping the rest in order.
+  public mutating func moveSegment(_ i: Int, to: Int) {
+    if version < 2 { normalize() }
+    guard segments.indices.contains(i) else { return }
+    let s = segments.remove(at: i)
+    segments.insert(s, at: min(max(0, to), segments.count))
   }
 
   /// The speed a source moment plays at, or nil if it's cut.
@@ -288,7 +343,7 @@ public func editReview(_ project: Project, _ plan: Plan) -> String {
         + "; middle is output frame \(mid)")
   }
   // Each place the video jumps over a cut, and the frame 0.5 s after it.
-  for (i, m) in mapped.enumerated() where i > 0 ? mapped[i - 1].end < m.start - 0.001 : m.start > 0.001 {
+  for (i, m) in mapped.enumerated() where i > 0 ? abs(mapped[i - 1].end - m.start) > 0.001 : m.start > 0.001 {
     lines.append("cut before src \(fmtTime(m.start)): 0.5 s after it is output frame \(m.outStart + fps / 2)")
   }
   for s in plan.segments {

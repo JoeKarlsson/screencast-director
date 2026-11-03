@@ -40,8 +40,12 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("  INTRO card out \(fmtTime(0)) for \(fmtTime(Double(cards.intro) / Double(fps))) \"\(plan.intro?.title ?? "")\"")
   }
   var cursor = 0.0
+  // Clips moved out of recording order: the cuts are listed after the timeline instead of between clips.
+  let reordered = zip(mapped, mapped.dropFirst()).contains { $1.start < $0.end - 0.001 }
   for s in mapped {
-    if s.start - cursor > 0.05 {
+    if reordered {
+      if s.start < cursor - 0.001 || (s.start - cursor > 0.05 && cursor > 0) { out.append("  MOVED: plays out of recording order from here") }
+    } else if s.start - cursor > 0.05 {
       out.append(line("  CUT  src \(fmtTime(cursor))-\(fmtTime(s.start))", said(cursor, s.start), activity(cursor, s.start)))
     }
     let speed = s.speed == 1 ? "1x " : "\(s.speed.formatted())x"
@@ -52,7 +56,11 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
         said(s.start, s.end), activity(s.start, s.end)))
     cursor = s.end
   }
-  if plan.source.duration - cursor > 0.05 { out.append("  CUT  src \(fmtTime(cursor))-\(fmtTime(plan.source.duration))") }
+  if reordered {
+    for g in plan.gaps { out.append(line("  CUT  src \(fmtTime(g.start))-\(fmtTime(g.end))", said(g.start, g.end), activity(g.start, g.end))) }
+  } else if plan.source.duration - cursor > 0.05 {
+    out.append("  CUT  src \(fmtTime(cursor))-\(fmtTime(plan.source.duration))")
+  }
   if cards.outro > 0 {
     let at = Double(planFrames(plan) - cards.outro) / Double(fps)
     out.append("  OUTRO card out \(fmtTime(at)) for \(fmtTime(Double(cards.outro) / Double(fps))) \"\(plan.outro?.title ?? "")\"")

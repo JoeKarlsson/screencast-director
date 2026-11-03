@@ -83,7 +83,7 @@ extension InspectorView {
       Picker("Style", selection: bind("captionStyle", { $0.captions.style ?? "pill" }, { $0.captions.style = $1 == "pill" ? nil : $1 })) {
         ForEach(Plan.Captions.styles, id: \.name) { Text($0.label).tag($0.name) }
       }
-      .pickerStyle(.segmented)
+      .pickerStyle(.menu)
       .disabled(!plan.captions.enabled)
       LabeledContent("Words") {
         Text("\(plan.captions.maxWords) per caption").monospacedDigit()
@@ -118,20 +118,33 @@ extension InspectorView {
         p.look = look
       })
     }
-    HStack(spacing: 14) {
-      ColorPicker("Text", selection: lookBind("capText", { $0.captionText }, { $0.captionText = $1 }, "#ffffff"))
-      ColorPicker("Highlight", selection: lookBind("capHL", { $0.captionHighlight }, { $0.captionHighlight = $1 }, plan.look?.accent ?? "#ffe500"))
-        .help("The word being spoken")
-      ColorPicker("Box", selection: lookBind("capBG", { $0.captionBackground }, { $0.captionBackground = $1 }, "#0a0a0e"))
+    // Swatches without labels beside them, so the row fits the inspector column; the names are under them.
+    LabeledContent("Colors") {
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 10) {
+          ColorPicker("Text", selection: lookBind("capText", { $0.captionText }, { $0.captionText = $1 }, "#ffffff"))
+            .labelsHidden().help("Text")
+          ColorPicker("Highlight", selection: lookBind("capHL", { $0.captionHighlight }, { $0.captionHighlight = $1 }, plan.look?.accent ?? "#ffe500"))
+            .labelsHidden().help("The word being spoken")
+          ColorPicker("Box", selection: lookBind("capBG", { $0.captionBackground }, { $0.captionBackground = $1 }, "#0a0a0e"))
+            .labelsHidden().help("Box")
+        }
+        Text("Text · spoken word · box").font(.caption).foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 0)
     }
     LabeledContent("Emphasis") {
-      TextField("home lab, Linux", text: bind("capEmphasis", { ($0.captions.emphasis ?? []).joined(separator: ", ") }, { p, text in
-        let words = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        p.captions.emphasis = words.isEmpty ? nil : words
-      }))
-      .help("Words or phrases drawn bigger in the emphasis color, separated by commas")
-      ColorPicker("Emphasis color", selection: lookBind("capEmph", { $0.captionEmphasis }, { $0.captionEmphasis = $1 }, plan.look?.accent ?? "#ffe500"))
-        .labelsHidden()
+      HStack(spacing: 6) {
+        TextField("home lab, Linux", text: bind("capEmphasis", { ($0.captions.emphasis ?? []).joined(separator: ", ") }, { p, text in
+          let words = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+          p.captions.emphasis = words.isEmpty ? nil : words
+        }))
+        .lineLimit(1)
+        .frame(minWidth: 0, maxWidth: .infinity)
+        .help("Words or phrases drawn bigger in the emphasis color, separated by commas")
+        ColorPicker("Emphasis color", selection: lookBind("capEmph", { $0.captionEmphasis }, { $0.captionEmphasis = $1 }, plan.look?.accent ?? "#ffe500"))
+          .labelsHidden().fixedSize()
+      }
     }
     if bold {
       toggle("Box behind the words", "A box in the box color, for words over a busy picture.",

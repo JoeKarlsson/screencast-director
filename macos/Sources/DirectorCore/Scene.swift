@@ -97,30 +97,34 @@ public final class Scene: @unchecked Sendable {
     introLogo = (plan.intro?.logo ?? lk.intro?.logo).flatMap { Scene.loadImage($0, dir: dir) } ?? watermark
     outroLogo = (plan.outro?.logo ?? lk.outro?.logo).flatMap { Scene.loadImage($0, dir: dir) } ?? watermark
     let m = mapped
+    // Sorted by output frame: with clips moved out of recording order, source order isn't play order.
     focusClicks = clicks.compactMap { c in
       guard (0...1).contains(c.x), (0...1).contains(c.y) else { return nil }
       return srcToOut(m, c.t, fps: fps).map { ($0, c.x, c.y) }
-    }
+    }.sorted { $0.0 < $1.0 }
     self.clicks =
-      plan.clickRipples ? clicks.compactMap { c in srcToOut(m, c.t, fps: fps).map { ($0, c.x, c.y) } } : []
+      plan.clickRipples ? clicks.compactMap { c in srcToOut(m, c.t, fps: fps).map { ($0, c.x, c.y) } }.sorted { $0.0 < $1.0 } : []
     chips =
       plan.shortcutChips
-      ? shortcuts.compactMap { k in srcToOut(m, k.t, fps: fps).map { ($0, k.label ?? "") } } : []
+      ? shortcuts.compactMap { k in srcToOut(m, k.t, fps: fps).map { ($0, k.label ?? "") } }.sorted { $0.0 < $1.0 } : []
+    // Each item plays where its source range plays: one piece per stretch that plays back to back.
+    // A title shows from its first word, through the stretch it opens.
     callouts = plan.callouts.compactMap { c in
-      guard let s = srcToOut(m, c.start, fps: fps) else { return nil }
-      return (s, srcToOut(m, c.end, fps: fps) ?? srcToOutClamped(m, c.end, fps: fps, before: true), c)
+      guard let s = srcToOut(m, c.start, fps: fps), let run = srcRangeToOut(m, c.start, c.end, fps: fps).first(where: { abs($0.startF - s) < 0.5 })
+      else { return nil }
+      return (s, run.endF, c)
     }
-    annotations = (plan.annotations ?? []).compactMap { a in
-      let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
-      return e > s ? (s, e, a) : nil
-    }
-    punchIns = (plan.camera?.punchIns ?? []).compactMap { p in
-      let s = srcToOutClamped(m, p.start, fps: fps), e = srcToOutClamped(m, p.end, fps: fps, before: true)
-      return e > s ? (s, e, p.scale, p.x, p.y) : nil
-    }
-    inserts = (plan.insertList + plan.animationInserts(dir: dir)).enumerated().compactMap { i, a in
-      let s = srcToOutClamped(m, a.start, fps: fps), e = srcToOutClamped(m, a.end, fps: fps, before: true)
-      return e > s ? (s, e, a, i) : nil
+    annotations = (plan.annotations ?? []).flatMap { a in srcRangeToOut(m, a.start, a.end, fps: fps).map { ($0.startF, $0.endF, a) } }
+    punchIns = (plan.camera?.punchIns ?? []).flatMap { p in srcRangeToOut(m, p.start, p.end, fps: fps).map { ($0.startF, $0.endF, p.scale, p.x, p.y) } }
+    // A clip split by a move picks up where its previous piece left off.
+    inserts = (plan.insertList + plan.animationInserts(dir: dir)).enumerated().flatMap { i, a in
+      var played = 0.0
+      return srcRangeToOut(m, a.start, a.end, fps: fps).map { r -> (s: Double, e: Double, a: Insert, index: Int) in
+        var piece = a
+        if played > 0 { piece.from = (a.from ?? 0) + played }
+        played += (r.endF - r.startF) / Double(fps)
+        return (r.startF, r.endF, piece, i)
+      }
     }
     var images: [Int: CIImage] = [:]
     for ins in inserts where ins.a.isImage {
@@ -179,6 +183,7 @@ public final class Scene: @unchecked Sendable {
   static func captionPages(_ words: [Word], _ mapped: [MappedSegment], fps: Int, maxWords: Int) -> [Page] {
     var pages: [Page] = []
     var lastEnd = -Double.infinity
+    var lastClip = -1
     for w in words {
       // Sped-up segments play muted (Composition), so their words are never heard.
       guard let startF = srcToOut(mapped, w.start, fps: fps),
@@ -186,14 +191,18 @@ public final class Scene: @unchecked Sendable {
       else { continue }
       let endF = srcToOut(mapped, max(w.start, w.end - 0.001), fps: fps) ?? startF + 3
       let pause = w.start - lastEnd > 0.8
-      if pages.isEmpty || pause || pages[pages.count - 1].words.count >= maxWords {
+      // A word in a clip that doesn't play right after the last word's (a moved clip) starts a page.
+      let clip = mapped.firstIndex { w.start >= $0.start && w.start < $0.end } ?? -1
+      let jump = lastClip >= 0 && clip != lastClip && clip != lastClip + 1
+      lastClip = clip
+      if pages.isEmpty || pause || jump || pages[pages.count - 1].words.count >= maxWords {
         pages.append(Page(words: [], startF: startF, endF: endF))
       }
       pages[pages.count - 1].words.append((w.text, startF))
       pages[pages.count - 1].endF = endF
       lastEnd = w.end
     }
-    return pages
+    return pages.sorted { $0.startF < $1.startF }
   }
 
   // MARK: Rendering
