@@ -97,6 +97,13 @@ function grain(t) { document.getElementById("turb").setAttribute("seed", 1 + Mat
 // A cue's time (seconds from the animation's start), or a fallback when the plan leaves it out.
 function cue(cues, name, fallback) { return typeof cues[name] === "number" ? cues[name] : fallback; }
 
+// The 1920×1080 stage scaled evenly to fit the clip and centered on paper, so a vertical or square
+// clip shows the whole board undistorted instead of stretched.
+function stageTransform(width, height) {
+  const k = Math.min(width / 1920, height / 1080);
+  return `translate(${(width - 1920 * k) / 2}px, ${(height - 1080 * k) / 2}px) scale(${k})`;
+}
+
 // --- entry points --------------------------------------------------------------
 // config: { template, data, cues, duration, width, height, fonts: [{family, url}], titleFont, bodyFont,
 //           accent, paper, ink, logos }
@@ -113,8 +120,7 @@ window.init = async function (config) {
   }
   if (config.titleFont) root.setProperty("--title", `"${config.titleFont}", Georgia, serif`);
   if (config.bodyFont) root.setProperty("--body", `"${config.bodyFont}", "Helvetica Neue", sans-serif`);
-  const stage = document.getElementById("stage");
-  stage.style.transform = `scale(${config.width / 1920}, ${config.height / 1080})`;
+  document.getElementById("stage").style.transform = stageTransform(config.width, config.height);
   const make = TEMPLATES[config.template];
   if (!make) throw new Error(`no template named "${config.template}" (have: ${Object.keys(TEMPLATES).join(", ")})`);
   window.seek = make(config.data || {}, config.cues || {}, config.duration);

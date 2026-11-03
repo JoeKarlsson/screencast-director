@@ -864,6 +864,8 @@ struct Checks {
     // Animation scripts run in JavaScriptCore: every template's frames draw without throwing, and the
     // hub's background field shows its own apps, each once before any repeats, never the grid's.
     let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
+    expect(templateScripts.evaluateScript("stageTransform(1920, 1080)").toString() == "translate(0px, 0px) scale(1)", "a 16:9 clip fills the frame with the stage")
+    expect(templateScripts.evaluateScript("stageTransform(1080, 1920)").toString() == "translate(0px, 656.25px) scale(0.5625)", "a vertical clip fits the stage evenly and centers it instead of stretching it")
     for t in templates {
       let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)
       let cues = "{" + t.cues.map { "\"\($0.key)\": \($0.at)" }.joined(separator: ", ") + "}"

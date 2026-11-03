@@ -7,7 +7,7 @@
      The renderer calls init(config) once, then seek(t) for every frame. -->
 <style>
 :root { --ink: #15151C; --paper: #FBFBF9; --accent: #FFE500; --title: Georgia, serif; --body: "Helvetica Neue", sans-serif; }
-html, body { margin: 0; background: #000; overflow: hidden; }
+html, body { margin: 0; background: var(--paper); overflow: hidden; }
 #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); transform-origin: 0 0; }
 #cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
 svg#lines { position: absolute; inset: 0; overflow: visible; }
