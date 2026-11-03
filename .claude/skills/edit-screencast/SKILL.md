@@ -21,7 +21,7 @@ Arguments: a project name (folder under `projects/`), plus optional instructions
 - If `projects/<name>/transcript.json` is missing, run `bin/sd analyze <name>`.
 - If `plan.json` is missing, run `bin/sd plan <name>`. Never pass `--force` on a plan that may hold edits unless the user asks to start over.
 - Run `bin/sd describe <name>` and read `plan.json`.
-- Project files: `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, and the export, `<name>.mp4` (older projects have `out.mp4`).
+- Project files: `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, and the export, `<name> <width>x<height>.mp4` (older ones are `<name>.mp4` or `out.mp4`).
 
 ## 2. Edit pass
 
@@ -52,5 +52,5 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 
 ## 4. Render and report
 
-- `bin/sd render <name>` writes `projects/<name>/<name>.mp4`. For a quick look, open the project in the Screencast Director app.
+- `bin/sd render <name>` writes `projects/<name>/<name> <width>x<height>.mp4`. For a quick look, open the project in the Screencast Director app.
 - Report the source and output length, and list what you changed in a few lines, with output timestamps so the user can jump to them.

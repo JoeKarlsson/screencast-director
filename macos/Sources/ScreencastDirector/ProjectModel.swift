@@ -115,7 +115,7 @@ final class ProjectModel: ObservableObject {
 
   var name: String { dir.lastPathComponent }
   var planURL: URL { dir.appendingPathComponent("plan.json") }
-  var outURL: URL { exportURL(dir: dir) }
+  var outURL: URL { exportURL(dir: dir, size: plan?.output) }
   var hasPlan: Bool { plan != nil }
   var fps: Int { plan?.output.fps ?? 30 }
   /// The plan's segments in output frames, kept in step with the plan.
@@ -1198,8 +1198,9 @@ final class ProjectModel: ObservableObject {
     flushWrite()
     guard let plan else { return }
     enqueue(presets.map { preset in
-      ExportJob(
-        plan: preset.map { $0.applied(to: plan) } ?? plan, url: exportURL(dir: dir, preset: preset),
+      let shaped = preset.map { $0.applied(to: plan) } ?? plan
+      return ExportJob(
+        plan: shaped, url: exportURL(dir: dir, preset: preset, size: shaped.output),
         label: preset?.name ?? "current format", animateArgs: preset.map { ["--preset", $0.id] } ?? [])
     })
   }
@@ -1208,7 +1209,10 @@ final class ProjectModel: ObservableObject {
   func exportClips(_ clips: [Clip]) {
     flushWrite()
     guard let plan else { return }
-    let jobs = clips.map { ExportJob(plan: plan.trimmed(to: $0, words: words, silences: project?.silences), url: exportURL(dir: dir, clip: $0), label: $0.name, animateArgs: ["--clip", $0.name]) }
+    let jobs = clips.map { c in
+      let p = plan.trimmed(to: c, words: words, silences: project?.silences)
+      return ExportJob(plan: p, url: exportURL(dir: dir, clip: c, size: p.output), label: c.name, animateArgs: ["--clip", c.name])
+    }
     if let empty = jobs.first(where: { $0.plan.segments.isEmpty }) {
       Notices.shared.show("The clip \(empty.label) is entirely cut from the edit, so there's nothing to export.", error: true)
       return

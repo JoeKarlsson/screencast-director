@@ -128,8 +128,15 @@ do {
     let saved = try Plan.load(project.planURL)
     let jobs: [(plan: Plan, out: URL, clip: Bool)] =
       args.contains("--clips")
-      ? saved.clipList.map { (clipPlan(saved, $0, words: project.words, silences: project.silences), exportURL(dir: dir, clip: $0), true) }
-      : [(try planFor(project), positional.count > 2 ? URL(fileURLWithPath: positional[2]) : exportURL(dir: dir, preset: presetArg(), clip: clipArg(saved)), clipArg(saved) != nil)]
+      ? saved.clipList.map { c in
+        let p = clipPlan(saved, c, words: project.words, silences: project.silences)
+        return (p, exportURL(dir: dir, clip: c, size: p.output), true)
+      }
+      : try {
+        let p = try planFor(project)
+        let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : exportURL(dir: dir, preset: presetArg(), clip: clipArg(saved), size: p.output)
+        return [(p, out, clipArg(saved) != nil)]
+      }()
     if jobs.isEmpty { fail("the plan has no clips") }
     for job in jobs {
       _ = try await Animate.renderMissing(dir, job.plan) { print($0) }
