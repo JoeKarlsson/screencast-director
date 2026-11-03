@@ -49,6 +49,12 @@ struct Shortcut {
     .init(group: "Clips", keys: "X", title: "Remove from previous cut to playhead", key: .char("x"), modifiers: []) { p, _ in
       p.removeToPreviousCut()
     },
+    .init(group: "Clips", keys: "⌥⌘←", title: "Play the selected clip earlier", key: .code(123), modifiers: [.command, .option]) { p, _ in
+      if case .segment(let i) = p.selection { p.moveSelectedClip(to: i - 1) }
+    },
+    .init(group: "Clips", keys: "⌥⌘→", title: "Play the selected clip later", key: .code(124), modifiers: [.command, .option]) { p, _ in
+      if case .segment(let i) = p.selection { p.moveSelectedClip(to: i + 1) }
+    },
     .init(group: "Clips", keys: "S", title: "Change clip speed", key: .char("s"), modifiers: []) { p, _ in p.cycleSpeed() },
     .init(group: "Clips", keys: "Esc", title: "Deselect", key: .code(53), modifiers: []) { p, _ in
       p.selection = nil

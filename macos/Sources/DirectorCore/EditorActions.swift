@@ -286,6 +286,17 @@ extension Plan {
   }
 }
 
+/// Dragging clip `moving` on the output timeline and dropping it at output frame `frame`: the slot
+/// it lands in (0 is before the first clip, `mapped.count` after the last; the nearest clip edge to
+/// the drop) and the play position to move it to. Nil when it would land where it already plays.
+/// `mapped` is the clips in play order (`mapPlan`), which is the plan's segment order.
+public func clipDrop(moving: Int, atFrame frame: Double, mapped: [MappedSegment]) -> (slot: Int, target: Int)? {
+  guard mapped.indices.contains(moving) else { return nil }
+  let slot = mapped.filter { Double($0.outStart) + Double($0.frames) / 2 < frame }.count
+  let target = slot > moving ? slot - 1 : slot
+  return target == moving ? nil : (slot, target)
+}
+
 /// S: the clip speed after `speed` in 1, 1.5, 2, 3, 4, 8, then back to 1.
 public func nextClipSpeed(after speed: Double) -> Double {
   [1.0, 1.5, 2, 3, 4, 8].first { $0 > speed + 0.01 } ?? 1

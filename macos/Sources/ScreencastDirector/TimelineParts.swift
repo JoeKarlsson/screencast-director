@@ -27,6 +27,9 @@ final class TimelineUI: ObservableObject {
   }
   /// A drag in progress: which item and its live range, drawn instead of the saved one.
   @Published var drag: (sel: Selection, start: Double, end: Double)?
+  /// A clip dragged on the output timeline: its index, the slot between clips it would drop into,
+  /// and the play position it would move to (`clipDrop`).
+  @Published var clipDrop: (clip: Int, slot: Int, target: Int)?
   /// Dragging several selected items: how far they've moved so far (seconds).
   @Published var groupShift: Double?
   /// A drag box over empty track space, selecting what it touches.

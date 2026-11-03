@@ -119,4 +119,18 @@ func editorActionChecks() {
       """, "ask context (\(context))")
   let stale = editorContext(plan: base, words: [], playhead: 5, selection: TimelineSelection(primary: .callout(7)), wordSelection: nil, marked: nil)
   expect(stale == "Playhead: source 0:05.0", "a stale selection adds nothing (\(stale))")
+
+  // Dragging a clip on the output timeline: three clips of 30, 60 and 30 frames, played at
+  // 0-30, 30-90, 90-120. The drop lands at the nearest clip edge.
+  let clips = mapSegments([Segment(start: 0, end: 1, speed: 1), Segment(start: 5, end: 7, speed: 1), Segment(start: 10, end: 11, speed: 1)], fps: 30)
+  expect(clipDrop(moving: 2, atFrame: 5, mapped: clips)! == (0, 0), "dropping the last clip near the start plays it first")
+  expect(clipDrop(moving: 0, atFrame: 100, mapped: clips)! == (2, 1), "dropping the first clip past the middle one's center puts it second")
+  expect(clipDrop(moving: 0, atFrame: 119, mapped: clips)! == (3, 2), "dropping the first clip at the end plays it last")
+  expect(clipDrop(moving: 1, atFrame: 50, mapped: clips) == nil, "dropping a clip onto itself does nothing")
+  expect(clipDrop(moving: 1, atFrame: 20, mapped: clips) == nil, "dropping a clip at its own leading edge does nothing")
+  expect(clipDrop(moving: 0, atFrame: 40, mapped: clips) == nil, "dropping a clip just after itself does nothing")
+  expect(clipDrop(moving: 3, atFrame: 5, mapped: clips) == nil, "a stale clip index does nothing")
+  var dropped = base
+  dropped.moveSegment(1, to: clipDrop(moving: 1, atFrame: 0, mapped: mapPlan(base))!.target)
+  expect(dropped.segments.map(\.start) == [10, 0], "the drop's target is what moveSegment takes (\(dropped.segments.map(\.start)))")
 }

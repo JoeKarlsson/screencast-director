@@ -365,11 +365,13 @@ struct TimelineView: View {
         let hi = plan.segments.filter { $0.start >= s.end - 1e-6 }.map(\.start).min() ?? plan.source.duration
         bar(
           sel: sel, start: a, end: b, track: .clips, color: Theme.clip, label: s.note ?? "",
-          badge: s.speed == 1 ? nil : "\(s.speed.formatted())×", striped: fast, movable: false, bounds: lo...max(lo, hi)
+          badge: s.speed == 1 ? nil : "\(s.speed.formatted())×", striped: fast, movable: false, bounds: lo...max(lo, hi),
+          reorder: i
         ) { newStart, newEnd in
           project.apply { $0.trimSegment(i, start: newStart, end: newEnd) }
         }
       }
+      if ui.outputTime, let d = ui.clipDrop { clipDropMarker(slot: d.slot) }
       audio(plan)
       words(plan)
       ForEach(Array(plan.zooms.enumerated()), id: \.offset) { i, z in
@@ -792,12 +794,25 @@ struct TimelineView: View {
     if inside { ui.hover = sel } else if ui.hover == sel { ui.hover = nil }
   }
 
+  /// Where a dragged clip would drop: a line at the edge between the clips of `slot`.
+  private func clipDropMarker(slot: Int) -> some View {
+    let mapped = project.mapped
+    let frame = slot < mapped.count ? mapped[slot].outStart : mapped.last.map { $0.outStart + $0.frames } ?? 0
+    let px = CGFloat(Double(frame) / Double(project.fps) * ui.pxPerSec)
+    return Capsule().fill(Color.white)
+      .frame(width: 3, height: Track.clips.height + 8)
+      .shadow(color: .black.opacity(0.5), radius: 2)
+      .allowsHitTesting(false)
+      .offset(x: px - 1.5, y: Track.clips.y - 4)
+  }
+
   /// A selectable bar with drag handles on both edges; `movable` bars can also be dragged whole.
   /// `badge` is a capsule before the label (a clip's speed); `striped` hatches it (sped-up clips).
+  /// `reorder` is a clip's index: in output time, dragging its body moves it to play elsewhere.
   private func bar(
     sel: Selection, start: Double, end: Double, track: Track, color: Color, label: String,
     badge: String? = nil, striped: Bool = false, movable: Bool, bounds: ClosedRange<Double>? = nil,
-    commit: @escaping (Double, Double) -> Void
+    reorder: Int? = nil, commit: @escaping (Double, Double) -> Void
   ) -> some View {
     let selected = project.isSelected(sel)
     // Trim handles only when this is the one selected item.
@@ -864,6 +879,14 @@ struct TimelineView: View {
       .simultaneousGesture(
         DragGesture(minimumDistance: 3)
           .onChanged { v in
+            if let clip = reorder {
+              // Recording order (source time) has no play order to drop into, so clips stay put there.
+              guard ui.outputTime else { return }
+              if project.selection != sel || !project.multi.isEmpty { project.select(sel, adding: false) }
+              let frame = Double(x(start) + v.location.x) / ui.pxPerSec * Double(project.fps)
+              ui.clipDrop = clipDrop(moving: clip, atFrame: frame, mapped: project.mapped).map { (clip, $0.slot, $0.target) }
+              return
+            }
             guard movable else { return }
             if project.isSelected(sel), !project.multi.isEmpty {
               // Several items selected: they all move together, snapping on this bar's edges.
@@ -880,6 +903,12 @@ struct TimelineView: View {
             ui.drag = (sel, s, s + len)
           }
           .onEnded { _ in
+            if let clip = reorder {
+              guard let d = ui.clipDrop, d.clip == clip else { return }
+              ui.clipDrop = nil
+              project.moveSelectedClip(to: d.target)
+              return
+            }
             ui.snap = nil
             if let shift = ui.groupShift {
               ui.groupShift = nil
