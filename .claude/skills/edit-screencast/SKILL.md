@@ -46,7 +46,7 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 
 ## 3. Verify before rendering
 
-- Run `bin/sd describe <name>` again and read it as a viewer would: does every cut land between sentences? Is any narration sped up? Is any layout WARNING left?
+- Run `bin/sd describe <name>` again and read it as a viewer would: does every cut land between sentences? Is any narration sped up? Is any layout WARNING left? Is any flash WARNING left (something on screen under a second between two others, at the top of `describe`)? Joe hates them: fix every one by making the stretch last a second or more, or covering it with what's on either side (start the next B-roll where the last one ends).
 - Spot-check frames instead of rendering the whole video: render stills at the moments you changed and look at them (zoom framing, callout text, layout):
   `macos/.build/release/director still projects/<name> <frame> /tmp/f.png` (`still` writes only inside the project, e.g. `.checks/`, or a temp folder, and never through a symlink)
 

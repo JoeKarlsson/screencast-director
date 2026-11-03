@@ -353,6 +353,7 @@ public func editReview(_ project: Project, _ plan: Plan) -> String {
       }
     }
   }
+  for f in flashes(plan, dir: project.dir) { lines.append("WARNING: \(describeFlash(f, plan))") }
   return lines.isEmpty ? "No zooms and no cuts inside words." : lines.joined(separator: "\n")
 }
 

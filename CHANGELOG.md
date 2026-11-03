@@ -79,6 +79,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Flash warnings: anything on screen for under a second between two other things (the face between two B-roll clips, a layout switching away and back, a clip too short to register) shows in a banner with a Show button, and as a WARNING in `describe` and `review`.
 - **Fill the frame** (Background & Frame, at 0% padding): the screen is cropped to fill a 16:9, square or feed frame, so no background shows around a screen of another shape. It pans to follow zooms and clicks.
 - A profile can frame the screen and camera as windows (`look.frame: "window"`: a dark title bar with three dots over each padded card, including a square camera), and join side by side into one card with no gap (`style.joinSide`).
 - Clips: name a stretch of the edit and a format (vertical for Shorts, Reels and TikTok, square, feed) and export it from Export > Clips, alone or all at once. Clips render from the main edit, so a fix there shows up in every clip, with no copied projects. Claude can add them too.

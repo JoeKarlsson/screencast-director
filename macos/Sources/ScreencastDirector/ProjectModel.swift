@@ -196,8 +196,25 @@ final class ProjectModel: ObservableObject {
   /// slow build of an older plan would replace the newer preview (and play, say, without leveling).
   private var previewGeneration = 0
 
+  /// Flashes already reported, so each new one shows in the banner once.
+  private var reportedFlashes: [Flash] = []
+
+  /// Banners a flash (something on screen for under a second between two others) that an edit just
+  /// made, with its time, so it gets fixed before export.
+  private func warnAboutNewFlashes(_ plan: Plan) {
+    let found = flashes(plan, dir: dir)
+    let new = found.filter { f in !reportedFlashes.contains(f) }
+    reportedFlashes = found
+    guard let first = new.first else { return }
+    let more = new.count > 1 ? " (and \(new.count - 1) more; see describe)" : ""
+    Notices.shared.show("Flash: " + describeFlash(first, plan) + more, error: true, action: "Show") { [weak self] in
+      self?.seek(outFrame: first.startF)
+    }
+  }
+
   private func rebuildPreview() {
     guard let plan else { return }
+    warnAboutNewFlashes(plan)
     previewReady = false
     previewGeneration += 1
     let generation = previewGeneration

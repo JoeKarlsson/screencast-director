@@ -33,6 +33,8 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   out.append(
     "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(planSeconds(plan))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
   )
+  // Up top, so they can't be missed: they read as glitches.
+  for f in flashes(plan, dir: project.dir) { out.append("WARNING: \(describeFlash(f, plan)); make it last a second or more, or cover it") }
   out.append("")
   out.append("## Timeline (source times; out = position in the final video)")
   let cards = cardFrames(plan)
@@ -45,7 +47,9 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
   let gaps = plan.gaps
   var listed = Set<Int>()
   func cuts(_ a: Double, _ b: Double) {
-    for (k, g) in gaps.enumerated() where g.end > a + 0.01 && g.start < b - 0.01 && !listed.contains(k) {
+    // Only cuts touching this skip's edges here (the rest come up next to their own clips).
+    for (k, g) in gaps.enumerated() where g.end > a + 0.01 && g.start < b - 0.01 && !listed.contains(k)
+      && (g.start <= a + 0.01 || g.end >= b - 0.01 || (a == 0 && b == plan.source.duration)) {
       listed.insert(k)
       out.append(line("  CUT  src \(fmtTime(g.start))-\(fmtTime(g.end))", said(g.start, g.end), activity(g.start, g.end)))
     }

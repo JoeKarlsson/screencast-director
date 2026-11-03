@@ -997,6 +997,7 @@ struct Checks {
     audioChecks()
     editorActionChecks()
     reorderChecks()
+    flashChecks()
     inputEventChecks()
 
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
