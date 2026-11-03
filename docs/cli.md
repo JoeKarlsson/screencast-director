@@ -1,17 +1,14 @@
 # CLI
 
-The `sd` CLI records with ffmpeg and runs the rest of the pipeline from the terminal. `sd analyze`, `plan`, `describe` and `render` run the Swift `director`, the same engine as the macOS app, and build it on first use. Everything `sd` can't do (stills, publish, GIF, join, upload) is a `director` command; run `macos/.build/release/director` with no arguments for the list.
+The `sd` CLI runs the editing pipeline from the terminal on a recording made in the app, or one you import. `sd analyze`, `plan`, `describe` and `render` run the Swift `director`, the same engine as the macOS app, rebuilding it first when its sources changed. Everything `sd` can't do (stills, publish, GIF, join, upload) is a `director` command; run `macos/.build/release/director` with no arguments for the list.
 
 ## Setup
 
 - ffmpeg, whisper.cpp (`brew install ffmpeg whisper-cpp`) and the Xcode Command Line Tools, on Apple silicon.
-- `logger/build.sh` builds the input logger (`sd record` also builds it on first use).
-- `bin/sd devices` lists screens, mics and cameras. Put your choices in `sd.env` (copy `sd.env.example`).
-- Give your terminal app these permissions (System Settings > Privacy & Security): **Screen Recording**, **Microphone**, **Camera**, and **Input Monitoring** (for the logger).
 
 ## Pipeline
 
-1. **Record** (`sd record <name>`): ffmpeg captures the screen, mic and optionally a camera. A small Swift logger records clicks, keystrokes and cursor moves on the same clock AVFoundation stamps frames with, so events line up with the video to the frame. Plain typing is logged without characters; only shortcuts like ⌘K are named.
+1. **Record** in the app (or `sd import` a video). The app logs clicks, keystrokes and cursor moves on the same clock the screen recording stamps frames with, so events line up with the video to the frame. Plain typing is logged without characters; only shortcuts like ⌘K are named.
 2. **Analyze** (`sd analyze`): transcribes with word timestamps (whisper.cpp) and measures frame-to-frame screen motion.
 3. **Plan** (`sd plan`): writes a first-draft `plan.json`:
    - speech at 1x, filler words ("um", "uh") cut

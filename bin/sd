@@ -1,122 +1,46 @@
 #!/usr/bin/env bash
-# sd: record a screencast, plan the edit, render it.
+# sd: plan, describe and render a recording from the terminal. (The app records; `sd import` brings
+# in a video recorded elsewhere.)
 #
-# analyze, plan, describe and render run the Swift `director` (the macOS app's engine), building it
-# on first use with `swift build -c release --package-path macos --product director`.
+# analyze, plan, describe and render run the Swift `director` (the macOS app's engine), rebuilding
+# it first when its sources changed (`swift build -c release --package-path macos --product director`).
 #
-#   sd devices                    list cameras, screens and microphones
-#   sd record <name> [--camera]   record screen + mic (+ camera) with input logging; Ctrl-C stops
 #   sd import <name> <video> [--camera <file> [--camera-offset <sec>]]
 #   sd analyze <name>             transcribe (Whisper) and measure screen motion
 #   sd plan <name> [--force]      write a first-draft plan.json
 #   sd describe <name>            print the plan as a readable timeline
-#   sd render <name> [out.mp4]    render the final video
+#   sd render <name> [out.mp4]    render the final video (default <project>/out.mp4)
 #   sd auto <name>                analyze + plan + render
-#
-# Devices and defaults can be overridden in sd.env at the repo root (see sd.env.example).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECTS="${SD_PROJECTS:-$ROOT/projects}"
-# shellcheck source=/dev/null  # local, gitignored device settings
-[ -f "$ROOT/sd.env" ] && source "$ROOT/sd.env"
-SD_SCREEN="${SD_SCREEN:-Capture screen 0}"
-SD_MIC="${SD_MIC:-default}"
-SD_CAMERA="${SD_CAMERA:-}"
-SD_CAMERA_SIZE="${SD_CAMERA_SIZE:-1920x1080}"
-SD_CAMERA_FPS="${SD_CAMERA_FPS:-30}"
-SD_FPS="${SD_FPS:-30}"
-
-DIRECTOR="${SD_DIRECTOR:-$ROOT/macos/.build/release/director}"
+# SD_DIRECTOR (tests) runs a prebuilt director as is.
+DIRECTOR="${SD_DIRECTOR:-}"
 
 die() { echo "sd: $*" >&2; exit 1; }
 director() {
-  [ -x "$DIRECTOR" ] || swift build -c release --package-path "$ROOT/macos" --product director >&2
-  "$DIRECTOR" "$@"
+  if [ -z "$DIRECTOR" ]; then
+    # A no-op when nothing changed, so sd never runs a stale build.
+    swift build -c release --package-path "$ROOT/macos" --product director >&2
+    "$ROOT/macos/.build/release/director" "$@"
+  else
+    "$DIRECTOR" "$@"
+  fi
 }
 project_dir() { [ -n "${1:-}" ] || die "missing project name"; echo "$PROJECTS/$1"; }
-need_project() { [ -f "$1/source.json" ] || die "no project at $1 (run sd record or sd import)"; }
+need_project() { [ -f "$1/source.json" ] || die "no project at $1 (record it in the app, or sd import)"; }
 
-# Host-clock start time of the first video frame, from ffmpeg's avfoundation input log.
-capture_start() { sed -nE 's/.*Stream #0:0: Video:.* start ([0-9.]+).*/\1/p' "$1" | head -1; }
-
-# How much later the screen's first frame came than the camera's (screen start - camera start), to
-# three places: source.json's camera.offset.
-camera_offset() { awk -v s="$1" -v c="$2" 'BEGIN { printf "%.3f", s - c }'; }
-
-# remux <dir> <name>: <name>.mkv to a faststart <name>.mp4, then removes the .mkv. Two commands, not
-# `ffmpeg && rm`, so a failed remux stops sd (set -e ignores a failure inside an && list).
-remux() {
-  ffmpeg -hide_banner -loglevel error -i "$1/$2.mkv" -c copy -movflags +faststart "$1/$2.mp4"
-  rm "$1/$2.mkv"
-}
-
-write_source() { # dir video [captureStart] [cameraVideo cameraOffset]
-  local dir=$1 video=$2 start=${3:-} cam=${4:-} off=${5:-0}
+write_source() { # dir video [cameraVideo cameraOffset]
+  local dir=$1 video=$2 cam=${3:-} off=${4:-0}
   local w h d
   IFS=, read -r w h < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$dir/$video")
   d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dir/$video")
   {
     printf '{\n  "video": "%s",\n  "width": %s,\n  "height": %s,\n  "duration": %s' "$video" "$w" "$h" "$d"
-    [ -n "$start" ] && printf ',\n  "captureStart": %s' "$start"
     [ -n "$cam" ] && printf ',\n  "camera": { "video": "%s", "offset": %s }' "$cam" "$off"
     printf '\n}\n'
   } > "$dir/source.json"
-}
-
-cmd_devices() {
-  ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | sed -nE 's/^\[AVFoundation[^]]*\] //p'
-}
-
-cmd_record() {
-  local name=${1:-}; shift || true
-  local camera=0
-  [ "${1:-}" = "--camera" ] && camera=1
-  [ $camera = 1 ] && [ -z "$SD_CAMERA" ] && die "set SD_CAMERA in sd.env (see sd devices)"
-  local dir; dir=$(project_dir "$name")
-  [ -e "$dir" ] && die "$dir already exists"
-  mkdir -p "$dir"
-  [ -x "$ROOT/logger/bin/input-logger" ] || "$ROOT/logger/build.sh"
-
-  "$ROOT/logger/bin/input-logger" "$dir/events.jsonl" 2>"$dir/.logger.log" &
-  local logger_pid=$!
-  ffmpeg -hide_banner -nostdin -f avfoundation -capture_cursor 1 -framerate "$SD_FPS" \
-    -i "$SD_SCREEN:$SD_MIC" -r "$SD_FPS" -c:v h264_videotoolbox -b:v 24M -c:a aac -b:a 192k \
-    "$dir/screen.mkv" 2>"$dir/.ffmpeg-screen.log" &
-  local screen_pid=$! cam_pid=""
-  if [ $camera = 1 ]; then
-    ffmpeg -hide_banner -nostdin -f avfoundation -framerate "$SD_CAMERA_FPS" -video_size "$SD_CAMERA_SIZE" \
-      -i "$SD_CAMERA:none" -c:v h264_videotoolbox -b:v 12M "$dir/camera.mkv" 2>"$dir/.ffmpeg-camera.log" &
-    cam_pid=$!
-  fi
-
-  stopping=0
-  stop() {
-    [ $stopping = 1 ] && return
-    stopping=1
-    echo; echo "Stopping..."
-    kill -TERM "$screen_pid" $cam_pid 2>/dev/null || true
-    wait "$screen_pid" $cam_pid 2>/dev/null || true
-    kill -INT "$logger_pid" 2>/dev/null || true
-    wait "$logger_pid" 2>/dev/null || true
-  }
-  trap stop INT TERM
-  echo "Recording to $dir (screen: $SD_SCREEN, mic: $SD_MIC${SD_CAMERA:+, camera: $SD_CAMERA}). Ctrl-C to stop."
-  wait "$screen_pid" || true
-  stop
-  trap - INT TERM
-
-  [ -s "$dir/screen.mkv" ] || { tail -5 "$dir/.ffmpeg-screen.log" >&2; die "screen recording failed (log: $dir/.ffmpeg-screen.log)"; }
-  remux "$dir" screen
-  local start cam_video="" cam_off=0
-  start=$(capture_start "$dir/.ffmpeg-screen.log")
-  if [ $camera = 1 ] && [ -s "$dir/camera.mkv" ]; then
-    remux "$dir" camera
-    cam_video=camera.mp4
-    cam_off=$(camera_offset "$start" "$(capture_start "$dir/.ffmpeg-camera.log")")
-  fi
-  write_source "$dir" screen.mp4 "$start" "$cam_video" "$cam_off"
-  echo "Saved $dir. Next: sd auto $name   (or sd analyze/plan, then ask Claude to edit plan.json)"
 }
 
 cmd_import() {
@@ -137,44 +61,29 @@ cmd_import() {
   cp -c "$video" "$dir/screen.$ext" 2>/dev/null || cp "$video" "$dir/screen.$ext"
   if [ -n "$cam" ]; then
     cp -c "$cam" "$dir/camera.${cam##*.}" 2>/dev/null || cp "$cam" "$dir/camera.${cam##*.}"
-    write_source "$dir" "screen.$ext" "" "camera.${cam##*.}" "$off"
+    write_source "$dir" "screen.$ext" "camera.${cam##*.}" "$off"
   else
     write_source "$dir" "screen.$ext"
   fi
   echo "Imported to $dir (no input events, so zooms come from Claude, not clicks)."
 }
 
-cmd_analyze() {
-  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  director analyze "$dir"
-}
-
-cmd_plan() {
-  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  director plan "$dir" ${2:+"$2"}
-}
-
-cmd_describe() {
-  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  director describe "$dir"
-}
-
-cmd_render() {
-  local dir; dir=$(project_dir "${1:-}"); need_project "$dir"
-  director render "$dir" "${2:-$dir/out.mp4}"
+# analyze, plan, describe, render: director's command on the named project, with any further arguments.
+cmd_director() {
+  local command=$1 dir; dir=$(project_dir "${2:-}"); need_project "$dir"
+  director "$command" "$dir" "${@:3}"
 }
 
 cmd_auto() {
-  cmd_analyze "$1"
-  cmd_plan "$1" --force
-  cmd_describe "$1"
-  cmd_render "$1"
+  cmd_director analyze "${1:-}"
+  cmd_director plan "${1:-}" --force
+  cmd_director describe "${1:-}"
+  cmd_director render "${1:-}"
 }
 
-# Sourced (macos/cli-test.sh), it only defines the functions.
-[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 cmd=${1:-help}; shift || true
 case $cmd in
-  devices|record|import|analyze|plan|describe|render|auto) "cmd_$cmd" "$@" ;;
-  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
+  import|auto) "cmd_$cmd" "$@" ;;
+  analyze|plan|describe|render) cmd_director "$cmd" "$@" ;;
+  *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

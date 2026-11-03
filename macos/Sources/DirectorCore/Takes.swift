@@ -1,16 +1,8 @@
 import CoreGraphics
 import Foundation
 
-// Capture helpers, retake marks and script-aware take picking. Pure functions, checked in
+// Retake marks and script-aware take picking. Pure functions, checked in
 // Tests/Checks.swift.
-
-/// A point in global screen points as a 0...1 fraction of the recorded area (a display or a
-/// window), rounded to four places. Points outside the area come out below 0 or above 1.
-public func normalizedPoint(_ p: CGPoint, in rect: CGRect) -> (Double, Double) {
-  let x = (p.x - rect.origin.x) / rect.width
-  let y = (p.y - rect.origin.y) / rect.height
-  return ((x * 10000).rounded() / 10000, (y * 10000).rounded() / 10000)
-}
 
 /// Source-time ranges to cut for retake marks (⌃⌥⌘M while recording). Each mark cuts the phrase
 /// spoken just before it: back to the previous pause longer than `phraseGap`, the end of the

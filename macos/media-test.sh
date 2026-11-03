@@ -7,7 +7,4 @@
 #   macos/media-test.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-mkdir -p .build/checks
-swiftc -swift-version 5 -parse-as-library -suppress-warnings -target arm64-apple-macos15.0 Sources/DirectorCore/*.swift Tests/Media.swift \
-  -o .build/checks/media
-.build/checks/media
+./run-checks.sh media Tests/Media.swift

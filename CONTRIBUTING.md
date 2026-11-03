@@ -20,7 +20,6 @@ macos/test-all.sh   # everything below, in order; run it before pushing app chan
 - `macos/media-test.sh`: the media pipeline on synthetic recordings and a talking-head clip (needs whisper-cli and a model)
 - `macos/cli-test.sh`: every `director` command and `bin/sd` on a temp fixture
 - `macos/animate-test.sh`: renders one animation per bundled template
-- `test/logger-test.sh`: the input logger's event records
 - `macos/smoke-test.sh`: builds dist/ and drives the app's editor (needs a GUI session and Accessibility)
 
 CI runs all of these except the smoke test. Lint errors fail the build; SwiftLint warnings don't.

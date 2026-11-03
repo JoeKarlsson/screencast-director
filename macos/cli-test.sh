@@ -2,8 +2,7 @@
 # CLI check: runs the `director` commands and `bin/sd` against a synthetic project in a temp folder
 # and checks what they did (plan.json edits, rendered files' size and length), plus that bad input
 # fails with a message. Skips what needs a network or credentials (upload), Whisper (analyze with
-# audio), a face on camera (frame-camera, sync-camera beyond their error paths) and a screen or mic
-# (sd record, sd devices).
+# audio) and a face on camera (frame-camera, sync-camera beyond their error paths).
 #
 #   macos/cli-test.sh
 #
@@ -187,7 +186,7 @@ expect_error "join needs two takes" "usage:" "$DIRECTOR" join "$TMP/joined2" "$P
 # --- upload without credentials fails with what it needs
 expect_error "upload without S3 settings names them" "S3_ENDPOINT" env -u S3_ENDPOINT "$DIRECTOR" upload "$TMP/clip.gif"
 
-# --- bin/sd (help, import, and the pass-through commands; record and devices need a screen and mic)
+# --- bin/sd (help, import, and the commands it hands to director)
 SD="$ROOT/bin/sd"
 export SD_PROJECTS="$TMP/sd" SD_DIRECTOR="$DIRECTOR"
 mkdir -p "$SD_PROJECTS"
@@ -205,6 +204,11 @@ sys.exit(0 if c['video'] == 'camera.mp4' and c['offset'] == 0.25 else 1)"
 cp "$P/transcript.json" "$SD_PROJECTS/demo/"
 "$SD" plan demo >/dev/null
 check "sd plan writes a draft" test -f "$SD_PROJECTS/demo/plan.json"
+python3 -c "
+import json; p = json.load(open('$SD_PROJECTS/demo/plan.json')); p['sentinel'] = 1; json.dump(p, open('$SD_PROJECTS/demo/plan.json', 'w'))"
+"$SD" plan demo --force >/dev/null
+check "sd passes further arguments to director (--force redrafts the plan)" python3 -c "
+import json, sys; sys.exit(0 if 'sentinel' not in json.load(open('$SD_PROJECTS/demo/plan.json')) else 1)"
 check "sd describe passes through to director" grep -q "keyboard shortcut" <<<"$("$SD" describe demo)"
 expect_error "sd on a missing project says so" "no project" "$SD" describe missing
 expect_error "sd without a project name says so" "missing project name" "$SD" plan
@@ -212,40 +216,16 @@ expect_error "sd import rejects an unknown option" "unknown option --loud" "$SD"
 expect_error "sd plan on an unanalyzed recording says to analyze first" "sd analyze" "$SD" plan cam
 check "a refused plan writes nothing" test ! -e "$SD_PROJECTS/cam/plan.json"
 
-# --- what sd record does after ffmpeg stops (no devices needed): the first frame's host time from
-# ffmpeg's log, the camera offset, and a source.json whose input events line up with the recording.
-cat >"$TMP/ffmpeg.log" <<'LOG'
-Input #0, avfoundation, from 'Capture screen 0:default':
-  Duration: N/A, start: 51234.567800, bitrate: N/A
-  Stream #0:0: Video: rawvideo (UYVY / 0x59565955), uyvy422, 3024x1964, 1000k tbr, 1000k tbn, start 51234.567800
-  Stream #0:1: Audio: pcm_f32le, 48000 Hz, mono, flt, 1536 kb/s, start 51234.601000
-LOG
+# --- a recording's input events, placed on the video's clock by source.json's captureStart (the
+# host time of the first frame, which the app's recorder writes).
 mkdir "$TMP/recorded"
 cp "$P/screen.mp4" "$TMP/recorded/"
-# Sourced, bin/sd only defines its functions; a subshell keeps its variables out of this script.
-recorded=$(
-  # shellcheck source=bin/sd
-  source "$SD"
-  start=$(capture_start "$TMP/ffmpeg.log")
-  write_source "$TMP/recorded" screen.mp4 "$start" camera.mp4 "$(camera_offset "$start" 51234.3118)"
-  echo "$start $(camera_offset 100 100.064)"
-)
-check "record reads the first frame's time from ffmpeg's log" test "${recorded% *}" = 51234.567800
-check "the camera offset is screen start minus camera start" test "${recorded#* }" = -0.064
-check "record's source.json has the capture start and camera offset" python3 -c "
-import json, sys; s = json.load(open('$TMP/recorded/source.json'))
-sys.exit(0 if s['captureStart'] == 51234.5678 and s['camera'] == {'video': 'camera.mp4', 'offset': 0.256} else 1)"
+python3 -c "
+import json; s = json.load(open('$P/source.json')); s['video'] = 'screen.mp4'; s['captureStart'] = 51234.5678
+json.dump(s, open('$TMP/recorded/source.json', 'w'))"
 printf '%s\n' '{"type":"meta","clock":"uptime_raw","t":51234.5}' '{"type":"click","t":51241.5678,"x":0.75,"y":0.29}' >"$TMP/recorded/events.jsonl"
-# shellcheck disable=SC2031  # sourcing sd set its own DIRECTOR only inside the subshell above
 "$DIRECTOR" plan "$TMP/recorded" >/dev/null
-# shellcheck disable=SC2031
 check "a click on the host clock lands 7 s into the recording" grep -q "0:07.0" <<<"$("$DIRECTOR" describe "$TMP/recorded")"
-
-mkdir "$TMP/broken"
-printf 'not a video' >"$TMP/broken/camera.mkv"
-# shellcheck disable=SC2016  # expanded by the inner bash
-expect_error "a failed remux stops sd record" "camera.mkv" bash -c 'source "$1"; remux "$2" camera; echo kept going' _ "$SD" "$TMP/broken"
-check "a failed remux keeps the .mkv" test -f "$TMP/broken/camera.mkv"
 
 [[ "$failures" == 0 ]] || { echo "$failures CLI check(s) failed" >&2; exit 1; }
 echo "CLI checks passed"

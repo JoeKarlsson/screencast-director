@@ -3,8 +3,8 @@ paths:
   - "bin/**"
 ---
 
-# Recording and ffmpeg (`bin/sd`)
+# ffmpeg and `bin/sd`
 
 - The Homebrew ffmpeg here has no `drawtext`; `drawbox` sizes and positions don't animate. Animate with `overlay` expressions.
-- `macos/cli-test.sh` (CI) covers `sd`: help, import and its errors, plan and describe on a temp projects folder (`SD_PROJECTS`, `SD_DIRECTOR`), and what `record` does after ffmpeg stops. It sources `bin/sd` in a subshell, where it only defines its functions, so keep record's logic in functions (`capture_start`, `camera_offset`, `write_source`) the test can call. Recording itself needs devices and stays manual.
+- `macos/cli-test.sh` (CI) covers `sd`: help, import and its errors, plan (with `--force` passed through) and describe on a temp projects folder (`SD_PROJECTS`, `SD_DIRECTOR`). The app records; `sd` has no record command.
 - `freezedetect` compares against the first frame of a freeze, so slow changes break it; motion uses frame-to-frame difference (`tblend` + `signalstats`) instead.

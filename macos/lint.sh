@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 for tool in swiftlint shellcheck; do
   command -v $tool >/dev/null || { echo "$tool not found: brew install $tool" >&2; exit 1; }
 done
-shellcheck bin/sd logger/build.sh macos/*.sh test/*.sh
+shellcheck bin/sd macos/*.sh test/*.sh
 # SwiftLint loads SourceKit from Xcode. With only the Command Line Tools, point it there.
 if [ -z "${TOOLCHAIN_DIR:-}" ] && ! xcode-select -p | grep -q Xcode.app; then
   export TOOLCHAIN_DIR=/Library/Developer/CommandLineTools

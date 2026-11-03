@@ -4,10 +4,9 @@ import CoreGraphics
 import DirectorCore
 import Foundation
 
-// In-process version of logger/main.swift: writes clicks, keys and cursor moves as
-// JSON lines while a recording runs. Same format, same privacy rule: plain typing (and Space)
-// is logged without characters; only ⌘ or ⌃ combos get a label (⌥ alone types characters),
-// and nothing is logged while secure input (a password field) is on.
+// Writes clicks, keys and cursor moves to events.jsonl while a recording runs. What each event
+// records (and the privacy rule for typing) is DirectorCore's InputEvents; this adds the event tap,
+// a 30 Hz cap on moves, pausing, and logging nothing while secure input (a password field) is on.
 //
 // Timestamps use CLOCK_UPTIME_RAW, the host clock ScreenCaptureKit stamps frames with.
 
@@ -67,12 +66,8 @@ enum InputTap {
   }
 
   private static func emit(_ obj: [String: Any]) {
-    guard let out, let data = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]) else { return }
-    out.write(data + Data("\n".utf8))
-  }
-
-  private static func norm(_ p: CGPoint) -> (Double, Double) {
-    normalizedPoint(p, in: bounds)
+    guard let out, let line = try? InputEvents.jsonLine(obj) else { return }
+    out.write(line)
   }
 
   private static func handle(_ type: CGEventType, _ event: CGEvent) {
@@ -81,51 +76,19 @@ enum InputTap {
     switch type {
     case .tapDisabledByTimeout, .tapDisabledByUserInput:
       if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+      return
     case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
       guard t - lastMove >= 1.0 / 30 else { return }
       lastMove = t
-      let (x, y) = norm(event.location)
-      emit(["type": "move", "t": t, "x": x, "y": y])
-    case .leftMouseDown, .rightMouseDown:
-      let (x, y) = norm(event.location)
-      emit(["type": "click", "t": t, "x": x, "y": y, "button": type == .leftMouseDown ? "left" : "right"])
-    case .scrollWheel:
-      let (x, y) = norm(event.location)
-      emit(["type": "scroll", "t": t, "x": x, "y": y])
     case .keyDown:
-      if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return }
       // A password field (or any app) has secure input on: log nothing, not even that a key was hit.
       if IsSecureEventInputEnabled() { return }
-      let label = keyLabel(event)
-      // The app's own hotkeys (record, retake) aren't part of the demo; don't show them as chips.
-      if label == "⌃⌥⌘R" || label == "⌃⌥⌘M" { return }
-      let (x, y) = norm(event.location)
-      var obj: [String: Any] = ["type": "key", "t": t, "x": x, "y": y]
-      if let label { obj["label"] = label }
-      emit(obj)
     default:
       break
     }
-  }
-
-  static func keyLabel(_ event: CGEvent) -> String? {
-    let flags = event.flags
-    let shortcut = flags.contains(.maskCommand) || flags.contains(.maskControl)
-    let code = event.getIntegerValueField(.keyboardEventKeycode)
-    let special: [Int64: String] = [49: "Space", 36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑"]
-    if !shortcut { return code == 49 ? nil : special[code] }
-    var label = ""
-    if flags.contains(.maskControl) { label += "⌃" }
-    if flags.contains(.maskAlternate) { label += "⌥" }
-    if flags.contains(.maskShift) { label += "⇧" }
-    if flags.contains(.maskCommand) { label += "⌘" }
-    if let s = special[code] { return label + s }
-    guard let copy = event.copy() else { return label + "?" }
-    copy.flags = []
-    var length = 0
-    var chars = [UniChar](repeating: 0, count: 4)
-    copy.keyboardGetUnicodeString(maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
-    let base = String(utf16CodeUnits: chars, count: length).uppercased()
-    return label + (base.isEmpty ? "?" : base)
+    guard let obj = InputEvents.record(type, event, t: t, bounds: bounds) else { return }
+    // The app's own hotkeys (record, retake) aren't part of the demo; don't show them as chips.
+    if let label = obj["label"] as? String, label == "⌃⌥⌘R" || label == "⌃⌥⌘M" { return }
+    emit(obj)
   }
 }
