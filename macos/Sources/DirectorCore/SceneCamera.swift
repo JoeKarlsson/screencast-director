@@ -36,6 +36,12 @@ extension Scene {
     var src = Scene.graded(src0, plan.camera?.grade, lut: cameraLUT)
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
+    let mirrored = cam?.mirror == true
+    if mirrored {
+      // x -> minX + maxX - x: flipped in place, same extent.
+      let e = src.extent
+      src = src.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: e.minX + e.maxX, ty: 0))
+    }
     let cut = cutoutWeight(b)
     if cut > 0 {
       let person = Scene.personCutout(src)
@@ -45,7 +51,8 @@ extension Scene {
     let k = max(r.width / cw, r.height / ch) * zoom
     let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
     // Keep the framing point centered, clamped so the camera image always covers the box.
-    let fx = cam?.x ?? 0.5, fy = cam?.y ?? 0.5
+    // The framing point is in the file's coordinates, so it mirrors with the picture.
+    let fx = mirrored ? 1 - (cam?.x ?? 0.5) : cam?.x ?? 0.5, fy = cam?.y ?? 0.5
     var tx = r.midX - fx * cw * k
     var ty = r.midY - (1 - fy) * ch * k
     tx = min(r.minX, max(tx, r.maxX - cw * k))

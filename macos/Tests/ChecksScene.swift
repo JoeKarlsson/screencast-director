@@ -266,6 +266,16 @@ func sceneDrawingChecks() {
   filmed.camera?.grade = Grade(saturation: 0)
   let graded = at(render(filmed, frame: 90, camera: green), bubbleCenter.0, bubbleCenter.1)
   expect(graded.max()! - graded.min()! < 0.03, "a saturation 0 grade makes the camera black and white (\(graded))")
+  // Mirror: a camera red on its left half and blue on its right shows blue on the left when flipped.
+  var talking = base
+  talking.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  talking.defaultLayout = .camera
+  let redBlue = CIImage(color: CIColor(red: 0.9, green: 0.1, blue: 0.1)).cropped(to: CGRect(x: 0, y: 0, width: 640, height: 720))
+    .composited(over: CIImage(color: CIColor(red: 0.1, green: 0.1, blue: 0.9)).cropped(to: CGRect(x: 0, y: 0, width: 1280, height: 720)))
+  let leftPlain = at(render(talking, frame: 90, camera: redBlue), 200, 540)
+  talking.camera?.mirror = true
+  let leftMirrored = at(render(talking, frame: 90, camera: redBlue), 200, 540)
+  expect(near(leftPlain, [0.9, 0.1, 0.1]) && near(leftMirrored, [0.1, 0.1, 0.9]), "mirror flips the camera (\(leftPlain) -> \(leftMirrored))")
   let mid = CIImage(color: CIColor(red: 0.4, green: 0.4, blue: 0.4)).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8))
   let brighter = pixel(Scene.graded(mid, Grade(exposure: 1)), x: 4, y: 4), darker = pixel(Scene.graded(mid, Grade(exposure: -1)), x: 4, y: 4)
   expect(brighter[1] > 0.5 && darker[1] < 0.3, "exposure brightens and darkens (\(brighter[1]), \(darker[1]))")

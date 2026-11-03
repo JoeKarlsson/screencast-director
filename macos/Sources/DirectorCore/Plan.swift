@@ -230,6 +230,9 @@ public struct Plan: Codable, Equatable {
     public var bubbleShadow: Bool?
     /// Cut the person out of the camera's background instead of showing the camera in a shape.
     public var cutout: Bool?
+    /// Flip the camera left to right, for a camera that records mirrored (text it shows reads
+    /// backwards). `x`/`y` stay in the file's own coordinates.
+    public var mirror: Bool?
     /// Punch-ins: the camera snaps tighter on the framing point for a beat, then snaps back.
     public var punchIns: [PunchIn]?
 

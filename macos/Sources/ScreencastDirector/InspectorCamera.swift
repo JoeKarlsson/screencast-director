@@ -73,6 +73,8 @@ extension InspectorView {
         .disabled(cam?.cutout == true)
         Toggle("Shadow", isOn: bind(nil, { $0.camera?.bubbleShadow != false }, { $0.camera?.bubbleShadow = $1 ? nil : false }))
         .disabled(cam?.cutout == true)
+        Toggle("Mirror (flip left to right)", isOn: bind(nil, { $0.camera?.mirror == true }, { $0.camera?.mirror = $1 ? true : nil }))
+        .help("Flip the camera so text it shows reads the right way, for a camera that records mirrored")
         Toggle("Cut out background (just you, no shape)", isOn: bind(nil, { $0.camera?.cutout == true }, { $0.camera?.cutout = $1 ? true : nil }))
       }
       InspectorSection("Color", detail: "Start from a preset, then fine-tune.") {
