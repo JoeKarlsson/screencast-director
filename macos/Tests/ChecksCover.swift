@@ -41,6 +41,17 @@ func coverChecks() {
   let fb = px(flipped, 540, 1800)
   expect(fb[0] > 0.7 && fb[2] < 0.3, "a mirrored cover flips the frame and keeps the face in view (\(fb))")
 
+  // Landscape: the title on the dark left, the photo on the right framed on the face.
+  plan.camera?.mirror = nil
+  if let wide = Publish.landscapeThumbnail(plan: plan, person: frame, faceX: 0.8, title: "How to jailbreak your old Kindle") {
+    expect(wide.width == 1280 && wide.height == 720, "the landscape thumbnail is 1280x720")
+    let right = px(wide, 1100, 360), left = px(wide, 20, 20)
+    expect(right[2] > 0.7 && right[0] < 0.3, "the photo is framed on the face's side (\(right))")
+    expect(left.max()! < 0.15, "the title side is dark (\(left))")
+  } else {
+    expect(false, "the landscape thumbnail renders")
+  }
+
   // Picked cover moments: a second apart or replaced, the three most recent kept.
   var picks = plan
   for t in [4.8, 5.2, 30, 62, 85] { picks.addCover(at: t) }

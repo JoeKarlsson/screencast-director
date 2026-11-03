@@ -236,6 +236,33 @@ public enum Publish {
   /// last line on the accent chip, and the camera frame filling the bottom, framed on the face.
   public static func verticalThumbnail(plan: Plan, person: CGImage, faceX: Double, title: String) -> CGImage? {
     let W = 1080.0, H = 1920.0
+    guard let (ctx, look, bg) = coverCanvas(plan, width: W, height: H) else { return nil }
+    // The photo fills the bottom 52% (y-up drawing), its top edge fading into the background.
+    let photoH = H * 0.52
+    drawFramed(ctx, plan: plan, person: person, faceX: faceX, in: CGRect(x: 0, y: 0, width: W, height: photoH))
+    let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
+    ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
+    // The title fills the dark area above, down to where the photo shows through its fade.
+    drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: photoH - 60, width: W, height: H - photoH + 60), margin: 80)
+    return ctx.makeImage()
+  }
+
+  /// A 1280x720 thumbnail for a landscape video: the title big on the look's dark color on the left,
+  /// the last line on the accent chip, and the camera frame filling the right, framed on the face.
+  public static func landscapeThumbnail(plan: Plan, person: CGImage, faceX: Double, title: String) -> CGImage? {
+    let W = 1280.0, H = 720.0
+    guard let (ctx, look, bg) = coverCanvas(plan, width: W, height: H) else { return nil }
+    // The photo fills the right 58%, its left edge fading into the background.
+    let photoX = W * 0.42
+    drawFramed(ctx, plan: plan, person: person, faceX: faceX, in: CGRect(x: photoX, y: 0, width: W - photoX, height: H))
+    let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
+    ctx.drawLinearGradient(fade, start: CGPoint(x: photoX, y: 0), end: CGPoint(x: photoX + 160, y: 0), options: [])
+    drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: 0, width: photoX + 40, height: H), margin: 48)
+    return ctx.makeImage()
+  }
+
+  /// A cover's canvas filled with the look's dark color, and that color.
+  static func coverCanvas(_ plan: Plan, width W: Double, height H: Double) -> (CGContext, Look, CGColor)? {
     let look = plan.look ?? Look()
     Fonts.register(look.fontFiles)
     guard
@@ -243,36 +270,31 @@ public enum Publish {
         data: nil, width: Int(W), height: Int(H), bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
         bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
     else { return nil }
-    let bgHex = look.chipBackground ?? look.captionBackground ?? "#111318"
-    ctx.setFillColor(Scene.color(bgHex))
+    let bg = Scene.color(look.chipBackground ?? look.captionBackground ?? "#111318")
+    ctx.setFillColor(bg)
     ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
+    return (ctx, look, bg)
+  }
 
-    // The photo: the bottom 52%, cropped to that shape around the face (y-up drawing below).
+  /// The camera frame as the video shows it, cropped to the rect's shape around the face and drawn there.
+  static func drawFramed(_ ctx: CGContext, plan: Plan, person: CGImage, faceX: Double, in rect: CGRect) {
     let photo = asShown(person, plan: plan)
-    let photoH = H * 0.52
     let iw = Double(photo.width), ih = Double(photo.height)
-    let cropW = min(iw, ih * W / photoH), cropH = cropW * photoH / W
+    let cropW = min(iw, ih * rect.width / rect.height), cropH = cropW * rect.height / rect.width
     let fx = plan.camera?.mirror == true ? 1 - faceX : faceX
     let cx = min(max(fx * iw - cropW / 2, 0), iw - cropW)
-    if let crop = photo.cropping(to: CGRect(x: cx, y: (ih - cropH) / 2, width: cropW, height: cropH)) {
-      ctx.draw(crop, in: CGRect(x: 0, y: 0, width: W, height: photoH))
-    }
-    // Fade the photo's top edge into the background.
-    let bg = Scene.color(bgHex)
-    let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
-    ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
+    if let crop = photo.cropping(to: CGRect(x: cx, y: (ih - cropH) / 2, width: cropW, height: cropH)) { ctx.draw(crop, in: rect) }
+  }
 
-    // The title: white lines, then the last on the chip, each centered, the block centered in the
-    // dark area above the photo with even margins.
-    let margin = 80.0, chipPadX = 30.0, chipPadY = 14.0
-    // The area runs from the top of the frame down to where the photo starts to show through its
-    // fade; the title gets the largest size that fits it with a margin all round.
-    let areaBottom = photoH - 60
-    var start = 132.0
+  /// The title in white lines with the last on the accent chip, each centered, the block centered in
+  /// `area` (y up) at the largest size that fits with `margin` all round.
+  static func drawCoverTitle(_ ctx: CGContext, look: Look, title: String, in area: CGRect, margin: Double) {
+    let chipPadX = area.width * 0.028, chipPadY = area.width * 0.013
+    var start = min(132, area.width * 0.13)
     var lines: [String] = [], texts: [NSAttributedString] = [], sizes: [CGSize] = []
     var gap = 0.0, blockH = 0.0
     repeat {
-      let fit = coverTitle(title, font: look.titleFont, maxWidth: W - 2 * margin - 2 * chipPadX, start: start)
+      let fit = coverTitle(title, font: look.titleFont, maxWidth: area.width - 2 * margin - 2 * chipPadX, start: start)
       lines = fit.lines
       texts = lines.enumerated().map { k, line in
         Scene.text(
@@ -282,26 +304,24 @@ public enum Publish {
       sizes = texts.map { Scene.measure($0, maxWidth: .greatestFiniteMagnitude) }
       gap = fit.size * 0.14
       blockH = sizes.reduce(0) { $0 + $1.height } + gap * Double(lines.count - 1) + 2 * chipPadY + gap
-      start = fit.size - 6
-    } while blockH > H - areaBottom - 2 * margin && start > 48
-    var y = areaBottom + (H - areaBottom) / 2 + blockH / 2  // the block's top, y up
+      start = fit.size - 4
+    } while blockH > area.height - 2 * margin && start > 30
+    var y = area.midY + blockH / 2  // the block's top, y up
     for (k, s) in texts.enumerated() {
       let m = sizes[k]
-      let chip = k == lines.count - 1
-      if chip {
+      if k == lines.count - 1 {
         y -= gap + chipPadY
-        let r = CGRect(x: (W - m.width) / 2 - chipPadX, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
+        let r = CGRect(x: area.midX - m.width / 2 - chipPadX, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
         ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
-        ctx.addPath(CGPath(roundedRect: r, cornerWidth: 20, cornerHeight: 20, transform: nil))
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: chipPadY * 1.4, cornerHeight: chipPadY * 1.4, transform: nil))
         ctx.fillPath()
       }
       let frame = CTFramesetterCreateFrame(
         CTFramesetterCreateWithAttributedString(s), CFRange(location: 0, length: 0),
-        CGPath(rect: CGRect(x: (W - m.width) / 2, y: y - m.height, width: m.width + 2, height: m.height), transform: nil), nil)
+        CGPath(rect: CGRect(x: area.midX - m.width / 2, y: y - m.height, width: m.width + 2, height: m.height), transform: nil), nil)
       CTFrameDraw(frame, ctx)
       y -= m.height + gap
     }
-    return ctx.makeImage()
   }
 
   /// The image cropped to its non-transparent pixels.
@@ -358,12 +378,16 @@ public enum Publish {
     // Moments picked on the command line, else the ones saved in the plan, else the best faces.
     let faces = try await bestFaces(project: project, plan: plan, at: coverAt ?? plan.coverAt)
     let built = try await buildComposition(project: project, plan: plan)
-    // One thumbnail per good face; without a camera, one per title moment (or the middle).
-    // A vertical video gets vertical covers: the title over the camera frame, framed on the face.
-    if plan.output.height > plan.output.width, !faces.isEmpty {
+    // One thumbnail per good face (vertical covers for a vertical video, the title beside the face
+    // otherwise); without a camera, one per title moment (or the middle) over the screen.
+    if !faces.isEmpty {
+      let vertical = plan.output.height > plan.output.width
       for (i, f) in faces.enumerated() {
-        log("Composing cover \(i + 1) of \(faces.count)…")
-        guard let thumb = verticalThumbnail(plan: plan, person: f.image, faceX: f.faceX, title: title) else { continue }
+        log("Composing \(vertical ? "cover" : "thumbnail") \(i + 1) of \(faces.count)…")
+        let made = vertical
+          ? verticalThumbnail(plan: plan, person: f.image, faceX: f.faceX, title: title)
+          : landscapeThumbnail(plan: plan, person: f.image, faceX: f.faceX, title: title)
+        guard let thumb = made else { continue }
         let u = out.appendingPathComponent("thumbnail-\(i + 1).png")
         try writePNG(thumb, to: u)
         files.append(u)

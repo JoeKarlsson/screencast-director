@@ -81,6 +81,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### Editing
 - Drag a clip on the timeline to reorder it: a white line shows where it will land, and it plays there when you let go (output-time view; in the recording-order view clips stay put). ⌥⌘← and ⌥⌘→ play the selected clip earlier or later.
+- Publish > Use Playhead Frame for a Cover: pick up to three moments for the covers (saved in the plan as `coverAt`), instead of the clearest faces. Landscape thumbnails match the vertical covers: the title big on the dark left, you framed on the right. Thumbnails show at their own shape in Publish.
 - Repeat a clip: play a moment again as a cold open while it stays in its place too (Order > Repeat as Cold Open, or `director repeat <dir> <start> <end> [--before <t>]`). Zooms, punch-ins, B-roll and captions play in both showings, titles and sounds only in the original.
 - After an export finishes, the app scans the video itself for shots under a second (a sliver of a punch-in, a frame of B-roll) and banners the first with a button to jump to it. `director scan <video.mp4>` runs the same check.
 - Exports end in their resolution: "Name 2160x3840.mp4", "Name - Hook 1080x1920.mp4".
