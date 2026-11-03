@@ -630,6 +630,30 @@ struct Checks {
     let recents = ["a", "b", "c", "d"].map { URL(fileURLWithPath: "/p/" + $0) }
     expect(byLastOpened(recents, opened: ["/p/c": 200, "/p/a": 100]) == [recents[2], recents[0], recents[1], recents[3]], "recordings order by when they were last opened")
 
+    // Clips: a range of the edit in its own format, named after the project.
+    var clipped = buildPlan(p)
+    clipped.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 6, end: 10, speed: 1, transition: "dip")]
+    clipped.style.padding = 0
+    var bigBubble = Plan.Camera(video: "camera.mp4", offset: 0)
+    bigBubble.bubbleSize = 0.43
+    clipped.camera = bigBubble
+    clipped.animations = [Animation(start: 1, end: 2, template: "hub", data: .object([:])), Animation(start: 7, end: 8, template: "hub", data: .object([:]))]
+    let hook = Clip(name: "Hook", start: 3, end: 8, format: "vertical")
+    clipped.clips = [hook, Clip(name: "Gone", start: 4.5, end: 5.5)]
+    let hookPlan = clipped.trimmed(to: hook)
+    expect(hookPlan.segments.map { [$0.start, $0.end] } == [[3, 4], [6, 8]] && hookPlan.segments[1].transition == "dip", "a clip keeps the edit inside its range")
+    expect(hookPlan.animationList.map(\.start) == [7] && hookPlan.clips == nil, "a clip keeps only the animations it overlaps")
+    expect(hookPlan.output.width == 1080 && hookPlan.output.height == 1920, "a vertical clip renders vertical")
+    expect(hookPlan.style.padding == 0.03 && hookPlan.camera?.bubbleSize == 0.16, "vertical gets breathing room and a smaller bubble")
+    expect(clipped.trimmed(to: clipped.clipList[1]).segments.isEmpty, "a clip inside a cut has nothing to export")
+    let clipDir = URL(fileURLWithPath: "/m/Connect AI and Dots")
+    expect(exportURL(dir: clipDir).lastPathComponent == "Connect AI and Dots.mp4", "exports are named after the project")
+    expect(exportURL(dir: clipDir, preset: ExportPreset.all.first { $0.id == "youtube-4k" }).lastPathComponent == "Connect AI and Dots (4K).mp4", "a preset export says its format")
+    expect(exportURL(dir: clipDir, clip: Clip(name: "Steps 1/3", start: 0, end: 1)).lastPathComponent == "Connect AI and Dots - Steps 1-3.mp4", "a clip export says its name")
+    expect(isExportFile("Connect AI and Dots - Hook.mp4", project: "Connect AI and Dots") && isExportFile("out.mp4", project: "x") && !isExportFile("screen.mp4", project: "x"), "exports are recognized, old and new names")
+    let clipText = describe(p, clipped)
+    expect(clipText.contains("\"Hook\" src 0:03.0-0:08.0") && clipText.contains("WARNING: entirely cut"), "describe lists clips and flags an empty one")
+
     // Two parts of one animation across a cut: no fade where they meet, and no screen marks on top.
     var seam = buildPlan(p)
     seam.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 8, end: 12, speed: 1)]

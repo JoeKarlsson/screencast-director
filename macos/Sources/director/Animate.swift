@@ -28,7 +28,9 @@ enum Animate {
     }
     let folder = dir.appendingPathComponent(".animations")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let wanted = plan.animationClipNames(dir: dir)
+    // Keep every clip the saved plan can use too: this plan may be one clip's, or another format's.
+    let saved = try? Plan.load(dir.appendingPathComponent("plan.json"))
+    let wanted = plan.animationClipNames(dir: dir).union(saved?.animationClipNames(dir: dir) ?? [])
     for f in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !wanted.contains(f) {
       try? FileManager.default.removeItem(at: folder.appendingPathComponent(f))
     }

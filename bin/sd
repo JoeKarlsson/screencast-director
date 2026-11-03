@@ -9,7 +9,7 @@
 #   sd analyze <name>             transcribe (Whisper) and measure screen motion
 #   sd plan <name> [--force]      write a first-draft plan.json
 #   sd describe <name>            print the plan as a readable timeline
-#   sd render <name> [out.mp4]    render the final video (default <project>/out.mp4)
+#   sd render <name> [out.mp4]    render the final video (default <project>/<name>.mp4)
 #   sd auto <name>                analyze + plan + render
 set -euo pipefail
 

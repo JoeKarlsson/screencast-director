@@ -288,6 +288,8 @@ public struct Plan: Codable, Equatable {
   public var inserts: [Insert]?
   /// Motion-graphics explainers rendered from templates (see Animation).
   public var animations: [Animation]?
+  /// Pieces of the edit exported on their own, like vertical social clips (see Clip).
+  public var clips: [Clip]?
   /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
   public var look: Look?
   /// How hard silences were cut (nil: the planner's normal level).

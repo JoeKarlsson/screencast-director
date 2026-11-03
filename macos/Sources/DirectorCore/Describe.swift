@@ -155,6 +155,16 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("## Markers (the user's named points)")
     for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
   }
+  if !plan.clipList.isEmpty {
+    out.append("")
+    out.append("## Clips (exported on their own: a source range of this edit, in a format)")
+    for c in plan.clipList {
+      let segs = plan.trimmed(to: c).segments
+      let seconds = Double(totalFrames(mapSegments(segs, fps: plan.output.fps))) / Double(plan.output.fps)
+      let length = segs.isEmpty ? "WARNING: entirely cut, nothing to export" : "\(fmtTime(seconds)) long"
+      out.append(line("  \"\(c.name)\" src \(fmtTime(c.start))-\(fmtTime(c.end))", c.preset?.name ?? "current format", length, said(c.start, c.start + 3)))
+    }
+  }
   let library = AudioLibrary(.sounds)
   let musicLibrary = AudioLibrary(.music)
   func inProject(_ file: String) -> Bool {

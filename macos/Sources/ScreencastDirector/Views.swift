@@ -514,6 +514,13 @@ struct EditorToolbar: ToolbarContent {
           Divider()
           Button("All of the Above") { project.export(ExportPreset.all.map { Optional($0) }) }
           Divider()
+          if let clips = project.plan?.clipList, !clips.isEmpty {
+            Section("Clips") {
+              Button("All Clips") { project.exportClips(clips) }
+              ForEach(clips, id: \.name) { c in Button("\(c.name) (\(c.preset?.fileLabel ?? "current format"))") { project.exportClips([c]) } }
+            }
+            Divider()
+          }
           Button("GIF (for docs)…") { project.exportGIF() }.disabled(project.busy)
           Button("Upload and Copy Link…") { project.uploadAndCopyLink() }.disabled(project.busy)
         } label: {

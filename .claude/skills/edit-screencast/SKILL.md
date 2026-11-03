@@ -21,7 +21,7 @@ Arguments: a project name (folder under `projects/`), plus optional instructions
 - If `projects/<name>/transcript.json` is missing, run `bin/sd analyze <name>`.
 - If `plan.json` is missing, run `bin/sd plan <name>`. Never pass `--force` on a plan that may hold edits unless the user asks to start over.
 - Run `bin/sd describe <name>` and read `plan.json`.
-- Project files: `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, `out.mp4`.
+- Project files: `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, and the export, `<name>.mp4` (older projects have `out.mp4`).
 
 ## 2. Edit pass
 
@@ -38,6 +38,7 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 - **Voice:** `audio.normalize` evens the voice out phrase by phrase, `audio.warm` makes it deeper and fuller (chest EQ, less boxiness, gentle compression, light saturation, soft top), `audio.cleanup` removes room noise, and `audio.gainDB` trims the level. Use them when the user says the voice sounds uneven, thin, boxy or noisy.
 - **Music:** `music` (`file`, optional `volumeDB` and `duckDB`) is one background track, looped and ducked under the voice. Use a track from the music library `describe` lists (`music/advertime.m4a`; built-in CC0 tracks in `macos/Resources/music/` plus the user's own in `~/Library/Application Support/Screencast Director/Music/`), copied into the project when the video builds. Only add or change it when asked or when the edit plan's `**Music:**` names one.
 - **B-roll and markers:** `inserts` show a picture or clip from the project folder (usually `broll/`) inside the screen card or full frame; only use files that exist. `markers` are the user's named points; use them when the user mentions one.
+- **Clips:** `clips` ({name, start, end, format?}) are pieces of this edit exported on their own, such as vertical social clips (`format: "vertical"`). They render from the main edit (`director render <dir> --clip <name>` or `--clips`, or the app's Export > Clips), so never copy the project to make one.
 - **Motion:** `style.motion` (smooth, snappy, cinematic, bouncy) sets how zooms and overlays move; `enter`/`exit` on a callout or annotation overrides it (presets: fade, fade-up, slide-*, pop, zoom, blur, wipe, words, typewriter). `segments[i].transition` (crossfade, blur, dip, flash, punch, whip) styles the cut into a segment; keep those for section changes.
 - **Punch-ins** (only with a camera): `camera.punchIns` (`start`, `end`, `scale` about 1.8 to 2.2, `note`) snap the camera tighter on the framing point for a beat and snap back, with no ease. Use a few (at most about four) on punchlines or key statements while the camera is large (`camera` layout), 1 to 2 s each.
 - **Layouts** (only with a camera): `camera` for an intro or outro talking to the lens, `side` for explanations without screen action, `pip` elsewhere. A full-face stretch is a `camera` range in `layouts`, never `defaultLayout: camera`, which hides every demo. `describe` prints a WARNING wherever full camera covers clicks or typing; fix each one.
@@ -51,5 +52,5 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 
 ## 4. Render and report
 
-- `bin/sd render <name>` writes `projects/<name>/out.mp4`. For a quick look, open the project in the Screencast Director app.
+- `bin/sd render <name>` writes `projects/<name>/<name>.mp4`. For a quick look, open the project in the Screencast Director app.
 - Report the source and output length, and list what you changed in a few lines, with output timestamps so the user can jump to them.

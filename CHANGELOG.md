@@ -69,6 +69,9 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- Clips: name a stretch of the edit and a format (vertical for Shorts, Reels and TikTok, square, feed) and export it from Export > Clips, alone or all at once. Clips render from the main edit, so a fix there shows up in every clip, with no copied projects. Claude can add them too.
+- Exports are named after the project (Connect AI and Dots.mp4, Connect AI and Dots (4K).mp4, Connect AI and Dots - Hook.mp4) instead of out.mp4.
+- Vertical exports give the screen room: a little padding so it no longer meets the top edge, and a camera bubble capped small so it doesn't squeeze the screen.
 - Lip sync no longer sets the camera about 80 ms early. Lips open a little before the sound comes out, and the measurement now allows for it: in-sync footage measures within 20 ms of in sync, where it used to read 60-96 ms early. Run Camera > Lip sync again on videos synced before this.
 - An intro or outro card written into plan.json or a profile without `"enabled"` now shows. Before, it was silently left off; `"enabled": false` still switches one off.
 - Saving an unchanged plan no longer adds a copy to its history. plan.json now keeps its keys in a fixed order, so a save that changes nothing writes the same file, and the 30 saved versions are real edits.

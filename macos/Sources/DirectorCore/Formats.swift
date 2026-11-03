@@ -63,6 +63,16 @@ public struct ExportPreset: Equatable {
     .init(id: "feed", name: "LinkedIn and Instagram feed (4:5)", aspect: .feed, resolution: .p1080, screenAspect: 1.0),
   ]
 
+  /// Short label for file names: "4K", "1080p", "Vertical", "Square", "Feed".
+  public var fileLabel: String {
+    switch aspect {
+    case .landscape: return resolution.label
+    case .vertical: return "Vertical"
+    case .square: return "Square"
+    case .feed: return "Feed"
+    }
+  }
+
   /// The plan reshaped for this preset (the saved plan is left alone).
   public func applied(to plan: Plan) -> Plan {
     var p = plan
@@ -70,6 +80,15 @@ public struct ExportPreset: Equatable {
     p.output.width = size.width
     p.output.height = size.height
     p.style.screenAspect = screenAspect
+    if aspect == .vertical {
+      // Spacing tuned for landscape cramps a vertical: a full-bleed screen card meets the top edge,
+      // and a big corner bubble, stacked under the screen, squeezes it.
+      p.style.padding = max(p.style.padding, 0.03)
+      if var cam = p.camera {
+        cam.bubbleSize = min(cam.bubbleSize ?? Plan.Camera.defaultBubbleSize, 0.16)
+        p.camera = cam
+      }
+    }
     return p
   }
 }

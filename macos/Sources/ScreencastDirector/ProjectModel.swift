@@ -115,7 +115,7 @@ final class ProjectModel: ObservableObject {
 
   var name: String { dir.lastPathComponent }
   var planURL: URL { dir.appendingPathComponent("plan.json") }
-  var outURL: URL { dir.appendingPathComponent("out.mp4") }
+  var outURL: URL { exportURL(dir: dir) }
   var hasPlan: Bool { plan != nil }
   var fps: Int { plan?.output.fps ?? 30 }
   /// The plan's segments in output frames, kept in step with the plan.
@@ -255,16 +255,16 @@ final class ProjectModel: ObservableObject {
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
   }
 
-  /// Renders missing animation clips in the background, at a preset's size when one is given.
-  private func renderAnimationsIfNeeded(_ plan: Plan, preset: ExportPreset? = nil) {
-    let target = preset.map { $0.applied(to: plan) } ?? plan
-    let missing = target.animationsToRender(dir: dir).count
+  /// Renders missing animation clips in the background. `target` is the plan as it'll export (another
+  /// format's, or one clip's) and `args` tell `director animate` the same (`--preset id`, `--clip name`).
+  private func renderAnimationsIfNeeded(_ plan: Plan, target: Plan? = nil, args: [String] = []) {
+    let missing = (target ?? plan).animationsToRender(dir: dir).count
     guard missing > 0, !animating else { return }
     animating = true
     status = "Rendering \(missing) animation\(missing == 1 ? "" : "s")…"
     let p = Process()
     p.executableURL = Claude.director
-    p.arguments = ["animate", dir.path] + (preset.map { ["--preset", $0.id] } ?? [])
+    p.arguments = ["animate", dir.path] + args
     let errors = Pipe()
     p.standardError = errors
     p.standardOutput = FileHandle.nullDevice
@@ -1157,27 +1157,49 @@ final class ProjectModel: ObservableObject {
     }
   }
 
+  /// One file to export: the plan as it'll render, where it goes, and how `director animate` renders its animations.
+  private struct ExportJob {
+    let plan: Plan, url: URL, label: String, animateArgs: [String]
+  }
+
   /// Queues the current format, or presets, for export (one file each). Exports run in the
   /// background on the plan as it is right now, so you can keep editing.
   func export(_ presets: [ExportPreset?] = [nil]) {
     flushWrite()
     guard let plan else { return }
+    enqueue(presets.map { preset in
+      ExportJob(
+        plan: preset.map { $0.applied(to: plan) } ?? plan, url: exportURL(dir: dir, preset: preset),
+        label: preset?.name ?? "current format", animateArgs: preset.map { ["--preset", $0.id] } ?? [])
+    })
+  }
+
+  /// Queues clips for export, each cut from the edit in its own format, named "<project> - <clip>.mp4".
+  func exportClips(_ clips: [Clip]) {
+    flushWrite()
+    guard let plan else { return }
+    let jobs = clips.map { ExportJob(plan: plan.trimmed(to: $0), url: exportURL(dir: dir, clip: $0), label: $0.name, animateArgs: ["--clip", $0.name]) }
+    if let empty = jobs.first(where: { $0.plan.segments.isEmpty }) {
+      Notices.shared.show("The clip \(empty.label) is entirely cut from the edit, so there's nothing to export.", error: true)
+      return
+    }
+    enqueue(jobs)
+  }
+
+  private func enqueue(_ jobs: [ExportJob]) {
+    guard let plan, !jobs.isEmpty else { return }
     // An export without its animations would quietly drop them, and each format has its own clips.
-    if let preset = presets.first(where: { ($0.map { $0.applied(to: plan) } ?? plan).animationsToRender(dir: dir).count > 0 }) {
-      Notices.shared.show("Animations are still rendering\(preset.map { " for \($0.name)" } ?? ""). Export again when they're done.")
-      renderAnimationsIfNeeded(plan, preset: preset)
+    if let job = jobs.first(where: { !$0.plan.animationsToRender(dir: dir).isEmpty }) {
+      Notices.shared.show("Animations are still rendering for \(job.label). Export again when they're done.")
+      renderAnimationsIfNeeded(plan, target: job.plan, args: job.animateArgs)
       return
     }
     // Menus, buttons and key shortcuts all call this on the main thread.
     MainActor.assumeIsolated {
-      for preset in presets {
-        let p = preset.map { $0.applied(to: plan) } ?? plan
-        let url = preset.map { dir.appendingPathComponent("out-\($0.id).mp4") } ?? outURL
-        ExportQueue.shared.enqueue(projectDir: dir, plan: p, label: "\(name): \(preset?.name ?? "current format")", url: url)
-      }
+      for job in jobs { ExportQueue.shared.enqueue(projectDir: dir, plan: job.plan, label: "\(name): \(job.label)", url: job.url) }
       ExportQueue.shared.showList = true
     }
-    status = presets.count == 1 ? "Exporting in the background." : "Queued \(presets.count) exports."
+    status = jobs.count == 1 ? "Exporting in the background." : "Queued \(jobs.count) exports."
   }
 
   func applyProfile(_ name: String) {

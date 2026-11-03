@@ -10,10 +10,10 @@ let usage = """
     director analyze  <dir>
     director plan     <dir> [--force]
     director describe <dir>
-    director animate  <dir> [--force] [--preset id]   render the plan's animations to .animations/ (render, still and gif do this first)
+    director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
-    director render   <dir> [out.mp4]
-    director still    <dir> <frame> <out.png> [--preset id]
+    director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
+    director still    <dir> <frame> <out.png> [--preset id | --clip name]
     director profile  <dir> <profileDir>
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
@@ -37,14 +37,34 @@ let args = Array(CommandLine.arguments.dropFirst())
 guard args.count >= 2 else { fail(usage) }
 let dir = URL(fileURLWithPath: args[1]).standardizedFileURL
 
-/// The plan, reshaped by --preset if given (the saved plan is untouched).
+/// The --preset given, if any.
+func presetArg() -> ExportPreset? {
+  guard let i = args.firstIndex(of: "--preset") else { return nil }
+  guard i + 1 < args.count, let preset = ExportPreset.all.first(where: { $0.id == args[i + 1] }) else { fail(usage) }
+  return preset
+}
+/// The clip --clip names, if given.
+func clipArg(_ plan: Plan) -> Clip? {
+  guard let i = args.firstIndex(of: "--clip") else { return nil }
+  guard i + 1 < args.count else { fail(usage) }
+  guard let clip = plan.clipList.first(where: { $0.name == args[i + 1] }) else {
+    fail("no clip named \"\(args[i + 1])\" (the plan has: \(plan.clipList.map(\.name).joined(separator: ", ")))")
+  }
+  return clip
+}
+/// A clip's plan: the edit cut to its range, in its format.
+func clipPlan(_ plan: Plan, _ clip: Clip) -> Plan {
+  let p = plan.trimmed(to: clip)
+  if p.segments.isEmpty { fail("the clip \"\(clip.name)\" is entirely cut from the edit") }
+  return p
+}
+/// The plan for --clip, or reshaped by --preset, or as saved (the saved plan is untouched).
 func planFor(_ project: Project) throws -> Plan {
   let plan = try Plan.load(project.planURL)
-  guard let i = args.firstIndex(of: "--preset") else { return plan }
-  guard i + 1 < args.count, let preset = ExportPreset.all.first(where: { $0.id == args[i + 1] }) else { fail(usage) }
-  return preset.applied(to: plan)
+  if let clip = clipArg(plan) { return clipPlan(plan, clip) }
+  return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--title", "--from", "--to", "--width", "--fps"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -102,17 +122,24 @@ do {
     print(n == 0 ? "Animations are up to date." : "Rendered \(n) animation(s).")
   case "render":
     let project = try Project.load(dir)
-    // Animations render at the output size (a preset's, if given) before the video is built.
-    let plan = try planFor(project)
-    _ = try await Animate.renderMissing(dir, plan) { print($0) }
-    let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.mp4")
-    let built = try await buildComposition(project: project, plan: plan)
-    printWarnings(built)
-    let started = Date()
-    try await export(built, to: out) { p in
-      FileHandle.standardError.write(Data("\(Int(p * 100))%\n".utf8))
+    // --clips renders every clip; otherwise the video or one --clip, at a preset's size if given.
+    // Animations render at each output's size before its video is built.
+    let saved = try Plan.load(project.planURL)
+    let jobs: [(plan: Plan, out: URL)] =
+      args.contains("--clips")
+      ? saved.clipList.map { (clipPlan(saved, $0), exportURL(dir: dir, clip: $0)) }
+      : [(try planFor(project), positional.count > 2 ? URL(fileURLWithPath: positional[2]) : exportURL(dir: dir, preset: presetArg(), clip: clipArg(saved)))]
+    if jobs.isEmpty { fail("the plan has no clips") }
+    for job in jobs {
+      _ = try await Animate.renderMissing(dir, job.plan) { print($0) }
+      let built = try await buildComposition(project: project, plan: job.plan)
+      printWarnings(built)
+      let started = Date()
+      try await export(built, to: job.out) { p in
+        FileHandle.standardError.write(Data("\(Int(p * 100))%\n".utf8))
+      }
+      print(String(format: "Rendered %@ in %.1fs", job.out.path, Date().timeIntervalSince(started)))
     }
-    print(String(format: "Rendered %@ in %.1fs", out.path, Date().timeIntervalSince(started)))
   case "still":
     guard positional.count == 4, let frame = Int(positional[2]) else { fail(usage) }
     let project = try Project.load(dir)
