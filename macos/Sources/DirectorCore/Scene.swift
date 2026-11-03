@@ -131,7 +131,7 @@ public final class Scene: @unchecked Sendable {
     insertImages = images
     cuts = m.dropFirst().compactMap { seg in seg.transition.map { (Double(seg.outStart), $0) } }
     fades = crossfades(m, fps: fps)
-    let maxWords = plan.captions.style == "bold" ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
+    let maxWords = ["bold", "social"].contains(plan.captions.style ?? "") ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
     pages = plan.captions.enabled ? Scene.captionPages(words, m, fps: fps, maxWords: maxWords) : []
     motion = MotionStyle.named(plan.style.motion)
     if motion.name == "classic" {
@@ -254,6 +254,12 @@ public final class Scene: @unchecked Sendable {
         image = shadow(cb, opacity: 0.5 * cb.opacity, blur: 30 * u, drop: 20 * u).composited(over: image)
       }
       image = cameraCard(camera, box: cb, frame: Double(f)).composited(over: image)
+      // Portrait split: an accent seam where the screen's square meets the camera.
+      if socialTop(plan) != nil, cb.y > 1 {
+        let seam = (0.011 * W).rounded()
+        let color = CIColor(cgColor: Scene.color(look.accent ?? "#FFE500").copy(alpha: cb.opacity)!)
+        image = CIImage(color: color).cropped(to: CGRect(x: 0, y: H - cb.y - seam / 2, width: W, height: seam)).composited(over: image)
+      }
     }
     image = broll(image, frame: Double(f), full: true, box: b, frames: insertFrames)
     if let overlay = overlays(frame: Double(f), screen: b, cam: cam, camBox: camera != nil && plan.camera != nil ? cb : nil) {
@@ -267,6 +273,8 @@ public final class Scene: @unchecked Sendable {
   func ciRect(_ b: Box) -> CGRect { CGRect(x: b.x, y: H - b.y - b.h, width: b.w, height: b.h) }
 
   func background() -> CIImage {
+    // Portrait sets the screen card on ink, like a phone's dark stage.
+    if socialTop(plan) != nil { return CIImage(color: CIColor(cgColor: Scene.color("#15151C"))).cropped(to: CGRect(x: 0, y: 0, width: W, height: H)) }
     let c0 = Scene.color(plan.style.background.first ?? "#1d2b64")
     let c1 = Scene.color(plan.style.background.last ?? "#f8cdda")
     let g = CIFilter(

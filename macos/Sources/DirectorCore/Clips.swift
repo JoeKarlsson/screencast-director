@@ -8,13 +8,22 @@ public struct Clip: Codable, Equatable {
   public var end: Double
   /// An `ExportPreset` id ("vertical", "square", ...); nil keeps the video's own format.
   public var format: String?
+  /// A hook title shown big at the top for the clip's first seconds.
+  public var title: String?
+  /// A logo image (relative to the project, or absolute) shown small at the top center throughout.
+  public var logo: String?
 
-  public init(name: String, start: Double, end: Double, format: String? = nil) {
+  public init(name: String, start: Double, end: Double, format: String? = nil, title: String? = nil, logo: String? = nil) {
     self.name = name
     self.start = start
     self.end = end
     self.format = format
+    self.title = title
+    self.logo = logo
   }
+
+  /// How long the hook title stays up.
+  public static let titleSeconds = 3.0
 
   public var preset: ExportPreset? { format.flatMap { id in ExportPreset.all.first { $0.id == id } } }
 }
@@ -44,6 +53,14 @@ extension Plan {
     p.clips = nil
     p.intro = nil
     p.outro = nil
+    if let title = clip.title, let first = p.segments.first {
+      p.callouts.append(Callout(start: first.start, end: first.start + Clip.titleSeconds, text: title, style: "title", enter: Motion(preset: "pop")))
+    }
+    if let logo = clip.logo {
+      var look = p.look ?? Look()
+      look.watermark = Look.Watermark(image: logo, corner: "top", height: 0.024, opacity: 1)
+      p.look = look
+    }
     return clip.preset.map { $0.applied(to: p) } ?? p
   }
 }

@@ -7,7 +7,7 @@ public struct Look: Codable, Equatable {
   public struct Watermark: Codable, Equatable {
     /// A PNG: absolute, or relative to the project (a profile's relative path resolves from its folder when applied).
     public var image: String
-    /// topLeft | topRight | bottomLeft | bottomRight
+    /// topLeft | topRight | bottomLeft | bottomRight | top | bottom (centered; full bleed only)
     public var corner: String?
     /// Height as a fraction of the output's short side.
     public var height: Double?

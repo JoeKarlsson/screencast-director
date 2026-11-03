@@ -15,15 +15,17 @@ extension Scene {
     let page = pages.first { f >= $0.startF && f < $0.endF + fps * 0.4 }
     // Screen marks (cursor, clicks, key chips, annotations, the camera border) belong under an animation.
     let covered = fullFrameCovers(f)
-    let chip = covered ? nil : chips.last { f >= $0.f && f < $0.f + fps * 1.2 }
+    // An animation or picture filling the screen card hides the screen's marks too, but not the camera's border.
+    let screenHidden = covered || cardCovers(f)
+    let chip = screenHidden ? nil : chips.last { f >= $0.f && f < $0.f + fps * 1.2 }
     let shownCallouts = callouts.filter { f >= $0.s && f < $0.e }
-    let shownMarks = b.opacity > 0.01 && !covered ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
-    let ripples = covered ? [] : clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
+    let shownMarks = b.opacity > 0.01 && !screenHidden ? annotations.filter { f >= $0.s && f < $0.e && $0.a.kind != "blur" } : []
+    let ripples = screenHidden ? [] : clicks.filter { f >= $0.f && f <= $0.f + fps * 0.5 }
     // A cutout has no shape to outline, and a full-frame animation hides the bubble it would outline.
     let border = !covered && plan.camera?.cutout != true && plan.camera?.bubbleBorder != false && (camBox.map { $0.opacity > 0.01 } ?? false)
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
-    let pointerAt = b.opacity > 0.01 && !covered ? cursorPosition(frame: f) : nil
+    let pointerAt = b.opacity > 0.01 && !screenHidden ? cursorPosition(frame: f) : nil
     if page == nil && chip == nil && shownCallouts.isEmpty && shownMarks.isEmpty && ripples.isEmpty && !border && !brackets
       && watermark == nil && pointerAt == nil
     {
@@ -90,7 +92,7 @@ extension Scene {
 
     for c in shownCallouts {
       let pose = Motion.pose(frame: f, start: c.s, end: c.e, fps: Int(fps), enter: c.c.enter, exit: c.c.exit, style: motion)
-      drawCallout(ctx, c.c, pose: pose, insets: ins, blurred: &blurred)
+      drawCallout(ctx, c.c, pose: pose, insets: ins, screen: b, blurred: &blurred)
     }
     if let chip {
       let pose = Motion.pose(
@@ -108,7 +110,7 @@ extension Scene {
           fill: Scene.color(self.look.chipBackground ?? "#0f0f14").copy(alpha: 0.88)!)
       }
     }
-    if let page { drawCaptions(ctx, page, frame: f, insets: ins, blurred: &blurred) }
+    if let page { drawCaptions(ctx, page, frame: f, insets: ins, camBox: camBox, blurred: &blurred) }
     if brackets {
       // Full bleed: the brackets frame the whole picture at the margin. Padded: they hug the screen card.
       if ins.fullBleed {
@@ -118,7 +120,8 @@ extension Scene {
         drawBrackets(ctx, b)
       }
     }
-    if let watermark, let w = look.watermark { drawWatermark(ctx, watermark, w) }
+    // In the portrait split the logo would sit on the screen card's edge; it shows over the camera.
+    if let watermark, let w = look.watermark, !(socialTop(plan) != nil && b.opacity > 0.5) { drawWatermark(ctx, watermark, w) }
 
     guard let cg = ctx.makeImage() else { return nil }
     return blurred.reduce(CIImage(cgImage: cg)) { $1.composited(over: $0) }
@@ -186,7 +189,7 @@ extension Scene {
     return out
   }
 
-  func drawCallout(_ ctx: CGContext, _ c: Callout, pose: OverlayPose, insets ins: Insets, blurred: inout [CIImage]) {
+  func drawCallout(_ ctx: CGContext, _ c: Callout, pose: OverlayPose, insets ins: Insets, screen b: Box, blurred: inout [CIImage]) {
     let preset = c.enter?.preset ?? motion.enter.preset
     let byWord = preset == "words"
     let typing = byWord || preset == "typewriter"
@@ -214,6 +217,23 @@ extension Scene {
         g.fill(CGRect(x: rect.minX, y: rect.minY + 10 * self.u, width: bar, height: rect.height - 20 * self.u))
         self.drawText(g, reveal(title), at: CGPoint(x: rect.minX + bar + padX, y: rect.minY + padY), size: ts)
         if let sub { self.drawText(g, reveal(sub), at: CGPoint(x: rect.minX + bar + padX, y: rect.minY + padY + ts.height + gap), size: ss) }
+      }
+    case "chapter" where socialTop(plan) != nil:
+      // Portrait: a chip on the screen card ("STEP 1  Find the plugin") instead of a full-frame card.
+      let label = c.subtitle.map { Scene.text($0.uppercased() + "  ", size: 30 * u, weight: .bold, kern: 3 * u, font: look.captionFont, color: titleColor) }
+      let title = Scene.text(c.text, size: 50 * u, weight: .bold, font: look.titleFont, color: titleColor)
+      let s = NSMutableAttributedString()
+      if let label { s.append(label) }
+      s.append(title)
+      let size = Scene.measure(s, maxWidth: W * 0.8)
+      let padX = 28 * u, padY = 12 * u
+      let origin = b.opacity > 0.5 ? CGPoint(x: b.x + 30 * u, y: b.y + 30 * u) : CGPoint(x: ins.margin, y: ins.margin * 2)
+      let rect = CGRect(x: origin.x, y: origin.y, width: size.width + 2 * padX, height: size.height + 2 * padY)
+      animated(ctx, rect, pose, blurred: &blurred) { g in
+        g.setFillColor(Scene.color(self.look.titleBackground ?? accent))
+        g.addPath(CGPath(roundedRect: rect, cornerWidth: 14 * self.u, cornerHeight: 14 * self.u, transform: nil))
+        g.fillPath()
+        self.drawText(g, reveal(s), at: CGPoint(x: rect.minX + padX, y: rect.minY + padY), size: size)
       }
     case "slate", "chapter":
       let chapter = c.style == "chapter"
@@ -248,13 +268,16 @@ extension Scene {
         }
       }
     default:
-      let s = Scene.text(c.text, size: (look.titleFont == nil ? 40 : 46) * u, weight: .bold, font: look.titleFont, color: titleColor)
-      let size = Scene.measure(s, maxWidth: W)
+      // Portrait titles are hooks: big, wrapped, under the logo.
+      let portrait = socialTop(plan) != nil
+      let s = Scene.text(c.text, size: (portrait ? 80 : look.titleFont == nil ? 40 : 46) * u, weight: .bold, font: look.titleFont, color: titleColor)
+      let maxW = portrait ? W * 0.84 : W
+      let size = Scene.measure(s, maxWidth: maxW)
       let padX = 28 * u, padY = 14 * u
-      let top = ins.fullBleed ? ins.safe : H * 0.06
+      let top = portrait ? H * 0.075 : ins.fullBleed ? ins.safe : H * 0.06
       let rect = CGRect(x: W / 2 - size.width / 2 - padX, y: top, width: size.width + 2 * padX, height: size.height + 2 * padY)
       animated(ctx, rect, pose, blurred: &blurred) { g in
-        self.pill(g, reveal(s), centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: panel)
+        self.pill(g, reveal(s), centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: panel, maxWidth: maxW)
       }
     }
   }
@@ -269,10 +292,12 @@ extension Scene {
     ctx.restoreGState()
   }
 
-  func drawCaptions(_ ctx: CGContext, _ page: Page, frame f: Double, insets ins: Insets, blurred: inout [CIImage]) {
+  func drawCaptions(_ ctx: CGContext, _ page: Page, frame f: Double, insets ins: Insets, camBox: Box?, blurred: inout [CIImage]) {
     let fps = Double(plan.output.fps)
     let style = plan.captions.style ?? "pill"
-    let bold = style == "bold"
+    // Social is bold made for vertical: bigger, and it sits on the seam over the split camera.
+    let social = style == "social"
+    let bold = style == "bold" || social
     let s = NSMutableAttributedString()
     var current: NSRange?
     let highlight = look.captionHighlight ?? (style == "pill" ? nil : look.accent ?? "#ffe500")
@@ -290,13 +315,17 @@ extension Scene {
       if isCurrent { current = NSRange(location: s.length, length: (text as NSString).length - (i < page.words.count - 1 ? 1 : 0)) }
       s.append(
         Scene.text(
-          text, size: (bold ? 64 : 42) * u, weight: bold ? .bold : .semibold, alpha: alpha, font: look.captionFont, color: color,
-          stroke: bold ? 7 : 0))
+          text, size: (social ? 92 : bold ? 64 : 42) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
+          color: color, stroke: social ? 3.5 : bold ? 7 : 0))
     }
-    let maxW = W * 0.8 - 52 * u
+    let maxW = social ? W * 0.88 : W * 0.8 - 52 * u
     let size = Scene.measure(s, maxWidth: maxW)
     let padX = bold ? 0 : 26 * u, padY = bold ? 0 : 12 * u
-    let top = H - (ins.fullBleed ? ins.safe : H * 0.07) - size.height - (bold ? 40 : 24) * u
+    let seam = camBox.flatMap { $0.y > 1 && $0.opacity > 0.5 ? $0.y : nil }
+    let top =
+      social
+      ? (seam.map { $0 - size.height / 2 } ?? H * 0.64)
+      : H - (ins.fullBleed ? ins.safe : H * 0.07) - size.height - (bold ? 40 : 24) * u
     let rect = CGRect(x: W / 2 - size.width / 2 - padX, y: top, width: size.width + 2 * padX, height: size.height + 2 * padY)
     let pose =
       motion.name == "classic"
@@ -308,6 +337,8 @@ extension Scene {
       bold ? CGColor(gray: 0, alpha: 0) : Scene.color(look.captionBackground ?? "#0a0a0e").copy(alpha: look.captionBackgroundOpacity ?? 0.78)!
     let mark = style == "karaoke" ? current.map { ($0, Scene.color(highlight ?? "#ffe500")) } : nil
     animated(ctx, rect, pose, blurred: &blurred) { g in
+      // Social captions cast a hard ink shadow, so they read over a busy screen or a face.
+      if social { g.setShadow(offset: CGSize(width: 0, height: -7 * self.u), blur: 0, color: Scene.color("#15151C")) }
       self.pill(g, s, centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: fill, maxWidth: maxW, mark: mark)
     }
   }
@@ -429,6 +460,11 @@ extension Scene {
   }
 
   /// Whether a full-frame insert fully covers the screen at this frame (so screen marks stay hidden).
+  /// Whether B-roll in the screen card (a portrait animation, say) fully covers it at this frame.
+  func cardCovers(_ f: Double) -> Bool {
+    inserts.contains { !$0.a.isFull && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
+  }
+
   func fullFrameCovers(_ f: Double) -> Bool {
     inserts.contains { $0.a.isFull && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
   }

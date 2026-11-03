@@ -638,13 +638,24 @@ struct Checks {
     bigBubble.bubbleSize = 0.43
     clipped.camera = bigBubble
     clipped.animations = [Animation(start: 1, end: 2, template: "hub", data: .object([:])), Animation(start: 7, end: 8, template: "hub", data: .object([:]))]
-    let hook = Clip(name: "Hook", start: 3, end: 8, format: "vertical")
+    let hook = Clip(name: "Hook", start: 3, end: 8, format: "vertical", title: "Connect your dot", logo: "broll/logo.png")
     clipped.clips = [hook, Clip(name: "Gone", start: 4.5, end: 5.5)]
     let hookPlan = clipped.trimmed(to: hook)
     expect(hookPlan.segments.map { [$0.start, $0.end] } == [[3, 4], [6, 8]] && hookPlan.segments[1].transition == "dip", "a clip keeps the edit inside its range")
     expect(hookPlan.animationList.map(\.start) == [7] && hookPlan.clips == nil, "a clip keeps only the animations it overlaps")
     expect(hookPlan.output.width == 1080 && hookPlan.output.height == 1920, "a vertical clip renders vertical")
-    expect(hookPlan.style.padding == 0.03 && hookPlan.camera?.bubbleSize == 0.16, "vertical gets breathing room and a smaller bubble")
+    expect(hookPlan.captions.style == "social" && hookPlan.captions.maxWords <= 3, "vertical captions are big, a few words at a time")
+    expect(hookPlan.callouts.contains { $0.text == "Connect your dot" && $0.start == 3 && $0.end == 3 + Clip.titleSeconds }, "a clip's hook title opens it")
+    expect(hookPlan.look?.watermark?.image == "broll/logo.png" && hookPlan.look?.watermark?.corner == "top", "a clip's logo sits at the top center")
+    // Portrait: the screen card on the top square, the camera full width under it, or the whole frame.
+    let split = layoutBoxes(.pip, plan: hookPlan), talking = layoutBoxes(.camera, plan: hookPlan)
+    expect(socialTop(hookPlan) == 1080 && split.cam.y == 1080 && split.cam.w == 1080 && split.cam.h == 840, "the camera fills the width under the screen")
+    expect(split.screen.y + split.screen.h <= 1080 && abs(split.screen.w - split.screen.h) < 1, "the screen card is square on the top")
+    expect(talking.cam.x == 0 && talking.cam.y == 0 && talking.cam.h == 1920 && talking.screen.opacity == 0, "talking to the lens fills the frame")
+    expect(socialTop(clipped) == nil, "landscape has no split")
+    expect(hookPlan.animationOutput.width == Int(split.screen.w) && hookPlan.animationOutput.height == Int(split.screen.h), "portrait animations render at the card's size")
+    let hookOut = layoutsToOut(hookPlan, mapSegments(hookPlan.segments, fps: 30))
+    expect(hookOut.last?.mode == .pip && hookOut.last?.startF == 60, "the split shows while a portrait animation plays")
     expect(clipped.trimmed(to: clipped.clipList[1]).segments.isEmpty, "a clip inside a cut has nothing to export")
     let clipDir = URL(fileURLWithPath: "/m/Connect AI and Dots")
     expect(exportURL(dir: clipDir).lastPathComponent == "Connect AI and Dots.mp4", "exports are named after the project")
@@ -894,6 +905,10 @@ struct Checks {
     let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
     expect(templateScripts.evaluateScript("stageTransform(1920, 1080)").toString() == "translate(0px, 0px) scale(1)", "a 16:9 clip fills the frame with the stage")
     expect(templateScripts.evaluateScript("stageTransform(1080, 1920)").toString() == "translate(0px, 656.25px) scale(0.5625)", "a vertical clip fits the stage evenly and centers it instead of stretching it")
+    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1000, 1000, true))").toString() == #"{"w":1350,"h":1350,"reflow":true}"#, "a template that reflows gets a square board for a square card")
+    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1000, 1000, false))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#, "one that doesn't keeps the 16:9 board")
+    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1920, 1080, true))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#, "16:9 always gets the classic board")
+    expect(templateScripts.evaluateScript("TEMPLATES.storyboard.reflows").toBool(), "the storyboard lays itself out on any board")
     for t in templates {
       let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)
       let cues = "{" + t.cues.map { "\"\($0.key)\": \($0.at)" }.joined(separator: ", ") + "}"

@@ -263,7 +263,7 @@ public struct Plan: Codable, Equatable {
     public var style: String?
 
     public static let styles: [(name: String, label: String)] = [
-      ("pill", "Pill"), ("karaoke", "Karaoke"), ("pop", "Word Pop"), ("bold", "Bold"),
+      ("pill", "Pill"), ("karaoke", "Karaoke"), ("pop", "Word Pop"), ("bold", "Bold"), ("social", "Social (big, for vertical)"),
     ]
   }
 

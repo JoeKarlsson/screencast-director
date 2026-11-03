@@ -27,7 +27,7 @@ public struct Animation: Codable, Equatable {
   }
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
-  public static let engineVersion = 2
+  public static let engineVersion = 3
 
   /// Shifts the animation and its cues together, so the beats keep landing where they did in it.
   public mutating func move(by d: Double) {
@@ -105,10 +105,12 @@ extension Plan {
   /// Rendered animations as full-frame B-roll, for the renderer and the composition. An animation
   /// that hasn't been rendered yet is left out (the app and `director render` render it first).
   public func animationInserts(dir: URL?) -> [Insert] {
-    animationList.compactMap { a in
-      let path = a.clipPath(output, dir: dir)
+    // In portrait an animation plays in the screen card, above the camera; elsewhere over the whole frame.
+    let placement = socialTop(self) == nil ? "full" : "screen"
+    return animationList.compactMap { a in
+      let path = a.clipPath(animationOutput, dir: dir)
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
-      return Insert(start: a.start, end: a.end, file: path, placement: "full", fit: "fill", note: a.note)
+      return Insert(start: a.start, end: a.end, file: path, placement: placement, fit: "fill", note: a.note)
     }
   }
 
@@ -116,14 +118,22 @@ extension Plan {
   /// export preset's, so an export in another format doesn't delete the preview's clips (or the
   /// preview's render delete an export's).
   public func animationClipNames(dir: URL) -> Set<String> {
-    let outputs = [output] + ExportPreset.all.map { $0.applied(to: self).output }
+    let outputs = [animationOutput] + ExportPreset.all.map { $0.applied(to: self).animationOutput }
     return Set(outputs.flatMap { o in animationList.map { ($0.clipPath(o, dir: dir) as NSString).lastPathComponent } })
+  }
+
+  /// The size animation clips render at: the frame, or in portrait the screen card they play in.
+  public var animationOutput: Output {
+    guard socialTop(self) != nil else { return output }
+    let card = layoutBoxes(.pip, plan: self).screen
+    func even(_ v: Double) -> Int { Int((v / 2).rounded()) * 2 }
+    return Output(width: even(card.w), height: even(card.h), fps: output.fps)
   }
 
   /// Animations whose clip is missing, with the clip path each should be rendered to.
   public func animationsToRender(dir: URL) -> [(index: Int, animation: Animation, path: String)] {
     animationList.enumerated().compactMap { i, a in
-      let path = a.clipPath(output, dir: dir)
+      let path = a.clipPath(animationOutput, dir: dir)
       return FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) ? nil : (i, a, path)
     }
   }

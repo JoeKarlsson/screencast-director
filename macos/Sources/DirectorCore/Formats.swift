@@ -58,7 +58,7 @@ public struct ExportPreset: Equatable {
   public static let all: [ExportPreset] = [
     .init(id: "youtube-4k", name: "YouTube 4K (16:9)", aspect: .landscape, resolution: .p2160, screenAspect: nil),
     .init(id: "youtube-1080", name: "YouTube 1080p (16:9)", aspect: .landscape, resolution: .p1080, screenAspect: nil),
-    .init(id: "vertical", name: "Shorts, Reels, TikTok (9:16)", aspect: .vertical, resolution: .p1080, screenAspect: 0.8),
+    .init(id: "vertical", name: "Shorts, Reels, TikTok (9:16)", aspect: .vertical, resolution: .p1080, screenAspect: 1.0),
     .init(id: "square", name: "Square (1:1)", aspect: .square, resolution: .p1080, screenAspect: 1.25),
     .init(id: "feed", name: "LinkedIn and Instagram feed (4:5)", aspect: .feed, resolution: .p1080, screenAspect: 1.0),
   ]
@@ -81,13 +81,9 @@ public struct ExportPreset: Equatable {
     p.output.height = size.height
     p.style.screenAspect = screenAspect
     if aspect == .vertical {
-      // Spacing tuned for landscape cramps a vertical: a full-bleed screen card meets the top edge,
-      // and a big corner bubble, stacked under the screen, squeezes it.
-      p.style.padding = max(p.style.padding, 0.03)
-      if var cam = p.camera {
-        cam.bubbleSize = min(cam.bubbleSize ?? Plan.Camera.defaultBubbleSize, 0.16)
-        p.camera = cam
-      }
+      // Shorts caption big, a few words at a time, over the camera.
+      p.captions.style = "social"
+      p.captions.maxWords = min(p.captions.maxWords, 3)
     }
     return p
   }

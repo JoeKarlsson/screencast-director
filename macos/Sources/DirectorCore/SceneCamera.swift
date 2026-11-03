@@ -69,6 +69,8 @@ extension Scene {
       r = r.insetBy(dx: (r.width - (r.width + (wide - r.width) * cut)) / 2, dy: 0)
       zoom += (1 - zoom) * cut
     }
+    // The portrait split's camera is a short, wide strip: frame the face tighter, like a closer shot.
+    if socialTop(plan) != nil, b.y > 1 { zoom *= 1.35 }
     // A punch-in snaps tighter for its whole span, with no ease, like a cut to a closer shot.
     if let punch = punchIns.last(where: { f >= $0.s && f < $0.e }) { zoom *= max(1, punch.scale) }
     return (r, zoom)

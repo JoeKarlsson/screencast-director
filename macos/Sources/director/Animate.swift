@@ -34,9 +34,9 @@ enum Animate {
     for f in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !wanted.contains(f) {
       try? FileManager.default.removeItem(at: folder.appendingPathComponent(f))
     }
-    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.output, dir: dir)) } : plan.animationsToRender(dir: dir)
+    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.animationOutput, dir: dir)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }
-    let page = Page(width: plan.output.width, height: plan.output.height)
+    let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     for (i, a, path) in todo {
       let started = Date()
       try await page.render(a, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
@@ -175,7 +175,7 @@ enum Animate {
     }
     var config: [String: Any] = [
       "template": a.template, "data": data, "cues": a.localCues, "duration": a.end - a.start,
-      "width": plan.output.width, "height": plan.output.height, "fonts": fonts, "logos": logos,
+      "width": plan.animationOutput.width, "height": plan.animationOutput.height, "fonts": fonts, "logos": logos,
       "accent": look?.accent ?? "#FFE500",
     ]
     if let f = look?.titleFont { config["titleFont"] = f }

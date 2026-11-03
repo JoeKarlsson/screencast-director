@@ -97,11 +97,20 @@ function grain(t) { document.getElementById("turb").setAttribute("seed", 1 + Mat
 // A cue's time (seconds from the animation's start), or a fallback when the plan leaves it out.
 function cue(cues, name, fallback) { return typeof cues[name] === "number" ? cues[name] : fallback; }
 
-// The 1920×1080 stage scaled evenly to fit the clip and centered on paper, so a vertical or square
-// clip shows the whole board undistorted instead of stretched.
-function stageTransform(width, height) {
-  const k = Math.min(width / 1920, height / 1080);
-  return `translate(${(width - 1920 * k) / 2}px, ${(height - 1080 * k) / 2}px) scale(${k})`;
+// The stage, in design px. A 16:9 clip gets the classic 1920×1080 board. Another shape (the square
+// screen card of a vertical video, a 4:5 feed) gets a board of its own shape when the template lays
+// itself out from STAGE (`TEMPLATES.name.reflows = true`); a short side of 1350 keeps the nodes, sized
+// for the wide board, from crowding. Templates that don't reflow keep the 1920×1080 board, fitted.
+let STAGE = { w: 1920, h: 1080, reflow: false };
+function stageSize(width, height, reflows) {
+  const ratio = width / height;
+  if (!reflows || Math.abs(ratio - 16 / 9) < 0.01) return { w: 1920, h: 1080, reflow: false };
+  return ratio >= 1 ? { w: Math.round(1350 * ratio), h: 1350, reflow: true } : { w: 1350, h: Math.round(1350 / ratio), reflow: true };
+}
+// The stage scaled evenly to the clip and centered on paper (a fitted 1920×1080 board letterboxes).
+function stageTransform(width, height, stage = { w: 1920, h: 1080 }) {
+  const k = Math.min(width / stage.w, height / stage.h);
+  return `translate(${(width - stage.w * k) / 2}px, ${(height - stage.h * k) / 2}px) scale(${k})`;
 }
 
 // --- entry points --------------------------------------------------------------
@@ -120,9 +129,13 @@ window.init = async function (config) {
   }
   if (config.titleFont) root.setProperty("--title", `"${config.titleFont}", Georgia, serif`);
   if (config.bodyFont) root.setProperty("--body", `"${config.bodyFont}", "Helvetica Neue", sans-serif`);
-  document.getElementById("stage").style.transform = stageTransform(config.width, config.height);
   const make = TEMPLATES[config.template];
   if (!make) throw new Error(`no template named "${config.template}" (have: ${Object.keys(TEMPLATES).join(", ")})`);
+  STAGE = stageSize(config.width, config.height, make.reflows === true);
+  const stage = document.getElementById("stage");
+  stage.style.width = `${STAGE.w}px`;
+  stage.style.height = `${STAGE.h}px`;
+  stage.style.transform = stageTransform(config.width, config.height, STAGE);
   window.seek = make(config.data || {}, config.cues || {}, config.duration);
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);

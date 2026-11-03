@@ -90,7 +90,7 @@ extension Scene {
     return CIImage(cgImage: cg).composited(over: image).cropped(to: CGRect(x: 0, y: 0, width: W, height: H))
   }
 
-  enum Weight { case semibold, bold }
+  enum Weight { case semibold, bold, heavy }
 
   static func text(
     _ str: String, size: Double, weight: Weight, alpha: Double = 1, kern: Double = 0, font name: String? = nil,
@@ -102,7 +102,7 @@ extension Scene {
     } else {
       let base = CTFontCreateUIFontForLanguage(.system, size, nil)!
       let font = CTFontCreateCopyWithSymbolicTraits(base, size, nil, .traitBold, .traitBold) ?? base
-      let w: Double = weight == .bold ? 0.4 : 0.3
+      let w: Double = weight == .heavy ? 0.62 : weight == .bold ? 0.4 : 0.3
       let desc = CTFontDescriptorCreateWithAttributes([kCTFontTraitsAttribute: [kCTFontWeightTrait: w]] as CFDictionary)
       weighted = CTFontCreateCopyWithAttributes(font, size, nil, desc)
     }
@@ -261,7 +261,7 @@ extension Scene {
     if ins.fullBleed {
       // Same inset as every other overlay, in the chosen corner.
       let corner = w.corner ?? "topLeft"
-      let x = corner.hasSuffix("Left") ? ins.safe : W - ins.safe - width
+      let x = corner == "top" || corner == "bottom" ? (W - width) / 2 : corner.hasSuffix("Left") ? ins.safe : W - ins.safe - width
       let y = corner.hasPrefix("top") ? ins.safe : H - ins.safe - h
       ctx.saveGState()
       ctx.setAlpha(w.opacity ?? 0.9)

@@ -278,6 +278,13 @@ public func bubbleCorner(_ corner: String, plan: Plan) -> (x: Double, y: Double)
   return (x / W, y / H)
 }
 
+/// In a portrait frame, where the top square (the screen card's area) ends and the camera begins;
+/// nil for landscape and square frames.
+public func socialTop(_ plan: Plan) -> Double? {
+  let W = Double(plan.output.width), H = Double(plan.output.height)
+  return H > W * 1.05 ? min(W, H * 0.5625).rounded() : nil
+}
+
 public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let W = Double(plan.output.width), H = Double(plan.output.height)
   let pad = plan.style.padding * min(W, H)
@@ -291,32 +298,23 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
     Box(x: f.x, y: f.y, w: f.w, h: f.h, r: r, opacity: opacity)
   }
 
-  if H > W * 1.05 {
-    // Portrait: screen on top, camera stacked under it, captions below that.
-    let captionSpace = H * 0.16
-    let bubble = (W * 0.34 * (plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize) / Plan.Camera.defaultBubbleSize).rounded()
-    let screenArea = (x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad - captionSpace)
-    let s = fit(screenArea, aspect: aspect)
-    let screenTop = box((s.x, pad + (screenArea.h - s.h) * 0.3, s.w, s.h), r: r)
-    let withBubbleArea = (x: pad, y: pad, w: W - 2 * pad, h: screenArea.h - bubble - pad)
-    let s2 = fit(withBubbleArea, aspect: aspect)
-    let screenPip = box((s2.x, pad + (withBubbleArea.h - s2.h) * 0.3, s2.w, s2.h), r: r)
-    let pipCam = Box(x: (W - bubble) / 2, y: screenPip.y + screenPip.h + pad, w: bubble, h: bubble, r: bubble / 2, opacity: 1)
+  if let top = socialTop(plan) {
+    // Portrait (social): the screen in a card on the top square, the camera full width under it.
+    // Talking to the lens fills the whole frame with the camera.
+    let m = (0.037 * W).rounded()
+    let cardR = (0.033 * W).rounded()
+    let card = fit((m, m, W - 2 * m, top - 2 * m), aspect: aspect)
+    let split = Box(x: 0, y: top, w: W, h: H - top, r: 0, opacity: 1)
+    let hasCamera = plan.camera != nil
     switch mode {
+    case .pip, .side:
+      return LayoutBoxes(screen: box(card, r: cardR), cam: hasCamera ? split : Box(x: 0, y: top, w: W, h: H - top, r: 0, opacity: 0))
     case .screen:
-      let b = bubble * 0.6
-      return LayoutBoxes(
-        screen: screenTop, cam: Box(x: (W - b) / 2, y: screenTop.y + screenTop.h + pad, w: b, h: b, r: b / 2, opacity: 0))
-    case .pip:
-      return LayoutBoxes(screen: screenPip, cam: pipCam)
-    case .side:
-      let half = (x: pad, y: pad, w: W - 2 * pad, h: (screenArea.h - pad) * 0.55)
-      let s3 = fit(half, aspect: aspect)
-      let top = box((s3.x, pad, s3.w, s3.h), r: r)
-      let camY = top.y + top.h + pad
-      return LayoutBoxes(screen: top, cam: Box(x: pad, y: camY, w: W - 2 * pad, h: max(1, pad + screenArea.h - camY), r: r, opacity: 1))
+      // The screen alone: a bigger card, leaving the bottom for captions.
+      let big = fit((m, m, W - 2 * m, H * 0.78 - m), aspect: aspect)
+      return LayoutBoxes(screen: box(big, r: cardR), cam: Box(x: 0, y: top, w: W, h: H - top, r: 0, opacity: 0))
     case .camera:
-      return LayoutBoxes(screen: box((s.x, s.y, s.w, s.h), r: r, opacity: 0), cam: box((full.x, full.y, full.w, full.h - captionSpace), r: r))
+      return LayoutBoxes(screen: box(card, r: cardR, opacity: 0), cam: Box(x: 0, y: 0, w: W, h: H, r: 0, opacity: 1))
     }
   }
 
@@ -365,7 +363,9 @@ public struct OutLayout: Equatable {
 
 public func layoutsToOut(_ plan: Plan, _ mapped: [MappedSegment]) -> [OutLayout] {
   let fps = plan.output.fps
-  return plan.layouts
+  // In portrait an animation plays in the screen card, so the split shows while it does (last range wins).
+  let animated = socialTop(plan) == nil ? [] : plan.animationList.map { LayoutRange(start: $0.start, end: $0.end, mode: .pip) }
+  return (plan.layouts + animated)
     .map {
       OutLayout(
         startF: srcToOutClamped(mapped, $0.start, fps: fps),

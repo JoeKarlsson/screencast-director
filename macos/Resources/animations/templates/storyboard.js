@@ -25,18 +25,30 @@ TEMPLATES.storyboard = function (data, cues, duration) {
     if (s.do === "clear") { boards[boards.length - 1].end = s.t; boards.push({ start: s.t, end: Infinity }); }
   });
 
+  // On a board of another shape the heading wraps, and positions in % fill the space under it.
+  const head = heading(data.title || "", data.highlight);
+  let top = 0, span = STAGE.h;
+  if (STAGE.reflow) {
+    head.node.style.whiteSpace = "normal";
+    head.node.style.width = `${STAGE.w - 220}px`;
+    head.node.style.fontSize = "80px";
+    top = 92 + (head.node.offsetHeight || 80) + 60;
+    span = STAGE.h - top - 70;
+  }
+  const px = (x, y) => [x / 100 * STAGE.w, top + y / 100 * span];
+
   // Where nodes go: given positions in %, else the first is the board's center and the rest ring it.
   const nodes = {};
   boards.forEach((b, bi) => {
     const shows = steps.filter(s => s.do === "show" && s.board === bi);
     const free = shows.filter(s => s.x == null || s.y == null);
-    const center = [1180, 540];
+    const center = STAGE.reflow ? [STAGE.w * .55, top + span / 2] : [1180, 540];
     free.forEach((s, k) => {
       if (k === 0) { s.px = center; return; }
       const n = free.length - 1, a = -Math.PI / 2 + 2 * Math.PI * (k - 1) / Math.max(n, 1);
       s.px = [center[0] + 480 * Math.cos(a), center[1] + 300 * Math.sin(a)];
     });
-    shows.forEach(s => { if (!s.px) s.px = [s.x / 100 * 1920, s.y / 100 * 1080]; });
+    shows.forEach(s => { if (!s.px) s.px = px(s.x, s.y); });
   });
 
   const lines = [];
@@ -81,7 +93,6 @@ TEMPLATES.storyboard = function (data, cues, duration) {
   const tangles = steps.filter(s => s.do === "tangle");
   const circles = steps.filter(s => s.do === "circle").map(s => ({ s, path: path(14, "var(--accent)") }));
   const clears = steps.filter(s => s.do === "clear");
-  const head = heading(data.title || "", data.highlight);
 
   // How far a board has left (1 = gone), for its exit when the next board starts.
   const gone = (board, t) => easeOut((t - boards[board].end) / .35);
@@ -133,7 +144,7 @@ TEMPLATES.storyboard = function (data, cues, duration) {
       place(n.ring, x, y, popScale(t, n.hlT, .5) * (1 - out) * (1 - hide), 0, .9);
     });
     steps.filter(s => s.do === "note").forEach(s => {
-      const p = s.x != null && s.y != null ? [s.x / 100 * 1920, s.y / 100 * 1080] : [130, 380 + 140 * steps.filter(o => o.do === "note" && o.board === s.board).indexOf(s)];
+      const p = s.x != null && s.y != null ? px(s.x, s.y) : [130, 380 + 140 * steps.filter(o => o.do === "note" && o.board === s.board).indexOf(s)];
       place(s.node, p[0], p[1], popScale(t, s.t) * (1 - gone(s.board, t)), [-4, 3, -2][steps.indexOf(s) % 3]);
     });
     tallyRows.forEach(r => {
@@ -161,3 +172,5 @@ TEMPLATES.storyboard = function (data, cues, duration) {
     });
   };
 };
+
+TEMPLATES.storyboard.reflows = true;
