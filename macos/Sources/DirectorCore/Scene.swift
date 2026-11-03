@@ -92,10 +92,10 @@ public final class Scene: @unchecked Sendable {
     u = min(W, H) / 1080
     look = plan.look ?? Look()
     Fonts.register(look.fontFiles)
-    watermark = look.watermark.flatMap { w in Scene.loadImage(w.image) }
+    watermark = look.watermark.flatMap { w in Scene.loadImage(w.image, dir: dir) }
     let lk = look
-    introLogo = (plan.intro?.logo ?? lk.intro?.logo).flatMap(Scene.loadImage) ?? watermark
-    outroLogo = (plan.outro?.logo ?? lk.outro?.logo).flatMap(Scene.loadImage) ?? watermark
+    introLogo = (plan.intro?.logo ?? lk.intro?.logo).flatMap { Scene.loadImage($0, dir: dir) } ?? watermark
+    outroLogo = (plan.outro?.logo ?? lk.outro?.logo).flatMap { Scene.loadImage($0, dir: dir) } ?? watermark
     let m = mapped
     focusClicks = clicks.compactMap { c in
       guard (0...1).contains(c.x), (0...1).contains(c.y) else { return nil }
@@ -201,10 +201,11 @@ public final class Scene: @unchecked Sendable {
   static let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
 
   /// Composes one output frame. `screen`/`camera` are the decoded source frames (camera may be absent).
-  /// A plan path: absolute, or relative to the project folder.
+  /// A plan path: absolute, or relative to the project folder (nil for a relative path when there's
+  /// no project folder).
   public static func fileURL(_ path: String, dir: URL?) -> URL? {
-    if path.hasPrefix("/") { return URL(fileURLWithPath: path) }
-    return dir?.appendingPathComponent(path)
+    if let dir { return resolvePath(path, in: dir) }
+    return path.hasPrefix("/") ? URL(fileURLWithPath: path) : nil
   }
 
   public func render(

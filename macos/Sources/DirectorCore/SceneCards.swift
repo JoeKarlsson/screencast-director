@@ -9,8 +9,10 @@ import Vision
 extension Scene {
   // MARK: Intro and outro cards
 
-  static func loadImage(_ path: String) -> CGImage? {
-    CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+  /// A logo or watermark picture; `path` is absolute or relative to the project folder `dir`.
+  static func loadImage(_ path: String, dir: URL?) -> CGImage? {
+    guard let url = fileURL(path, dir: dir) else { return nil }
+    return CGImageSourceCreateWithURL(url as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
   }
 
   /// True when the background is dark enough for light text.

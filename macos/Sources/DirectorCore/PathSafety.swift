@@ -33,8 +33,7 @@ public enum PathSafety {
 
   /// True when a plan path (relative to the project, or absolute) stays inside the project.
   public static func path(_ path: String, isInside project: URL) -> Bool {
-    let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : project.appendingPathComponent(path)
-    return Self.url(url, isInside: project)
+    Self.url(resolvePath(path, in: project), isInside: project)
   }
 
   /// `new` with every file path that changed from `previous` and leaves the project put back to

@@ -144,3 +144,8 @@ extension Project {
     return "\(folder)/\(name)"
   }
 }
+
+/// A path in a plan or profile: absolute, or relative to `dir` (the project folder, or the profile's).
+public func resolvePath(_ path: String, in dir: URL) -> URL {
+  path.hasPrefix("/") ? URL(fileURLWithPath: path) : dir.appendingPathComponent(path)
+}

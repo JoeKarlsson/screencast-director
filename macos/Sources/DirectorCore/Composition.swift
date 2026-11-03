@@ -213,7 +213,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   if let music = plan.music {
     // A library track the plan names (music/<file>) is copied into the project the first time.
     try AudioLibrary(.music).freezeMissing([music.file], project: project.dir)
-    let url = music.file.hasPrefix("/") ? URL(fileURLWithPath: music.file) : project.dir.appendingPathComponent(music.file)
+    let url = resolvePath(music.file, in: project.dir)
     musicAsset = AVURLAsset(url: url)
     if let musicAsset {
       guard let src = try await musicAsset.loadTracks(withMediaType: .audio).first else { throw CompositionError.noAudio(music.file) }

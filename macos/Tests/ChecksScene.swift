@@ -264,6 +264,13 @@ func sceneDrawingChecks() {
   try? FileManager.default.removeItem(at: lutDir.appendingPathComponent("luts/invert.cube"))
   let inverted = pixel(Scene.graded(CIImage(color: CIColor(red: 0.2, green: 0.5, blue: 0.8)).cropped(to: mid.extent), Grade(lut: "luts/invert.cube"), lut: invertScene.cameraLUT), x: 4, y: 4)
   expect(near(inverted, [0.8, 0.5, 0.2], 0.04), "a LUT recolors the camera (\(inverted))")
+  // A watermark (and so the card logos) named relative to the project loads from the project folder.
+  let logoCtx = CGContext(data: nil, width: 4, height: 4, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  try? Publish.writePNG(logoCtx.makeImage()!, to: lutDir.appendingPathComponent("logo.png"))
+  var marked = base
+  marked.look = Look()
+  marked.look?.watermark = Look.Watermark(image: "logo.png")
+  expect(Scene(plan: marked, words: [], clicks: [], shortcuts: [], dir: lutDir).watermark != nil, "a relative watermark loads from the project folder")
   let goneScene = lutScene("luts/gone.cube")
   let missing = pixel(Scene.graded(mid, Grade(lut: "luts/gone.cube"), lut: goneScene.cameraLUT), x: 4, y: 4)
   expect(goneScene.cameraLUT == nil && near(missing, [0.4, 0.4, 0.4], 0.01), "a missing LUT leaves the picture alone (\(missing))")

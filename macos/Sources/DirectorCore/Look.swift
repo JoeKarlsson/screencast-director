@@ -5,7 +5,7 @@ import Foundation
 /// fall back to the built-in look.
 public struct Look: Codable, Equatable {
   public struct Watermark: Codable, Equatable {
-    /// Absolute path to a PNG (resolved from the profile folder when the profile is applied).
+    /// A PNG: absolute, or relative to the project (a profile's relative path resolves from its folder when applied).
     public var image: String
     /// topLeft | topRight | bottomLeft | bottomRight
     public var corner: String?
@@ -125,7 +125,7 @@ public struct Profile: Codable, Equatable {
   /// Loads profile.json from a folder and makes asset paths absolute.
   public static func load(_ dir: URL) throws -> Profile {
     var p = try JSONDecoder().decode(Profile.self, from: Data(contentsOf: dir.appendingPathComponent("profile.json")))
-    func abs(_ path: String) -> String { path.hasPrefix("/") ? path : dir.appendingPathComponent(path).path }
+    func abs(_ path: String) -> String { resolvePath(path, in: dir).path }
     p.look.fontFiles = p.look.fontFiles?.map(abs)
     if let w = p.look.watermark { p.look.watermark?.image = abs(w.image) }
     if let m = p.music { p.music?.file = abs(m.file) }
