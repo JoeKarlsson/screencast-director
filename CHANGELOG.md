@@ -19,6 +19,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Recordings sort by when you last opened them (Recently Opened, the new default), and the menu bar's Recent list shows the ones you opened last instead of the newest.
 - Plan the edit in the script. An `## Edit plan` in the header of the Followspot script you record with (zooms, annotations, callouts, animations, sound effects, punch-ins, layouts, each tied to the words you say) shows up in `describe`, and Claude applies it when it edits.
 - Space plays and pauses even after you've sent a Claude edit (the box keeps focus but is empty), and clicking the preview or timeline takes focus out of a text field so the shortcuts work again.
 - Zooming the timeline (slider, pinch, ⌥-scroll, ⌘= / ⌘-) keeps the playhead where it is, and centers it if it was scrolled out of view, instead of drifting ahead while you drag the slider.

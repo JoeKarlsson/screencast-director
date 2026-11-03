@@ -150,7 +150,7 @@ struct StatusMenu: View {
       }
       Toggle("Record Camera", isOn: $settings.useCamera)
       Divider()
-      let recent = Array(library.projects.prefix(5))
+      let recent = Array(library.recentlyOpened.prefix(5))
       if !recent.isEmpty {
         Section("Recent") {
           ForEach(recent, id: \.self) { url in

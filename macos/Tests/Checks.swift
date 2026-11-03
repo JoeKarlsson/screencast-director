@@ -626,6 +626,10 @@ struct Checks {
     edited[path: "center.logo"] = nil
     expect(edited[path: "center.label"]?.string == "your dot" && edited[path: "title"]?.string == "Hi" && edited[path: "center.logo"] == nil, "dotted paths set and clear fields")
 
+    // Recently opened: newest open first, never-opened recordings after in their own order.
+    let recents = ["a", "b", "c", "d"].map { URL(fileURLWithPath: "/p/" + $0) }
+    expect(byLastOpened(recents, opened: ["/p/c": 200, "/p/a": 100]) == [recents[2], recents[0], recents[1], recents[3]], "recordings order by when they were last opened")
+
     // Two parts of one animation across a cut: no fade where they meet, and no screen marks on top.
     var seam = buildPlan(p)
     seam.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 8, end: 12, speed: 1)]

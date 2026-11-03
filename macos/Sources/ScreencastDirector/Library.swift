@@ -15,12 +15,20 @@ final class Library: ObservableObject {
   /// Transcript text per recording, for search (loaded lazily).
   private var transcripts: [URL: String] = [:]
 
-  /// How the sidebar orders recordings. `projects` itself stays newest first (Recent and Join use it).
+  /// When each recording was last opened (standardized path → seconds since 1970), for Recently Opened.
+  @Published private(set) var lastOpened: [String: Double] = UserDefaults.standard.dictionary(forKey: "lastOpened") as? [String: Double] ?? [:] {
+    didSet { UserDefaults.standard.set(lastOpened, forKey: "lastOpened") }
+  }
+  /// Recordings, the most recently opened first (the menu bar's Recent list).
+  var recentlyOpened: [URL] { byLastOpened(projects, opened: lastOpened) }
+
+  /// How the sidebar orders recordings. `projects` itself stays newest first (Join uses it).
   enum Sort: String, CaseIterable, Identifiable {
-    case recentlyAdded, oldestFirst, recentlyEdited, name, longest
+    case recentlyOpened, recentlyAdded, oldestFirst, recentlyEdited, name, longest
     var id: String { rawValue }
     var label: String {
       switch self {
+      case .recentlyOpened: return "Recently Opened"
       case .recentlyAdded: return "Recently Added"
       case .oldestFirst: return "Oldest First"
       case .recentlyEdited: return "Recently Edited"
@@ -29,7 +37,7 @@ final class Library: ObservableObject {
       }
     }
   }
-  @Published var sort = Sort(rawValue: UserDefaults.standard.string(forKey: "librarySort") ?? "") ?? .recentlyAdded {
+  @Published var sort = Sort(rawValue: UserDefaults.standard.string(forKey: "librarySort") ?? "") ?? .recentlyOpened {
     didSet { UserDefaults.standard.set(sort.rawValue, forKey: "librarySort") }
   }
 
@@ -38,6 +46,7 @@ final class Library: ObservableObject {
     let q = search.trimmingCharacters(in: .whitespaces).lowercased()
     let matches = q.isEmpty ? projects : projects.filter(matching(q))
     switch sort {
+    case .recentlyOpened: return byLastOpened(matches, opened: lastOpened)
     case .recentlyAdded: return matches
     case .oldestFirst: return matches.reversed()
     case .recentlyEdited: return matches.sorted { info($0).edited > info($1).edited }
@@ -76,6 +85,7 @@ final class Library: ObservableObject {
     if wasSelected { selection = nil }
     try FileManager.default.moveItem(at: url, to: dest)
     transcripts[url] = nil
+    if let at = lastOpened.removeValue(forKey: url.standardizedFileURL.path) { lastOpened[dest.standardizedFileURL.path] = at }
     refresh()
     if wasSelected { selection = dest }
   }
@@ -234,6 +244,7 @@ final class Library: ObservableObject {
     if let old = current, old.busy { leftWorking.append(old) }
     current?.close()
     current = url.map { ProjectModel(dir: $0) }
+    if let url { lastOpened[url.standardizedFileURL.path] = Date().timeIntervalSince1970 }
     current?.onFinishedWork = { [weak self] dir in self?.applyPendingRename(dir) }
   }
 
