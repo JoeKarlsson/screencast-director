@@ -185,15 +185,22 @@ public final class Scene: @unchecked Sendable {
     var lastEnd = -Double.infinity
     var lastClip = -1
     for w in words {
-      // Sped-up segments play muted (Composition), so their words are never heard.
-      guard let startF = srcToOut(mapped, w.start, fps: fps),
-        mapped.first(where: { w.start >= $0.start && w.start < $0.end }).map({ $0.speed <= 1.01 }) ?? true
+      // The clip the word is heard in: the one holding most of it. Word timings are a little off, so
+      // a word can straddle a cut, starting in the clip before it (with clips moved, a clip that
+      // plays somewhere else entirely). Under 40% kept, it was cut on purpose.
+      let overlaps = mapped.indices.map { max(0, min(w.end, mapped[$0].end) - max(w.start, mapped[$0].start)) }
+      guard let best = overlaps.indices.max(by: { overlaps[$0] < overlaps[$1] }),
+        overlaps[best] >= 0.4 * max(0.001, w.end - w.start) || (w.start >= mapped[best].start && w.start < mapped[best].end)
       else { continue }
+      let clip = best
+      // Sped-up segments play muted (Composition), so their words are never heard.
+      guard mapped[clip].speed <= 1.01 else { continue }
+      let startsInClip = w.start >= mapped[clip].start && w.start < mapped[clip].end
+      let startF = startsInClip ? (srcToOut(mapped, w.start, fps: fps) ?? Double(mapped[clip].outStart)) : Double(mapped[clip].outStart)
       // A word ends inside its own clip: one running past a cut ends with the clip, not wherever the
       // rest of it plays (with clips moved, that can be far later).
-      let clip = mapped.firstIndex { w.start >= $0.start && w.start < $0.end } ?? -1
-      let clipEnd = clip >= 0 ? Double(mapped[clip].outStart + mapped[clip].frames) : startF + 3
-      let endF = w.end <= (clip >= 0 ? mapped[clip].end : w.end) ? (srcToOut(mapped, max(w.start, w.end - 0.001), fps: fps) ?? startF + 3) : clipEnd
+      let clipEnd = Double(mapped[clip].outStart + mapped[clip].frames)
+      let endF = w.end <= mapped[clip].end ? (srcToOut(mapped, max(w.start, w.end - 0.001), fps: fps) ?? startF + 3) : clipEnd
       let pause = w.start - lastEnd > 0.8
       // A word in a clip that doesn't play right after the last word's (a moved clip) starts a page.
       let jump = lastClip >= 0 && clip != lastClip && clip != lastClip + 1

@@ -59,6 +59,15 @@ func reorderChecks() {
   let words = [Word(text: "first", start: 4, end: 4.4), Word(text: "second", start: 4.5, end: 4.9), Word(text: "open", start: 21, end: 21.4)]
   let pages = Scene.captionPages(words, mapPlan(moved), fps: fps, maxWords: 7)
   expect(pages.map { $0.words.map(\.text) } == [["open"], ["first", "second"]], "caption pages split at a jump, in play order (\(pages.map { $0.words.map(\.text) }))")
+  // A word straddling a cut captions in the clip holding most of it. The cold open's "shows" was
+  // timed 13.19-13.26 against a clip from 13.22, so it started in the clip before, which plays later.
+  var coldOpen = plan
+  coldOpen.segments = [Segment(start: 10, end: 15, speed: 1), Segment(start: 0, end: 10, speed: 1)]
+  let straddling = Scene.captionPages([Word(text: "shows", start: 9.97, end: 10.05)], mapPlan(coldOpen), fps: fps, maxWords: 7)
+  expect(straddling.first?.startF == 0, "a word straddling a cut captions where most of it plays (\(straddling.map(\.startF)))")
+  // Mostly in a cut: cut on purpose, so no caption.
+  let mostlyCut = Scene.captionPages([Word(text: "um", start: 19.7, end: 20.05)], mapPlan(moved), fps: fps, maxWords: 7)
+  expect(mostlyCut.isEmpty, "a word mostly in a cut stays uncaptioned")
   // A word running past its clip's end ends with the clip, not where the rest of it plays.
   let straddle = Scene.captionPages([Word(text: "last", start: 24.8, end: 26)], mapPlan(moved), fps: fps, maxWords: 7)
   expect(straddle.first.map { $0.endF == 5 * Double(fps) } == true, "a word past its clip ends with the clip (\(straddle.map(\.endF)))")
