@@ -59,6 +59,9 @@ func reorderChecks() {
   let words = [Word(text: "first", start: 4, end: 4.4), Word(text: "second", start: 4.5, end: 4.9), Word(text: "open", start: 21, end: 21.4)]
   let pages = Scene.captionPages(words, mapPlan(moved), fps: fps, maxWords: 7)
   expect(pages.map { $0.words.map(\.text) } == [["open"], ["first", "second"]], "caption pages split at a jump, in play order (\(pages.map { $0.words.map(\.text) }))")
+  // A word running past its clip's end ends with the clip, not where the rest of it plays.
+  let straddle = Scene.captionPages([Word(text: "last", start: 24.8, end: 26)], mapPlan(moved), fps: fps, maxWords: 7)
+  expect(straddle.first.map { $0.endF == 5 * Double(fps) } == true, "a word past its clip ends with the clip (\(straddle.map(\.endF)))")
 
   // Describe marks the jump and lists the cuts.
   let text = describe(Project(dir: URL(fileURLWithPath: "/tmp/sd-reorder"), source: src), moved)

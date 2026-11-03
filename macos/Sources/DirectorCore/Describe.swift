@@ -40,13 +40,24 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     out.append("  INTRO card out \(fmtTime(0)) for \(fmtTime(Double(cards.intro) / Double(fps))) \"\(plan.intro?.title ?? "")\"")
   }
   var cursor = 0.0
-  // Clips moved out of recording order: the cuts are listed after the timeline instead of between clips.
-  let reordered = zip(mapped, mapped.dropFirst()).contains { $1.start < $0.end - 0.001 }
+  // A skip forward lists the real cuts in it, and notes any of it that's a moved clip playing
+  // elsewhere; a jump back is marked. Cuts never reached that way are listed at the end.
+  let gaps = plan.gaps
+  var listed = Set<Int>()
+  func cuts(_ a: Double, _ b: Double) {
+    for (k, g) in gaps.enumerated() where g.end > a + 0.01 && g.start < b - 0.01 && !listed.contains(k) {
+      listed.insert(k)
+      out.append(line("  CUT  src \(fmtTime(g.start))-\(fmtTime(g.end))", said(g.start, g.end), activity(g.start, g.end)))
+    }
+  }
   for s in mapped {
-    if reordered {
-      if s.start < cursor - 0.001 || (s.start - cursor > 0.05 && cursor > 0) { out.append("  MOVED: plays out of recording order from here") }
+    if s.start < cursor - 0.001 {
+      out.append("  MOVED: jumps back to src \(fmtTime(s.start))")
     } else if s.start - cursor > 0.05 {
-      out.append(line("  CUT  src \(fmtTime(cursor))-\(fmtTime(s.start))", said(cursor, s.start), activity(cursor, s.start)))
+      cuts(cursor, s.start)
+      if let moved = mapped.first(where: { $0.start < s.start && $0.end > cursor }) {
+        out.append("  SKIPS src \(fmtTime(max(cursor, moved.start)))-\(fmtTime(min(s.start, moved.end))) (moved, plays elsewhere)")
+      }
     }
     let speed = s.speed == 1 ? "1x " : "\(s.speed.formatted())x"
     if let t = s.transition, s.outStart > cards.intro { out.append("  ~\(t) cut~") }
@@ -56,11 +67,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
         said(s.start, s.end), activity(s.start, s.end)))
     cursor = s.end
   }
-  if reordered {
-    for g in plan.gaps { out.append(line("  CUT  src \(fmtTime(g.start))-\(fmtTime(g.end))", said(g.start, g.end), activity(g.start, g.end))) }
-  } else if plan.source.duration - cursor > 0.05 {
-    out.append("  CUT  src \(fmtTime(cursor))-\(fmtTime(plan.source.duration))")
-  }
+  cuts(0, plan.source.duration)
   if cards.outro > 0 {
     let at = Double(planFrames(plan) - cards.outro) / Double(fps)
     out.append("  OUTRO card out \(fmtTime(at)) for \(fmtTime(Double(cards.outro) / Double(fps))) \"\(plan.outro?.title ?? "")\"")

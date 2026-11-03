@@ -189,10 +189,13 @@ public final class Scene: @unchecked Sendable {
       guard let startF = srcToOut(mapped, w.start, fps: fps),
         mapped.first(where: { w.start >= $0.start && w.start < $0.end }).map({ $0.speed <= 1.01 }) ?? true
       else { continue }
-      let endF = srcToOut(mapped, max(w.start, w.end - 0.001), fps: fps) ?? startF + 3
+      // A word ends inside its own clip: one running past a cut ends with the clip, not wherever the
+      // rest of it plays (with clips moved, that can be far later).
+      let clip = mapped.firstIndex { w.start >= $0.start && w.start < $0.end } ?? -1
+      let clipEnd = clip >= 0 ? Double(mapped[clip].outStart + mapped[clip].frames) : startF + 3
+      let endF = w.end <= (clip >= 0 ? mapped[clip].end : w.end) ? (srcToOut(mapped, max(w.start, w.end - 0.001), fps: fps) ?? startF + 3) : clipEnd
       let pause = w.start - lastEnd > 0.8
       // A word in a clip that doesn't play right after the last word's (a moved clip) starts a page.
-      let clip = mapped.firstIndex { w.start >= $0.start && w.start < $0.end } ?? -1
       let jump = lastClip >= 0 && clip != lastClip && clip != lastClip + 1
       lastClip = clip
       if pages.isEmpty || pause || jump || pages[pages.count - 1].words.count >= maxWords {
