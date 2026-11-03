@@ -316,7 +316,7 @@ extension Scene {
       s.append(
         Scene.text(
           text, size: (social ? 92 : bold ? 64 : 42) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
-          color: color, stroke: social ? 3.5 : bold ? 7 : 0))
+          color: color, stroke: social ? 0 : bold ? 7 : 0))
     }
     let maxW = social ? W * 0.88 : W * 0.8 - 52 * u
     let size = Scene.measure(s, maxWidth: maxW)
@@ -337,8 +337,14 @@ extension Scene {
       bold ? CGColor(gray: 0, alpha: 0) : Scene.color(look.captionBackground ?? "#0a0a0e").copy(alpha: look.captionBackgroundOpacity ?? 0.78)!
     let mark = style == "karaoke" ? current.map { ($0, Scene.color(highlight ?? "#ffe500")) } : nil
     animated(ctx, rect, pose, blurred: &blurred) { g in
-      // Social captions cast a hard ink shadow, so they read over a busy screen or a face.
-      if social { g.setShadow(offset: CGSize(width: 0, height: -7 * self.u), blur: 0, color: Scene.color("#15151C")) }
+      // Social captions read over a face or a busy screen through shadows, not a stroke: stroking the
+      // heavy system font outlines its overlapping glyph parts, which shows as lines inside the letters.
+      // A soft dark halo first, then the same words again with a hard ink drop.
+      if social {
+        g.setShadow(offset: .zero, blur: 18 * self.u, color: CGColor(gray: 0, alpha: 0.75))
+        self.pill(g, s, centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: fill, maxWidth: maxW, mark: mark)
+        g.setShadow(offset: CGSize(width: 0, height: -7 * self.u), blur: 0, color: Scene.color("#15151C"))
+      }
       self.pill(g, s, centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: fill, maxWidth: maxW, mark: mark)
     }
   }
