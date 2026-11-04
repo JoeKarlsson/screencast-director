@@ -67,17 +67,32 @@ public struct AudioLibrary {
     public var isPersonal: Bool
   }
 
-  /// Every item: personal ones first (by name), then the built-in ones in manifest order. A
-  /// personal file with a built-in item's file name replaces it.
+  /// Every item: personal ones first (loose files as My Sounds/My Music, then each subfolder as a
+  /// category named after it, all by name), then the built-in ones in manifest order. A personal
+  /// file with a built-in item's file name replaces it. Plans name a sound by file name alone
+  /// (`sfx/<file>`), so two personal files with the same name in different folders are an error.
   public func items() throws -> [Entry] {
-    var mine: [Entry] = []
-    if let names = try? FileManager.default.contentsOfDirectory(atPath: personal.path) {
-      for name in names.sorted() where AudioLibrary.audioExtensions.contains((name as NSString).pathExtension.lowercased()) {
-        let item = LibraryItem(name: (name as NSString).deletingPathExtension, file: name, category: kind.personalCategory)
-        mine.append(Entry(item: item, url: personal.appendingPathComponent(name), isPersonal: true))
+    let fm = FileManager.default
+    func audioFiles(in folder: URL, category: String) -> [Entry] {
+      let names = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
+      return names.sorted().filter { AudioLibrary.audioExtensions.contains(($0 as NSString).pathExtension.lowercased()) }.map { name in
+        Entry(item: LibraryItem(name: (name as NSString).deletingPathExtension, file: name, category: category), url: folder.appendingPathComponent(name), isPersonal: true)
       }
     }
-    let taken = Set(mine.map(\.item.file))
+    var mine = audioFiles(in: personal, category: kind.personalCategory)
+    let subfolders = ((try? fm.contentsOfDirectory(atPath: personal.path)) ?? []).sorted().filter { name in
+      var isDir: ObjCBool = false
+      return !name.hasPrefix(".") && fm.fileExists(atPath: personal.appendingPathComponent(name).path, isDirectory: &isDir) && isDir.boolValue
+    }
+    for folder in subfolders { mine += audioFiles(in: personal.appendingPathComponent(folder), category: folder) }
+    var seen: [String: URL] = [:]
+    for e in mine {
+      if let other = seen[e.item.file] {
+        throw DirectorError("Two files in your \(kind.personalName) folder are both named \"\(e.item.file)\" (\(other.path) and \(e.url.path)). Rename one: a video names its sounds by file name alone.")
+      }
+      seen[e.item.file] = e.url
+    }
+    let taken = Set(seen.keys)
     let data = try Data(contentsOf: builtIn.appendingPathComponent("\(kind.resource).json"))
     let builtIns = try JSONDecoder().decode([LibraryItem].self, from: data)
       .filter { !taken.contains($0.file) }

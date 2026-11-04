@@ -55,7 +55,7 @@ struct AudioPicker: View {
         Text(kind == .sounds ? "Sound Effects" : "Music").font(.headline)
         Spacer()
         Button(kind == .sounds ? "My Sounds Folder" : "My Music Folder") { revealPersonalFolder() }
-          .help("Drop your own \(kind == .sounds ? "sounds" : "tracks") here (m4a, mp3, wav, aiff) and they show up in this list")
+          .help("Drop your own \(kind == .sounds ? "sounds" : "tracks") here (m4a, mp3, wav, aiff) and they show up in this list; each folder inside it is its own group")
       }
       .padding(10)
       Divider()

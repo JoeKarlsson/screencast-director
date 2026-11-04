@@ -148,6 +148,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - A profile can set voice leveling (Normalize, Warm voice, volume), the camera's color and LUT, the bubble's size and shape, and the default layout, so applying it sets up a whole video. It changes only the settings it names.
 - Camera color has Highlights and Shadows (tame a hot-lit face and lift a dark room separately), Vibrance (more color in the room without making skin orange), and a LUT: **Choose…** copies a 3D `.cube` file into the video's `luts/` folder and applies it after the other controls. Presets keep the LUT.
 - The camera's Warmth grade works the right way round. Raising it made the camera bluer and lowering it made it orange, so the Warm look came out cool and the Cool look warm.
+- Folders inside My Sounds and My Music show up as their own groups in Add Sound Effect… and the music picker (a `Meme` folder lists as Meme). Two files with the same name in different folders get an error naming both, since a video refers to a sound by its file name.
 
 ### Motion
 - A video that opens (or ends) on the full camera starts and stays there, instead of easing in from the bubble over the first frames.
