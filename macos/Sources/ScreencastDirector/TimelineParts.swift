@@ -103,7 +103,7 @@ final class TimelineUI: ObservableObject {
 }
 
 enum Track: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations, sounds
+  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations, effects, sounds
 
   var height: CGFloat {
     switch self {
@@ -125,6 +125,7 @@ enum Track: CaseIterable {
     case .insert: return .broll
     case .animation: return .animations
     case .sfx: return .sounds
+    case .effectRange: return .effects
     case .marker: return nil
     }
   }
@@ -140,6 +141,7 @@ enum Track: CaseIterable {
     case .marks: return "Marks"
     case .broll: return "B-roll"
     case .animations: return "Animations"
+    case .effects: return "Effects"
     case .sounds: return "Sound FX"
     }
   }
@@ -155,6 +157,7 @@ enum Track: CaseIterable {
     case .marks: return "scribble"
     case .broll: return "photo.on.rectangle"
     case .animations: return "sparkles"
+    case .effects: return "wand.and.stars"
     case .sounds: return "speaker.wave.2"
     }
   }
@@ -170,6 +173,7 @@ enum Track: CaseIterable {
     case .marks: return Theme.mark
     case .broll: return Theme.broll
     case .animations: return Theme.animation
+    case .effects: return Theme.effect
     case .sounds: return Theme.sfx
     }
   }

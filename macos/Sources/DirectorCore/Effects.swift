@@ -18,6 +18,30 @@ public struct EffectUse: Codable, Equatable {
   }
 }
 
+/// An effect drawn only between two source times, with its own settings.
+public struct EffectRange: Codable, Equatable {
+  public var start: Double
+  public var end: Double
+  /// The effect folder's name.
+  public var name: String
+  /// `screen`, `camera` or `frame`; nil is the effect's own.
+  public var layer: String?
+  /// Values for the effect's params by name; a param left out uses its default.
+  public var params: [String: Double]?
+  public var note: String?
+
+  public init(start: Double, end: Double, name: String, layer: String? = nil, params: [String: Double]? = nil, note: String? = nil) {
+    self.start = start
+    self.end = end
+    self.name = name
+    self.layer = layer
+    self.params = params
+    self.note = note
+  }
+
+  public var use: EffectUse { EffectUse(name: name, layer: layer, params: params) }
+}
+
 /// `effect.json` in an effect folder, next to `effect.metal`.
 public struct EffectManifest: Codable, Equatable {
   public struct Param: Codable, Equatable {
@@ -61,6 +85,19 @@ public struct EffectSources {
 
   public static func isValidName(_ name: String) -> Bool {
     !name.isEmpty && name.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+  }
+
+  /// The effects you can use: the video's frozen ones and the personal library's, by name.
+  public func available() -> [String] {
+    let candidates = (project.map { [EffectSources.videoFolder($0)] } ?? []) + [personal]
+    let names = candidates.flatMap { (try? FileManager.default.contentsOfDirectory(atPath: $0.path)) ?? [] }
+    return Set(names.filter { folder($0) != nil }).sorted()
+  }
+
+  /// An effect's `effect.json`, or nil when it isn't anywhere or can't be read.
+  public func manifest(_ name: String) -> EffectManifest? {
+    guard let dir = folder(name) else { return nil }
+    return try? JSONDecoder().decode(EffectManifest.self, from: Data(contentsOf: dir.appendingPathComponent("effect.json")))
   }
 
   /// The folder an effect loads from, or nil when no folder has it.

@@ -342,6 +342,9 @@ public struct Plan: Codable, Equatable {
   public var outro: Card?
   /// Shaders from effect folders drawn on the screen, the camera or the whole frame (see Effects).
   public var effects: [EffectUse]?
+  /// Effects that draw only from `start` to `end`, each with its own settings, like blob tracking
+  /// for one stretch. They draw before the always-on `effects` on the same layer.
+  public var effectRanges: [EffectRange]?
   /// Source seconds the publish covers are made from (up to three, oldest dropped first); nil
   /// picks the clearest camera frames.
   public var coverAt: [Double]?

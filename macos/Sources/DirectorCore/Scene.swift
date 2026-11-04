@@ -48,6 +48,8 @@ public final class Scene: @unchecked Sendable {
   let outroLogo: CGImage?
   /// Compiled effects, drawn in plan order on their layer.
   let effects: [LoadedEffect]
+  /// `plan.effectRanges`' effects, each with the output frames it draws in.
+  let rangeEffects: [(s: Double, e: Double, effect: LoadedEffect)]
   /// The camera's tracked points, when an effect asks for them.
   let tracking: Tracking?
   /// Output frames where the picture visibly changes (cuts, B-roll, layouts, punch-ins), for the effects' `toCut`.
@@ -78,10 +80,13 @@ public final class Scene: @unchecked Sendable {
 
   public init(
     plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
-    effects: [LoadedEffect] = [], tracking: Tracking? = nil
+    effects: [LoadedEffect] = [], rangeEffects: [LoadedEffect] = [], tracking: Tracking? = nil
   ) {
     self.plan = plan
     self.effects = effects
+    self.rangeEffects = zip(plan.effectRangeList, rangeEffects).flatMap { r, effect in
+      srcRangeToOut(mapPlan(plan), r.start, r.end, fps: plan.output.fps).map { (s: $0.startF, e: $0.endF, effect: effect) }
+    }
     self.tracking = tracking
     self.dir = dir
     self.words = words
@@ -545,7 +550,8 @@ extension Scene {
 
   /// The image with each effect for this layer drawn on it, in plan order.
   func withEffects(_ image: CIImage, layer: String, frame f: Int) -> CIImage {
-    let these = effects.filter { $0.layer == layer }
+    let ranged = rangeEffects.filter { $0.effect.layer == layer && Double(f) >= $0.s && Double(f) < $0.e }.map(\.effect)
+    let these = ranged + effects.filter { $0.layer == layer }
     guard !these.isEmpty else { return image }
     let signals = effectSignals(f)
     let blobs = these.contains(where: \.tracking) ? effectBlobs(layer: layer, frame: f, size: image.extent.size) : []

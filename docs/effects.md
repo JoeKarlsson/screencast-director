@@ -19,6 +19,16 @@ Put the effect's folder in `~/Library/Application Support/Screencast Director/Ef
 - `params`: the effect's settings by name. One left out uses its default. Values are clamped to the effect's range.
 - Effects on the same layer draw in the order listed.
 
+To draw an effect only for a stretch, add it to `effectRanges` instead, with its own settings (times in source seconds). In the app, the wand button on the timeline adds one over the in/out range or for 5 s from the playhead; drag its bar on the Effects row to move or trim it, and set it in the inspector.
+
+```jsonc
+"effectRanges": [
+  { "start": 72, "end": 84, "name": "track", "params": { "box": 0.7 } }
+]
+```
+
+Ranged effects draw before the always-on ones on the same layer.
+
 A profile can turn effects on for every video: add the same `effects` list to its `profile.json`.
 
 The first time a video uses an effect, it's copied into the video's own `effects/` folder, so changing the library later never changes a finished video. To pick up a library change, delete the video's copy.

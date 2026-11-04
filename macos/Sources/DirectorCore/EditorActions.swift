@@ -16,11 +16,12 @@ public enum Selection: Equatable {
   case insert(Int)
   case animation(Int)
   case sfx(Int)
+  case effectRange(Int)
 
   /// Items that can be dragged or nudged in time (clips are trimmed, cuts restored).
   public var movable: Bool {
     switch self {
-    case .zoom, .layout, .callout, .annotation, .marker, .insert, .animation, .sfx: return true
+    case .zoom, .layout, .callout, .annotation, .marker, .insert, .animation, .sfx, .effectRange: return true
     default: return false
     }
   }
@@ -80,6 +81,7 @@ extension Plan {
     case .insert(let i): return insertList.indices.contains(i)
     case .animation(let i): return animationList.indices.contains(i)
     case .sfx(let i): return sfxList.indices.contains(i)
+    case .effectRange(let i): return effectRangeList.indices.contains(i)
     case .gap(let g): return gaps.contains(g)
     }
   }
@@ -97,6 +99,7 @@ extension Plan {
     case .insert(let i): return (insertList[i].start, insertList[i].end)
     case .animation(let i): return (animationList[i].start, animationList[i].end)
     case .sfx(let i): return (sfxList[i].t, sfxList[i].t)
+    case .effectRange(let i): return (effectRangeList[i].start, effectRangeList[i].end)
     case .gap(let g): return (g.start, g.end)
     }
   }
@@ -108,6 +111,7 @@ extension Plan {
       + callouts.indices.map { .callout($0) } + annotationList.indices.map { .annotation($0) }
       + markerList.indices.map { .marker($0) } + insertList.indices.map { .insert($0) }
       + animationList.indices.map { .animation($0) } + sfxList.indices.map { .sfx($0) }
+      + effectRangeList.indices.map { .effectRange($0) }
   }
 
   /// Deletes the selected items: clips are cut and cuts restored by time (indices shift as the
@@ -115,7 +119,7 @@ extension Plan {
   public mutating func delete(_ items: [Selection]) {
     var cuts: [Range<Double>] = [], restores: [Gap] = []
     var zoomIdx: [Int] = [], layoutIdx: [Int] = [], calloutIdx: [Int] = [], markIdx: [Int] = [], markerIdx: [Int] = []
-    var insertIdx: [Int] = [], animationIdx: [Int] = [], effectIdx: [Int] = []
+    var insertIdx: [Int] = [], animationIdx: [Int] = [], effectIdx: [Int] = [], rangeIdx: [Int] = []
     for s in items {
       switch s {
       case .segment(let i) where segments.indices.contains(i): cuts.append(segments[i].start..<segments[i].end)
@@ -128,6 +132,7 @@ extension Plan {
       case .insert(let i): insertIdx.append(i)
       case .animation(let i): animationIdx.append(i)
       case .sfx(let i): effectIdx.append(i)
+      case .effectRange(let i): rangeIdx.append(i)
       default: break
       }
     }
@@ -144,6 +149,7 @@ extension Plan {
     annotationList = removing(annotationList, markIdx)
     markerList = removing(markerList, markerIdx)
     sfxList = removing(sfxList, effectIdx)
+    effectRangeList = removing(effectRangeList, rangeIdx)
     for g in restores { restore(g) }
     for r in cuts { cut(range: r) }
   }
@@ -161,6 +167,7 @@ extension Plan {
   /// moved item is now (normalizing re-sorts the lists).
   public mutating func shift(_ items: [Selection], by d: Double) -> [Selection] {
     var marks = annotationList, pins = markerList, clips = insertList, anims = animationList, effects = sfxList
+    var ranges = effectRangeList
     var moved: [(Selection, Any)] = []
     for s in items {
       switch s {
@@ -193,6 +200,10 @@ extension Plan {
       case .sfx(let i) where effects.indices.contains(i):
         effects[i].t += d
         moved.append((s, effects[i]))
+      case .effectRange(let i) where ranges.indices.contains(i):
+        ranges[i].start += d
+        ranges[i].end += d
+        moved.append((s, ranges[i]))
       default: break
       }
     }
@@ -201,6 +212,7 @@ extension Plan {
     insertList = clips
     animationList = anims
     sfxList = effects
+    effectRangeList = ranges
     normalize()
     return moved.compactMap { s, value in
       switch (s, value) {
@@ -212,6 +224,7 @@ extension Plan {
       case (.insert, let c as Insert): return insertList.firstIndex(of: c).map { .insert($0) }
       case (.animation, let a as Animation): return animationList.firstIndex(of: a).map { .animation($0) }
       case (.sfx, let e as SoundEffect): return sfxList.firstIndex(of: e).map { .sfx($0) }
+      case (.effectRange, let r as EffectRange): return effectRangeList.firstIndex(of: r).map { .effectRange($0) }
       default: return nil
       }
     }
@@ -255,6 +268,10 @@ extension Plan {
       }
       animationList[i] = a
       moved = a
+    case .effectRange(let i):
+      effectRangeList[i].start = start
+      effectRangeList[i].end = end
+      moved = effectRangeList[i]
     case .segment, .gap, .marker, .sfx:
       return nil
     }
@@ -266,6 +283,7 @@ extension Plan {
     case let a as Annotation: return annotationList.firstIndex(of: a).map { .annotation($0) }
     case let c as Insert: return insertList.firstIndex(of: c).map { .insert($0) }
     case let a as Animation: return animationList.firstIndex(of: a).map { .animation($0) }
+    case let r as EffectRange: return effectRangeList.firstIndex(of: r).map { .effectRange($0) }
     default: return nil
     }
   }
@@ -394,6 +412,9 @@ private func selectedLine(_ selection: Selection, _ plan: Plan) -> String? {
   case .sfx(let i):
     let e = plan.sfxList[i]
     return "Selected sound effect #\(i): \(e.file) at source \(fmtTime(e.t))"
+  case .effectRange(let i):
+    let r = plan.effectRangeList[i]
+    return "Selected effect range #\(i): \(r.name) source \(fmtTime(r.start))-\(fmtTime(r.end))"
   }
 }
 

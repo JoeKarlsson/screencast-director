@@ -42,13 +42,13 @@ extension InspectorView {
       items.filter {
         switch ($0, kind) {
         case (.segment, "clip"), (.gap, "cut"), (.zoom, "zoom"), (.layout, "layout"), (.callout, "title"), (.annotation, "annotation"),
-          (.marker, "marker"), (.insert, "B-roll"), (.animation, "animation"):
+          (.marker, "marker"), (.insert, "B-roll"), (.animation, "animation"), (.effectRange, "effect"):
           return true
         default: return false
         }
       }.count
     }
-    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll", "animation"].compactMap { k -> String? in
+    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll", "animation", "effect"].compactMap { k -> String? in
       let n = count(k)
       return n == 0 ? nil : "\(n) \(k)\(n == 1 ? "" : "s")"
     }
@@ -239,6 +239,39 @@ extension InspectorView {
           bindItem("sfxGain\(i)", \.sfxList, i, \.gainDB, or: 0) { $0.rounded() }, -24...6, "\(Int((e.gainDB ?? 0).rounded())) dB")
       }
       previewButton(e.t)
+      removeButton()
+    case .effectRange(let i) where plan.effectRangeList.indices.contains(i):
+      let r = plan.effectRangeList[i]
+      let sources = EffectSources(project: project.dir)
+      let manifest = sources.manifest(r.name)
+      itemHeader(manifest?.title ?? r.name, "wand.and.stars", Theme.effect, range(r.start, r.end))
+      InspectorSection("Effect", detail: manifest == nil ? "\(r.name) isn't in the Effects folder, so the video won't build." : "Drawn only for this stretch.") {
+        Picker("Effect", selection: bindItem("effectName\(i)", \.effectRangeList, i, \.name)) {
+          ForEach(Array(Set(sources.available() + [r.name])).sorted(), id: \.self) { Text(sources.manifest($0)?.title ?? $0).tag($0) }
+        }
+        Picker("On", selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer)) {
+          Text("Its own (\(manifest?.layer ?? "frame"))").tag(String?.none)
+          ForEach(Effects.layers, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
+        }
+      }
+      if let params = manifest?.params, !params.isEmpty {
+        InspectorSection("Settings") {
+          ForEach(params, id: \.name) { p in
+            let lo = p.min ?? 0, hi = p.max ?? max(1, p.default * 2)
+            let value = bind(
+              "effectParam\(i)\(p.name)",
+              { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].params?[p.name] ?? p.default : p.default },
+              { plan, v in
+                guard plan.effectRangeList.indices.contains(i) else { return }
+                var all = plan.effectRangeList[i].params ?? [:]
+                all[p.name] = (v * 100).rounded() / 100
+                plan.effectRangeList[i].params = all
+              })
+            slider(p.name.capitalized, value, lo...hi, (r.params?[p.name] ?? p.default).formatted(.number.precision(.fractionLength(0...2))))
+          }
+        }
+      }
+      previewButton(r.start)
       removeButton()
     case .marker(let i) where plan.markerList.indices.contains(i):
       let m = plan.markerList[i]

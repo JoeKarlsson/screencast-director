@@ -74,6 +74,17 @@ func editorActionChecks() {
   expect(dragged.animationList[0].cues == ["lock": 7], "dragging an animation takes its beats along")
   _ = dragged.retime(.animation(0), start: 6, end: 9)
   expect(dragged.animationList[0].end == 9 && dragged.animationList[0].cues == ["lock": 7], "trimming an animation leaves its beats")
+  // Effect ranges are timeline bars too: selected, retimed, moved and deleted like B-roll; one
+  // left under 0.2 s or past the recording is trimmed or dropped.
+  var ranged = base
+  ranged.effectRangeList = [EffectRange(start: 9, end: 12, name: "track"), EffectRange(start: 3, end: 5, name: "track"), EffectRange(start: 18, end: 25, name: "track")]
+  ranged.normalize()
+  expect(ranged.effectRangeList.map(\.start) == [3, 9, 18] && ranged.effectRangeList[2].end == 20, "effect ranges are sorted and kept inside the recording")
+  expect(ranged.allItems.suffix(3) == [.effectRange(0), .effectRange(1), .effectRange(2)] && ranged.timeRange(of: .effectRange(1))! == (9, 12), "effect ranges are timeline items")
+  expect(ranged.retime(.effectRange(0), start: 13, end: 15) == .effectRange(1), "a dragged effect range is found after re-sorting")
+  expect(ranged.shift([.effectRange(0)], by: 1) == [.effectRange(0)] && ranged.effectRangeList[0].start == 10, "an effect range moves with the group")
+  ranged.delete([.effectRange(0), .effectRange(1), .effectRange(2)])
+  expect(ranged.effectRanges == nil, "deleting every effect range clears the list")
 
   // Settings accessors start from the defaults and create the setting on first write.
   var settings = base

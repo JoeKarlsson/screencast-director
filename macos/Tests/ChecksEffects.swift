@@ -123,6 +123,21 @@ func effectChecks() {
   } catch {
     expect(false, "the blobprobe effect loads: \(error.localizedDescription)")
   }
+  // An effect range draws only inside its stretch (the probe paints red with its param).
+  do {
+    var ranged = plan
+    ranged.segments = [Segment(start: 0, end: 12, speed: 1)]
+    ranged.effectRanges = [EffectRange(start: 4, end: 6, name: "probe", params: ["level": 1])]
+    let loaded = try Effects.load(ranged.effectRangeList.map(\.use), sources: sources)
+    let scene = Scene(plan: ranged, words: [], clicks: [], shortcuts: [], dir: project, rangeEffects: loaded)
+    let screen = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    let inside = pixel(scene.render(frame: Int(5 * fps), screen: screen, camera: nil), x: W / 2, y: H / 2)
+    let before = pixel(scene.render(frame: Int(3 * fps), screen: screen, camera: nil), x: W / 2, y: H / 2)
+    let after = pixel(scene.render(frame: Int(7 * fps), screen: screen, camera: nil), x: W / 2, y: H / 2)
+    expect(inside[0] > 0.97 && before[0] < 0.9 && after[0] < 0.9, "an effect range draws only from its start to its end (\(before) \(inside) \(after))")
+  } catch {
+    expect(false, "the ranged probe loads: \(error.localizedDescription)")
+  }
   // Camera tracking moves each point between samples, shows a point seen in only one sample for half
   // a step, and survives tracking.json.
   let tracking = Tracking(samples: [

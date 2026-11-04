@@ -224,6 +224,16 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
       out.append(line("  \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing))
     }
   }
+  if !plan.effectRangeList.isEmpty {
+    out.append("")
+    out.append("## Effect ranges (an effect only from start to end)")
+    let sources = EffectSources(project: project.dir)
+    for (i, e) in plan.effectRangeList.enumerated() {
+      let params = (e.params ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.formatted())" }.joined(separator: " ")
+      let missing = sources.folder(e.name) == nil ? "MISSING: the video won't build" : ""
+      out.append(line("  #\(i) src \(fmtTime(e.start))-\(fmtTime(e.end)) \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing, e.note ?? ""))
+    }
+  }
   func listLibrary(_ lib: AudioLibrary, _ heading: String) {
     out.append("")
     do {

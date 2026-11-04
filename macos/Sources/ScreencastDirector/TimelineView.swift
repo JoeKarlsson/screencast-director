@@ -193,6 +193,20 @@ struct TimelineView: View {
         .frame(width: 28, height: 22)
         .accessibilityLabel("Animate")
         .help("Add an animation over the in/out range, the selected words, or from the playhead")
+        Menu {
+          let sources = EffectSources(project: project.dir)
+          ForEach(sources.available(), id: \.self) { name in
+            Button(sources.manifest(name)?.title ?? name) { project.addEffectRange(name) }
+          }
+        } label: {
+          Image(systemName: "wand.and.stars")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 28, height: 22)
+        .accessibilityLabel("Effect")
+        .help("Turn an effect on for the in/out range, or 5 s from the playhead (effects you installed in the Effects folder)")
       }
       Spacer(minLength: 4)
       HStack(spacing: 6) {
@@ -430,6 +444,14 @@ struct TimelineView: View {
         let rendering = project.animating && plan.animationsToRender(dir: project.dir).contains { $0.index == i }
         let label = "\(an.note ?? AnimationLibrary.template(an.template, project.dir)?.title ?? an.template)\(rendering ? " · rendering…" : "")"
         bar(sel: sel, start: a, end: b, track: .animations, color: Theme.animation, label: label, striped: rendering, movable: true) { s, e in
+          project.retime(sel, start: s, end: e)
+        }
+      }
+      ForEach(Array(plan.effectRangeList.enumerated()), id: \.offset) { i, r in
+        let sel = Selection.effectRange(i)
+        let (a, b) = range(sel, r.start, r.end)
+        let title = EffectSources(project: project.dir).manifest(r.name)?.title ?? r.name
+        bar(sel: sel, start: a, end: b, track: .effects, color: Theme.effect, label: r.note ?? title, movable: true) { s, e in
           project.retime(sel, start: s, end: e)
         }
       }

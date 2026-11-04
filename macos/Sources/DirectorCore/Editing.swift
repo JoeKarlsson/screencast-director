@@ -110,6 +110,15 @@ extension Plan {
       }.filter { $0.end - $0.start >= 0.2 && !$0.file.isEmpty }.sorted { $0.start < $1.start }
       inserts = kept.isEmpty ? nil : kept
     }
+    if let list = effectRanges {
+      let kept: [EffectRange] = list.map { r in
+        var r = r
+        r.start = max(0, r.start)
+        r.end = min(dur, r.end)
+        return r
+      }.filter { $0.end - $0.start >= 0.2 && !$0.name.isEmpty }.sorted { $0.start < $1.start }
+      effectRanges = kept.isEmpty ? nil : kept
+    }
     if let list = sfx {
       let kept: [SoundEffect] = list.map { e in
         var e = e
@@ -392,6 +401,7 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
     + diff(old.annotations ?? [], new.annotations ?? []) { ($0.start, $0.end) }
     + diff(old.insertList, new.insertList) { ($0.start, $0.end) }
     + diff(old.animationList, new.animationList) { ($0.start, $0.end) } + diff(old.sfxList, new.sfxList) { ($0.t, $0.t) }
+    + diff(old.effectRangeList, new.effectRangeList) { ($0.start, $0.end) }
   var merged: [(Double, Double)] = []
   for r in all.sorted(by: { $0.0 < $1.0 }) {
     if let last = merged.last, r.0 <= last.1 {

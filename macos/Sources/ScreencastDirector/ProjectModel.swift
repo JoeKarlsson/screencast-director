@@ -602,6 +602,18 @@ final class ProjectModel: ObservableObject {
     }
   }
 
+  // MARK: Effect ranges
+
+  /// An effect drawn over the in/out range, or for 5 s from the playhead.
+  func addEffectRange(_ name: String) {
+    guard let plan else { return }
+    let t = playheadSrc
+    let span = markedRange ?? t..<min(plan.source.duration, t + 5)
+    let r = EffectRange(start: span.lowerBound, end: span.upperBound, name: name)
+    apply { $0.effectRangeList.append(r) }
+    if let i = self.plan?.effectRangeList.firstIndex(of: r) { select(.effectRange(i), adding: false) }
+  }
+
   // MARK: Markers
 
   /// M: a marker at the playhead.
