@@ -430,8 +430,9 @@ public final class Scene: @unchecked Sendable {
   }
 
   static func scaled(_ image: CIImage, by k: Double) -> CIImage {
-    // Lanczos when shrinking (a 4K capture into a 1080p card); plain affine when enlarging.
-    if k < 0.99 {
+    // Lanczos both ways: shrinking a 4K capture into a 1080p card, and enlarging a 1080p camera to
+    // fill a 4K frame, where the plain affine scale is soft and blocky.
+    if abs(k - 1) > 0.01 {
       return image.applyingFilter("CILanczosScaleTransform", parameters: ["inputScale": k, "inputAspectRatio": 1.0])
     }
     return image.transformed(by: CGAffineTransform(scaleX: k, y: k))

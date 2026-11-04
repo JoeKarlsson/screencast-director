@@ -85,7 +85,6 @@ final class BrollRecorder: NSObject, ObservableObject, AVCaptureFileOutputRecord
     }
     let session = AVCaptureSession()
     session.beginConfiguration()
-    if session.canSetSessionPreset(.hd1920x1080) { session.sessionPreset = .hd1920x1080 }
     let output = AVCaptureMovieFileOutput()
     do {
       let input = try AVCaptureDeviceInput(device: device)
@@ -94,6 +93,7 @@ final class BrollRecorder: NSObject, ObservableObject, AVCaptureFileOutputRecord
       }
       session.addInput(input)
       session.addOutput(output)
+      _ = try device.useBestRecordingFormat()
     } catch {
       session.commitConfiguration()
       Notices.shared.show(error, "Couldn't open the camera")

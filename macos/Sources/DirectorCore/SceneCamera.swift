@@ -49,7 +49,13 @@ extension Scene {
     }
     let (r, zoom) = cameraFraming(b, frame: f, cameraWidth: cw, cameraHeight: ch)
     let k = max(r.width / cw, r.height / ch) * zoom
-    let moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
+    var moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
+    // A camera blown up a lot (1080p filling a vertical 4K frame is about 3.5x) gets a little
+    // crispness back: a moderate sharpen of brightness only, so no color halos. It can't add detail
+    // the camera never recorded; recording the camera at 4K is what fixes that.
+    if k > 1.5 {
+      moved = moved.applyingFilter("CISharpenLuminance", parameters: [kCIInputSharpnessKey: 0.6, kCIInputRadiusKey: 2.0]).cropped(to: moved.extent)
+    }
     // Keep the framing point centered, clamped so the camera image always covers the box.
     // The framing point is in the file's coordinates, so it mirrors with the picture. A punch-in
     // can move it for its span.

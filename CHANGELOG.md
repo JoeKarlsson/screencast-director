@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Recording
+- The camera records at the best size it offers, up to 4K at 30 fps, with the bitrate to match (40 Mbps at 4K). It used to be held to 1080p whatever the camera could do. Recorded B-roll from a camera too.
 - Record B-roll into the open video (File > Record B-roll…, or hold the B-roll button): a small panel with a live preview records a clip from the camera or the screen into its broll/ folder, then shows it full frame from the playhead for the clip's length. One undo takes it off.
 - A floating recording widget: clock, mic level, camera preview, retake count, and Pause, Restart, Discard and Stop. It never shows up in the recording.
 - Pause while recording. The paused stretch is cut from the draft.
@@ -20,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- A camera enlarged to fill the frame (a 1080p camera in a vertical 4K video) is scaled with Lanczos instead of a plain resize, with a light sharpen, so it's less soft and blocky.
 - Effects: shader plugins that draw on the screen, the camera or the whole frame, under titles and captions. They react to clicks, cuts and clip speed. Install one in the Effects folder and list it in the plan's or profile's `effects` ([docs/effects.md](docs/effects.md)). None ship with the app.
 - A punch-in can move the camera's framing point (`x`, `y`) and widen (`scale` below 1), to cut to something held up beside your face that a vertical crop would cut off.
 - Captions: drag them anywhere in the preview, and set their text, highlight and box colors, box opacity, font and size in Cursor & Overlays > Captions. Bold and social captions can have a box behind the words (`captions.box`, `x`, `y`, `size`).

@@ -1028,6 +1028,7 @@ struct Checks {
     coverChecks()
     inputEventChecks()
     effectChecks()
+    cameraFormatChecks()
 
     print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
     exit(failures == 0 ? 0 : 1)

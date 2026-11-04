@@ -322,10 +322,11 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
   private func startCamera(_ device: AVCaptureDevice, dir: URL) throws {
     let session = AVCaptureSession()
     session.beginConfiguration()
-    session.sessionPreset = .hd1920x1080
     let input = try AVCaptureDeviceInput(device: device)
     guard session.canAddInput(input) else { throw DirectorError("Can't record from \(device.localizedName): the camera is busy or not supported") }
     session.addInput(input)
+    // After adding the input: a session preset set later would put the camera back to its own size.
+    let size = try device.useBestRecordingFormat()
     let output = AVCaptureVideoDataOutput()
     output.setSampleBufferDelegate(self, queue: camQueue)
     session.addOutput(output)
@@ -335,8 +336,8 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     let input2 = AVAssetWriterInput(
       mediaType: .video,
       outputSettings: [
-        AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 1920, AVVideoHeightKey: 1080,
-        AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 12_000_000],
+        AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: size.width, AVVideoHeightKey: size.height,
+        AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: CameraFormat.bitrate(width: size.width, height: size.height)],
       ])
     input2.expectsMediaDataInRealTime = true
     w.add(input2)
@@ -353,5 +354,29 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
       camWriter.startSession(atSourceTime: pts)
     }
     if camInput?.isReadyForMoreMediaData == true { camInput?.append(sb) }
+  }
+}
+
+extension AVCaptureDevice {
+  /// Switches the camera to the format it records best in (CameraFormat.best: up to 4K at 30 fps)
+  /// and returns that size. Call it after the camera joins a session, which would otherwise pick its
+  /// own preset size. A camera with no 30 fps format keeps its current one.
+  func useBestRecordingFormat() throws -> (width: Int, height: Int) {
+    let options = formats.map { f -> CameraFormat.Option in
+      let d = CMVideoFormatDescriptionGetDimensions(f.formatDescription)
+      return .init(width: Int(d.width), height: Int(d.height), maxFPS: f.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0)
+    }
+    guard let i = CameraFormat.best(options) else {
+      let d = CMVideoFormatDescriptionGetDimensions(activeFormat.formatDescription)
+      return (Int(d.width), Int(d.height))
+    }
+    try lockForConfiguration()
+    defer { unlockForConfiguration() }
+    activeFormat = formats[i]
+    if formats[i].videoSupportedFrameRateRanges.contains(where: { $0.minFrameRate <= 30 && $0.maxFrameRate >= 30 }) {
+      activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
+      activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
+    }
+    return (options[i].width, options[i].height)
   }
 }
