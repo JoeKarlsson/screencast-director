@@ -48,6 +48,8 @@ public final class Scene: @unchecked Sendable {
   let outroLogo: CGImage?
   /// Compiled effects, drawn in plan order on their layer.
   let effects: [LoadedEffect]
+  /// The camera's tracked points, when an effect asks for them.
+  let tracking: Tracking?
   /// Output frames where the picture visibly changes (cuts, B-roll, layouts, punch-ins), for the effects' `toCut`.
   let cutFrames: [Double]
   /// What kind of change each of `cutFrames` is (`EffectSignals.cutKind`).
@@ -76,10 +78,11 @@ public final class Scene: @unchecked Sendable {
 
   public init(
     plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
-    effects: [LoadedEffect] = []
+    effects: [LoadedEffect] = [], tracking: Tracking? = nil
   ) {
     self.plan = plan
     self.effects = effects
+    self.tracking = tracking
     self.dir = dir
     self.words = words
     cameraLUT = plan.camera?.grade?.lut.flatMap { Scene.fileURL($0, dir: dir) }.flatMap { try? CubeLUT.load($0) }
@@ -545,6 +548,33 @@ extension Scene {
     let these = effects.filter { $0.layer == layer }
     guard !these.isEmpty else { return image }
     let signals = effectSignals(f)
-    return these.reduce(image) { $1.apply($0, signals: signals) }
+    let blobs = these.contains(where: \.tracking) ? effectBlobs(layer: layer, frame: f, size: image.extent.size) : []
+    return these.reduce(image) { $1.apply($0, signals: signals, blobs: blobs) }
+  }
+
+  /// The points followed on a layer at output frame `f`, in that layer's pixels (y down): body joints
+  /// and fingertips on the camera, the pointer and clicks from the last 1.5 s on the screen. None on
+  /// the frame layer, where the camera and screen can be anywhere.
+  func effectBlobs(layer: String, frame f: Int, size: CGSize) -> [EffectBlob] {
+    let w = Double(size.width), h = Double(size.height)
+    switch layer {
+    case "camera":
+      guard let tracking, let camera = plan.camera, let t = outToSrc(mapped, Double(f), fps: plan.output.fps) else { return [] }
+      return tracking.points(at: t + camera.offset).map {
+        EffectBlob(x: Float((camera.mirror == true ? 1 - $0.x : $0.x) * w), y: Float($0.y * h), size: Float($0.size * h), id: Float($0.id))
+      }
+    case "screen":
+      var out: [EffectBlob] = []
+      if let p = cursorPosition(frame: Double(f)) {
+        out.append(EffectBlob(x: Float(p.x * w), y: Float(p.y * h), size: Float(0.05 * h), id: 100))
+      }
+      let recent = focusClicks.filter { $0.f <= Double(f) && Double(f) - $0.f < 1.5 * Double(fps) }
+      for (i, c) in recent.suffix(Effects.maxBlobs - 1).enumerated() {
+        out.append(EffectBlob(x: Float(c.x * w), y: Float(c.y * h), size: Float(0.08 * h), id: Float(101 + i)))
+      }
+      return out
+    default:
+      return []
+    }
   }
 }

@@ -15,7 +15,7 @@ Put the effect's folder in `~/Library/Application Support/Screencast Director/Ef
 ]
 ```
 
-- `layer`: `screen` (the screen recording, before it's placed, so the effect follows zooms), `camera` (after the camera grade) or `frame` (the whole picture). Titles, captions and other overlays are always drawn on top, so they stay readable. Without `layer`, the effect uses its own.
+- `layer`: `screen` (the screen recording, before it's placed, so the effect follows zooms), `camera` (after the camera grade, mirrored when the camera is) or `frame` (the whole picture). Titles, captions and other overlays are always drawn on top, so they stay readable. Without `layer`, the effect uses its own.
 - `params`: the effect's settings by name. One left out uses its default. Values are clamped to the effect's range.
 - Effects on the same layer draw in the order listed.
 
@@ -42,6 +42,7 @@ An effect is a folder `<name>/` (letters, digits, `-`, `_`) with two files.
 
 - `reach`: how many pixels away the shader reads (for shifts, smears and glows). Reads beyond it come back clamped to the tile's edge, so set it to the furthest offset you use.
 - `params`: floats the shader reads as `p[0]`, `p[1]`, … in this order.
+- `tracking`: `true` for an effect that draws on followed points (see Tracking below). Leave it out otherwise.
 
 `effect.metal`, a Metal function:
 
@@ -69,5 +70,13 @@ float4 effect(Layer src, float2 pos, Signals s, constant float *p) {
 | `s.speed` | playback speed of the clip on screen (1 is real time) |
 | `hash(float2)` | a 0 to 1 pseudo-random number for a point |
 | `luma(float4)` | a color's brightness |
+
+## Tracking
+
+An effect with `"tracking": true` gets up to 32 followed points on its layer: `s.blobs` says how many, and `src.blobs[i]` is each one as a `float4`: `xy` its center in the layer's pixels (y down), `z` a box size in pixels that scales with the person, `w` an id that stays the same for the same point from frame to frame.
+
+- `camera`: body joints and fingertips, found by Vision. Ids: 0 nose, 1-2 eyes, 3-4 ears, 5 neck, 6-7 shoulders, 8-9 elbows, 10-11 wrists, 20-24 and 30-34 the fingertips of each hand. The first video that needs them tracks the camera at 10 frames a second and saves `tracking.json` next to it (a couple of minutes of camera takes about 15 s). Points move smoothly between those samples.
+- `screen`: 100 the pointer, 101 and up clicks from the last 1.5 s.
+- `frame`: none, since the camera and screen can be anywhere in it.
 
 Effects run on the GPU and can only change pixels: they can't read files or the network.

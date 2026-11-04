@@ -27,6 +27,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Animations re-render when the look's accent, fonts or theme change; before, a new profile kept the old clips.
 - Intro and outro cards take the video's effects, so they match the rest of it.
 - B-roll and animations can come in and go out like an interlaced TV picture (the `interlace` enter/exit), and `style.brollMotion` sets how B-roll without its own motion comes and goes, so a profile can give every video the same B-roll transition.
+- Effects can follow things: an effect that asks for tracking gets the camera's body joints and fingertips (found once by Vision and kept in `tracking.json`) or the pointer and recent clicks on the screen, for blob-tracking boxes and labels. Camera effects now draw after the camera is mirrored, so their text reads the right way round.
 - Effects get `cutKind`: whether the nearest change is a cut, a jump back from a cold open, B-roll, a layout change, a punch-in or a new section, so an effect can save its big moments for the ones that matter.
 - A camera enlarged to fill the frame (a 1080p camera in a vertical 4K video) is scaled with Lanczos instead of a plain resize, with a light sharpen, so it's less soft and blocky.
 - Effects: shader plugins that draw on the screen, the camera or the whole frame, under titles and captions. They react to clicks, cuts and clip speed. Install one in the Effects folder and list it in the plan's or profile's `effects` ([docs/effects.md](docs/effects.md)). None ship with the app.

@@ -6,10 +6,10 @@ import UniformTypeIdentifiers
 // Effects: shader plugins loaded from an effect folder, frozen into the video and drawn per layer.
 // Called from Checks.main; run with macos/test.sh.
 
-private func writeEffect(_ folder: URL, _ name: String, layer: String = "frame", metal: String, params: String = "[]") {
+private func writeEffect(_ folder: URL, _ name: String, layer: String = "frame", tracking: Bool = false, metal: String, params: String = "[]") {
   let dir = folder.appendingPathComponent(name)
   try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-  try? #"{ "title": "\#(name)", "layer": "\#(layer)", "params": \#(params) }"#.write(
+  try? #"{ "title": "\#(name)", "layer": "\#(layer)", "tracking": \#(tracking), "params": \#(params) }"#.write(
     to: dir.appendingPathComponent("effect.json"), atomically: true, encoding: .utf8)
   try? metal.write(to: dir.appendingPathComponent("effect.metal"), atomically: true, encoding: .utf8)
 }
@@ -105,6 +105,46 @@ func effectChecks() {
   expect(failure([EffectUse(name: "probe", params: ["nope": 1])]).contains("no param \"nope\""), "an unknown param fails")
   expect(failure([EffectUse(name: "probe", layer: "sky")]).contains("layer \"sky\""), "an unknown layer fails")
   expect(failure([EffectUse(name: "broken")]).contains("\"broken\" doesn't compile"), "a shader that doesn't compile fails, naming the effect")
+
+  // Tracking: blobs reach only effects that ask. On the screen they're the pointer (red is the first
+  // blob's x / the layer's width, green its id / 200, blue how many there are / 4).
+  writeEffect(personal, "blobprobe", layer: "screen", tracking: true,
+    metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return s.blobs > 0 ? float4(src.blobs[0].x / s.size.x, src.blobs[0].w / 200, s.blobs / 4, 1) : float4(0, 0, 0, 1); }")
+  do {
+    var still = plan
+    still.segments = [Segment(start: 0, end: 12, speed: 1)]
+    let pointer = (0..<40).map { InputEvent(t: Double($0) * 0.25, type: .move, x: 0.25, y: 0.5) }
+    let loaded = try Effects.load([EffectUse(name: "blobprobe")], sources: sources)
+    let scene = Scene(plan: still, words: [], clicks: [], shortcuts: [], cursorPath: pointer, dir: project, effects: loaded)
+    let screen = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    let probe = pixel(scene.render(frame: Int(3 * fps), screen: screen, camera: nil), x: W / 2, y: H / 2)
+    expect(abs(probe[0] - 0.25) < 0.03 && abs(probe[1] - 0.5) < 0.03 && abs(probe[2] - 0.25) < 0.03,
+      "a tracking effect on the screen gets one blob, the pointer, at its pixel (\(probe))")
+  } catch {
+    expect(false, "the blobprobe effect loads: \(error.localizedDescription)")
+  }
+  // Camera tracking moves each point between samples, shows a point seen in only one sample for half
+  // a step, and survives tracking.json.
+  let tracking = Tracking(samples: [
+    .init(t: 1, points: [.init(id: 0, x: 0.2, y: 0.4, size: 0.05), .init(id: 6, x: 0.3, y: 0.7, size: 0.05)]),
+    .init(t: 1.1, points: [.init(id: 0, x: 0.4, y: 0.4, size: 0.07)]),
+  ])
+  let mid = tracking.points(at: 1.05)
+  expect(mid.count == 1 && abs(mid[0].x - 0.3) < 1e-9 && abs(mid[0].size - 0.06) < 1e-9, "a tracked point moves linearly between samples (\(mid))")
+  expect(tracking.points(at: 1.02).count == 2, "a point missing from the next sample holds for half a step")
+  expect(tracking.points(at: 3).isEmpty, "no points long after the last sample")
+  let saved = tmp.appendingPathComponent(Tracking.fileName)
+  try? Tracking.write(tracking, video: "camera.mp4", to: saved)
+  let readBack = Result { try Tracking.read(saved, video: "camera.mp4") }
+  let same = (try? readBack.get()).flatMap { $0 }.map { back in
+    back.samples.count == tracking.samples.count
+      && zip(back.samples, tracking.samples).allSatisfy { a, b in
+        abs(a.t - b.t) < 1e-4 && a.points.count == b.points.count
+          && zip(a.points, b.points).allSatisfy { $0.id == $1.id && abs($0.x - $1.x) < 1e-4 && abs($0.y - $1.y) < 1e-4 && abs($0.size - $1.size) < 1e-4 }
+      }
+  }
+  expect(same == true, "tracking.json reads back the same, to 4 decimals (\(readBack))")
+  expect((try? Tracking.read(saved, video: "other.mp4")) == .some(nil), "tracking.json for another camera file is found again")
 
   // The frozen copy wins over a later library change.
   writeEffect(personal, "probe", metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return float4(0,0,0,1); }")

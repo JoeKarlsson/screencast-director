@@ -33,7 +33,7 @@ extension Scene {
   }
 
   func cameraCard(_ src0: CIImage, box b: Box, frame f: Double) -> CIImage {
-    var src = withEffects(Scene.graded(src0, plan.camera?.grade, lut: cameraLUT), layer: "camera", frame: Int(f))
+    var src = Scene.graded(src0, plan.camera?.grade, lut: cameraLUT)
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
     let mirrored = cam?.mirror == true
@@ -42,6 +42,8 @@ extension Scene {
       let e = src.extent
       src = src.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: e.minX + e.maxX, ty: 0))
     }
+    // Effects draw on the picture as it's shown, so their text reads the right way round.
+    src = withEffects(src, layer: "camera", frame: Int(f))
     let cut = cutoutWeight(b)
     if cut > 0 {
       let person = Scene.personCutout(src)

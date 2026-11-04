@@ -51,9 +51,13 @@ private func insert(_ track: AVMutableCompositionTrack, _ range: CMTimeRange, of
 
 public func buildComposition(project: Project, plan: Plan) async throws -> BuiltComposition {
   let loadedEffects = try Effects.load(plan.effects ?? [], sources: EffectSources(project: project.dir))
+  var tracking: Tracking?
+  if let camera = plan.camera, loadedEffects.contains(where: { $0.tracking && $0.layer == "camera" }) {
+    tracking = try await Tracking.camera(project, video: camera.video)
+  }
   let scene = Scene(
     plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts, cursorPath: project.cursorPath,
-    dir: project.dir, effects: loadedEffects)
+    dir: project.dir, effects: loadedEffects, tracking: tracking)
   let fps = Int32(plan.output.fps)
   let comp = AVMutableComposition()
 
