@@ -130,6 +130,7 @@ public func buildSegments(_ p: Project) -> [Segment] {
       merged.append(s)
     }
   }
+  absorbSlivers(&merged)
   // A joined recording's takes meet with a hard cut: no segment runs across a join.
   for j in p.source.joins ?? [] {
     merged = merged.flatMap { s -> [Segment] in
@@ -207,4 +208,31 @@ public func buildPlan(_ p: Project) -> Plan {
     defaultLayout: p.source.camera != nil ? .pip : .screen, layouts: [],
     captions: .init(enabled: !p.words.isEmpty, maxWords: 7),
     clickRipples: true, shortcutChips: true, callouts: [])
+}
+
+/// A clip under `Rules.minClip` that plays straight into a neighbor at another speed (the idle edge a
+/// cut keeps, or a filler cut's leftover) blinks by as a separate shot, so it joins the longer
+/// neighbor it touches and takes that neighbor's speed. Speech stays as it is: joining a sped-up
+/// neighbor would mute it.
+private func absorbSlivers(_ segments: inout [Segment]) {
+  var i = 0
+  while i < segments.count {
+    let s = segments[i]
+    let speech = s.note?.split(separator: "+").contains("speech") ?? false
+    guard s.end - s.start < Rules.minClip, !speech else {
+      i += 1
+      continue
+    }
+    let prev = i > 0 && abs(segments[i - 1].end - s.start) < 1e-6 ? i - 1 : nil
+    let next = i + 1 < segments.count && abs(segments[i + 1].start - s.end) < 1e-6 ? i + 1 : nil
+    if let prev, next.map({ segments[prev].end - segments[prev].start >= segments[$0].end - segments[$0].start }) ?? true {
+      segments[prev].end = s.end
+    } else if let next {
+      segments[next].start = s.start
+    } else {
+      i += 1
+      continue
+    }
+    segments.remove(at: i)
+  }
 }

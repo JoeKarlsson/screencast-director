@@ -98,6 +98,12 @@ struct Checks {
     expect(at(3.5) == nil, "idle cut")
     expect(at(6)?.speed == 3, "typing sped up")
     expect(at(10.2)?.speed == 1, "speech kept at the end")
+    let blinks = s.indices.filter { i in
+      let len = s[i].end - s[i].start
+      let touches = (i > 0 && abs(s[i - 1].end - s[i].start) < 1e-6) || (i + 1 < s.count && abs(s[i + 1].start - s[i].end) < 1e-6)
+      return len < 1 && touches && !(s[i].note ?? "").contains("speech")
+    }
+    expect(blinks.isEmpty, "no sub-second non-speech clip plays straight into another: \(blinks.map { s[$0] })")
     var mp = p
     mp.events = (0..<12).map { InputEvent(t: 2.5 + Double($0) * 0.25, type: .move, x: 0.5, y: 0.5) }
       + (0..<8).map { InputEvent(t: 7.5 + Double($0) * 0.2, type: .move, x: 0.5, y: 0.5) }
