@@ -174,9 +174,10 @@ public struct Tracking: Equatable {
       json["version"] as? Int == version, json["video"] as? String == video, let rows = json["samples"] as? [[Double]]
     else { return nil }
     return Tracking(
-      samples: rows.compactMap { row in
+      // Closure types spelled out: CI's compiler gives up inferring this one ("unable to type-check").
+      samples: rows.compactMap { (row: [Double]) -> Sample? in
         guard let t = row.first, (row.count - 1) % 6 == 0 else { return nil }
-        let boxes = stride(from: 1, to: row.count, by: 6).map { i in
+        let boxes = stride(from: 1, to: row.count, by: 6).map { (i: Int) -> Box in
           Box(id: Int(row[i]), x: row[i + 1], y: row[i + 2], w: row[i + 3], h: row[i + 4], confidence: row[i + 5])
         }
         return Sample(t: t, boxes: boxes)
