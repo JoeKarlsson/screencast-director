@@ -552,6 +552,45 @@ final class ProjectModel: ObservableObject {
     presentPanel(panel, then: done)
   }
 
+  /// A PNG logo picked by the user, copied into the project's logos/ folder; `use` puts its path in the plan.
+  func chooseLogo(_ use: @escaping (inout Plan, String) -> Void) {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.png]
+    panel.message = "Choose a PNG logo (a transparent background works best)"
+    presentPanel(panel) { [self] response in
+      guard response == .OK, let url = panel.url else { return }
+      do {
+        let file = try Project.importFile(url, into: "logos", dir: dir)
+        apply { use(&$0, file) }
+      } catch {
+        Notices.shared.show(error, "Couldn't use that logo")
+      }
+    }
+  }
+
+  /// A font file copied into the project's fonts/ folder and added to the look's font files, so its
+  /// fonts show up in the font pickers.
+  func chooseFontFile() {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.font]
+    panel.message = "Choose a font file (.ttf or .otf)"
+    presentPanel(panel) { [self] response in
+      guard response == .OK, let url = panel.url else { return }
+      do {
+        let file = try Project.importFile(url, into: "fonts", dir: dir)
+        // Font files are registered by absolute path (Fonts.register).
+        let path = dir.appendingPathComponent(file).path
+        apply { p in
+          var look = p.look ?? Look()
+          if !(look.fontFiles ?? []).contains(path) { look.fontFiles = (look.fontFiles ?? []) + [path] }
+          p.look = look
+        }
+      } catch {
+        Notices.shared.show(error, "Couldn't add that font")
+      }
+    }
+  }
+
   /// A library sound at the playhead. It's copied into the project's sfx/ folder (unless the
   /// project already has that file), so the video keeps it if the library changes.
   func addSound(_ entry: AudioLibrary.Entry) {

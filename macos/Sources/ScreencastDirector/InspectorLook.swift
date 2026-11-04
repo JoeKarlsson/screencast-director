@@ -53,6 +53,45 @@ extension InspectorView {
           bind("fill", { $0.style.fill == true }, { $0.style.fill = $1 ? true : nil }))
       }
       slider("Corners", bind("radius", { $0.style.radius }, { $0.style.radius = $1.rounded() }), 0...40, "\(Int(plan.style.radius)) pt")
+      LabeledContent("Style") {
+        Picker("Frame style", selection: lookValue(nil, \.frame, "none")) {
+          Text("Plain").tag("none")
+          Text("Brackets").tag("brackets")
+          Text("Window").tag("window")
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .help("Brackets draw corners around the screen; Window gives it a title bar")
+      }
+      LabeledContent("Accent") {
+        ColorPicker("Accent", selection: lookColor("accent", \.accent, "#FFE500")).labelsHidden()
+          .help("Click ripples, brackets and highlights")
+        Spacer(minLength: 0)
+      }
+    }
+    logoSection(plan)
+    InspectorSection("Titles & chips", detail: "Fonts and colors for titles, chapter cards and shortcut chips.", isOpen: fold("titles", open: false)) {
+      fontPicker("Title font", \.titleFont, plan)
+      fontPicker("Chip font", \.chipFont, plan)
+      Button("Add Font File…") { project.chooseFontFile() }
+        .help("Copy a .ttf or .otf into this video so its fonts can be picked")
+      LabeledContent("Titles") {
+        ColorPicker("Title text", selection: lookColor("titleText", \.titleText, "#ffffff")).labelsHidden().help("Title text")
+        ColorPicker("Title panel", selection: lookColor("titleBG", \.titleBackground, "#0f0f14")).labelsHidden().help("Title panel")
+        Spacer(minLength: 0)
+      }
+      LabeledContent("Chips") {
+        ColorPicker("Chip text", selection: lookColor("chipText", \.chipText, "#ffffff")).labelsHidden().help("Chip text")
+        ColorPicker("Chip box", selection: lookColor("chipBG", \.chipBackground, "#0f0f14")).labelsHidden().help("Chip box")
+        Spacer(minLength: 0)
+      }
+      if plan.camera != nil {
+        LabeledContent("Camera") {
+          ColorPicker("Camera border", selection: lookColor("camBorder", \.cameraBorder, "#ffffff")).labelsHidden()
+            .help("The camera bubble's border")
+          Spacer(minLength: 0)
+        }
+      }
     }
     InspectorSection("Motion", detail: "One style for every move: how zooms ease and how titles come and go.") {
       MotionStyleGrid(selected: MotionStyle.named(plan.style.motion).name) { name in
@@ -65,6 +104,83 @@ extension InspectorView {
         fallback: Motion(preset: "none"), defaultTitle: "Default"
       )
       .help("How B-roll and animations without their own motion come and go")
+      LabeledContent("Animations") {
+        Picker("Animation theme", selection: lookValue(nil, \.animationTheme, "")) {
+          Text("Paper collage").tag("")
+          Text("Terminal").tag("terminal")
+        }
+        .labelsHidden()
+        .help("How animations look. Changing it re-renders them.")
+      }
+    }
+  }
+
+  /// The logo drawn over the video (the look's watermark), also the default on intro and outro cards.
+  func logoSection(_ plan: Plan) -> some View {
+    InspectorSection("Logo", detail: "Drawn in a corner of the video, and on intro and outro cards.") {
+      if let w = plan.look?.watermark {
+        HStack(spacing: 8) {
+          Image(systemName: "photo").foregroundStyle(.secondary)
+          Text((w.image as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
+          Spacer(minLength: 4)
+          Button("Change…") { project.chooseLogo { $0.look?.watermark?.image = $1 } }.controlSize(.small)
+          Button { project.apply { $0.look?.watermark = nil } } label: { Image(systemName: "xmark.circle.fill") }
+            .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove the logo")
+        }
+        LabeledContent("Corner") {
+          Picker("Corner", selection: watermarkValue(nil, \.corner, "")) {
+            Text("Default").tag("")
+            Text("Top left").tag("topLeft")
+            Text("Top right").tag("topRight")
+            Text("Bottom left").tag("bottomLeft")
+            Text("Bottom right").tag("bottomRight")
+          }
+          .labelsHidden()
+        }
+        slider("Size", watermarkValue("logoSize", \.height, 0.035), 0.02...0.15, "\(Int(((w.height ?? 0.035) * 1000).rounded()) / 10)%")
+        slider("Opacity", watermarkValue("logoOpacity", \.opacity, 0.9), 0.1...1, "\(Int(((w.opacity ?? 0.9) * 100).rounded()))%")
+      } else {
+        Button { project.chooseLogo { p, file in
+          var look = p.look ?? Look()
+          look.watermark = Look.Watermark(image: file)
+          p.look = look
+        } } label: { Label("Choose Logo…", systemImage: "photo.badge.plus").frame(maxWidth: .infinity) }
+          .help("Pick a PNG to draw in a corner of the video")
+      }
+    }
+  }
+
+  /// A binding to one of the look's colors, creating the look when it's the first change.
+  func lookColor(_ key: String, _ field: WritableKeyPath<Look, String?>, _ fallback: String) -> Binding<Color> {
+    bind(key, { hexColor($0.look?[keyPath: field] ?? fallback) }, { p, c in
+      var look = p.look ?? Look()
+      look[keyPath: field] = hexString(c)
+      p.look = look
+    })
+  }
+
+  /// A binding to one of the look's settings; choosing `fallback` clears it back to the default.
+  func lookValue<T: Equatable>(_ key: String?, _ field: WritableKeyPath<Look, T?>, _ fallback: T) -> Binding<T> {
+    bind(key, { $0.look?[keyPath: field] ?? fallback }, { p, v in
+      var look = p.look ?? Look()
+      look[keyPath: field] = v == fallback ? nil : v
+      p.look = look
+    })
+  }
+
+  /// A binding to one of the logo's settings; choosing `fallback` clears it back to the default.
+  func watermarkValue<T: Equatable>(_ key: String?, _ field: WritableKeyPath<Look.Watermark, T?>, _ fallback: T) -> Binding<T> {
+    bind(key, { $0.look?.watermark?[keyPath: field] ?? fallback }, { p, v in p.look?.watermark?[keyPath: field] = v == fallback ? nil : v })
+  }
+
+  /// A font menu over the look's font files and installed fonts.
+  func fontPicker(_ title: String, _ field: WritableKeyPath<Look, String?>, _ plan: Plan) -> some View {
+    LabeledContent(title) {
+      Picker(title, selection: lookValue(nil, field, "")) {
+        Text("System").tag("")
+        ForEach(Fonts.choices(plan.look), id: \.self) { Text($0).tag($0) }
+      }
+      .labelsHidden()
     }
   }
 
@@ -262,6 +378,17 @@ extension InspectorView {
     if plan[keyPath: kp]?.isOn == true {
       TextField("Title", text: cardText(kp, \.title)).textFieldStyle(.roundedBorder)
       TextField("Subtitle", text: cardText(kp, \.subtitle)).textFieldStyle(.roundedBorder)
+      LabeledContent("Logo") {
+        Text(plan[keyPath: kp]?.logo.map { ($0 as NSString).lastPathComponent } ?? (plan.look?.watermark == nil ? "None" : "The video's logo"))
+          .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+        Spacer(minLength: 0)
+        Button("Choose…") { project.chooseLogo { $0[keyPath: kp]?.logo = $1 } }.controlSize(.small)
+          .help("A PNG for this card only")
+        if plan[keyPath: kp]?.logo != nil {
+          Button("Reset") { project.apply { $0[keyPath: kp]?.logo = nil } }.controlSize(.small)
+            .help("Use the video's logo")
+        }
+      }
       slider("Length", bind("\(title)Length", { $0[keyPath: kp]?.seconds ?? Card.defaultDuration }, { $0[keyPath: kp]?.duration = ($1 * 10).rounded() / 10 }), 1...6, String(format: "%.1f s", plan[keyPath: kp]?.seconds ?? Card.defaultDuration))
     }
   }

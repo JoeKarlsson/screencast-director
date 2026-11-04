@@ -271,6 +271,14 @@ sleep 0.5
 [[ "$(press_help "Unmute the preview")" == missing ]] || fail "the second press didn't unmute the preview"
 echo "ok: the preview's mute button mutes and unmutes"
 
+# 8c. Background & Frame: "Titles & chips" starts folded and its header opens it.
+[[ "$(press_help "Background & Frame")" == pressed ]] || fail "no Background & Frame tab in the inspector"
+sleep 1
+[[ "$(press_help "Show Titles & chips")" == pressed ]] || fail "Titles & chips didn't start folded"
+sleep 0.5
+[[ "$(press_help "Hide Titles & chips")" == pressed ]] || fail "opening Titles & chips didn't give it a fold button"
+echo "ok: Titles & chips folds and opens"
+
 # 9. Quitting while Claude is still editing stops it and records that, then the test instance quits.
 echo hang >"$TMP/claude-mode"
 ask "tighten the intro"

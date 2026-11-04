@@ -12,6 +12,13 @@ public struct Look: Codable, Equatable {
     /// Height as a fraction of the output's short side.
     public var height: Double?
     public var opacity: Double?
+
+    public init(image: String, corner: String? = nil, height: Double? = nil, opacity: Double? = nil) {
+      self.image = image
+      self.corner = corner
+      self.height = height
+      self.opacity = opacity
+    }
   }
 
   public var name: String?
