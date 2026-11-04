@@ -148,6 +148,19 @@ func effectChecks() {
   brollProfile.apply(to: &withWipes)
   expect(withWipes.style.brollMotion?.preset == "interlace", "a profile sets how B-roll comes and goes")
 
+  // Intro and outro cards take the frame's effects (the probe paints the top-left corner red).
+  do {
+    var carded = plan
+    carded.segments = [Segment(start: 0, end: 12, speed: 1)]
+    carded.intro = Card(title: "Hello")
+    let loaded = try Effects.load([EffectUse(name: "probe")], sources: sources)
+    let scene = Scene(plan: carded, words: [], clicks: [], shortcuts: [], dir: project, effects: loaded)
+    let screen = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    expect(pixel(scene.render(frame: 2, screen: screen, camera: nil), x: 2, y: H - 3)[0] > 0.97, "the intro card takes the frame's effects")
+  } catch {
+    expect(false, "the probe effect loads for the card: \(error.localizedDescription)")
+  }
+
   // A profile's effects go into the plan it's applied to.
   var profile = Profile(name: "Glitch", style: plan.style, look: Look())
   profile.effects = [EffectUse(name: "analog")]

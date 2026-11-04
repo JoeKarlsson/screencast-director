@@ -283,11 +283,13 @@ public final class Scene: @unchecked Sendable {
       let target = b.transformed(by: CGAffineTransform(scaleX: a.extent.width / max(1, b.extent.width), y: a.extent.height / max(1, b.extent.height)))
       screen = a.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: target, kCIInputTimeKey: mix]).cropped(to: a.extent)
     }
+    // Cards take the frame's effects too, so they look like the rest of the video.
     if f < introFrames, let c = plan.intro {
-      return card(c, look.intro, logo: introLogo, frame: f, length: introFrames, intro: true)
+      return withEffects(card(c, look.intro, logo: introLogo, frame: f, length: introFrames, intro: true), layer: "frame", frame: f)
     }
     if f >= outroStart, outroStart < frameCount, let c = plan.outro {
-      return card(c, look.outro, logo: outroLogo, frame: f - outroStart, length: frameCount - outroStart, intro: false)
+      return withEffects(
+        card(c, look.outro, logo: outroLogo, frame: f - outroStart, length: frameCount - outroStart, intro: false), layer: "frame", frame: f)
     }
     // A cropped screen (vertical, square) rests on the last click instead of the center.
     let clicks = focusClicks

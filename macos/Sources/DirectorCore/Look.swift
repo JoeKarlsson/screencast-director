@@ -45,6 +45,9 @@ public struct Look: Codable, Equatable {
   /// recording's name); applying the profile writes the resolved text into the plan.
   public var intro: Card?
   public var outro: Card?
+  /// How animations look: nil is the paper collage; "terminal" is dark, with thin outlined cards and
+  /// no drop shadows.
+  public var animationTheme: String?
 
   public init() {}
 }

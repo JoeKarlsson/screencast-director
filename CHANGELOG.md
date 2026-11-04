@@ -21,6 +21,9 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- A terminal theme for animations (`look.animationTheme: "terminal"`): a 90s screen with square DOS-style boxes, hard shadows, mono type, inverse-video highlights, right-angle lines, flicker-on entrances and a blinking cursor, instead of the paper collage.
+- Animations re-render when the look's accent, fonts or theme change; before, a new profile kept the old clips.
+- Intro and outro cards take the video's effects, so they match the rest of it.
 - B-roll and animations can come in and go out like an interlaced TV picture (the `interlace` enter/exit), and `style.brollMotion` sets how B-roll without its own motion comes and goes, so a profile can give every video the same B-roll transition.
 - Effects get `cutKind`: whether the nearest change is a cut, a jump back from a cold open, B-roll, a layout change, a punch-in or a new section, so an effect can save its big moments for the ones that matter.
 - A camera enlarged to fill the frame (a 1080p camera in a vertical 4K video) is scaled with Lanczos instead of a plain resize, with a light sharpen, so it's less soft and blocky.

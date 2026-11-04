@@ -5,6 +5,8 @@
 const NS = "http://www.w3.org/2000/svg";
 const TEMPLATES = {};
 let cam, lines, LOGOS = {};
+// The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion.
+let THEME = "";
 
 // --- motion -----------------------------------------------------------------
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -13,13 +15,15 @@ const easeInOut = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.
 // A sticker slapped down: grows past full size and settles.
 function popScale(t, start, dur = .42) {
   if (t < start) return 0;
+  // Terminal: no bounce; it flickers on like a screen element, then holds.
+  if (THEME === "terminal") return t - start < .2 ? Math.floor((t - start) * 24) % 2 === 0 ? 1 : 0 : 1;
   const u = (t - start) / dur;
   if (u >= 1) return 1;
   const c = 2.6;
   return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2);
 }
 // A little blur on the way in, standing in for motion blur.
-function popBlur(t, start) { const u = (t - start) / .25; return u > 0 && u < 1 ? (1 - u) * 6 : 0; }
+function popBlur(t, start) { if (THEME === "terminal") return 0; const u = (t - start) / .25; return u > 0 && u < 1 ? (1 - u) * 6 : 0; }
 function rand(seed) { let s = Math.floor(seed) * 9301 + 49297; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
 
 // --- building blocks ---------------------------------------------------------
@@ -37,13 +41,16 @@ function logoHTML(name) {
 }
 function path(width, color) {
   const p = document.createElementNS(NS, "path");
-  p.setAttribute("fill", "none"); p.setAttribute("stroke", color); p.setAttribute("stroke-width", width);
-  p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round"); p.setAttribute("pathLength", "1");
+  const term = THEME === "terminal";
+  p.setAttribute("fill", "none"); p.setAttribute("stroke", color); p.setAttribute("stroke-width", term ? Math.min(width, 3) : width);
+  p.setAttribute("stroke-linecap", term ? "square" : "round"); p.setAttribute("stroke-linejoin", term ? "miter" : "round");
+  p.setAttribute("pathLength", "1");
   lines.appendChild(p); return p;
 }
 function bez(p0, p1, p2, p3, u) { const v = 1 - u; return [0, 1].map(i => v*v*v*p0[i] + 3*v*v*u*p1[i] + 3*v*u*u*p2[i] + u*u*u*p3[i]); }
 // A hand-drawn curve from a to b, "boiling" six times a second; `tangle` throws the middle around.
 function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
+  if (THEME === "terminal") return elbow(a, b);
   const r = rand(seed * 31 + Math.floor(t * 6));
   const j = () => (r() - .5) * 3.2;
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
@@ -52,7 +59,26 @@ function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
   const c2 = [a[0] + dx * .66 + nx * bend + (r2() - .5) * k + j(), a[1] + dy * .66 + ny * bend + (r2() - .5) * k + j()];
   return { d: `M${a[0] + j()},${a[1] + j()} C${c1} ${c2} ${b[0] + j()},${b[1] + j()}`, at: u => bez(a, c1, c2, b, u) };
 }
+// A right-angle route from a to b (across, down or up, across), for the terminal theme.
+function elbow(a, b) {
+  const mx = Math.round((a[0] + b[0]) / 2);
+  const pts = [a, [mx, a[1]], [mx, b[1]], b];
+  const lens = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
+  const total = lens.reduce((x, y) => x + y, 0) || 1;
+  const at = u => {
+    let d = clamp(u) * total;
+    for (let i = 0; i < lens.length; i++) {
+      if (d <= lens[i] || i === lens.length - 1) {
+        const k = lens[i] ? d / lens[i] : 0;
+        return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k];
+      }
+      d -= lens[i];
+    }
+  };
+  return { d: `M${pts.map(p => p.join(",")).join(" L")}`, at };
+}
 function place(node, x, y, s = 1, rot = 0, opacity = 1, blur = 0) {
+  if (THEME === "terminal") rot = 0;
   node.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${s})`;
   node.style.opacity = s <= 0.001 ? 0 : opacity;
   node.style.filter = blur > .2 ? `blur(${blur}px)` : "";
@@ -66,10 +92,15 @@ function heading(text, highlight) {
   const i = highlight ? text.indexOf(highlight) : -1;
   const html = i < 0 ? `<span class="wrapt"><span class="hl"></span>${esc(text)}</span>`
     : `${esc(text.slice(0, i))}<span class="wrapt"><span class="hl"></span>${esc(highlight)}</span>${esc(text.slice(i + highlight.length))}`;
-  const h = el("head", html);
+  const h = el("head", html + (THEME === "terminal" ? '<span class="cursor">█</span>' : ""));
   return { node: h, hl: h.querySelector(".hl") };
 }
-function setHL(hl, p) { if (hl) hl.style.transform = `skewX(-8deg) scaleX(${easeOut(p)})`; }
+function setHL(hl, p) {
+  if (!hl) return;
+  // Terminal: inverse video that switches on, instead of a highlighter swipe.
+  if (THEME === "terminal") { hl.parentElement.classList.toggle("on", p > 0); return; }
+  hl.style.transform = `skewX(-8deg) scaleX(${easeOut(p)})`;
+}
 // The tally of costs: a big number and a highlighted label per row.
 function tally(labels, starts, x, y, gap) {
   return labels.map((label, i) => {
@@ -88,6 +119,7 @@ function showTally(rows, t, text, numSize) {
   });
 }
 function camera(t, push, shake, seed = 1) {
+  if (THEME === "terminal") { cam.style.transform = ""; return; }
   const r = rand(seed * 100 + Math.floor(t * 12));
   const s = push * (1 + .005 * Math.sin(t * 1.3));
   const sx = (r() - .5) * shake, sy = (r() - .5) * shake, rot = (r() - .5) * shake * .05;
@@ -115,12 +147,14 @@ function stageTransform(width, height, stage = { w: 1920, h: 1080 }) {
 
 // --- entry points --------------------------------------------------------------
 // config: { template, data, cues, duration, width, height, fonts: [{family, url}], titleFont, bodyFont,
-//           accent, paper, ink, logos }
+//           accent, paper, ink, theme, logos }
 window.init = async function (config) {
   cam = document.getElementById("cam");
   lines = document.getElementById("lines");
   LOGOS = config.logos || {};
   const root = document.documentElement.style;
+  THEME = config.theme || "";
+  if (THEME) document.documentElement.classList.add(`theme-${THEME}`);
   if (config.accent) root.setProperty("--accent", config.accent);
   if (config.paper) root.setProperty("--paper", config.paper);
   if (config.ink) root.setProperty("--ink", config.ink);
@@ -136,7 +170,11 @@ window.init = async function (config) {
   stage.style.width = `${STAGE.w}px`;
   stage.style.height = `${STAGE.h}px`;
   stage.style.transform = stageTransform(config.width, config.height, STAGE);
-  window.seek = make(config.data || {}, config.cues || {}, config.duration);
+  const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
+  window.seek = t => {
+    seekTemplate(t);
+    for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
+  };
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);
   return true;

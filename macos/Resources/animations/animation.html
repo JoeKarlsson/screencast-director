@@ -47,6 +47,35 @@ svg#lines { position: absolute; inset: 0; overflow: visible; }
 .ringmark { border-radius: 50%; border: 7px solid var(--accent); box-sizing: border-box; mix-blend-mode: multiply; }
 #grain { position: absolute; inset: -50px; pointer-events: none; mix-blend-mode: multiply; opacity: .32; }
 #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(60,50,30,.16) 100%); }
+/* Terminal theme (look.animationTheme "terminal"): a 90s screen. DOS-style boxes with square corners
+   and hard offset shadows, mono type with a faint phosphor glow, [ bracketed ] labels, inverse-video
+   highlights, two-tone green logos, a faint grid and scanlines. engine.js swaps the motion too:
+   right-angle lines, flicker-on entrances, a still camera, a blinking cursor. */
+html.theme-terminal { --paper: #070A08; --ink: #DDEBE1; --title: "JetBrains Mono", Menlo, monospace; --body: "JetBrains Mono", Menlo, monospace; }
+html.theme-terminal #stage { background:
+  linear-gradient(rgba(158,240,184,.045) 1px, transparent 1px) 0 0 / 60px 60px,
+  linear-gradient(90deg, rgba(158,240,184,.045) 1px, transparent 1px) 0 0 / 60px 60px, var(--paper);
+  text-shadow: 0 0 8px rgba(158,240,184,.35); }
+html.theme-terminal .sticker, html.theme-terminal .chip, html.theme-terminal .tag, html.theme-terminal .hub, html.theme-terminal .ghost {
+  background: #0B100D; border: 2px solid var(--accent); border-radius: 0; box-shadow: 10px 10px 0 rgba(158,240,184,.16); }
+html.theme-terminal .sticker .word, html.theme-terminal .ghost .word, html.theme-terminal .hub div, html.theme-terminal .tag { color: var(--ink); }
+html.theme-terminal .dot { background: #0B100D; border-radius: 0; box-shadow: 0 0 0 2px var(--accent), 10px 10px 0 2px rgba(158,240,184,.16); }
+html.theme-terminal .dot .word { color: var(--ink); }
+html.theme-terminal .sticker img, html.theme-terminal .hub img, html.theme-terminal .ghost img, html.theme-terminal .dot img {
+  filter: grayscale(1) contrast(1.6) brightness(1.15) sepia(1) hue-rotate(78deg) saturate(2.4); }
+html.theme-terminal .icon { border-radius: 0; box-shadow: none; }
+html.theme-terminal .icon svg { stroke: var(--paper); }
+html.theme-terminal .tag::before { content: "[ "; position: static; width: auto; height: auto; margin: 0; background: none; opacity: 1; transform: none; }
+html.theme-terminal .tag::after { content: " ]"; }
+html.theme-terminal .hl { mix-blend-mode: normal; background: var(--accent); left: -8px; right: -8px; top: 2%; height: 96%; border-radius: 0;
+  transform: none !important; opacity: 0; }
+html.theme-terminal .wrapt.on .hl { opacity: 1; }
+html.theme-terminal .wrapt.on { color: var(--paper); text-shadow: none; }
+html.theme-terminal .cursor { color: var(--accent); margin-left: 6px; }
+html.theme-terminal .ringmark { mix-blend-mode: normal; border-radius: 0; border-width: 4px; }
+html.theme-terminal #grain { display: none; }
+html.theme-terminal #vignette { background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 2px, rgba(0,0,0,0) 2px 4px),
+  radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); }
 </style>
 </head>
 <body>
