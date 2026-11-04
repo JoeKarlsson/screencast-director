@@ -1,5 +1,7 @@
 import CoreImage
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 // Effects: shader plugins loaded from an effect folder, frozen into the video and drawn per layer.
 // Called from Checks.main; run with macos/test.sh.
@@ -75,6 +77,23 @@ func effectChecks() {
     expect(false, "the cutprobe effect loads: \(error.localizedDescription)")
   }
 
+  // cutKind names what each change is: back from a cold open is a jump back, a chapter title a new
+  // section (red is cutKind / 10, read just before the title, which dims the frame under it).
+  writeEffect(personal, "kindprobe", metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return float4(clamp(s.cutKind / 10.0, 0.0, 1.0), 0, 0, 1); }")
+  do {
+    var cold = plan
+    cold.segments = [Segment(start: 6, end: 12, speed: 1), Segment(start: 0, end: 6, speed: 1)]
+    cold.callouts = [Callout(start: 9, end: 10, text: "Part two", style: "chapter")]
+    let loaded = try Effects.load([EffectUse(name: "kindprobe")], sources: sources)
+    let scene = Scene(plan: cold, words: [], clicks: [], shortcuts: [], dir: project, effects: loaded)
+    let screen = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    func kind(_ seconds: Double) -> Double { pixel(scene.render(frame: Int(seconds * fps), screen: screen, camera: nil), x: W - 40, y: 40)[0] * 10 }
+    expect(abs(kind(6.1) - 1) < 0.2, "playing an earlier moment after a cold open is a jump back (\(kind(6.1)))")
+    expect(abs(kind(2.9) - 5) < 0.2, "a chapter title starts a new section (\(kind(2.9)))")
+  } catch {
+    expect(false, "the kindprobe effect loads: \(error.localizedDescription)")
+  }
+
   func failure(_ uses: [EffectUse]) -> String {
     do {
       _ = try Effects.load(uses, sources: sources)
@@ -100,6 +119,34 @@ func effectChecks() {
   let text = describe(Project(dir: project, source: src), described)
   expect(text.contains("## Effects") && text.contains("probe") && text.contains("level=0.5"), "describe lists effects with their params")
   expect(text.split(separator: "\n").contains { $0.contains("gone") && $0.contains("MISSING") }, "describe flags a missing effect")
+
+  // B-roll with no motion of its own takes the style's: here an interlace wipe, half done a quarter
+  // of the way in, shows the red B-roll on alternate bands at the left and nothing at the right.
+  let red = tmp.appendingPathComponent("red.png")
+  let ctx = CGContext(data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  ctx.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
+  ctx.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+  let dest = CGImageDestinationCreateWithURL(red as CFURL, UTType.png.identifier as CFString, 1, nil)!
+  CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+  CGImageDestinationFinalize(dest)
+  var wiped = plan
+  wiped.segments = [Segment(start: 0, end: 12, speed: 1)]
+  wiped.inserts = [Insert(start: 2, end: 6, file: red.path, placement: "full")]
+  wiped.style.brollMotion = Motion(preset: "interlace", seconds: 1)
+  let wipeScene = Scene(plan: wiped, words: [], clicks: [], shortcuts: [])
+  let gray = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let quarter = wipeScene.render(frame: Int(2.25 * fps), screen: gray, camera: nil)
+  let band = max(2, (4 * min(W, H) / 1080).rounded())
+  let rows = (0..<4).map { pixel(quarter, x: W * 0.2, y: H / 2 + Double($0) * band)[0] > 0.9 }
+  expect(rows.contains(true) && rows.contains(false), "a quarter in, alternate bands at the left show the B-roll (\(rows))")
+  expect((0..<4).allSatisfy { pixel(quarter, x: W * 0.8, y: H / 2 + Double($0) * band)[0] < 0.9 }, "a quarter in, the right side doesn't show it yet")
+  expect(pixel(wipeScene.render(frame: Int(4 * fps), screen: gray, camera: nil), x: W * 0.8, y: H / 2)[0] > 0.9, "once in, the B-roll shows everywhere")
+  var brollProfile = Profile(name: "Wipes", style: wiped.style, look: Look())
+  brollProfile.style.brollMotion = Motion(preset: "interlace", seconds: 0.25)
+  var withWipes = plan
+  brollProfile.apply(to: &withWipes)
+  expect(withWipes.style.brollMotion?.preset == "interlace", "a profile sets how B-roll comes and goes")
 
   // A profile's effects go into the plan it's applied to.
   var profile = Profile(name: "Glitch", style: plan.style, look: Look())

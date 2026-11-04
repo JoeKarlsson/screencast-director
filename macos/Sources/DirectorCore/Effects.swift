@@ -108,6 +108,23 @@ public struct EffectSignals: Equatable {
   public var cutTime: Float = -1
   /// Which change that is, counting from 0 at the first, in play order (-1 when there's none).
   public var cutIndex: Float = -1
+  /// What that change is (`CutKind`), so an effect can save its big moments for the ones that matter.
+  public var cutKind: Float = -1
+
+  public enum CutKind: Float {
+    case cut = 0, jumpBack = 1, broll = 2, layout = 3, punchIn = 4, section = 5
+    /// Which name a frame gets when several changes land on it.
+    var rank: Int {
+      switch self {
+      case .jumpBack: return 5
+      case .section: return 4
+      case .broll: return 3
+      case .cut: return 2
+      case .layout: return 1
+      case .punchIn: return 0
+      }
+    }
+  }
 
   public init() {}
 }
@@ -168,6 +185,8 @@ public enum Effects {
       float speed;          // playback speed of the clip on screen
       float cutTime;        // when that nearest change happens, in output seconds (-1 with none)
       float cutIndex;       // which change that is: 0 for the first, in play order (-1 with none)
+      float cutKind;        // 0 cut, 1 jump back (to an earlier moment, after a cold open), 2 B-roll or
+                            // an animation, 3 layout change, 4 punch-in, 5 new section (a chapter or slate title)
     };
     struct Layer {
       texture2d<float, access::read> tex;

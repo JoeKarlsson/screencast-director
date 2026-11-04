@@ -141,7 +141,7 @@ public struct Motion: Codable, Equatable {
   public static let presets: [(name: String, label: String)] = [
     ("fade", "Fade"), ("fade-up", "Fade Up"), ("slide-up", "Slide Up"), ("slide-down", "Slide Down"),
     ("slide-left", "Slide Left"), ("slide-right", "Slide Right"), ("pop", "Pop"), ("zoom", "Zoom"), ("blur", "Blur"),
-    ("wipe", "Wipe"), ("words", "Word by Word"), ("typewriter", "Typewriter"), ("none", "None"),
+    ("wipe", "Wipe"), ("interlace", "Interlace"), ("words", "Word by Word"), ("typewriter", "Typewriter"), ("none", "None"),
   ]
 }
 
@@ -156,9 +156,12 @@ public struct OverlayPose: Equatable {
   public var blur = 0.0
   /// Share revealed from the left (wipe).
   public var reveal = 1.0
+  /// Share revealed like an interlaced TV picture (interlace, B-roll only): alternate bands of lines
+  /// sweep in from the left first, then the bands between them.
+  public var lines = 1.0
   /// Share of the text shown (words, typewriter).
   public var text = 1.0
-  public var visible: Bool { opacity > 0.003 && reveal > 0.003 }
+  public var visible: Bool { opacity > 0.003 && reveal > 0.003 && lines > 0.003 }
 
   public static let full = OverlayPose()
 
@@ -196,6 +199,7 @@ public struct OverlayPose: Equatable {
       p.blur = 24 * (1 - clamped)
       p.scale = 1.04 - 0.04 * a
     case "wipe": p.reveal = clamped
+    case "interlace": p.lines = clamped
     case "words", "typewriter":
       p.opacity = min(1, clamped * 4)
       p.text = clamped

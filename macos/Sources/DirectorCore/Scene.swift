@@ -50,6 +50,8 @@ public final class Scene: @unchecked Sendable {
   let effects: [LoadedEffect]
   /// Output frames where the picture visibly changes (cuts, B-roll, layouts, punch-ins), for the effects' `toCut`.
   let cutFrames: [Double]
+  /// What kind of change each of `cutFrames` is (`EffectSignals.cutKind`).
+  let cutKinds: [Float]
   /// Clicks in output frames, for cropped formats whose camera rests on the last click.
   let focusClicks: [(f: Double, x: Double, y: Double)]
 
@@ -155,12 +157,24 @@ public final class Scene: @unchecked Sendable {
     insertImages = images
     cuts = m.dropFirst().compactMap { seg in seg.transition.map { (Double(seg.outStart), $0) } }
     fades = crossfades(m, fps: fps)
-    // Every moment the picture visibly changes: a cut between clips, B-roll or an animation coming
-    // or going, a layout change, a punch-in snapping in or out.
-    let changes = m.dropFirst().map { Double($0.outStart) } + inserts.flatMap { [$0.s, $0.e] } + layouts.flatMap { [$0.startF, $0.endF] }
-      + punchIns.flatMap { [$0.s, $0.e] }
+    // Every moment the picture visibly changes, and what kind of change it is. When several land on
+    // the same frame, the one that matters most to the viewer names it.
+    var kinds: [Double: EffectSignals.CutKind] = [:]
+    func note(_ f: Double, _ kind: EffectSignals.CutKind) {
+      if let old = kinds[f], old.rank >= kind.rank { return }
+      kinds[f] = kind
+    }
+    for (prev, next) in zip(m, m.dropFirst()) {
+      // Playing an earlier moment than the clip before (back from a cold open) is a jump back.
+      note(Double(next.outStart), next.repeats != true && next.start < prev.start - 0.05 ? .jumpBack : .cut)
+    }
+    for ins in inserts { [ins.s, ins.e].forEach { note($0, .broll) } }
+    for l in layouts { [l.startF, l.endF].forEach { note($0, .layout) } }
+    for p in punchIns { [p.s, p.e].forEach { note($0, .punchIn) } }
+    for c in callouts where ["chapter", "slate"].contains(c.c.style ?? "") { note(c.s, .section) }
     let total = Double(frameCount)
-    cutFrames = Array(Set(changes.filter { $0 > 0 && $0 < total })).sorted()
+    cutFrames = kinds.keys.filter { $0 > 0 && $0 < total }.sorted()
+    cutKinds = cutFrames.map { kinds[$0]!.rawValue }
     let maxWords = ["bold", "social"].contains(plan.captions.style ?? "") ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
     pages = plan.captions.enabled ? Scene.captionPages(words, m, fps: fps, maxWords: maxWords) : []
     motion = MotionStyle.named(plan.style.motion)
@@ -518,6 +532,7 @@ extension Scene {
       s.toCut = Float(abs(cutFrames[i] - fd) / rate)
       s.cutTime = Float(cutFrames[i] / rate)
       s.cutIndex = Float(i)
+      s.cutKind = cutKinds[i]
     }
     if let clip = mapped.first(where: { f >= $0.outStart && f < $0.outStart + $0.frames }) { s.speed = Float(clip.speed) }
     return s

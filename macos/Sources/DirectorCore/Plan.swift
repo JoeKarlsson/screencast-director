@@ -273,6 +273,8 @@ public struct Plan: Codable, Equatable {
     /// With no padding, crop the screen to fill the frame (and pan to follow zooms and clicks)
     /// instead of showing the whole screen with background around it. Landscape, square and feed.
     public var fill: Bool?
+    /// How B-roll and animations come and go when they don't set their own `enter`/`exit` (nil cuts).
+    public var brollMotion: Motion?
   }
   public struct Captions: Codable, Equatable {
     public var enabled: Bool

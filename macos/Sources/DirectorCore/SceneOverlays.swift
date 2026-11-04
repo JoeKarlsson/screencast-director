@@ -492,8 +492,9 @@ extension Scene {
   /// How an insert enters and leaves: a hard cut unless the insert asks for a motion. Fades by default
   /// half-dissolved B-roll over the face at every edge, which read as glitches.
   func insertPose(_ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Double) -> OverlayPose {
-    let none = Motion(preset: "none")
-    return Motion.pose(frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: ins.a.enter ?? none, exit: ins.a.exit ?? none, style: motion)
+    let fallback = plan.style.brollMotion ?? Motion(preset: "none")
+    return Motion.pose(
+      frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: ins.a.enter ?? fallback, exit: ins.a.exit ?? fallback, style: motion)
   }
 
   /// Whether a full-frame insert fully covers the screen at this frame (so screen marks stay hidden).
@@ -530,9 +531,29 @@ extension Scene {
           .concatenating(CGAffineTransform(translationX: rect.midX + pose.dx * rect.width, y: rect.midY - pose.dy * rect.height))
         placed = placed.transformed(by: t)
       }
-      out = masked(placed, rect, radius: radius, opacity: min(1, pose.opacity)).composited(over: out)
+      let shown = masked(placed, rect, radius: radius, opacity: min(1, pose.opacity))
+      out = pose.lines < 0.999 ? interlaced(shown, over: out, in: rect, share: pose.lines) : shown.composited(over: out)
     }
     return out
+  }
+
+  /// `top` over `bottom` through an interlaced reveal of `rect`: bands of lines four pixels tall (at
+  /// 1080p), the even ones sweeping in from the left over the first half of `share`, the odd ones
+  /// over the second half, like an old TV picture filling in.
+  func interlaced(_ top: CIImage, over bottom: CIImage, in rect: CGRect, share: Double) -> CIImage {
+    let band = max(2, (4 * u).rounded())
+    // Horizontal stripes: the generator makes vertical ones, so draw them along x and turn them.
+    let stripes = CIFilter(
+      name: "CIStripesGenerator",
+      parameters: ["inputColor0": CIColor.white, "inputColor1": CIColor.black, "inputWidth": band, "inputSharpness": 1, "inputCenter": CIVector(x: 0, y: 0)]
+    )!.outputImage!.transformed(by: CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: 0, ty: 0))
+    let even = stripes.cropped(to: CGRect(x: rect.minX, y: rect.minY, width: rect.width * min(1, share * 2), height: rect.height))
+    let odd = stripes.applyingFilter("CIColorInvert")
+      .cropped(to: CGRect(x: rect.minX, y: rect.minY, width: rect.width * max(0, share * 2 - 1), height: rect.height))
+    let black = CIImage(color: .black).cropped(to: rect)
+    let mask = even.applyingFilter("CIMaximumCompositing", parameters: [kCIInputBackgroundImageKey: odd.composited(over: black)])
+      .composited(over: black)
+    return top.applyingFilter("CIBlendWithMask", parameters: [kCIInputBackgroundImageKey: bottom, kCIInputMaskImageKey: mask])
   }
 
   /// Blurs the parts of the screen covered by blur annotations (passwords, emails), following zooms.

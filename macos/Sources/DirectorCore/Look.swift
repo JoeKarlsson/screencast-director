@@ -151,6 +151,7 @@ public struct Profile: Codable, Equatable {
     plan.style.joinSide = style.joinSide
     plan.style.fill = style.fill
     if let motion = style.motion { plan.style.motion = motion }
+    if let broll = style.brollMotion { plan.style.brollMotion = broll }
     var look = self.look
     look.name = name
     plan.look = look
