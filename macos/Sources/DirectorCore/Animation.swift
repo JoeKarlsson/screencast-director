@@ -41,27 +41,30 @@ public struct Animation: Codable, Equatable {
 
   /// Names the rendered clip: everything that changes its frames, and nothing else. `script` is the
   /// digest of the video's frozen copy of the template (see AnimationSources), so editing it re-renders.
-  public func renderKey(width: Int, height: Int, fps: Int, script: String = "", look: Look? = nil) -> String {
+  public func renderKey(width: Int, height: Int, fps: Int, script: String = "", look: Look? = nil, safeTop: Int = 0) -> String {
     // The parts of the look the page draws with (Animate.config): a new theme, accent or font re-renders.
     struct Brand: Encodable { let theme: String?, accent: String?, titleFont: String?, bodyFont: String? }
     struct Key: Encodable {
       let v: Int, template: String, script: String, data: JSONValue, cues: [String: Double], duration: Double, w: Int, h: Int, fps: Int
       let brand: Brand?
+      /// Pixels at the top kept clear of a vertical video's app UI (nil when none, so older clips keep their names).
+      let top: Int?
     }
     let enc = JSONEncoder()
     enc.outputFormatting = .sortedKeys
     let key = Key(
       v: Animation.engineVersion, template: template, script: script, data: data, cues: localCues.mapValues { ($0 * 1000).rounded() / 1000 },
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps,
-      brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) })
+      brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) },
+      top: safeTop > 0 ? safeTop : nil)
     let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data())
     return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
   }
 
   /// The rendered clip, relative to the project folder `dir`.
-  public func clipPath(_ output: Plan.Output, dir: URL?, look: Look? = nil) -> String {
+  public func clipPath(_ output: Plan.Output, dir: URL?, look: Look? = nil, safeTop: Int = 0) -> String {
     let script = dir.map { AnimationSources.digest(template, in: AnimationSources.videoFolder($0)) } ?? ""
-    return ".animations/\(template)-\(renderKey(width: output.width, height: output.height, fps: output.fps, script: script, look: look)).mp4"
+    return ".animations/\(template)-\(renderKey(width: output.width, height: output.height, fps: output.fps, script: script, look: look, safeTop: safeTop)).mp4"
   }
 }
 
@@ -112,7 +115,7 @@ extension Plan {
     // In portrait an animation plays in the screen card, above the camera; elsewhere over the whole frame.
     let placement = socialTop(self) == nil ? "full" : "screen"
     return animationList.compactMap { a in
-      let path = a.clipPath(animationOutput, dir: dir, look: look)
+      let path = a.clipPath(animationOutput, dir: dir, look: look, safeTop: animationSafeTop)
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
       return Insert(start: a.start, end: a.end, file: path, from: animationSeek(a), placement: placement, fit: "fill", note: a.note)
     }
@@ -122,8 +125,10 @@ extension Plan {
   /// export preset's, so an export in another format doesn't delete the preview's clips (or the
   /// preview's render delete an export's).
   public func animationClipNames(dir: URL) -> Set<String> {
-    let outputs = [animationOutput] + ExportPreset.all.map { $0.applied(to: self).animationOutput }
-    return Set(outputs.flatMap { o in animationList.map { ($0.clipPath(o, dir: dir, look: look) as NSString).lastPathComponent } })
+    let plans = [self] + ExportPreset.all.map { $0.applied(to: self) }
+    return Set(plans.flatMap { p in
+      animationList.map { ($0.clipPath(p.animationOutput, dir: dir, look: look, safeTop: p.animationSafeTop) as NSString).lastPathComponent }
+    })
   }
 
   /// Seconds into an animation's clip where it starts playing: past the part the edit cuts from its
@@ -141,10 +146,20 @@ extension Plan {
     return Output(width: even(card.w), height: even(card.h), fps: output.fps)
   }
 
+  /// Pixels at the top of the animation clip that a vertical video's app UI would cover (SafeArea),
+  /// for the page to keep clear: the part of the screen card above the safe area. 0 elsewhere.
+  public var animationSafeTop: Int {
+    guard let safe = SafeArea.rect(self) else { return 0 }
+    let card = layoutBoxes(.pip, plan: self).screen
+    let covered = Double(safe.minY) - card.y
+    guard covered > 0, card.h > 0 else { return 0 }
+    return Int((covered * Double(animationOutput.height) / card.h).rounded())
+  }
+
   /// Animations whose clip is missing, with the clip path each should be rendered to.
   public func animationsToRender(dir: URL) -> [(index: Int, animation: Animation, path: String)] {
     animationList.enumerated().compactMap { i, a in
-      let path = a.clipPath(animationOutput, dir: dir, look: look)
+      let path = a.clipPath(animationOutput, dir: dir, look: look, safeTop: animationSafeTop)
       return FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) ? nil : (i, a, path)
     }
   }

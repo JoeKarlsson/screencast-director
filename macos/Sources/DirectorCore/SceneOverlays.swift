@@ -137,9 +137,16 @@ extension Scene {
 
   /// Draws `draw` (top-left frame coordinates) posed: faded, moved, scaled about `rect`'s center
   /// and wiped. Mid-blur, it's drawn into its own layer and blurred into `blurred` instead.
-  func animated(_ ctx: CGContext, _ rect: CGRect, _ pose: OverlayPose, blurred: inout [CIImage], _ draw: (CGContext) -> Void) {
+  /// Draws an overlay posed for its entrance or exit. In a vertical video it's moved, whole, inside
+  /// the part the apps' own UI doesn't cover (SafeArea), unless `keepSafe` is false: annotations
+  /// mark a spot on the screen and must stay on it.
+  func animated(
+    _ ctx: CGContext, _ rect: CGRect, _ pose: OverlayPose, keepSafe: Bool = true, blurred: inout [CIImage], _ draw: (CGContext) -> Void
+  ) {
     guard pose.visible else { return }
+    let safe = keepSafe ? SafeArea.shift(rect, plan: plan) : .zero
     func apply(_ c: CGContext) {
+      c.translateBy(x: safe.width, y: safe.height)
       c.setAlpha(min(1, pose.opacity))
       c.translateBy(x: rect.midX + pose.dx * rect.width, y: rect.midY + pose.dy * rect.height)
       c.scaleBy(x: pose.scale, y: pose.scale)
@@ -158,7 +165,7 @@ extension Scene {
     let grown = rect.applying(
       CGAffineTransform(translationX: -rect.midX, y: -rect.midY).scaledBy(x: pose.scale, y: pose.scale)
         .translatedBy(x: rect.midX / pose.scale + pose.dx * rect.width / pose.scale, y: rect.midY / pose.scale + pose.dy * rect.height / pose.scale)
-    ).union(rect).insetBy(dx: -pad, dy: -pad).integral
+    ).union(rect).insetBy(dx: -pad, dy: -pad).offsetBy(dx: safe.width, dy: safe.height).integral
     guard let layer = Scene.context(Int(grown.width), Int(grown.height)) else { return }
     layer.translateBy(x: 0, y: grown.height)
     layer.scaleBy(x: 1, y: -1)
@@ -415,7 +422,7 @@ extension Scene {
       ctx.fillPath(using: .evenOdd)
       ctx.restoreGState()
     case "highlight":
-      animated(ctx, rect, pose, blurred: &blurred) { g in
+      animated(ctx, rect, pose, keepSafe: false, blurred: &blurred) { g in
         g.setFillColor(accent.copy(alpha: 0.32)!)
         g.addPath(CGPath(roundedRect: rect.insetBy(dx: -4 * self.u, dy: -2 * self.u), cornerWidth: 4 * self.u, cornerHeight: 4 * self.u, transform: nil))
         g.fillPath()
@@ -426,7 +433,7 @@ extension Scene {
       let fromLeft = tip.x > b.x + b.w * 0.75
       let tail = CGPoint(x: tip.x + (fromLeft ? -1 : 1) * 110 * u, y: tip.y + 130 * u)
       let box = CGRect(x: min(tip.x, tail.x), y: tip.y, width: abs(tail.x - tip.x), height: tail.y - tip.y)
-      animated(ctx, box, pose, blurred: &blurred) { g in
+      animated(ctx, box, pose, keepSafe: false, blurred: &blurred) { g in
         self.drawArrow(g, from: tail, to: tip, color: accent)
         if let text = a.text, !text.isEmpty {
           let str = Scene.text(text, size: 30 * self.u, weight: .bold, color: "#ffffff")
@@ -437,7 +444,7 @@ extension Scene {
         }
       }
     default:  // box
-      animated(ctx, rect, pose, blurred: &blurred) { g in
+      animated(ctx, rect, pose, keepSafe: false, blurred: &blurred) { g in
         g.setStrokeColor(accent)
         g.setLineWidth(5 * self.u)
         g.setShadow(offset: .zero, blur: 12 * self.u, color: CGColor(gray: 0, alpha: 0.35))

@@ -291,10 +291,14 @@ extension Scene {
       let corner = w.corner ?? "topLeft"
       let x = corner == "top" || corner == "bottom" ? (W - width) / 2 : corner.hasSuffix("Left") ? ins.safe : W - ins.safe - width
       // Portrait: below the top tenth, where TikTok and Reels lay their own tabs over the video.
-      let y = corner.hasPrefix("top") ? (corner == "top" && socialTop(plan) != nil ? H * 0.1 : ins.safe) : H - ins.safe - h
+      var x2 = x, y = corner.hasPrefix("top") ? ins.safe : H - ins.safe - h
+      // Vertical: inside the part the apps' own tabs and buttons don't cover.
+      let move = SafeArea.shift(CGRect(x: x2, y: y, width: width, height: h), plan: plan)
+      x2 += move.width
+      y += move.height
       ctx.saveGState()
       ctx.setAlpha(w.opacity ?? 0.9)
-      ctx.translateBy(x: x, y: y + h)
+      ctx.translateBy(x: x2, y: y + h)
       ctx.scaleBy(x: 1, y: -1)
       ctx.draw(img, in: CGRect(x: 0, y: 0, width: width, height: h))
       ctx.restoreGState()

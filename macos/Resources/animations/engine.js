@@ -147,7 +147,7 @@ function stageTransform(width, height, stage = { w: 1920, h: 1080 }) {
 
 // --- entry points --------------------------------------------------------------
 // config: { template, data, cues, duration, width, height, fonts: [{family, url}], titleFont, bodyFont,
-//           accent, paper, ink, theme, logos }
+//           accent, paper, ink, theme, safeTop, logos }
 window.init = async function (config) {
   cam = document.getElementById("cam");
   lines = document.getElementById("lines");
@@ -165,11 +165,13 @@ window.init = async function (config) {
   if (config.bodyFont) root.setProperty("--body", `"${config.bodyFont}", "Helvetica Neue", sans-serif`);
   const make = TEMPLATES[config.template];
   if (!make) throw new Error(`no template named "${config.template}" (have: ${Object.keys(TEMPLATES).join(", ")})`);
-  STAGE = stageSize(config.width, config.height, make.reflows === true);
+  // A vertical video's app UI covers the clip's top `safeTop` pixels: lay the stage out below them.
+  const top = config.safeTop || 0;
+  STAGE = stageSize(config.width, config.height - top, make.reflows === true);
   const stage = document.getElementById("stage");
   stage.style.width = `${STAGE.w}px`;
   stage.style.height = `${STAGE.h}px`;
-  stage.style.transform = stageTransform(config.width, config.height, STAGE);
+  stage.style.transform = `translate(0px, ${top}px) ` + stageTransform(config.width, config.height - top, STAGE);
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
     seekTemplate(t);

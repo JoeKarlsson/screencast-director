@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Vertical videos keep every title, chip, caption and the logo clear of TikTok's, Reels' and Shorts' own UI (the top 12%, bottom 22% and right 12%), and animations lay out below the top band. Step chips used to sit right under the apps' tabs.
 - A terminal theme for animations (`look.animationTheme: "terminal"`): a 90s screen with square DOS-style boxes, hard shadows, mono type, inverse-video highlights, right-angle lines, flicker-on entrances and a blinking cursor, instead of the paper collage.
 - Animations re-render when the look's accent, fonts or theme change; before, a new profile kept the old clips.
 - Intro and outro cards take the video's effects, so they match the rest of it.
