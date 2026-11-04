@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import Combine
 import DirectorCore
 import Foundation
 
@@ -91,6 +92,7 @@ final class ProjectModel: ObservableObject {
   private var itemObserver: NSKeyValueObservation?
   private var timeObserver: Any?
   private var rateObserver: NSKeyValueObservation?
+  private var volumeObserver: AnyCancellable?
   private var rebuildWork: DispatchWorkItem?
   private var thumbnails: [Int: NSImage] = [:]
 
@@ -102,6 +104,10 @@ final class ProjectModel: ObservableObject {
     }
     rateObserver = player.observe(\.rate) { [weak self] p, _ in
       DispatchQueue.main.async { self?.isPlaying = p.rate != 0 }
+    }
+    volumeObserver = AppSettings.shared.$previewVolume.combineLatest(AppSettings.shared.$previewMuted).sink { [weak self] volume, muted in
+      self?.player.volume = volume
+      self?.player.isMuted = muted
     }
     loadFromDisk()
     watchPlan()

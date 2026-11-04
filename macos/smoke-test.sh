@@ -3,7 +3,8 @@
 # temp folder, and drives it through System Events: the editor opens, pressing a timeline bar
 # selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, dragging
 # the last clip to the front reorders it, Publish's cover button saves coverAt, and the
-# Audio tab's sound and music pickers add a library sound and set a library track.
+# Audio tab's sound and music pickers add a library sound and set a library track, and the speaker
+# button under the preview mutes and unmutes it.
 #
 #   macos/smoke-test.sh             # build, then test
 #   macos/smoke-test.sh --no-build  # test the existing dist build
@@ -62,7 +63,7 @@ SH
 chmod +x "$TMP/claude"
 echo fail >"$TMP/claude-mode"
 
-"$APP/Contents/MacOS/ScreencastDirector" -projectsFolder "$TMP" -openProject "$PROJECT" -claudePath "$TMP/claude" -ai.provider claudeCode -ApplePersistenceIgnoreState YES \
+"$APP/Contents/MacOS/ScreencastDirector" -projectsFolder "$TMP" -openProject "$PROJECT" -claudePath "$TMP/claude" -ai.provider claudeCode -previewMuted NO -ApplePersistenceIgnoreState YES \
   -"NSWindow Frame main" "120 60 1400 860 0 0 1512 982" \
   >"$TMP/app.log" 2>&1 &
 PID=$!
@@ -266,6 +267,16 @@ ask "zoom in"
 for _ in $(seq 1 150); do [[ "$(last_reply)" == *"Not signed in"* ]] && break; sleep 0.2; done
 [[ "$(last_reply)" == *"exit status 1"*"Not signed in"* ]] || fail "a failed edit didn't close out with Claude's error (reply: $(last_reply))"
 echo "ok: a failed edit closed out with Claude's error"
+
+# 8b. The transport bar's speaker button mutes the preview and unmutes it again, so the defaults the
+# test instance shares with your installed copy end unmuted (it starts unmuted: -previewMuted NO).
+[[ "$(press_help "Mute the preview (the export isn't affected)")" == pressed ]] || fail "no mute button under the preview"
+sleep 0.5
+[[ "$(press_help "Unmute the preview")" == pressed ]] || fail "the mute button didn't mute the preview"
+sleep 0.5
+# Still muted would find (and press) the Unmute button again; unmuted finds none.
+[[ "$(press_help "Unmute the preview")" == missing ]] || fail "the second press didn't unmute the preview"
+echo "ok: the preview's mute button mutes and unmutes"
 
 # 9. Quitting while Claude is still editing stops it and records that, then the test instance quits.
 echo hang >"$TMP/claude-mode"

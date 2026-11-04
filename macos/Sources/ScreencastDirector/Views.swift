@@ -520,6 +520,7 @@ struct TransportBar: View {
       TransportScrubber(project: project, playhead: project.playhead, total: total, fps: fps)
       Text(fmtTime(Double(project.totalOutFrames) / fps)).monospacedDigit().foregroundStyle(.secondary)
         .frame(width: 56, alignment: .leading)
+      PreviewVolumeControl(settings: AppSettings.shared)
     }
     .font(.system(.callout, design: .rounded))
   }
@@ -532,6 +533,41 @@ struct TransportBar: View {
     .foregroundStyle(.secondary)
     .help(help)
     .accessibilityLabel(help.components(separatedBy: " (").first ?? help)
+  }
+}
+
+/// How loud the preview plays while editing: a mute button and a volume slider. The export keeps the
+/// plan's own levels.
+struct PreviewVolumeControl: View {
+  @ObservedObject var settings: AppSettings
+
+  private var symbol: String {
+    let v = settings.previewVolume
+    if settings.previewMuted || v == 0 { return "speaker.slash.fill" }
+    return v < 0.34 ? "speaker.wave.1.fill" : v < 0.67 ? "speaker.wave.2.fill" : "speaker.wave.3.fill"
+  }
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Button { settings.previewMuted.toggle() } label: {
+        Image(systemName: symbol).font(.system(size: 11)).frame(width: 22, height: 24, alignment: .leading).contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(.secondary)
+      .help(settings.previewMuted ? "Unmute the preview" : "Mute the preview (the export isn't affected)")
+      Slider(
+        value: Binding(
+          get: { Double(settings.previewMuted ? 0 : settings.previewVolume) },
+          set: { v in
+            settings.previewVolume = Float(v)
+            if v > 0 { settings.previewMuted = false }
+          }),
+        in: 0...1
+      )
+      .controlSize(.mini)
+      .frame(width: 72)
+      .help("Preview volume (the export isn't affected)")
+    }
   }
 }
 

@@ -30,6 +30,9 @@ final class AppSettings: ObservableObject {
   @Published var countdown: Int { didSet { d.set(countdown, forKey: "countdown") } }
   /// The floating widget with the clock, mic level and controls while recording.
   @Published var showRecordingWidget: Bool { didSet { d.set(showRecordingWidget, forKey: "showRecordingWidget") } }
+  /// How loud the editor's preview plays (0...1), and whether it's muted. Exports aren't affected.
+  @Published var previewVolume: Float { didSet { d.set(previewVolume, forKey: "previewVolume") } }
+  @Published var previewMuted: Bool { didSet { d.set(previewMuted, forKey: "previewMuted") } }
   static let shared = AppSettings()
 
   init() {
@@ -50,6 +53,8 @@ final class AppSettings: ObservableObject {
     displayID = d.integer(forKey: "displayID")
     countdown = d.object(forKey: "countdown") as? Int ?? 3
     showRecordingWidget = d.object(forKey: "showRecordingWidget") as? Bool ?? true
+    previewVolume = d.object(forKey: "previewVolume") as? Float ?? 1
+    previewMuted = d.bool(forKey: "previewMuted")
     projectsFolder =
       d.string(forKey: "projectsFolder")
       ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies/Screencast Director").path
