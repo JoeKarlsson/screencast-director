@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- B-roll's In and Out menus show the real default, a cut, instead of Fade. Background & Frame › Motion › B-roll sets how every B-roll and animation without its own motion comes and goes (`style.brollMotion`).
 - The terminal animation theme moves: a slow camera drift with the odd VHS sync slip, lines that jitter like a CRT signal, packets running along every line, and a flickering, rolling scanline layer.
 - Vertical videos keep every title, chip, caption and the logo clear of TikTok's, Reels' and Shorts' own UI (the top 12%, bottom 22% and right 12%), and animations lay out below the top band. Step chips used to sit right under the apps' tabs.
 - A terminal theme for animations (`look.animationTheme: "terminal"`): a 90s screen with square DOS-style boxes, hard shadows, mono type, inverse-video highlights, right-angle lines, flicker-on entrances and a blinking cursor, instead of the paper collage.

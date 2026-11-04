@@ -60,6 +60,11 @@ extension InspectorView {
       }
       slider("Zoom speed", bind("transition", { $0.style.transition }, { $0.style.transition = ($1 * 10).rounded() / 10 }), 0.3...1.6,
         "\(plan.style.transition.formatted()) s")
+      MotionPicker(
+        title: "B-roll", motion: bind("brollMotion", { $0.style.brollMotion }, { $0.style.brollMotion = $1 }),
+        fallback: Motion(preset: "none"), defaultTitle: "Default"
+      )
+      .help("How B-roll and animations without their own motion come and go")
     }
   }
 

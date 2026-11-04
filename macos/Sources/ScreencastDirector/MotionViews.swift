@@ -80,15 +80,16 @@ struct MotionStyleGrid: View {
 struct MotionPicker: View {
   let title: String
   @Binding var motion: Motion?
-  /// What nil means, shown as "Style (…)".
+  /// What nil means, shown as "<defaultTitle> (…)".
   let fallback: Motion
+  var defaultTitle = "Style Default"
 
   private func label(_ preset: String) -> String { Motion.presets.first { $0.name == preset }?.label ?? preset }
 
   var body: some View {
     LabeledContent(title) {
       Menu {
-        Button("Style Default (\(label(fallback.preset)))") { motion = nil }
+        Button("\(defaultTitle) (\(label(fallback.preset)))") { motion = nil }
         Divider()
         ForEach(Motion.presets, id: \.name) { p in
           Button {

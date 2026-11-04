@@ -202,6 +202,10 @@ func effectChecks() {
   var withWipes = plan
   brollProfile.apply(to: &withWipes)
   expect(withWipes.style.brollMotion?.preset == "interlace", "a profile sets how B-roll comes and goes")
+  expect(plan.brollDefaultMotion.preset == "none" && withWipes.brollDefaultMotion.preset == "interlace",
+    "B-roll without its own motion cuts unless the style sets one (the inspector shows the same default)")
+  let cutIn = Scene(plan: { var p = wiped; p.style.brollMotion = nil; return p }(), words: [], clicks: [], shortcuts: [])
+  expect(pixel(cutIn.render(frame: Int(2.05 * fps), screen: gray, camera: nil), x: W * 0.8, y: H / 2)[0] > 0.9, "default B-roll is fully in on its first frames")
 
   // Intro and outro cards take the frame's effects (the probe paints the top-left corner red).
   do {

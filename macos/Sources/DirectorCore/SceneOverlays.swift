@@ -499,7 +499,7 @@ extension Scene {
   /// How an insert enters and leaves: a hard cut unless the insert asks for a motion. Fades by default
   /// half-dissolved B-roll over the face at every edge, which read as glitches.
   func insertPose(_ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Double) -> OverlayPose {
-    let fallback = plan.style.brollMotion ?? Motion(preset: "none")
+    let fallback = plan.brollDefaultMotion
     return Motion.pose(
       frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: ins.a.enter ?? fallback, exit: ins.a.exit ?? fallback, style: motion)
   }

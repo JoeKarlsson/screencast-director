@@ -219,8 +219,8 @@ extension InspectorView {
         }
       }
       InspectorSection("Animation") {
-        MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: Motion(preset: "fade", seconds: 0.3, ease: "smooth"))
-        MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: Motion(preset: "fade", seconds: 0.25, ease: "ease-in"))
+        MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: plan.brollDefaultMotion)
+        MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: plan.brollDefaultMotion)
         previewButton(c.start)
       }
       removeButton()

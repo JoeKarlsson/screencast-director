@@ -551,3 +551,8 @@ public struct CursorSettings: Codable, Equatable {
     self.hidden = hidden
   }
 }
+
+extension Plan {
+  /// How B-roll without its own `enter`/`exit` comes and goes: the style's `brollMotion`, else a hard cut.
+  public var brollDefaultMotion: Motion { style.brollMotion ?? Motion(preset: "none") }
+}
