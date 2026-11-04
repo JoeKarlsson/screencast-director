@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Plans with missing fields load: one from before plan versions, or one written by hand without `callouts`, `clickRipples` or `style`, used to fail to open. Missing fields take the defaults a new video gets.
 - Settings › AI keeps the Test Connection result when the window redraws, and the button is off when Claude Code isn't installed. Publish's Copy says why when it can't read a file instead of copying nothing.
 - Preview volume: a speaker button and slider under the preview set how loud it plays while you edit (click the speaker to mute). The export keeps the video's own levels.
 - B-roll's In and Out menus show the real default, a cut, instead of Fade. Background & Frame › Motion › B-roll sets how every B-roll and animation without its own motion comes and goes (`style.brollMotion`).

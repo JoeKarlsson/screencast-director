@@ -275,10 +275,13 @@ public struct Plan: Codable, Equatable {
     public var fill: Bool?
     /// How B-roll and animations come and go when they don't set their own `enter`/`exit` (nil cuts).
     public var brollMotion: Motion?
+
+    /// The built-in look a new plan starts with.
+    public static let standard = Style(background: ["#1d2b64", "#f8cdda"], padding: 0.06, radius: 14, transition: 0.8)
   }
   public struct Captions: Codable, Equatable {
-    public var enabled: Bool
-    public var maxWords: Int
+    @Defaulted<Fallback.False> public var enabled: Bool
+    @Defaulted<Fallback.CaptionWords> public var maxWords: Int
     /// One of `Plan.Captions.styles` (nil is "pill").
     public var style: String?
     /// Where the captions sit: the center of the caption block as fractions of the output frame.
@@ -301,19 +304,19 @@ public struct Plan: Codable, Equatable {
 
   /// 2: `segments` play in the order they're listed, so a clip can move ahead of earlier moments
   /// (a cold open). 1 (plans saved before that): they play in recording order.
-  public var version: Int = 2
+  @Defaulted<Fallback.FirstVersion> public var version: Int = 2
   public var source: Source
   public var camera: Camera?
   public var output: Output
-  public var style: Style
+  @Defaulted<Fallback.StandardStyle> public var style: Style
   public var segments: [Segment]
-  public var zooms: [Zoom]
-  public var defaultLayout: LayoutMode
-  public var layouts: [LayoutRange]
-  public var captions: Captions
-  public var clickRipples: Bool
-  public var shortcutChips: Bool
-  public var callouts: [Callout]
+  @Defaulted<Fallback.NoZooms> public var zooms: [Zoom]
+  @Defaulted<Fallback.ScreenLayout> public var defaultLayout: LayoutMode
+  @Defaulted<Fallback.NoLayouts> public var layouts: [LayoutRange]
+  @Defaulted<Fallback.NoCaptions> public var captions: Captions
+  @Defaulted<Fallback.True> public var clickRipples: Bool
+  @Defaulted<Fallback.True> public var shortcutChips: Bool
+  @Defaulted<Fallback.NoCallouts> public var callouts: [Callout]
   /// Spotlights, boxes, arrows, highlights and blurs on the screen.
   public var annotations: [Annotation]?
   /// Named points on the timeline.

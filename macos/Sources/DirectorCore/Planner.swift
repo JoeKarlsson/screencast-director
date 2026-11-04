@@ -203,7 +203,7 @@ public func buildPlan(_ p: Project) -> Plan {
     source: .init(video: p.source.video, width: p.source.width, height: p.source.height, duration: p.source.duration),
     camera: p.source.camera,
     output: .init(width: 1920, height: 1080, fps: 30),
-    style: .init(background: ["#1d2b64", "#f8cdda"], padding: 0.06, radius: 14, transition: 0.8),
+    style: .standard,
     segments: buildSegments(p), zooms: buildZooms(p),
     defaultLayout: p.source.camera != nil ? .pip : .screen, layouts: [],
     captions: .init(enabled: !p.words.isEmpty, maxWords: 7),

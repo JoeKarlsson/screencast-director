@@ -1058,6 +1058,7 @@ struct Checks {
     editorActionChecks()
     recordedBrollChecks()
     reorderChecks()
+    planFileChecks()
     flashChecks()
     coverChecks()
     inputEventChecks()
