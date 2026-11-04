@@ -58,9 +58,9 @@ public struct EffectManifest: Codable, Equatable {
   public var reach: Int?
   /// Floats the shader reads as `p[0]`, `p[1]`, … in this order.
   public var params: [Param]?
-  /// Whether the shader reads `blobs`, the points followed on its layer (body joints and fingertips
-  /// on the camera, the pointer and recent clicks on the screen). Tracking the camera takes a pass
-  /// over it the first time, so only effects that ask get it.
+  /// Whether the shader reads `blobs`, the things found on its layer (the face, hands, person and
+  /// a held-up object on the camera, the pointer and recent clicks on the screen). Tracking the
+  /// camera takes a pass over it the first time, so only effects that ask get it.
   public var tracking: Bool?
 }
 
@@ -200,9 +200,9 @@ public final class LoadedEffect: @unchecked Sendable {
     s.blobs = Float(blobs.count)
     // Metal needs a buffer even when there's nothing in it.
     var blobData = Data()
-    for b in blobs.isEmpty ? [EffectBlob(x: 0, y: 0, size: 0, id: -1)] : blobs {
-      var v = SIMD4<Float>(b.x, b.y, b.size, b.id)
-      blobData += withUnsafeBytes(of: &v) { Data($0) }
+    for b in blobs.isEmpty ? [EffectBlob(x: 0, y: 0, w: 0, h: 0, kind: 0, confidence: 0, id: -1)] : blobs {
+      var v = [SIMD4<Float>(b.x, b.y, b.w, b.h), SIMD4<Float>(b.kind, b.confidence, b.id, b.atTop)]
+      blobData += v.withUnsafeMutableBytes { Data($0) }
     }
     var size = SIMD2<Float>(Float(extent.width), Float(extent.height))
     let packed = withUnsafeBytes(of: &size) { Data($0) } + withUnsafeBytes(of: &s) { Data($0) }
@@ -219,13 +219,19 @@ public final class LoadedEffect: @unchecked Sendable {
   }
 }
 
-/// A point an effect can draw a tracking box on: its center and box size in the layer's pixels (y
-/// down) and what it is (`id`, the same for the same joint or pointer from frame to frame).
+/// A thing an effect can outline: its box in the layer's pixels (top-left corner, y down), what it
+/// is (`Tracking.Kind`), Vision's confidence, and an id that's the same for the same thing from
+/// frame to frame.
 public struct EffectBlob: Equatable {
   public var x: Float
   public var y: Float
-  public var size: Float
+  public var w: Float
+  public var h: Float
+  public var kind: Float
+  public var confidence: Float
   public var id: Float
+  /// 1 when the box's top is at the top of what's shown, so a label above it would be out of view.
+  public var atTop: Float = 0
 }
 
 public enum Effects {
@@ -254,16 +260,18 @@ public enum Effects {
                             // an animation, 3 layout change, 4 punch-in, 5 new section (a chapter or slate title)
       float blobs;          // how many entries blobs holds (0 unless effect.json has "tracking": true)
     };
-
+    // A thing found on the layer: box.xy its top-left corner and box.zw its size, in the layer's pixels
+    // (y down); info.x what it is (1 face, 2 hand, 3 person, 4 object; on the screen 10 the pointer,
+    // 11 a recent click), info.y Vision's confidence 0..1, info.z an id that's the same for the same
+    // thing from frame to frame, info.w 1 when the box's top is at the top of what's on screen (a
+    // zoomed camera shows only part of its layer), so a label above it wouldn't be seen.
+    struct Blob { float4 box; float4 info; };
     struct Layer {
       texture2d<float, access::read> tex;
       int2 origin;          // the layer's top-left corner in tex
       float2 size;
-      // The points followed on this layer, s.blobs of them: xy the center in the layer's pixels (y
-      // down), z a box size in pixels, w its id (camera: 0 nose, 1-2 eyes, 3-4 ears, 5 neck, 6-7
-      // shoulders, 8-9 elbows, 10-11 wrists, 20-24 and 30-34 the fingertips of each hand; screen: 100
-      // the pointer, 101 and up recent clicks).
-      constant float4 *blobs;
+      // The things found on this layer, s.blobs of them.
+      constant Blob *blobs;
       float4 read(float2 pos) const {
         float2 q = clamp(floor(pos), float2(0), size - 1);
         int2 t = clamp(int2(q) + origin, int2(0), int2(tex.get_width() - 1, tex.get_height() - 1));
@@ -283,7 +291,7 @@ public enum Effects {
                           constant Signals &s [[buffer(0)]],
                           constant float *p [[buffer(1)]],
                           constant SDOrigins &o [[buffer(2)]],
-                          constant float4 *blobs [[buffer(3)]],
+                          constant Blob *blobs [[buffer(3)]],
                           uint2 gid [[thread_position_in_grid]]) {
       if (gid.x >= dst.get_width() || gid.y >= dst.get_height()) return;
       Layer layer = { src, o.input, s.size, blobs };

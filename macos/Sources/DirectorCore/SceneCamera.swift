@@ -42,22 +42,8 @@ extension Scene {
       let e = src.extent
       src = src.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: e.minX + e.maxX, ty: 0))
     }
-    // Effects draw on the picture as it's shown, so their text reads the right way round.
-    src = withEffects(src, layer: "camera", frame: Int(f))
-    let cut = cutoutWeight(b)
-    if cut > 0 {
-      let person = Scene.personCutout(src)
-      src = cut < 1 ? src.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: person, kCIInputTimeKey: cut]) : person
-    }
     let (r, zoom) = cameraFraming(b, frame: f, cameraWidth: cw, cameraHeight: ch)
     let k = max(r.width / cw, r.height / ch) * zoom
-    var moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
-    // A camera blown up a lot (1080p filling a vertical 4K frame is about 3.5x) gets a little
-    // crispness back: a moderate sharpen of brightness only, so no color halos. It can't add detail
-    // the camera never recorded; recording the camera at 4K is what fixes that.
-    if k > 1.5 {
-      moved = moved.applyingFilter("CISharpenLuminance", parameters: [kCIInputSharpnessKey: 0.6, kCIInputRadiusKey: 2.0]).cropped(to: moved.extent)
-    }
     // Keep the framing point centered, clamped so the camera image always covers the box.
     // The framing point is in the file's coordinates, so it mirrors with the picture. A punch-in
     // can move it for its span.
@@ -68,6 +54,22 @@ extension Scene {
     var ty = r.midY - (1 - fy) * ch * k
     tx = min(r.minX, max(tx, r.maxX - cw * k))
     ty = min(r.minY, max(ty, r.maxY - ch * k))
+    // Effects draw on the picture as it's shown, so their text reads the right way round. They're
+    // told which part of it the box shows (camera pixels, y down), so tracked boxes stay in view.
+    let shown = CGRect(x: (r.minX - tx) / k, y: ch - (r.maxY - ty) / k, width: r.width / k, height: r.height / k)
+    src = withEffects(src, layer: "camera", frame: Int(f), shown: shown)
+    let cut = cutoutWeight(b)
+    if cut > 0 {
+      let person = Scene.personCutout(src)
+      src = cut < 1 ? src.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: person, kCIInputTimeKey: cut]) : person
+    }
+    var moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
+    // A camera blown up a lot (1080p filling a vertical 4K frame is about 3.5x) gets a little
+    // crispness back: a moderate sharpen of brightness only, so no color halos. It can't add detail
+    // the camera never recorded; recording the camera at 4K is what fixes that.
+    if k > 1.5 {
+      moved = moved.applyingFilter("CISharpenLuminance", parameters: [kCIInputSharpnessKey: 0.6, kCIInputRadiusKey: 2.0]).cropped(to: moved.extent)
+    }
     let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
     return masked(placed, r, radius: b.r, opacity: b.opacity)
   }

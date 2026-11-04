@@ -549,34 +549,60 @@ extension Scene {
   }
 
   /// The image with each effect for this layer drawn on it, in plan order.
-  func withEffects(_ image: CIImage, layer: String, frame f: Int) -> CIImage {
+  /// `shown` is the part of the layer that ends up on screen (its pixels, y down), when that's less
+  /// than all of it, as for a camera zoomed to fill its box.
+  func withEffects(_ image: CIImage, layer: String, frame f: Int, shown: CGRect? = nil) -> CIImage {
     let ranged = rangeEffects.filter { $0.effect.layer == layer && Double(f) >= $0.s && Double(f) < $0.e }.map(\.effect)
     let these = ranged + effects.filter { $0.layer == layer }
     guard !these.isEmpty else { return image }
     let signals = effectSignals(f)
-    let blobs = these.contains(where: \.tracking) ? effectBlobs(layer: layer, frame: f, size: image.extent.size) : []
+    let blobs = these.contains(where: \.tracking) ? effectBlobs(layer: layer, frame: f, size: image.extent.size, shown: shown) : []
     return these.reduce(image) { $1.apply($0, signals: signals, blobs: blobs) }
   }
 
-  /// The points followed on a layer at output frame `f`, in that layer's pixels (y down): body joints
-  /// and fingertips on the camera, the pointer and clicks from the last 1.5 s on the screen. None on
-  /// the frame layer, where the camera and screen can be anywhere.
-  func effectBlobs(layer: String, frame f: Int, size: CGSize) -> [EffectBlob] {
+  /// The things found on a layer at output frame `f`, in that layer's pixels (y down): the face,
+  /// hands, person and a held-up object on the camera, the pointer and clicks from the last 1.5 s on
+  /// the screen. None on the frame layer, where the camera and screen can be anywhere. With `shown`,
+  /// a box mostly out of view is left out and the rest are cut to the view, so a box bigger than a
+  /// close-up doesn't show as a stray edge with half a label.
+  func effectBlobs(layer: String, frame f: Int, size: CGSize, shown: CGRect? = nil) -> [EffectBlob] {
+    let all = allEffectBlobs(layer: layer, frame: f, size: size)
+    guard let shown else { return all }
+    return all.compactMap { b in
+      let box = CGRect(x: CGFloat(b.x), y: CGFloat(b.y), width: CGFloat(b.w), height: CGFloat(b.h))
+      let seen = box.intersection(shown)
+      guard !seen.isNull, seen.width * seen.height >= 0.75 * box.width * box.height else { return nil }
+      var out = b
+      out.x = Float(seen.minX)
+      out.y = Float(seen.minY)
+      out.w = Float(seen.width)
+      out.h = Float(seen.height)
+      out.atTop = seen.minY - shown.minY < 0.04 * shown.height ? 1 : 0
+      return out
+    }
+  }
+
+  func allEffectBlobs(layer: String, frame f: Int, size: CGSize) -> [EffectBlob] {
     let w = Double(size.width), h = Double(size.height)
     switch layer {
     case "camera":
       guard let tracking, let camera = plan.camera, let t = outToSrc(mapped, Double(f), fps: plan.output.fps) else { return [] }
-      return tracking.points(at: t + camera.offset).map {
-        EffectBlob(x: Float((camera.mirror == true ? 1 - $0.x : $0.x) * w), y: Float($0.y * h), size: Float($0.size * h), id: Float($0.id))
+      return tracking.boxes(at: t + camera.offset).map {
+        EffectBlob(
+          x: Float((camera.mirror == true ? 1 - $0.x - $0.w : $0.x) * w), y: Float($0.y * h), w: Float($0.w * w), h: Float($0.h * h),
+          kind: Float($0.kind), confidence: Float($0.confidence), id: Float($0.id))
       }
     case "screen":
       var out: [EffectBlob] = []
       if let p = cursorPosition(frame: Double(f)) {
-        out.append(EffectBlob(x: Float(p.x * w), y: Float(p.y * h), size: Float(0.05 * h), id: 100))
+        let s = 0.05 * h
+        out.append(EffectBlob(x: Float(p.x * w - s / 2), y: Float(p.y * h - s / 2), w: Float(s), h: Float(s), kind: 10, confidence: 1, id: 100))
       }
       let recent = focusClicks.filter { $0.f <= Double(f) && Double(f) - $0.f < 1.5 * Double(fps) }
       for (i, c) in recent.suffix(Effects.maxBlobs - 1).enumerated() {
-        out.append(EffectBlob(x: Float(c.x * w), y: Float(c.y * h), size: Float(0.08 * h), id: Float(101 + i)))
+        let s = 0.08 * h
+        out.append(
+          EffectBlob(x: Float(c.x * w - s / 2), y: Float(c.y * h - s / 2), w: Float(s), h: Float(s), kind: 11, confidence: 1, id: Float(110 + i)))
       }
       return out
     default:

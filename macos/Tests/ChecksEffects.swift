@@ -107,9 +107,9 @@ func effectChecks() {
   expect(failure([EffectUse(name: "broken")]).contains("\"broken\" doesn't compile"), "a shader that doesn't compile fails, naming the effect")
 
   // Tracking: blobs reach only effects that ask. On the screen they're the pointer (red is the first
-  // blob's x / the layer's width, green its id / 200, blue how many there are / 4).
+  // blob's center x / the layer's width, green its kind / 20, blue how many there are / 4).
   writeEffect(personal, "blobprobe", layer: "screen", tracking: true,
-    metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return s.blobs > 0 ? float4(src.blobs[0].x / s.size.x, src.blobs[0].w / 200, s.blobs / 4, 1) : float4(0, 0, 0, 1); }")
+    metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return s.blobs > 0 ? float4((src.blobs[0].box.x + src.blobs[0].box.z / 2) / s.size.x, src.blobs[0].info.x / 20, s.blobs / 4, 1) : float4(0, 0, 0, 1); }")
   do {
     var still = plan
     still.segments = [Segment(start: 0, end: 12, speed: 1)]
@@ -120,6 +120,15 @@ func effectChecks() {
     let probe = pixel(scene.render(frame: Int(3 * fps), screen: screen, camera: nil), x: W / 2, y: H / 2)
     expect(abs(probe[0] - 0.25) < 0.03 && abs(probe[1] - 0.5) < 0.03 && abs(probe[2] - 0.25) < 0.03,
       "a tracking effect on the screen gets one blob, the pointer, at its pixel (\(probe))")
+    // A zoomed camera shows only part of its layer: a box mostly out of view is left out, one mostly in
+    // view is cut to it and flagged when its top is the view's top.
+    let tracked = Scene(
+      plan: still, words: [], clicks: [], shortcuts: [], cursorPath: pointer, dir: project, effects: loaded)
+    let shown = CGRect(x: 400, y: 200, width: 800, height: 600)
+    let blobs = tracked.effectBlobs(layer: "screen", frame: Int(3 * fps), size: CGSize(width: 1920, height: 1080), shown: shown)
+    expect(blobs.count == 1 && blobs[0].x >= 400, "a pointer box inside the view stays (\(blobs))")
+    let away = tracked.effectBlobs(layer: "screen", frame: Int(3 * fps), size: CGSize(width: 1920, height: 1080), shown: CGRect(x: 1000, y: 0, width: 900, height: 1080))
+    expect(away.isEmpty, "a box out of view is left out (\(away))")
   } catch {
     expect(false, "the blobprobe effect loads: \(error.localizedDescription)")
   }
@@ -138,24 +147,27 @@ func effectChecks() {
   } catch {
     expect(false, "the ranged probe loads: \(error.localizedDescription)")
   }
-  // Camera tracking moves each point between samples, shows a point seen in only one sample for half
-  // a step, and survives tracking.json.
+  // Camera tracking moves each box between samples, shows a box seen in only one sample for half a
+  // step, and survives tracking.json.
   let tracking = Tracking(samples: [
-    .init(t: 1, points: [.init(id: 0, x: 0.2, y: 0.4, size: 0.05), .init(id: 6, x: 0.3, y: 0.7, size: 0.05)]),
-    .init(t: 1.1, points: [.init(id: 0, x: 0.4, y: 0.4, size: 0.07)]),
+    .init(t: 1, boxes: [.init(id: 10, x: 0.2, y: 0.4, w: 0.2, h: 0.3, confidence: 0.9), .init(id: 20, x: 0.3, y: 0.7, w: 0.1, h: 0.1, confidence: 0.8)]),
+    .init(t: 1.1, boxes: [.init(id: 10, x: 0.4, y: 0.4, w: 0.4, h: 0.3, confidence: 0.7)]),
   ])
-  let mid = tracking.points(at: 1.05)
-  expect(mid.count == 1 && abs(mid[0].x - 0.3) < 1e-9 && abs(mid[0].size - 0.06) < 1e-9, "a tracked point moves linearly between samples (\(mid))")
-  expect(tracking.points(at: 1.02).count == 2, "a point missing from the next sample holds for half a step")
-  expect(tracking.points(at: 3).isEmpty, "no points long after the last sample")
+  let mid = tracking.boxes(at: 1.05)
+  expect(mid.count == 1 && abs(mid[0].x - 0.3) < 1e-9 && abs(mid[0].w - 0.3) < 1e-9 && mid[0].kind == 1, "a tracked box moves linearly between samples (\(mid))")
+  expect(tracking.boxes(at: 1.02).count == 2, "a box missing from the next sample holds for half a step")
+  expect(tracking.boxes(at: 3).isEmpty, "no boxes long after the last sample")
   let saved = tmp.appendingPathComponent(Tracking.fileName)
   try? Tracking.write(tracking, video: "camera.mp4", to: saved)
   let readBack = Result { try Tracking.read(saved, video: "camera.mp4") }
   let same = (try? readBack.get()).flatMap { $0 }.map { back in
     back.samples.count == tracking.samples.count
       && zip(back.samples, tracking.samples).allSatisfy { a, b in
-        abs(a.t - b.t) < 1e-4 && a.points.count == b.points.count
-          && zip(a.points, b.points).allSatisfy { $0.id == $1.id && abs($0.x - $1.x) < 1e-4 && abs($0.y - $1.y) < 1e-4 && abs($0.size - $1.size) < 1e-4 }
+        abs(a.t - b.t) < 1e-4 && a.boxes.count == b.boxes.count
+          && zip(a.boxes, b.boxes).allSatisfy {
+            $0.id == $1.id && abs($0.x - $1.x) < 1e-4 && abs($0.y - $1.y) < 1e-4 && abs($0.w - $1.w) < 1e-4 && abs($0.h - $1.h) < 1e-4
+              && abs($0.confidence - $1.confidence) < 1e-4
+          }
       }
   }
   expect(same == true, "tracking.json reads back the same, to 4 decimals (\(readBack))")

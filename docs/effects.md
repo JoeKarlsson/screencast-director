@@ -83,10 +83,15 @@ float4 effect(Layer src, float2 pos, Signals s, constant float *p) {
 
 ## Tracking
 
-An effect with `"tracking": true` gets up to 32 followed points on its layer: `s.blobs` says how many, and `src.blobs[i]` is each one as a `float4`: `xy` its center in the layer's pixels (y down), `z` a box size in pixels that scales with the person, `w` an id that stays the same for the same point from frame to frame.
+An effect with `"tracking": true` gets up to 32 things found on its layer: `s.blobs` says how many, and `src.blobs[i]` is each one, a `Blob` with two `float4`s:
 
-- `camera`: body joints and fingertips, found by Vision. Ids: 0 nose, 1-2 eyes, 3-4 ears, 5 neck, 6-7 shoulders, 8-9 elbows, 10-11 wrists, 20-24 and 30-34 the fingertips of each hand. The first video that needs them tracks the camera at 10 frames a second and saves `tracking.json` next to it (a couple of minutes of camera takes about 15 s). Points move smoothly between those samples.
-- `screen`: 100 the pointer, 101 and up clicks from the last 1.5 s.
+- `box`: `xy` the top-left corner and `zw` the size, in the layer's pixels (y down).
+- `info`: `x` what it is, `y` Vision's confidence (0 to 1), `z` an id that stays the same for the same thing from frame to frame, `w` 1 when the box's top is at the top of what's on screen (so a label above it wouldn't be seen).
+
+What's found:
+
+- `camera`: 1 the face, 2 each hand, 3 the person (upper body), 4 something held in a hand (Vision's salient objects that overlap a hand, so the room behind isn't labeled). The first video that needs them tracks the camera 10 times a second and saves `tracking.json` next to it (a couple of minutes of camera takes about 20 s). Boxes move smoothly between those samples. When the camera is zoomed to fill its box, a box mostly out of view is left out and the rest are cut to the view.
+- `screen`: 10 the pointer, 11 clicks from the last 1.5 s.
 - `frame`: none, since the camera and screen can be anywhere in it.
 
 Effects run on the GPU and can only change pixels: they can't read files or the network.
