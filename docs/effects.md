@@ -63,6 +63,8 @@ float4 effect(Layer src, float2 pos, Signals s, constant float *p) {
 | `s.time`, `s.frame` | seconds and frames into the output video |
 | `s.sinceClick` | seconds since the last click (1e6 before the first) |
 | `s.toCut` | seconds to the nearest visible change, before or after: a cut between clips, B-roll or an animation starting or ending, a layout change, a punch-in |
+| `s.cutTime` | when that nearest change happens, in output seconds (-1 with none): the same around one change and different at the next, so an effect can vary from cut to cut |
+| `s.cutIndex` | which change that is: 0 for the first, in play order (-1 with none), for effects that take turns |
 | `s.speed` | playback speed of the clip on screen (1 is real time) |
 | `hash(float2)` | a 0 to 1 pseudo-random number for a point |
 | `luma(float4)` | a color's brightness |

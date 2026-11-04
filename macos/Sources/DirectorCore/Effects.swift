@@ -103,6 +103,11 @@ public struct EffectSignals: Equatable {
   public var toCut: Float = 1e6
   /// Playback speed of the clip on screen (1 is real time).
   public var speed: Float = 1
+  /// When that nearest change happens, in output seconds (-1 when there's none): the same for every
+  /// frame around one change and different for the next, so an effect can vary from cut to cut.
+  public var cutTime: Float = -1
+  /// Which change that is, counting from 0 at the first, in play order (-1 when there's none).
+  public var cutIndex: Float = -1
 
   public init() {}
 }
@@ -161,6 +166,8 @@ public enum Effects {
       float sinceClick;     // seconds since the last click (1e6 before the first)
       float toCut;          // seconds to the nearest cut, B-roll, layout change or punch-in
       float speed;          // playback speed of the clip on screen
+      float cutTime;        // when that nearest change happens, in output seconds (-1 with none)
+      float cutIndex;       // which change that is: 0 for the first, in play order (-1 with none)
     };
     struct Layer {
       texture2d<float, access::read> tex;

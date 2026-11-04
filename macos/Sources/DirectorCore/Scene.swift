@@ -513,7 +513,11 @@ extension Scene {
       s.clickX = Float(c.x)
       s.clickY = Float(c.y)
     }
-    if let nearest = cutFrames.map({ abs($0 - fd) }).min() { s.toCut = Float(nearest / rate) }
+    if let i = cutFrames.indices.min(by: { abs(cutFrames[$0] - fd) < abs(cutFrames[$1] - fd) }) {
+      s.toCut = Float(abs(cutFrames[i] - fd) / rate)
+      s.cutTime = Float(cutFrames[i] / rate)
+      s.cutIndex = Float(i)
+    }
     if let clip = mapped.first(where: { f >= $0.outStart && f < $0.outStart + $0.frames }) { s.speed = Float(clip.speed) }
     return s
   }
