@@ -400,14 +400,14 @@ struct TimelineView: View {
       ForEach(Array(plan.zooms.enumerated()), id: \.offset) { i, z in
         let sel = Selection.zoom(i)
         let (a, b) = range(sel, z.start, z.end)
-        bar(sel: sel, start: a, end: b, track: .zooms, color: Theme.zoom, label: "\(z.scale.formatted())×", movable: true) { s, e in
+        bar(sel: sel, start: a, end: b, track: .zooms, color: Theme.zoom, label: z.note ?? "\(z.scale.formatted())×", movable: true) { s, e in
           project.retime(sel, start: s, end: e)
         }
       }
       ForEach(Array(plan.layouts.enumerated()), id: \.offset) { i, l in
         let sel = Selection.layout(i)
         let (a, b) = range(sel, l.start, l.end)
-        bar(sel: sel, start: a, end: b, track: .layouts, color: Theme.layout, label: modeName(l.mode), movable: true) { s, e in
+        bar(sel: sel, start: a, end: b, track: .layouts, color: Theme.layout, label: l.note ?? modeName(l.mode), movable: true) { s, e in
           project.retime(sel, start: s, end: e)
         }
       }
@@ -437,7 +437,7 @@ struct TimelineView: View {
         let sel = Selection.insert(i)
         let (a, b) = range(sel, c.start, c.end)
         let name = (c.file as NSString).lastPathComponent
-        bar(sel: sel, start: a, end: b, track: .broll, color: Theme.broll, label: c.isFull ? "\(name) · full" : name, movable: true) { s, e in
+        bar(sel: sel, start: a, end: b, track: .broll, color: Theme.broll, label: c.note ?? (c.isFull ? "\(name) · full" : name), movable: true) { s, e in
           project.retime(sel, start: s, end: e)
         }
       }

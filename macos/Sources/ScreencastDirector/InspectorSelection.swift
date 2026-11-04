@@ -18,6 +18,13 @@ extension InspectorView {
     }
   }
 
+  /// The label on an item's timeline bar, which the AI reads too.
+  func noteSection(_ note: Binding<String>) -> some View {
+    InspectorSection("Label", detail: "Shown on its timeline bar. The AI reads it too.") {
+      TextField("Label", text: note).textFieldStyle(.roundedBorder)
+    }
+  }
+
   func range(_ start: Double, _ end: Double) -> String { "\(fmtTime(start))–\(fmtTime(end))" }
 
   func removeButton(_ title: String = "Remove") -> some View {
@@ -164,6 +171,7 @@ extension InspectorView {
           bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2, "\((z.seconds ?? plan.style.transition).formatted()) s")
         previewButton(z.start)
       }
+      noteSection(bindItem("zoomNote\(i)", \.zooms, i, \.note, or: "", store: emptyAsNil))
       removeButton()
     case .punchIn(let i) where plan.punchInList.indices.contains(i):
       let p = plan.punchInList[i]
@@ -191,6 +199,7 @@ extension InspectorView {
         }
       }
       previewButton(p.start)
+      noteSection(bindItem("punchNote\(i)", \.punchInList, i, \.note, or: "", store: emptyAsNil))
       removeButton()
     case .layout(let i) where plan.layouts.indices.contains(i):
       let l = plan.layouts[i]
@@ -198,6 +207,7 @@ extension InspectorView {
       InspectorSection("Layout", detail: "How the screen and camera share the frame for this range.") {
         layoutPicker(bindItem("layout\(i)", \.layouts, i, \.mode), hasCamera: plan.camera != nil)
       }
+      noteSection(bindItem("layoutNote\(i)", \.layouts, i, \.note, or: "", store: emptyAsNil))
       removeButton()
     case .callout(let i) where plan.callouts.indices.contains(i):
       let c = plan.callouts[i]
@@ -253,12 +263,14 @@ extension InspectorView {
         MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: plan.brollDefaultMotion)
         previewButton(c.start)
       }
+      noteSection(bindItem("insertNote\(i)", \.insertList, i, \.note, or: "", store: emptyAsNil))
       removeButton()
     case .animation(let i) where plan.animationList.indices.contains(i):
       let a = plan.animationList[i]
       itemHeader(a.note ?? "Animation", "sparkles", Theme.animation, range(a.start, a.end))
       AnimationEditor(project: project, ui: ui, i: i)
       previewButton(a.start)
+      noteSection(bindItem("animationNote\(i)", \.animationList, i, \.note, or: "", store: emptyAsNil))
       removeButton()
     case .sfx(let i) where plan.sfxList.indices.contains(i):
       let e = plan.sfxList[i]
@@ -290,6 +302,7 @@ extension InspectorView {
         }
       }
       previewButton(r.start)
+      noteSection(bindItem("rangeNote\(i)", \.effectRangeList, i, \.note, or: "", store: emptyAsNil))
       removeButton()
     case .marker(let i) where plan.markerList.indices.contains(i):
       let m = plan.markerList[i]

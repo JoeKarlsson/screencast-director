@@ -12,6 +12,12 @@ extension InspectorView {
     if let camera = plan.camera {
       InspectorSection("Split screen", detail: "The default; add Layout ranges on the timeline to switch for part of the video.") {
         layoutPicker(bind("defaultLayout", { $0.defaultLayout }, { $0.defaultLayout = $1 }), hasCamera: true)
+        // Joining only changes padded side-by-side layouts.
+        if plan.style.padding > 0 && (plan.defaultLayout == .side || plan.layouts.contains { $0.mode == .side }) {
+          toggle(
+            "Join side by side", "The screen and camera touch at the same height, like one card.",
+            bind(nil, { $0.style.joinSide == true }, { $0.style.joinSide = $1 ? true : nil }))
+        }
       }
       InspectorSection("Framing", detail: "Drag to pick what stays centered; zoom in to reframe.") {
         CameraFramer(project: project, ui: ui)

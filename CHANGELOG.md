@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Zooms, punch-ins, layouts, B-roll, animations and effect ranges have a Label field in the inspector; it's what their timeline bar shows. Camera › Split screen can join a padded side-by-side layout into one card.
 - Make social clips in the editor: with an in/out range marked, the clip button on the timeline adds a vertical clip of it, and Format › Clips names it and sets its format, hook title, pause level and logo. Export them from the Export menu as before.
 - Background & Frame › Effects adds, sets and removes effects for the whole video. Save as Profile keeps the video's effects and default layout, and can include its music, voice settings and camera color and bubble.
 - Branding in the editor: Background & Frame sets the frame style (plain, brackets or window), the accent color, a logo (corner, size, opacity), title and chip fonts and colors, the camera border color, font files of your own, and the animation theme. Intro and outro cards can have their own logo.
