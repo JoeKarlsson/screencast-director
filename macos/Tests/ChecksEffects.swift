@@ -57,6 +57,22 @@ func effectChecks() {
     expect(false, "the probe effect loads: \(error.localizedDescription)")
   }
 
+  // toCut counts any visible change, not just cuts between clips: here a layout change at source 3 s
+  // in a video with one clip (red is toCut / 10).
+  writeEffect(personal, "cutprobe", metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return float4(clamp(s.toCut / 10.0, 0.0, 1.0), 0, 0, 1); }")
+  do {
+    var single = plan
+    single.segments = [Segment(start: 0, end: 12, speed: 1)]
+    single.layouts = [LayoutRange(start: 3, end: 6, mode: .screen)]
+    let loaded = try Effects.load([EffectUse(name: "cutprobe")], sources: sources)
+    let scene = Scene(plan: single, words: [], clicks: [], shortcuts: [], dir: project, effects: loaded)
+    let screen = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    let red = pixel(scene.render(frame: Int(2 * fps), screen: screen, camera: nil), x: W / 2, y: H / 2)[0]
+    expect(abs(red - 0.1) < 0.03, "toCut counts a layout change as a cut (\(red))")
+  } catch {
+    expect(false, "the cutprobe effect loads: \(error.localizedDescription)")
+  }
+
   func failure(_ uses: [EffectUse]) -> String {
     do {
       _ = try Effects.load(uses, sources: sources)

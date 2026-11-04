@@ -98,7 +98,8 @@ public struct EffectSignals: Equatable {
   public var frame: Float = 0
   /// Seconds since the last click (1e6 before the first).
   public var sinceClick: Float = 1e6
-  /// Seconds to the nearest cut between clips, before or after.
+  /// Seconds to the nearest visible change, before or after: a cut between clips, B-roll or an
+  /// animation starting or ending, a layout change or a punch-in.
   public var toCut: Float = 1e6
   /// Playback speed of the clip on screen (1 is real time).
   public var speed: Float = 1
@@ -158,7 +159,7 @@ public enum Effects {
       float time;           // seconds into the output video
       float frame;          // output frame
       float sinceClick;     // seconds since the last click (1e6 before the first)
-      float toCut;          // seconds to the nearest cut between clips
+      float toCut;          // seconds to the nearest cut, B-roll, layout change or punch-in
       float speed;          // playback speed of the clip on screen
     };
     struct Layer {

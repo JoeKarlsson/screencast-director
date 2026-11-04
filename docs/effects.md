@@ -62,7 +62,7 @@ float4 effect(Layer src, float2 pos, Signals s, constant float *p) {
 | `s.click` | where the last click was, 0 to 1 of the screen, y down |
 | `s.time`, `s.frame` | seconds and frames into the output video |
 | `s.sinceClick` | seconds since the last click (1e6 before the first) |
-| `s.toCut` | seconds to the nearest cut between clips, before or after |
+| `s.toCut` | seconds to the nearest visible change, before or after: a cut between clips, B-roll or an animation starting or ending, a layout change, a punch-in |
 | `s.speed` | playback speed of the clip on screen (1 is real time) |
 | `hash(float2)` | a 0 to 1 pseudo-random number for a point |
 | `luma(float4)` | a color's brightness |

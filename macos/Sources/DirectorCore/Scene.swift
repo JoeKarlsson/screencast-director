@@ -48,7 +48,7 @@ public final class Scene: @unchecked Sendable {
   let outroLogo: CGImage?
   /// Compiled effects, drawn in plan order on their layer.
   let effects: [LoadedEffect]
-  /// Output frames where one clip cuts to the next, for the effects' `toCut`.
+  /// Output frames where the picture visibly changes (cuts, B-roll, layouts, punch-ins), for the effects' `toCut`.
   let cutFrames: [Double]
   /// Clicks in output frames, for cropped formats whose camera rests on the last click.
   let focusClicks: [(f: Double, x: Double, y: Double)]
@@ -155,7 +155,12 @@ public final class Scene: @unchecked Sendable {
     insertImages = images
     cuts = m.dropFirst().compactMap { seg in seg.transition.map { (Double(seg.outStart), $0) } }
     fades = crossfades(m, fps: fps)
-    cutFrames = m.dropFirst().map { Double($0.outStart) }
+    // Every moment the picture visibly changes: a cut between clips, B-roll or an animation coming
+    // or going, a layout change, a punch-in snapping in or out.
+    let changes = m.dropFirst().map { Double($0.outStart) } + inserts.flatMap { [$0.s, $0.e] } + layouts.flatMap { [$0.startF, $0.endF] }
+      + punchIns.flatMap { [$0.s, $0.e] }
+    let total = Double(frameCount)
+    cutFrames = Array(Set(changes.filter { $0 > 0 && $0 < total })).sorted()
     let maxWords = ["bold", "social"].contains(plan.captions.style ?? "") ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
     pages = plan.captions.enabled ? Scene.captionPages(words, m, fps: fps, maxWords: maxWords) : []
     motion = MotionStyle.named(plan.style.motion)
