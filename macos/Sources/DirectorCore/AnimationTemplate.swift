@@ -30,11 +30,20 @@ public struct AnimationTemplate: Codable, Equatable {
   public var data: JSONValue
 
   /// Every template in `dir` (Resources/animations/templates), by title.
-  public static func all(in dir: URL) -> [AnimationTemplate] {
+  public static func all(in dir: URL) -> [AnimationTemplate] { load(in: dir).templates }
+
+  /// Every readable template in `dir`, by title, and why each manifest that isn't readable was left out.
+  public static func load(in dir: URL) -> (templates: [AnimationTemplate], problems: [String]) {
     let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-    return files.filter { $0.pathExtension == "json" }
-      .compactMap { try? JSONDecoder().decode(AnimationTemplate.self, from: Data(contentsOf: $0)) }
-      .sorted { $0.title < $1.title }
+    var templates: [AnimationTemplate] = [], problems: [String] = []
+    for file in files where file.pathExtension == "json" {
+      do {
+        templates.append(try JSONDecoder().decode(AnimationTemplate.self, from: Data(contentsOf: file)))
+      } catch {
+        problems.append("\(file.path) isn't a template manifest: \(error.localizedDescription)")
+      }
+    }
+    return (templates.sorted { $0.title < $1.title }, problems)
   }
 
   /// A new animation over start...end with the template's starting data and its beats spread over

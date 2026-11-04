@@ -123,6 +123,11 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
       out.append("  WARNING: camera LUT \(lut) isn't applied: \(error.localizedDescription)")
     }
   }
+  if let look = plan.look, !look.badColors.isEmpty {
+    out.append("")
+    out.append("## Colors")
+    for problem in look.badColors { out.append("  WARNING: \(problem)") }
+  }
   if let look = plan.look, case let problems = Fonts.problems(look), !problems.isEmpty {
     out.append("")
     out.append("## Fonts")

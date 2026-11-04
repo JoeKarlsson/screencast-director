@@ -89,7 +89,7 @@ enum Animate {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
       do {
-        let config = try Animate.config(a, plan: plan, logos: sources.logos())
+        let config = try Animate.config(a, plan: plan, logos: try sources.logos())
         _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
         throw DirectorError("the \(a.template) template didn't start: \(error)")

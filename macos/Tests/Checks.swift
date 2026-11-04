@@ -303,9 +303,9 @@ struct Checks {
     try? FileManager.default.createDirectory(at: hdir, withIntermediateDirectories: true)
     let planURL = hdir.appendingPathComponent("plan.json")
     for i in 0..<8 {
-      PlanHistory.snapshot(Data("v\(i)".utf8), planURL: planURL, keep: 5, now: Date(timeIntervalSince1970: 1_000_000 + Double(i)))
+      try? PlanHistory.snapshot(Data("v\(i)".utf8), planURL: planURL, keep: 5, now: Date(timeIntervalSince1970: 1_000_000 + Double(i)))
     }
-    PlanHistory.snapshot(Data("v7".utf8), planURL: planURL, keep: 5, now: Date(timeIntervalSince1970: 2_000_000))
+    try? PlanHistory.snapshot(Data("v7".utf8), planURL: planURL, keep: 5, now: Date(timeIntervalSince1970: 2_000_000))
     let versions = PlanHistory.list(planURL: planURL)
     expect(versions.count == 5, "history keeps the newest 5 (got \(versions.count))")
     expect(
@@ -954,7 +954,7 @@ struct Checks {
     expect(tail.text == "6789abcde", "stderr keeps its last bytes (\(tail.text))")
 
     // Logo pickers list aliases (OpenAI and ChatGPT), so every logo a template starts with has an entry.
-    let bundledLogos = AnimationSources(project: lib, builtIn: templateDir.deletingLastPathComponent()).logos()
+    let bundledLogos = (try? AnimationSources(project: lib, builtIn: templateDir.deletingLastPathComponent()).logos()) ?? [:]
     expect(bundledLogos["OpenAI"] != nil && bundledLogos["ChatGPT"] != nil, "both names of one logo are listed")
     for t in templates {
       let named = t.fields.flatMap { f -> [String] in

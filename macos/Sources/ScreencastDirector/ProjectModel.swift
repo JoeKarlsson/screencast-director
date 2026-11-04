@@ -181,7 +181,13 @@ final class ProjectModel: ObservableObject {
       guard let data = try? Data(contentsOf: self.planURL), data != self.lastPlanData else { return }
       // An outside edit (Claude Code's Edit tool, a text editor) bypasses Plan.write, so keep the
       // version it replaced in .history here.
-      if let previous = self.lastPlanData { PlanHistory.snapshot(previous, planURL: self.planURL) }
+      if let previous = self.lastPlanData {
+        do {
+          try PlanHistory.snapshot(previous, planURL: self.planURL)
+        } catch {
+          Notices.shared.show(error, "Couldn't keep the replaced plan in .history")
+        }
+      }
       // While Claude Code edits, its writes become one undo step when it finishes (finishAsk).
       if let old = self.plan, !self.aiEditing {
         self.undoStack.append(old)

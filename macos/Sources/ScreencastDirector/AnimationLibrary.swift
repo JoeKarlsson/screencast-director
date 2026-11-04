@@ -22,12 +22,13 @@ enum AnimationLibrary {
 
   /// Logo names, alphabetically. Aliases of one file (ChatGPT and OpenAI) both stay, so a plan that
   /// names either one finds its entry in the pickers.
-  static func logoNames(_ project: URL) -> [String] { sources(project).logos().keys.sorted() }
+  /// A broken logos.json lists no logos here; rendering the animation reports what's wrong with it.
+  static func logoNames(_ project: URL) -> [String] { ((try? sources(project).logos()) ?? [:]).keys.sorted() }
 
   private static var images: [URL: NSImage] = [:]
 
   static func image(_ name: String, _ project: URL) -> NSImage? {
-    guard let url = sources(project).logos()[name] else { return nil }
+    guard let url = (try? sources(project).logos())?[name] else { return nil }
     if let cached = images[url] { return cached }
     guard let img = NSImage(contentsOf: url) else { return nil }
     images[url] = img

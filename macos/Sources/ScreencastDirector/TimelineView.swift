@@ -180,6 +180,8 @@ struct TimelineView: View {
           ForEach(AnimationLibrary.templates(project.dir).map(\.template), id: \.name) { t in
             Button { project.addAnimation(t) } label: { Text("\(t.title): \(t.summary)") }
           }
+          // A template whose manifest can't be read would otherwise just be missing from this list.
+          ForEach(AnimationLibrary.sources(project.dir).templateProblems(), id: \.self) { Text($0) }
         } label: {
           Image(systemName: "sparkles")
         }

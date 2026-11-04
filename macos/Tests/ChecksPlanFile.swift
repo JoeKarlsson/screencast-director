@@ -72,4 +72,20 @@ func planFileChecks() {
   expect(first.name == "Clip 1" && first.start == 2 && first.end == 9 && first.preset?.id == "vertical", "a new clip is a vertical Clip 1 over the range")
   clipped.clipList = [first, Clip(name: "Clip 3", start: 0, end: 1)]
   expect(clipped.newClip(over: 4..<6).name == "Clip 2", "a new clip takes the first free number")
+
+  // Problems that used to vanish: a bad color draws black (describe warns), an unreadable template
+  // manifest drops out of the list (now named), a broken logos.json loses every logo (now throws).
+  var badLook = Look()
+  badLook.accent = "yellow"
+  badLook.titleText = "#ffffff"
+  expect(badLook.badColors.count == 1 && badLook.badColors[0].contains("look.accent"), "a non-hex accent is reported (\(badLook.badColors))")
+  let lib = FileManager.default.temporaryDirectory.appendingPathComponent("sd-broken-lib-\(UUID().uuidString)")
+  defer { try? FileManager.default.removeItem(at: lib) }
+  try? FileManager.default.createDirectory(at: lib.appendingPathComponent("templates"), withIntermediateDirectories: true)
+  try? FileManager.default.createDirectory(at: lib.appendingPathComponent("logos"), withIntermediateDirectories: true)
+  try? Data("{ not json".utf8).write(to: lib.appendingPathComponent("templates/broken.json"))
+  try? Data("[1, 2]".utf8).write(to: lib.appendingPathComponent("logos/logos.json"))
+  let broken = AnimationSources(project: nil, builtIn: lib, personal: lib)
+  expect(broken.templateProblems().contains { $0.contains("broken.json") }, "an unreadable template manifest is named")
+  expect((try? broken.logos()) == nil, "a broken logos.json throws instead of losing every logo")
 }

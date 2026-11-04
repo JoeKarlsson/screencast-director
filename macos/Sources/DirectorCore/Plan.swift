@@ -379,7 +379,7 @@ public struct Plan: Codable, Equatable {
     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     var data = try enc.encode(self)
     data.append(0x0A)
-    if let old = try? Data(contentsOf: url), old != data { PlanHistory.snapshot(old, planURL: url) }
+    if let old = try? Data(contentsOf: url), old != data { try PlanHistory.snapshot(old, planURL: url) }
     try data.write(to: url, options: .atomic)
   }
 }

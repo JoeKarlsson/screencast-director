@@ -23,9 +23,10 @@ public enum PlanHistory {
   }()
 
   /// Saves `data` (a plan.json's bytes) as a version, unless it matches the newest one.
-  public static func snapshot(_ data: Data, planURL: URL, keep: Int = keep, now: Date = Date()) {
+  /// Throws when .history can't be written, so undo history never stops without a word.
+  public static func snapshot(_ data: Data, planURL: URL, keep: Int = keep, now: Date = Date()) throws {
     let dir = directory(for: planURL)
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     if let newest = list(planURL: planURL).first, (try? Data(contentsOf: newest.url)) == data { return }
     var name = "plan-\(stamp.string(from: now)).json"
     var n = 1
@@ -33,8 +34,8 @@ public enum PlanHistory {
       name = "plan-\(stamp.string(from: now))-\(n).json"
       n += 1
     }
-    try? data.write(to: dir.appendingPathComponent(name), options: .atomic)
-    prune(planURL: planURL, keep: keep)
+    try data.write(to: dir.appendingPathComponent(name), options: .atomic)
+    try prune(planURL: planURL, keep: keep)
   }
 
   /// Versions, newest first.
@@ -51,8 +52,8 @@ public enum PlanHistory {
     .sorted { $0.date != $1.date ? $0.date > $1.date : $0.url.lastPathComponent > $1.url.lastPathComponent }
   }
 
-  public static func prune(planURL: URL, keep: Int = keep) {
-    for old in list(planURL: planURL).dropFirst(keep) { try? FileManager.default.removeItem(at: old.url) }
+  public static func prune(planURL: URL, keep: Int = keep) throws {
+    for old in list(planURL: planURL).dropFirst(keep) { try FileManager.default.removeItem(at: old.url) }
   }
 
   /// What differs between two plans, in a few words ("3 clips, 1 zoom, style"), or "same".

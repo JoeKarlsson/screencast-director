@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Problems that used to fail quietly now say so: a plan version that can't be kept in .history, an animation template whose manifest can't be read (listed in the Animate menu), a broken logos.json (the render names it), and a look color that isn't #rrggbb (`describe` warns; it used to draw black).
 - Zooms, punch-ins, layouts, B-roll, animations and effect ranges have a Label field in the inspector; it's what their timeline bar shows. Camera › Split screen can join a padded side-by-side layout into one card.
 - Make social clips in the editor: with an in/out range marked, the clip button on the timeline adds a vertical clip of it, and Format › Clips names it and sets its format, hook title, pause level and logo. Export them from the Export menu as before.
 - Background & Frame › Effects adds, sets and removes effects for the whole video. Save as Profile keeps the video's effects and default layout, and can include its music, voice settings and camera color and bubble.

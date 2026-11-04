@@ -57,6 +57,25 @@ public struct Look: Codable, Equatable {
   public var animationTheme: String?
 
   public init() {}
+
+  /// Colors that aren't #rrggbb hex: the renderer would draw them black.
+  public var badColors: [String] {
+    let fields: [(String, String?)] = [
+      ("captionText", captionText), ("captionHighlight", captionHighlight), ("captionBackground", captionBackground),
+      ("captionEmphasis", captionEmphasis), ("titleText", titleText), ("titleBackground", titleBackground), ("chipText", chipText),
+      ("chipBackground", chipBackground), ("accent", accent), ("cameraBorder", cameraBorder),
+    ]
+    return fields.compactMap { name, value in
+      guard let value, !Look.isHexColor(value) else { return nil }
+      return "look.\(name) \"\(value)\" isn't a #rrggbb color, so it draws black"
+    }
+  }
+
+  /// "#1d2b64" or "1d2b64".
+  public static func isHexColor(_ s: String) -> Bool {
+    let hex = s.hasPrefix("#") ? s.dropFirst() : Substring(s)
+    return hex.count == 6 && hex.allSatisfy(\.isHexDigit)
+  }
 }
 
 /// A full-frame title card before or after the video, in the look's fonts and colors.

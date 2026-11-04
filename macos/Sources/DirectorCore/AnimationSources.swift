@@ -46,6 +46,11 @@ public struct AnimationSources {
     return out.sorted { $0.0.title < $1.0.title }
   }
 
+  /// Template manifests that couldn't be read, with why, so a broken one doesn't just vanish.
+  public func templateProblems() -> [String] {
+    folders.flatMap { AnimationTemplate.load(in: $0.1.appendingPathComponent("templates")).problems }
+  }
+
   public func template(_ name: String) -> (template: AnimationTemplate, origin: Origin)? {
     templates().first { $0.template.name == name }
   }
@@ -56,13 +61,19 @@ public struct AnimationSources {
   }
 
   /// Logo names to files, the video's overriding the personal library's overriding the app's.
-  public func logos() -> [String: URL] {
+  /// Throws, naming the file, when a logos.json is there but isn't a name-to-file map.
+  public func logos() throws -> [String: URL] {
     var out: [String: URL] = [:]
     for (_, folder) in folders.reversed() {
       let dir = folder.appendingPathComponent("logos")
-      guard let data = try? Data(contentsOf: dir.appendingPathComponent("logos.json")),
-        let map = try? JSONDecoder().decode([String: String].self, from: data)
-      else { continue }
+      let file = dir.appendingPathComponent("logos.json")
+      guard FileManager.default.fileExists(atPath: file.path) else { continue }
+      let map: [String: String]
+      do {
+        map = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: file))
+      } catch {
+        throw DirectorError("\(file.path) isn't a map of logo names to files: \(error.localizedDescription)")
+      }
       for (name, file) in map { out[name] = dir.appendingPathComponent(file) }
     }
     return out
