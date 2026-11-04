@@ -832,8 +832,12 @@ struct PublishView: View {
         Button("Draft YouTube Description with \(AISettings.shared.provider.shortName)", action: project.draftDescription)
         Spacer()
         Button("Show in Finder") {
-          try? FileManager.default.createDirectory(at: project.publishDir, withIntermediateDirectories: true)
-          NSWorkspace.shared.open(project.publishDir)
+          do {
+            try FileManager.default.createDirectory(at: project.publishDir, withIntermediateDirectories: true)
+            NSWorkspace.shared.open(project.publishDir)
+          } catch {
+            Notices.shared.show("Couldn't make the publish folder: \(error.localizedDescription)", error: true)
+          }
         }
       }
       .disabled(project.busy)
@@ -880,8 +884,13 @@ struct PublishView: View {
             Text(url.lastPathComponent).font(.system(.body, design: .monospaced))
             Spacer()
             Button("Copy") {
-              NSPasteboard.general.clearContents()
-              NSPasteboard.general.setString((try? String(contentsOf: url, encoding: .utf8)) ?? "", forType: .string)
+              do {
+                let text = try String(contentsOf: url, encoding: .utf8)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+              } catch {
+                Notices.shared.show("Couldn't read \(url.lastPathComponent): \(error.localizedDescription)", error: true)
+              }
             }
             Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
           }

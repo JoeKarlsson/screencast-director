@@ -107,7 +107,8 @@ struct RecordingSettings: View {
 
 struct AISettingsView: View {
   @ObservedObject var ai = AISettings.shared
-  @ObservedObject var ui = SettingsUI()
+  // Shared, not created here: SwiftUI rebuilds this view, and a fresh object would lose the test result.
+  @ObservedObject var ui = SettingsUI.shared
 
   var body: some View {
     Form {
@@ -149,6 +150,7 @@ struct AISettingsView: View {
             ui.testResult = "Testing…"
             Task { @MainActor in ui.testResult = await APIEditor.test(ai) }
           }
+          .disabled(ai.provider == .claudeCode && Claude.executable == nil)
           Text(ui.testResult).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
       }
@@ -158,6 +160,7 @@ struct AISettingsView: View {
 }
 
 final class SettingsUI: ObservableObject {
+  static let shared = SettingsUI()
   @Published var testResult = ""
 }
 
