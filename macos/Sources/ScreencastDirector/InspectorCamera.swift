@@ -174,7 +174,7 @@ struct FocusPicker: View {
             Rectangle().overlay(Rectangle().frame(width: vw, height: vh).position(x: cx, y: cy).blendMode(.destinationOut))
               .compositingGroup())
         Rectangle().strokeBorder(Color.white, lineWidth: 2).frame(width: vw, height: vh).position(x: cx, y: cy)
-        Circle().fill(Color.purple).overlay(Circle().strokeBorder(Color.white, lineWidth: 2))
+        Circle().fill(Theme.zoom).overlay(Circle().strokeBorder(Color.white, lineWidth: 2))
           .frame(width: 12, height: 12).position(x: zoom.x * w, y: zoom.y * h)
       }
       .contentShape(Rectangle())
@@ -190,7 +190,7 @@ struct FocusPicker: View {
         })
     }
     .aspectRatio(aspect, contentMode: .fit)
-    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
     .onAppear(perform: load)
     .onChange(of: zoom.start) { _, _ in load() }
   }
@@ -233,7 +233,7 @@ struct CameraFramer: View {
         })
     }
     .aspectRatio(16 / 9, contentMode: .fit)
-    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
     .onAppear { if ui.cameraThumbnail == nil { project.cameraThumbnail { ui.cameraThumbnail = $0 } } }
   }
 }

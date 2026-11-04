@@ -83,7 +83,7 @@ struct ExportJobRow: View {
       case .queued: Text("Waiting").font(.caption).foregroundStyle(.secondary)
       case .running: ProgressView(value: job.progress)
       case .done: Text("Done: \(job.url.lastPathComponent)").font(.caption).foregroundStyle(.secondary)
-      case .failed(let why): Text("Failed: \(why)").font(.caption).foregroundStyle(.red)
+      case .failed(let why): Text("Failed: \(why)").font(.caption).foregroundStyle(Theme.error)
       case .cancelled: Text("Cancelled").font(.caption).foregroundStyle(.secondary)
       }
     }
@@ -120,7 +120,7 @@ struct VersionHistoryView: View {
               .disabled(v.summary == "same")
             }
             .padding(8)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.04)))
+            .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Color.primary.opacity(0.04)))
           }
         }
       }

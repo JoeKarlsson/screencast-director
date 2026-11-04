@@ -41,7 +41,7 @@ struct NoticeBanner: View {
       if let n = notices.current {
         HStack(spacing: 10) {
           Image(systemName: n.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-            .foregroundStyle(n.isError ? Color.orange : Color.green)
+            .foregroundStyle(n.isError ? Theme.warning : Theme.ok)
           Text(n.text).textSelection(.enabled).lineLimit(3).fixedSize(horizontal: false, vertical: true)
           if let label = n.actionLabel, let action = n.action {
             Button(label) {

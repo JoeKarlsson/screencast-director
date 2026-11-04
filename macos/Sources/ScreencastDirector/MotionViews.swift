@@ -50,11 +50,7 @@ struct MotionStyleGrid: View {
           }
           .padding(.vertical, 6)
           .frame(maxWidth: .infinity)
-          .foregroundStyle(on ? Theme.accent : Color.primary)
-          .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.04)))
-          .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-              .strokeBorder(on ? Theme.accent : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
+          .selectableTile(on: on)
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -149,14 +145,11 @@ struct ChoiceTiles: View {
             Text(c.label).font(.caption2).lineLimit(1).minimumScaleFactor(0.8)
           }
           .frame(maxWidth: .infinity, minHeight: 46)
-          .foregroundStyle(on ? Theme.accent : Color.primary)
-          .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.04)))
-          .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-              .strokeBorder(on ? Theme.accent : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
+          .selectableTile(on: on)
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(c.label)
         .accessibilityLabel(c.label)
         .accessibilityAddTraits(on ? .isSelected : [])
       }
@@ -215,7 +208,7 @@ struct RectPicker: View {
         })
     }
     .aspectRatio(aspect, contentMode: .fit)
-    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
     .onAppear(perform: load)
     .onChange(of: mark.start) { _, _ in load() }
   }

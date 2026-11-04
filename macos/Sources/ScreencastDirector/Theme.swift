@@ -19,6 +19,14 @@ enum Theme {
   static let effect = Color.cyan
   static let recording = Color.red
   static let ai = Color.orange
+  /// Status: all set, needs attention, failed.
+  static let ok = Color.green
+  static let warning = Color.orange
+  static let error = Color.red
+  /// A cut part of the recording.
+  static let cut = Color.gray
+  /// A sped-up clip or word.
+  static let fast = Color.orange
 
   static let corner: CGFloat = 6
   static let cardCorner: CGFloat = 10
@@ -34,6 +42,15 @@ extension View {
     } else {
       background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
+  }
+
+  /// A choice tile (layouts, motion styles, presets): accent-filled and outlined when chosen.
+  func selectableTile(on: Bool) -> some View {
+    foregroundStyle(on ? Theme.accent : Color.primary)
+      .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.04)))
+      .overlay(
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .strokeBorder(on ? Theme.accent : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
   }
 
   /// A grouped box for a block of related controls (inspector sections, setup rows).

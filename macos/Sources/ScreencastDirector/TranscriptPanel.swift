@@ -209,7 +209,7 @@ struct TranscriptView: View {
       .strikethrough(speed == nil)
       .italic(filler)
       .foregroundStyle(
-        speed == nil ? Color.secondary.opacity(0.6) : (speed ?? 1) > 1.01 ? Color.orange : filler ? Color.secondary : Color.primary)
+        speed == nil ? Color.secondary.opacity(0.6) : (speed ?? 1) > 1.01 ? Theme.fast : filler ? Color.secondary : Color.primary)
       .padding(.horizontal, 2)
       .background(RoundedRectangle(cornerRadius: 3).fill(background))
       .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("transcript")) }) { ui.frames[i] = $0 }

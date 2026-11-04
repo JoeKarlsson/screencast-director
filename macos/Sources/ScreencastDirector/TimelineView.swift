@@ -135,10 +135,7 @@ struct TimelineView: View {
         } label: {
           Image(systemName: "rectangle.split.2x1")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .frame(width: 28, height: 22)
+        .toolMenu()
         .accessibilityLabel("Layout")
         .help("Change the camera layout from the playhead (⌃L, or 1-4)")
         Menu {
@@ -150,10 +147,7 @@ struct TimelineView: View {
         } primaryAction: {
           project.addCallout()
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .frame(width: 28, height: 22)
+        .toolMenu()
         .accessibilityLabel("Title")
         .help("Add a title at the playhead (T); hold for lower thirds, slates and chapters")
         Menu {
@@ -163,10 +157,7 @@ struct TimelineView: View {
         } label: {
           Image(systemName: "scribble")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .frame(width: 28, height: 22)
+        .toolMenu()
         .accessibilityLabel("Annotate")
         .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
         Menu {
@@ -177,10 +168,7 @@ struct TimelineView: View {
         } primaryAction: {
           project.addInsert()
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .frame(width: 28, height: 22)
+        .toolMenu()
         .accessibilityLabel("B-roll")
         .help("Show a picture or clip over the video from the playhead; hold to record B-roll from the camera or screen")
         Menu {
@@ -190,10 +178,7 @@ struct TimelineView: View {
         } label: {
           Image(systemName: "sparkles")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .frame(width: 28, height: 22)
+        .toolMenu()
         .accessibilityLabel("Animate")
         .help("Add an animation over the in/out range, the selected words, or from the playhead")
         Menu {
@@ -216,10 +201,7 @@ struct TimelineView: View {
         } label: {
           Image(systemName: "wand.and.stars")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .frame(width: 28, height: 22)
+        .toolMenu()
         .accessibilityLabel("Effect")
         .help("Turn an effect on for the in/out range, or 5 s from the playhead (effects you installed in the Effects folder)")
       }
@@ -264,7 +246,7 @@ struct TimelineView: View {
       } label: {
         Image(systemName: "hare")
       }
-      .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
+      .toolMenu()
       .accessibilityLabel("Speed up range")
       .help("Speed up the range (sped-up parts are muted, so use it for typing and waiting)")
       iconButton("Zoom range", "plus.magnifyingglass", help: "Zoom in over the range", action: project.zoomOverRange)
@@ -277,7 +259,7 @@ struct TimelineView: View {
       } primaryAction: {
         project.titleOverRange(style: "title")
       }
-      .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
+      .toolMenu()
       .accessibilityLabel("Title over range")
       .help("A title over the range, worded from what's said")
       Menu {
@@ -287,7 +269,7 @@ struct TimelineView: View {
       } label: {
         Image(systemName: "scribble")
       }
-      .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
+      .toolMenu()
       .accessibilityLabel("Annotate range")
       .help("An annotation over the range")
       iconButton("Clear range", "xmark", help: "Clear the in/out range (⌥X)", action: project.clearInOut)
@@ -1056,5 +1038,12 @@ func modeName(_ m: LayoutMode) -> String {
   case .pip: return "Camera bubble"
   case .side: return "Side by side"
   case .camera: return "Camera only"
+  }
+}
+
+extension View {
+  /// A timeline toolbar menu: an icon the size of the toolbar's buttons, with no menu arrow.
+  func toolMenu() -> some View {
+    menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 28, height: 22)
   }
 }

@@ -2,7 +2,7 @@
 # UI smoke test: builds dist/Screencast Director.app, launches that copy on a synthetic project in a
 # temp folder, and drives it through System Events: the editor opens, pressing a timeline bar
 # selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, dragging
-# the last clip to the front reorders it, Publish's cover button saves coverAt, and the
+# the last clip to the front reorders it, Publish hides the camera cover picker without a camera, and the
 # Audio tab's sound and music pickers add a library sound and set a library track, and the speaker
 # button under the preview mutes and unmutes it.
 #
@@ -188,18 +188,11 @@ for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2;
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't undo the clip move"
 echo "ok: ⌘Z put the clip back"
 
-# 4d. Publish's "Use Playhead Frame for a Cover" saves the playhead's time in plan.json's coverAt.
-covers() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("coverAt", []))' "$PROJECT/plan.json"; }
+# 4d. Publish hides the cover picker for a recording with no camera (covers are camera frames).
 [[ "$("$AXPRESS" "$PID" help "Captions (SRT)*")" == pressed ]] || fail "no Publish button"
 sleep 1
-[[ "$("$AXPRESS" "$PID" help "Make a cover from the camera frame*")" == pressed ]] || fail "no cover button in Publish"
-for _ in $(seq 1 20); do [[ "$(covers)" != "[]" ]] && break; sleep 0.2; done
-[[ "$(covers)" != "[]" ]] || fail "the cover button didn't save a cover time in plan.json"
-echo "ok: the cover button saved coverAt $(covers) in plan.json"
-[[ "$("$AXPRESS" "$PID" help "Go back to picking*")" == pressed ]] || fail "no Clear button after picking a cover"
-for _ in $(seq 1 20); do [[ "$(covers)" == "[]" ]] && break; sleep 0.2; done
-[[ "$(covers)" == "[]" ]] || fail "Clear didn't remove the cover times"
-echo "ok: Clear removed them"
+[[ "$("$AXPRESS" "$PID" help "Make a cover from the camera frame*")" == missing ]] || fail "Publish offers camera covers with no camera"
+echo "ok: Publish has no cover picker without a camera"
 [[ "$("$AXPRESS" "$PID" help "Close Publish")" == pressed ]] || fail "no Done button in Publish"
 sleep 0.5
 

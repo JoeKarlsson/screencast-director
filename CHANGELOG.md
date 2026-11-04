@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Upload and Copy Link is grayed out until a bucket is set up in Settings › Sharing, and Publish only offers camera covers when the recording has a camera.
 - A tidier inspector. Camera: Split screen comes first, Bubble starts folded when no layout shows the bubble, Lip sync starts folded, the color sliders sit under Fine-tune, and a cutout hides the shape, border and shadow it doesn't use. With no camera the tab only says so. Captions off hides the caption settings, a hidden cursor hides its size and smoothing, Chapters shows once there are two chapter cards, and Shortcut labels moved into Cursor. Music is one row (library or your own file), and a title's or mark's sound can come from the sound library.
 - The timeline hides empty rows: the ruler, clips and audio always show, words with a transcript, and Zoom, Layout, Titles, Marks, B-roll, Animations, Effects and Sound FX only once they have something on them. The Effect menu says when no effects are installed and opens the Effects folder.
 - Plans with missing fields load: one from before plan versions, or one written by hand without `callouts`, `clickRipples` or `style`, used to fail to open. Missing fields take the defaults a new video gets.

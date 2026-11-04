@@ -238,7 +238,7 @@ struct LibrarySidebar: View {
             systemImage: setup.allRequiredOK ? "questionmark.circle" : "exclamationmark.circle.fill")
         }
         .buttonStyle(.plain)
-        .foregroundStyle(setup.allRequiredOK ? Color.secondary : Color.orange)
+        .foregroundStyle(setup.allRequiredOK ? Color.secondary : Theme.warning)
       }
       .padding(12)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -477,7 +477,7 @@ struct OutputMap: View, Equatable {
       }
       for s in mapped {
         let rect = CGRect(x: x(Double(s.outStart)) + 0.5, y: 0, width: max(1, x(Double(s.frames)) - 1), height: size.height)
-        ctx.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(s.speed > 1.01 ? Color.orange.opacity(0.75) : Theme.clip.opacity(0.6)))
+        ctx.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(s.speed > 1.01 ? Theme.fast.opacity(0.75) : Theme.clip.opacity(0.6)))
       }
       let fps = plan.output.fps
       for c in plan.callouts {
@@ -611,7 +611,11 @@ struct EditorToolbar: ToolbarContent {
             Divider()
           }
           Button("GIF (for docs)…") { project.exportGIF() }.disabled(project.busy)
-          Button("Upload and Copy Link…") { project.uploadAndCopyLink() }.disabled(project.busy)
+          if SharingSettings.shared.config == nil {
+            Button("Upload and Copy Link (set up in Settings › Sharing)") {}.disabled(true)
+          } else {
+            Button("Upload and Copy Link…") { project.uploadAndCopyLink() }.disabled(project.busy)
+          }
         } label: {
           Label("Export", systemImage: "square.and.arrow.up")
         } primaryAction: {
@@ -681,7 +685,7 @@ struct ClaudeBar: View {
       .glassCard(cornerRadius: 20)
       HStack(spacing: 6) {
         // Which AI answers, and a way to set it up when it can't yet.
-        Circle().fill(ai.isReady ? Color.green : Color.orange).frame(width: 6, height: 6)
+        Circle().fill(ai.isReady ? Theme.ok : Theme.warning).frame(width: 6, height: 6)
         Text(ai.provider == .claudeCode ? "Claude Code" : ai.provider == .anthropic ? ai.anthropicModel : ai.model)
           .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         if !ai.isReady {
@@ -843,8 +847,9 @@ struct PublishView: View {
       .disabled(project.busy)
 
       // The moments covers are made from: the playhead's frame, or the clearest faces when none are picked.
+      // Covers are camera frames, so a recording without a camera has none to pick.
       let covers = project.plan?.coverAt ?? []
-      HStack {
+      if project.plan?.camera != nil { HStack {
         Button("Use Playhead Frame for a Cover") {
           let t = project.playheadSrc
           project.apply { $0.addCover(at: t) }
@@ -857,7 +862,7 @@ struct PublishView: View {
             .help("Go back to picking the clearest camera frames")
         }
       }
-      .disabled(project.busy)
+      .disabled(project.busy) }
 
       let thumbs = project.publishFiles.filter { $0.pathExtension == "png" }
       if !thumbs.isEmpty {

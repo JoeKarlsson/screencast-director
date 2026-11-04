@@ -160,7 +160,7 @@ struct AnimationEditor: View {
             .help("Remove \(name)")
           }
           .padding(.horizontal, 7).padding(.vertical, 4)
-          .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.14)))
+          .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Color.secondary.opacity(0.14)))
         }
       }
       HStack {

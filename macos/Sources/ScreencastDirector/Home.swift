@@ -137,7 +137,7 @@ struct HomeView: View {
       } label: {
         HStack {
           Image(systemName: setup.allRequiredOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-            .foregroundStyle(setup.allRequiredOK ? Color.green : Color.orange)
+            .foregroundStyle(setup.allRequiredOK ? Theme.ok : Theme.warning)
           Text(setup.allRequiredOK ? "Setup: all set" : "Finish setup to start recording").font(.headline)
           Spacer()
           if !expanded {
@@ -152,7 +152,7 @@ struct HomeView: View {
         ForEach(setup.items) { item in
           HStack(alignment: .top, spacing: 10) {
             Image(systemName: item.ok ? "checkmark.circle.fill" : (item.required ? "exclamationmark.circle.fill" : "circle"))
-              .foregroundStyle(item.ok ? .green : (item.required ? .orange : .secondary))
+              .foregroundStyle(item.ok ? Theme.ok : (item.required ? Theme.warning : .secondary))
               .font(.title3)
             VStack(alignment: .leading, spacing: 2) {
               Text(item.title + (item.required ? "" : " (optional)")).font(.body.weight(.medium))

@@ -112,11 +112,11 @@ struct RecordSetupView: View {
             }
             .labelsHidden()
             if let problem = micCheck.problem {
-              Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).frame(width: 44).help(problem)
+              Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.warning).frame(width: 44).help(problem)
             } else {
               MicMeter(level: micCheck.level).frame(width: 44).help("Microphone level: speak to check it's working")
               if micCheck.silent {
-                Text("No sound").font(.caption.weight(.medium)).foregroundStyle(.orange).fixedSize()
+                Text("No sound").font(.caption.weight(.medium)).foregroundStyle(Theme.warning).fixedSize()
                   .help("The mic hasn't heard anything for a few seconds. Say something, and check it isn't muted.")
               }
             }
@@ -193,7 +193,7 @@ struct RecordSetupView: View {
           // A warm or colored picture can be the look, so an off reading is information, not a warning.
           case .done(let r):
             Image(systemName: r.isNeutral ? "checkmark.circle.fill" : "info.circle.fill")
-              .foregroundStyle(r.isNeutral ? Color.green : Theme.accent)
+              .foregroundStyle(r.isNeutral ? Theme.ok : Theme.accent)
           case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.secondary)
           case .idle: Image(systemName: "camera.filters").foregroundStyle(.secondary)
           }

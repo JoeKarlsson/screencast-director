@@ -57,8 +57,10 @@ extension InspectorView {
       InspectorSection("Together", detail: "Drag any of them to move them all; ⌥← and ⌥→ nudge by a frame. ⇧-click adds or removes one.") {
         HStack(spacing: 8) {
           Button { project.nudgeSelection(frames: -Double(project.fps) / 2) } label: { Label("½ s Earlier", systemImage: "arrow.left").frame(maxWidth: .infinity) }
+            .help("Move the selected items half a second earlier")
             .disabled(!items.contains(where: \.movable))
           Button { project.nudgeSelection(frames: Double(project.fps) / 2) } label: { Label("½ s Later", systemImage: "arrow.right").frame(maxWidth: .infinity) }
+            .help("Move the selected items half a second later")
             .disabled(!items.contains(where: \.movable))
         }
         Button {
@@ -66,6 +68,7 @@ extension InspectorView {
         } label: {
           Label("Ask AI About These", systemImage: "sparkles").frame(maxWidth: .infinity)
         }
+        .help("Start an AI request about the selected items")
       }
       removeButton("Remove All")
     }
@@ -124,7 +127,7 @@ extension InspectorView {
         removeButton("Cut Clip")
       }
     case .gap(let g):
-      itemHeader("Cut", "scissors", Color.gray, range(g.start, g.end))
+      itemHeader("Cut", "scissors", Theme.cut, range(g.start, g.end))
       InspectorSection("Not in the video", detail: "This part of the recording is cut. Restore it to bring it back at normal speed.") {
         Button { project.restore(g) } label: { Label("Restore at 1×", systemImage: "arrow.uturn.backward").frame(maxWidth: .infinity) }
       }
@@ -431,15 +434,11 @@ extension InspectorView {
               Text(modeName(mode)).font(.caption)
             }
             .frame(maxWidth: .infinity, minHeight: 54)
-            .foregroundStyle(on ? Theme.accent : Color.primary)
-            .background(
-              RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.04)))
-            .overlay(
-              RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(on ? Theme.accent : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
+            .selectableTile(on: on)
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
+          .help(modeName(mode))
           .accessibilityAddTraits(on ? .isSelected : [])
         }
       }

@@ -60,7 +60,7 @@ struct SharingSection: View {
       TextField("Endpoint", text: $sharing.endpoint, prompt: Text("http://192.168.0.202:9000"))
       if sharing.insecure {
         Label("This endpoint isn't HTTPS: keys are signed, but uploads and links travel unencrypted. Fine on a home network, not on public Wi-Fi.", systemImage: "exclamationmark.triangle.fill")
-          .font(.caption).foregroundStyle(.orange)
+          .font(.caption).foregroundStyle(Theme.warning)
       }
       TextField("Region", text: $sharing.region)
       TextField("Bucket", text: $sharing.bucket)
