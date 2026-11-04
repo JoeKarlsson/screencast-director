@@ -2,15 +2,16 @@
 # sd: plan, describe and render a recording from the terminal. (The app records; `sd import` brings
 # in a video recorded elsewhere.)
 #
-# analyze, plan, describe and render run the Swift `director` (the macOS app's engine), rebuilding
+# analyze, plan, draft, describe and render run the Swift `director` (the macOS app's engine), rebuilding
 # it first when its sources changed (`swift build -c release --package-path macos --product director`).
 #
 #   sd import <name> <video> [--camera <file> [--camera-offset <sec>]]
 #   sd analyze <name>             transcribe (Whisper) and measure screen motion
-#   sd plan <name> [--force]      write a first-draft plan.json
+#   sd plan <name> [--force]      write a first-draft plan.json (the planner alone)
+#   sd draft <name> [--force]     the app's first draft: plan plus your default profile and settings
 #   sd describe <name>            print the plan as a readable timeline
 #   sd render <name> [out.mp4]    render the final video (default <project>/<name> <width>x<height>.mp4)
-#   sd auto <name>                analyze + plan + render
+#   sd auto <name>                analyze + draft + render
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -76,7 +77,7 @@ cmd_director() {
 
 cmd_auto() {
   cmd_director analyze "${1:-}"
-  cmd_director plan "${1:-}" --force
+  cmd_director draft "${1:-}" --force
   cmd_director describe "${1:-}"
   cmd_director render "${1:-}"
 }
@@ -84,6 +85,6 @@ cmd_auto() {
 cmd=${1:-help}; shift || true
 case $cmd in
   import|auto) "cmd_$cmd" "$@" ;;
-  analyze|plan|describe|render) cmd_director "$cmd" "$@" ;;
-  *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+  analyze|plan|draft|describe|render) cmd_director "$cmd" "$@" ;;
+  *) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

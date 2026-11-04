@@ -72,17 +72,9 @@ final class AISettings: ObservableObject {
 }
 
 enum Keychain {
-  static let service = "com.joekarlsson.screencastdirector.ai"
+  static let service = AppPreferences.keychainService
 
-  static func get(_ account: String) -> String? {
-    let q: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account,
-      kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne,
-    ]
-    var out: AnyObject?
-    guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
-    return String(data: data, encoding: .utf8)
-  }
+  static func get(_ account: String) -> String? { AppPreferences.keychainValue(account) }
 
   /// Saves a key, and says so in the banner when the Keychain refuses it (the key isn't kept).
   static func set(_ value: String, for account: String) {

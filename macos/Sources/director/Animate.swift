@@ -95,7 +95,9 @@ enum Animate {
         throw DirectorError("the \(a.template) template didn't start: \(error)")
       }
 
-      let tmp = out.deletingLastPathComponent().appendingPathComponent(".rendering-\(out.lastPathComponent)")
+      // One temp file per process: the app and the CLI can render the same clip at once (same
+      // contents, since the name is a hash of them), and each moves its own into place.
+      let tmp = out.deletingLastPathComponent().appendingPathComponent(".rendering-\(getpid())-\(out.lastPathComponent)")
       try? FileManager.default.removeItem(at: tmp)
       let writer = try AVAssetWriter(outputURL: tmp, fileType: .mp4)
       let input = AVAssetWriterInput(

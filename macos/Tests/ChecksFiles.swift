@@ -9,6 +9,56 @@ func fileAndFormatChecks() {
   projectFileChecks()
   exportQueueChecks()
   publishHelperChecks()
+  agentInterfaceChecks()
+}
+
+/// What `director` and `screencastdirector://` links share with the app: links, settings, profiles.
+private func agentInterfaceChecks() {
+  func link(_ s: String) -> AppURL? { AppURL.parse(URL(string: s)!) }
+  expect(link("screencastdirector://record/start") == .startRecording, "record/start starts a recording")
+  expect(link("screencastdirector://record/retake") == .markRetake, "record/retake marks a retake")
+  expect(link("screencastdirector:///record/stop") == .stopRecording, "a link with an empty host still routes")
+  expect(link("screencastdirector://open?project=/tmp/My%20Video") == .open(URL(fileURLWithPath: "/tmp/My Video")), "open takes a project folder")
+  expect(link("screencastdirector://open") == nil, "open without a project is refused")
+  expect(link("screencastdirector://record/explode") == nil, "an unknown link is refused")
+  expect(link("https://record/start") == nil, "another scheme isn't ours")
+  expect(AppURL.forms.compactMap { link("screencastdirector://" + $0.replacingOccurrences(of: "<folder>", with: "/tmp")) }.count == AppURL.forms.count,
+    "every documented link parses")
+
+  // Settings: typed as the app reads them, bad values refused, unset ones show the default.
+  let suite = "sd-checks-\(UUID().uuidString)"
+  let d = UserDefaults(suiteName: suite)!
+  defer { d.removePersistentDomain(forName: suite) }
+  let countdown = AppSetting.named("countdown")!
+  expect(countdown.value(in: d) == "3", "an unset setting shows the app's default")
+  try? countdown.set("5", in: d)
+  expect(d.object(forKey: "countdown") as? Int == 5 && countdown.value(in: d) == "5", "countdown is saved as a number the app reads")
+  expect((try? countdown.set("99", in: d)) == nil, "a countdown out of range is refused")
+  try? AppSetting.named("polishVoice")!.set("yes", in: d)
+  expect(d.bool(forKey: "polishVoice") && AppSetting.named("polishVoice")!.value(in: d) == "true", "a yes/no setting saves a Bool")
+  expect((try? AppSetting.named("pauseLevel")!.set("loose", in: d)) == nil, "pauseLevel takes only gentle, normal or tight")
+  try? AppSetting.named("previewVolume")!.set("0.5", in: d)
+  expect(d.object(forKey: "previewVolume") as? Float == 0.5, "previewVolume is saved as the Float the app reads")
+  for key in ["projectsFolder", "pauseLevel", "polishVoice", "defaultProfile", "ai.provider", "s3Bucket"] {
+    expect(AppSetting.named(key) != nil, "director settings covers \(key)")
+  }
+  expect(S3.Config.saved(d) == nil, "no Sharing settings, no saved bucket")
+
+  // Profiles: seeded, saved from a plan, loaded back by name.
+  let root = FileManager.default.temporaryDirectory.appendingPathComponent("sd-profiles-\(UUID().uuidString)")
+  defer { try? FileManager.default.removeItem(at: root) }
+  let library = ProfileLibrary(root: root)
+  expect(library.names() == ["Personal"], "a new profile folder gets the Personal profile")
+  let (_, plan) = plainPlan(root, duration: 10)
+  var styled = plan
+  styled.style.motion = "snappy"
+  styled.music = Music(file: "/tmp/track.m4a")
+  try? library.save(from: styled, as: "Demo", extras: [])
+  expect(library.names() == ["Demo", "Personal"], "a saved profile is listed (\(library.names()))")
+  let loaded = try? library.load("Demo")
+  expect(loaded?.style.motion == "snappy" && loaded?.music == nil, "a saved profile keeps the style and leaves out music not asked for")
+  expect((try? library.save(from: plan, as: "../escape", extras: [])) == nil, "a profile name can't leave the profiles folder")
+  expect((try? library.load("Missing")) == nil, "loading a missing profile throws")
 }
 
 /// A plan over a `duration`-second recording in `dir`, with no cards.

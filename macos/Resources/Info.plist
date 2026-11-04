@@ -42,6 +42,17 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.joekarlsson.screencastdirector</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>screencastdirector</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Screencast Director can record your camera for a picture-in-picture or side-by-side layout.</string>
 </dict>

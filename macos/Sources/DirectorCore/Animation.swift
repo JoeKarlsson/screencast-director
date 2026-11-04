@@ -130,7 +130,9 @@ extension Plan {
   /// Deletes clips in `.animations/` that neither this plan nor the saved plan.json can use (this plan
   /// may be one clip's, or another format's). Returns the names it deleted, or nil when plan.json exists
   /// but doesn't load (half-written mid-edit): then nothing is deleted, since its clips can't be known.
-  public func removeUnusedAnimationClips(dir: URL) throws -> [String]? {
+  /// A `.rendering-` file from the last hour is another render in progress (the app's or the CLI's)
+  /// and is kept; an older one was left by a render that died.
+  public func removeUnusedAnimationClips(dir: URL, now: Date = Date()) throws -> [String]? {
     let folder = dir.appendingPathComponent(".animations")
     let planFile = dir.appendingPathComponent("plan.json")
     var wanted = animationClipNames(dir: dir)
@@ -139,7 +141,12 @@ extension Plan {
       wanted.formUnion(saved.animationClipNames(dir: dir))
     }
     guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
-    let unused = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { !wanted.contains($0) }
+    func renderingNow(_ name: String) -> Bool {
+      guard name.hasPrefix(".rendering-") else { return false }
+      let modified = (try? FileManager.default.attributesOfItem(atPath: folder.appendingPathComponent(name).path)[.modificationDate]) as? Date
+      return modified.map { now.timeIntervalSince($0) < 3600 } ?? false
+    }
+    let unused = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { !wanted.contains($0) && !renderingNow($0) }
     for f in unused { try FileManager.default.removeItem(at: folder.appendingPathComponent(f)) }
     return unused
   }

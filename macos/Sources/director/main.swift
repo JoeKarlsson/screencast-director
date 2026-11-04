@@ -1,3 +1,4 @@
+import AppKit
 import CoreImage
 import DirectorCore
 import Foundation
@@ -9,12 +10,18 @@ let usage = """
   usage:
     director analyze  <dir>
     director plan     <dir> [--force]
+    director draft    <dir> [--force]               the app's first draft: plan, then the default profile, pause and voice settings, camera centering and lip sync
     director describe <dir>
     director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
-    director profile  <dir> <profileDir>
+    director profile  <dir> <name | profileDir>     apply a saved profile (by name) or a profile folder
+    director profile-save <dir> <name> [--music] [--voice] [--camera]   save this video's look as a profile
+    director profiles                               list saved profiles (* is the default for new recordings)
+    director template <dir> freeze|update|save <name>   copy an animation template into the video, refresh it from the library, or save the video's copy to My Templates
+    director add      <dir> broll|lut|music|logo|font <file>   copy a file into the project; prints the path to use in plan.json
+    director settings [get <key> | set <key> <value>]   the app's settings (no arguments lists them)
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
     director sync-camera <dir>                       line the camera up with the voice by watching the lips
@@ -25,7 +32,7 @@ let usage = """
     director repeat   <dir> <start> <end> [--before <t>]   play a source-time range again first (or before t), keeping it in its place too
     director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
-    director upload   <file>                        S3-compatible PUT; prints the public URL (S3_* env vars)
+    director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
     director scan     <video.mp4>                   find shots under a second between two others in a finished video
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
@@ -37,8 +44,22 @@ func fail(_ msg: String) -> Never {
 }
 
 let args = Array(CommandLine.arguments.dropFirst())
-guard args.count >= 2 else { fail(usage) }
-let dir = URL(fileURLWithPath: args[1]).standardizedFileURL
+// `profiles` and `settings` work on the app, not a project folder.
+guard let command = args.first, args.count >= 2 || ["profiles", "settings"].contains(command) else { fail(usage) }
+let dir = URL(fileURLWithPath: args.count > 1 ? args[1] : ".").standardizedFileURL
+
+/// Refuses a project with nothing for the planner to go on (it would cut the whole recording).
+func requireAnalyzed(_ project: Project) {
+  if project.words.isEmpty && project.motion.isEmpty && project.events.isEmpty {
+    fail("\(dir.path) has no transcript, screen motion or input events yet. Run `director analyze` (sd analyze) first.")
+  }
+}
+/// Refuses to overwrite plan.json without --force.
+func refuseOverwrite(_ project: Project) {
+  if FileManager.default.fileExists(atPath: project.planURL.path), !args.contains("--force") {
+    fail("\(project.planURL.path) exists (it may hold edits). Pass --force to regenerate it.")
+  }
+}
 
 /// The --preset given, if any.
 func presetArg() -> ExportPreset? {
@@ -95,16 +116,89 @@ do {
     print("Read \(samples.count) clicks: " + samples.prefix(8).map { ScreenText.clicked(samples, at: $0.t) ?? "?" }.joined(separator: ", "))
   case "plan":
     let project = try Project.load(dir)
-    if FileManager.default.fileExists(atPath: project.planURL.path), args.dropFirst(2).first != "--force" {
-      fail("\(project.planURL.path) exists (it may hold edits). Pass --force to regenerate it.")
-    }
-    // With nothing to go on, every stretch reads as idle and the draft cuts the whole recording.
-    if project.words.isEmpty && project.motion.isEmpty && project.events.isEmpty {
-      fail("\(dir.path) has no transcript, screen motion or input events yet. Run `director analyze` (sd analyze) first.")
-    }
+    refuseOverwrite(project)
+    requireAnalyzed(project)
     let plan = buildPlan(project)
     try plan.write(to: project.planURL)
     print("wrote \(project.planURL.path): \(plan.segments.count) segments, \(plan.zooms.count) zooms")
+  case "draft":
+    let project = try Project.load(dir)
+    refuseOverwrite(project)
+    requireAnalyzed(project)
+    let draft = try await FreshDraft.withAppSettings(dir: dir, name: dir.lastPathComponent) { print($0) }
+    try draft.plan.write(to: project.planURL)
+    let profile = (try ProfileLibrary().defaultProfile()).map { "profile \($0.name)" } ?? "no profile (\(ProfileLibrary.defaultName) isn't saved)"
+    print(
+      "wrote \(project.planURL.path): \(draft.plan.segments.count) segments, \(draft.plan.zooms.count) zooms, \(profile), "
+        + "pauses \(draft.plan.pauses?.rawValue ?? "normal")")
+    if draft.lipSyncUnchecked { print("couldn't check the camera against the voice; if it looks off, run director sync-camera") }
+  case "profiles":
+    let library = ProfileLibrary()
+    for name in library.names() { print((name == ProfileLibrary.defaultName ? "* " : "  ") + name) }
+    print("(in \(library.root.path))")
+  case "profile-save":
+    let names = positional.filter { !$0.hasPrefix("--") }
+    guard names.count == 3 else { fail(usage) }
+    let plan = try Plan.load(try Project.load(dir).planURL)
+    let extras = Set(Profile.Extra.allCases.filter { args.contains("--\($0)") })
+    let library = ProfileLibrary()
+    try library.save(from: plan, as: names[2], extras: extras)
+    print("saved the profile \(names[2]) to \(library.folder(names[2].trimmingCharacters(in: .whitespaces)).path)")
+  case "template":
+    guard positional.count == 4 else { fail(usage) }
+    _ = try Project.load(dir)
+    let sources = AnimationSources(project: dir, builtIn: Animate.resources)
+    let name = positional[3]
+    let videoCopy = AnimationSources.videoFolder(dir).appendingPathComponent("templates/\(name).js")
+    switch positional[2] {
+    case "freeze":
+      guard sources.template(name) != nil else {
+        fail("no template named \"\(name)\" (there are: \(sources.templates().map(\.template.name).joined(separator: ", ")))")
+      }
+      print(try sources.freeze(name) ? "froze \(name) into animations/templates/" : "\(name) is already in animations/templates/")
+    case "update":
+      guard sources.libraryFolder(for: name) != nil else { fail("no template named \"\(name)\" in the personal library or the app") }
+      try sources.updateFromLibrary(name)
+      print("replaced animations/templates/\(name) with the library's version")
+    case "save":
+      guard FileManager.default.fileExists(atPath: videoCopy.path) else { fail("this video has no copy of \(name) (animations/templates/\(name).js)") }
+      try sources.saveToPersonal(name)
+      print("saved \(name) to \(sources.personal.appendingPathComponent("templates").path)")
+    default:
+      fail(usage)
+    }
+  case "add":
+    let folders = ["broll": "broll", "lut": "luts", "music": "music", "logo": "logos", "font": "fonts"]
+    guard positional.count == 4, let folder = folders[positional[2]] else { fail(usage) }
+    _ = try Project.load(dir)
+    let file = URL(fileURLWithPath: positional[3])
+    guard FileManager.default.fileExists(atPath: file.path) else { fail("no such file: \(file.path)") }
+    if positional[2] == "lut" { _ = try CubeLUT.load(file) }
+    print(try Project.importFile(file, into: folder, dir: dir))
+  case "settings":
+    let rest = Array(args.dropFirst())
+    func setting(_ key: String) -> AppSetting {
+      guard let s = AppSetting.named(key) else { fail("no setting named \"\(key)\" (director settings lists them)") }
+      return s
+    }
+    switch (rest.first, rest.count) {
+    case (nil, _):
+      for s in AppSetting.all { print("\(s.key) = \(s.value())    # \(s.help)") }
+    case ("get", 2):
+      print(setting(rest[1]).value())
+    case ("set", 3):
+      let s = setting(rest[1])
+      if s.key == "defaultProfile", !ProfileLibrary().names().contains(rest[2]) {
+        fail("no profile named \"\(rest[2])\" (director profiles lists them)")
+      }
+      try s.set(rest[2])
+      print("\(s.key) = \(s.value())")
+      if !NSRunningApplication.runningApplications(withBundleIdentifier: AppPreferences.appDomain).isEmpty {
+        print("The app is open and reads its settings when it starts: quit and reopen it to use this.")
+      }
+    default:
+      fail(usage)
+    }
   case "debug":
     let project = try Project.load(dir)
     let built = try await buildComposition(project: project, plan: try Plan.load(project.planURL))
@@ -262,13 +356,22 @@ do {
     for shot in shots { print(ShotScan.describe(shot)) }
   case "upload":
     // args[1] is the file here, not a project folder.
+    // The S3_* env vars when set, else the bucket set up in the app's Settings > Sharing.
     let env = ProcessInfo.processInfo.environment
-    guard let endpoint = env["S3_ENDPOINT"].flatMap(URL.init(string:)), let bucket = env["S3_BUCKET"],
+    let config: S3.Config
+    if let endpoint = env["S3_ENDPOINT"].flatMap(URL.init(string:)), let bucket = env["S3_BUCKET"],
       let access = env["S3_ACCESS_KEY"], let secret = env["S3_SECRET_KEY"]
-    else { fail("upload needs S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY and S3_SECRET_KEY (S3_REGION, S3_PUBLIC_BASE optional)") }
-    let config = S3.Config(
-      endpoint: endpoint, region: env["S3_REGION"] ?? "us-east-1", bucket: bucket, accessKey: access, secretKey: secret,
-      publicBase: env["S3_PUBLIC_BASE"])
+    {
+      config = S3.Config(
+        endpoint: endpoint, region: env["S3_REGION"] ?? "us-east-1", bucket: bucket, accessKey: access, secretKey: secret,
+        publicBase: env["S3_PUBLIC_BASE"])
+    } else if let saved = S3.Config.saved() {
+      config = saved
+    } else {
+      fail(
+        "upload needs a bucket: set one up in the app's Settings > Sharing, or set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY and S3_SECRET_KEY (S3_REGION, S3_PUBLIC_BASE optional)"
+      )
+    }
     let url = try await S3.upload(dir, key: S3.key(for: dir, name: dir.deletingPathExtension().lastPathComponent), config: config)
     print(url.absoluteString)
   case "join":
@@ -289,7 +392,8 @@ do {
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)
     var plan = try Plan.load(project.planURL)
-    let profile = try Profile.load(URL(fileURLWithPath: positional[2]))
+    // A path is a profile folder; a bare name is a saved profile.
+    let profile = positional[2].contains("/") ? try Profile.load(URL(fileURLWithPath: positional[2])) : try ProfileLibrary().load(positional[2])
     profile.apply(to: &plan, name: dir.lastPathComponent)
     try plan.write(to: project.planURL)
     print("applied profile \(profile.name)")

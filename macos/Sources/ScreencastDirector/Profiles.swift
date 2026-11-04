@@ -2,64 +2,37 @@ import AppKit
 import DirectorCore
 import Foundation
 
-/// Profiles live in ~/Library/Application Support/Screencast Director/Profiles/<name>/profile.json
-/// with their fonts and logos. New recordings get the default profile; any video can switch.
+/// The Profiles menu's view of `ProfileLibrary` (DirectorCore), which `director profiles` shares.
 final class ProfileStore: ObservableObject {
   static let shared = ProfileStore()
 
+  let library = ProfileLibrary()
   @Published private(set) var names: [String] = []
   @Published var defaultName: String {
-    didSet { UserDefaults.standard.set(defaultName, forKey: "defaultProfile") }
+    didSet { ProfileLibrary.defaultName = defaultName }
   }
 
-  let root = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent("Library/Application Support/Screencast Director/Profiles")
-
   init() {
-    defaultName = UserDefaults.standard.string(forKey: "defaultProfile") ?? "Personal"
+    defaultName = ProfileLibrary.defaultName
     refresh()
   }
 
   func refresh() {
-    try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    // First run: seed a Personal profile with the built-in look.
-    let personal = root.appendingPathComponent("Personal/profile.json")
-    if !FileManager.default.fileExists(atPath: personal.path) {
-      try? FileManager.default.createDirectory(at: personal.deletingLastPathComponent(), withIntermediateDirectories: true)
-      try? Data(
-        ##"{"name": "Personal", "style": {"background": ["#1d2b64", "#f8cdda"], "padding": 0, "radius": 14, "transition": 0.8}, "look": {}}"##
-          .utf8
-      ).write(to: personal)
-    }
-    let dirs = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
-    names = dirs.filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("profile.json").path) }
-      .map(\.lastPathComponent).sorted()
+    names = library.names()
   }
 
   func load(_ name: String) throws -> Profile {
-    try Profile.load(root.appendingPathComponent(name))
-  }
-
-  /// The default profile, or nil when there's no profile by that name. One that's there but can't
-  /// be read throws, so a broken profile.json isn't silently skipped.
-  func defaultProfile() throws -> Profile? {
-    let file = root.appendingPathComponent(defaultName).appendingPathComponent("profile.json")
-    return FileManager.default.fileExists(atPath: file.path) ? try load(defaultName) : nil
+    try library.load(name)
   }
 
   /// Saves a video's current look and style as a profile (asset paths stay absolute).
   func save(from plan: Plan, as name: String, extras: Set<Profile.Extra>) throws {
-    let dir = root.appendingPathComponent(name)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    let profile = Profile.saved(from: plan, name: name, extras: extras)
-    let enc = JSONEncoder()
-    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    try enc.encode(profile).write(to: dir.appendingPathComponent("profile.json"))
+    try library.save(from: plan, as: name, extras: extras)
     refresh()
   }
 
   func openFolder() {
-    NSWorkspace.shared.open(root)
+    NSWorkspace.shared.open(library.root)
   }
 
   /// Asks for a name, then saves the plan's look as a profile.

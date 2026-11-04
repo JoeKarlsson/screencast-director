@@ -1,6 +1,6 @@
 # CLI
 
-The `sd` CLI runs the editing pipeline from the terminal on a recording made in the app, or one you import. `sd analyze`, `plan`, `describe` and `render` run the Swift `director`, the same engine as the macOS app, rebuilding it first when its sources changed. Everything `sd` can't do (stills, publish, GIF, join, upload) is a `director` command; run `macos/.build/release/director` with no arguments for the list.
+The `sd` CLI runs the editing pipeline from the terminal on a recording made in the app, or one you import. `sd analyze`, `plan`, `draft`, `describe` and `render` run the Swift `director`, the same engine as the macOS app, rebuilding it first when its sources changed. Everything `sd` can't do (stills, publish, GIF, join, upload) is a `director` command; run `macos/.build/release/director` with no arguments for the list.
 
 ## Setup
 
@@ -15,10 +15,33 @@ The `sd` CLI runs the editing pipeline from the terminal on a recording made in 
    - typing without narration at 3x, other mouse work at 1.5x, screen changes (builds, scrolling output) at 4x
    - nothing happening: cut
    - zooms on clusters of clicks and typing, chained into pans when they're close together
+
+   `sd draft` is the draft the app makes after recording: the plan above, then your default profile, pause level and voice polish (the app's settings), the camera centered on your face and lined up with your voice.
 4. **Edit**: ask Claude with the `/edit-screencast` skill in this repo, or edit `plan.json` yourself. `sd describe` prints the plan as a timeline with what was said in each part.
 5. **Render** (`sd render`), or open the project in the app to preview it.
 
-`sd auto <name>` runs analyze, plan and render in one go.
+`sd auto <name>` runs analyze, draft and render in one go.
+
+## Everything the app does, from the terminal or an agent
+
+Edits are `plan.json` changes. The app checks the file every second, so an edit made outside it shows up in the open editor, and ⌘Z undoes it. Everything else has a `director` command, and recording, which only the running app can do, has a link:
+
+| In the app | From the terminal |
+|---|---|
+| Timeline, inspector, transcript and Claude box edits | edit `plan.json`; `director cut`, `restore`, `move`, `repeat`, `pauses` |
+| Start Over from a Fresh Draft | `director draft <dir> --force` |
+| Camera › Center on face, Lip sync | `director frame-camera`, `sync-camera` |
+| Apply a profile, Save This Look as a Profile | `director profile <dir> <name>`, `profile-save <dir> <name> [--music] [--voice] [--camera]`, `profiles` |
+| Add B-roll, Choose LUT, Music File, logo, font | `director add <dir> broll\|lut\|music\|logo\|font <file>`, then use the printed path in `plan.json` |
+| Animation template: freeze, Update Template, Save to My Templates | `director template <dir> freeze\|update\|save <name>` |
+| Export, clips, GIF, captions and thumbnails | `director render [--preset id\|--clip name\|--clips]`, `gif`, `publish` |
+| Upload and Copy Link | `director upload <file>` (uses Settings › Sharing; macOS asks once to let it read the keys) |
+| Join Recordings, Import Video | `director join`, `sd import` |
+| Settings (recording, drafts, AI, sharing) | `director settings`, `settings get <key>`, `settings set <key> <value>` (API keys stay in Settings) |
+| Record, Stop, Pause, Resume, Restart, Discard, Mark Retake | `open "screencastdirector://record/start"` (`stop`, `pause`, `resume`, `restart`, `discard`, `retake`) |
+| Open a recording in the editor | `open "screencastdirector://open?project=<folder>"` |
+
+The open app reads its settings when it starts, so quit and reopen it after `director settings set`. Rendering from the CLI while the app has the same video open is safe: each render writes its own temporary file.
 
 ## Importing a recording
 

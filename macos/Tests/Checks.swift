@@ -615,7 +615,14 @@ struct Checks {
     expect((try? animPlan.removeUnusedAnimationClips(dir: cleanDir)) == .some(nil), "clip cleanup is skipped while plan.json doesn't load")
     expect(FileManager.default.fileExists(atPath: clipsDir.appendingPathComponent("old.mp4").path), "a half-written plan.json deletes no clips")
     try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("plan.json"))
-    expect((try? animPlan.removeUnusedAnimationClips(dir: cleanDir)) == .some(["old.mp4"]), "clip cleanup deletes the clip no plan uses")
+    // Another process's render in progress is kept; one left by a render that died an hour ago isn't.
+    let inProgress = ".rendering-123-\(usedClip)", leftover = ".rendering-456-gone.mp4"
+    for f in [inProgress, leftover] { FileManager.default.createFile(atPath: clipsDir.appendingPathComponent(f).path, contents: Data()) }
+    try? FileManager.default.setAttributes(
+      [.modificationDate: Date().addingTimeInterval(-7200)], ofItemAtPath: clipsDir.appendingPathComponent(leftover).path)
+    let removed = (try? animPlan.removeUnusedAnimationClips(dir: cleanDir)) ?? nil
+    expect(removed.map(Set.init) == ["old.mp4", leftover], "clip cleanup deletes the clip no plan uses and a dead render's leftover (\(removed ?? []))")
+    expect(FileManager.default.fileExists(atPath: clipsDir.appendingPathComponent(inProgress).path), "clip cleanup keeps another render in progress")
     expect(FileManager.default.fileExists(atPath: clipsDir.appendingPathComponent(usedClip).path), "clip cleanup keeps the plan's own clip")
     try? FileManager.default.removeItem(at: cleanDir)
 

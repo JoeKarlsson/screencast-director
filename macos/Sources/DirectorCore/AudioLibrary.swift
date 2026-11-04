@@ -39,8 +39,7 @@ public struct AudioLibrary {
   public let personal: URL
 
   public static func personalFolder(_ kind: Kind) -> URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Application Support/Screencast Director/\(kind.personalName)")
+    AppPreferences.supportFolder.appendingPathComponent(kind.personalName)
   }
 
   /// The app bundle's copy (for the app and the bundled `director`), else this repo's (builds run

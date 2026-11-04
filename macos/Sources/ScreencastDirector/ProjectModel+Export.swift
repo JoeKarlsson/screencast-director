@@ -79,27 +79,10 @@ extension ProjectModel {
     run("Analyzing…") { [self] in
       defer { done?() }
       if analyzeFirst { try await analyze(dir) { msg in Task { @MainActor in self.status = msg } } }
-      var draft = buildPlan(try Project.load(dir))
-      try ProfileStore.shared.defaultProfile()?.apply(to: &draft, name: name)
-      let level = AppSettings.shared.pauseLevel
-      let fresh = try Project.load(dir)
-      let silences = Analyzer.silences(try await Analyzer.loudness(fresh, video: draft.source.video), minLength: 0.2)
-      draft.retrimPauses(words: fresh.words, level: level, silences: silences, paused: fresh.paused)
-      draft.pauses = level
-      if AppSettings.shared.polishVoice { draft.audio = AudioSettings.polished(draft.audio) }
-      if draft.camera != nil, let face = try await Publish.faceCenter(project: try Project.load(dir), plan: draft) {
-        draft.camera?.x = face.x
-        draft.camera?.y = face.y
-        draft.camera?.zoom = Publish.centeringZoom(x: face.x, y: face.y)
-      }
-      // The recorder's offset comes from stream timestamps, which some webcams stamp late.
-      if let camera = draft.camera {
-        status = "Matching your lips to your voice…"
-        if let sync = try await LipSync.measure(project: try Project.load(dir), camera: camera), sync.confident {
-          draft.camera?.offset = sync.offset
-        } else {
-          Notices.shared.show("Couldn't check that the camera is in sync with your voice. If it looks off, set Camera > Lip sync.")
-        }
+      let fresh = try await FreshDraft.withAppSettings(dir: dir, name: name) { msg in Task { @MainActor in self.status = msg } }
+      let draft = fresh.plan
+      if fresh.lipSyncUnchecked {
+        Notices.shared.show("Couldn't check that the camera is in sync with your voice. If it looks off, set Camera > Lip sync.")
       }
       if let current = plan, force {
         undoStack.append(current)

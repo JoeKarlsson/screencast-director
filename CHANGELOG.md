@@ -4,6 +4,17 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### CLI and agents
+- Everything the app does can now be done from the terminal or by an agent ([docs/cli.md](docs/cli.md) maps each app action to its command).
+  - `director draft` (and `sd draft`) makes the same first draft as the app: the plan, then your default profile, pause level and voice polish, face centering and lip sync. `sd auto` now uses it.
+  - `director profiles` lists your profiles. `director profile` takes a saved profile's name as well as a folder, and `profile-save` saves a video's look.
+  - `director template` freezes, updates or saves an animation template.
+  - `director add` copies B-roll, a LUT (checked first), music, a logo or a font into a project.
+  - `director settings` reads and changes the app's settings.
+  - `director upload` uses the bucket from Settings › Sharing when no `S3_*` variables are set.
+- `screencastdirector://` links drive recording in the running app (`record/start`, `stop`, `pause`, `resume`, `restart`, `discard`, `retake`) and open a recording (`open?project=<folder>`).
+- Rendering an animation from the CLI while the app has the same video open no longer breaks either render. Each one cleaned up the other's in-progress file, and the app could hang.
+
 ### Recording
 - The camera records at the best size it offers, up to 4K at 30 fps, with the bitrate to match (40 Mbps at 4K). It used to be held to 1080p whatever the camera could do. Recorded B-roll from a camera too.
 - Record B-roll into the open video (File > Record B-roll…, or hold the B-roll button): a small panel with a live preview records a clip from the camera or the screen into its broll/ folder, then shows it full frame from the playhead for the clip's length. One undo takes it off.

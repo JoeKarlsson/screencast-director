@@ -107,14 +107,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
   }
 
   /// `open -a "Screencast Director" <project folder or video>`, or a drop on the Dock icon.
+  /// Also `open "screencastdirector://record/start"` and the other `AppURL` links.
   func application(_ application: NSApplication, open urls: [URL]) {
     guard let url = urls.first else { return }
-    if FileManager.default.fileExists(atPath: url.appendingPathComponent("source.json").path) {
+    if url.scheme == AppURL.scheme {
+      handle(url)
+    } else if FileManager.default.fileExists(atPath: url.appendingPathComponent("source.json").path) {
       library.refresh()
       library.selection = url.standardizedFileURL
       window?.makeKeyAndOrderFront(nil)
     } else {
       importVideo(url)
+    }
+  }
+
+  /// A `screencastdirector://` link: recording controls an agent can reach, since only the app records.
+  private func handle(_ url: URL) {
+    guard let command = AppURL.parse(url) else {
+      showMain()
+      Notices.shared.show("Unknown link \(url.absoluteString). Try \(AppURL.forms.map { "\(AppURL.scheme)://\($0)" }.joined(separator: ", ")).", error: true)
+      return
+    }
+    let recording = recorder.isRecording
+    switch command {
+    case .startRecording: startRecording()
+    case .stopRecording where recording: stopRecording()
+    case .pauseRecording: recorder.pause()
+    case .resumeRecording: recorder.resume()
+    case .restartRecording where recording: restartRecording()
+    case .discardRecording where recording: discardRecording()
+    case .markRetake: markRetake()
+    case .stopRecording, .restartRecording, .discardRecording:
+      Notices.shared.show("Nothing is recording (from \(url.absoluteString)).", error: true)
+    case .open(let dir):
+      guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("source.json").path) else {
+        showMain()
+        Notices.shared.show("No recording at \(dir.path).", error: true)
+        return
+      }
+      library.refresh()
+      library.selection = dir
+      showMain()
     }
   }
 

@@ -14,7 +14,9 @@ swift build -c release --product director >/dev/null
 DIRECTOR="$PWD/.build/release/director"
 
 TMP="$(mktemp -d -t sd-cli)"
-trap 'rm -rf "$TMP"' EXIT
+# Scratch app settings and support folder (profiles, My Templates), so the real app's are untouched.
+export SD_DEFAULTS_DOMAIN="sd-cli-test-$$" SD_SUPPORT_DIR="$TMP/support"
+trap 'rm -rf "$TMP"; defaults delete "$SD_DEFAULTS_DOMAIN" >/dev/null 2>&1 || true' EXIT
 P="$TMP/fixture"
 "$ROOT/test/make-fixture.sh" "$P" >/dev/null
 
@@ -116,7 +118,58 @@ check "profile reports its name ($out)" grep -q "Test look" <<<"$out"
 check "profile sets the style and fills the intro title" plan_py "
 sys.exit(0 if plan['style']['motion'] == 'snappy' and plan['intro']['title'] == 'fixture' and plan['intro']['subtitle'] == 'CLI test' else 1)"
 expect_error "a folder with no profile.json fails" "profile.json" "$DIRECTOR" profile "$P" "$TMP/nope"
+
+# --- saved profiles, by name
+check "profiles lists the seeded Personal profile as the default" grep -q "^\* Personal" <<<"$("$DIRECTOR" profiles)"
+"$DIRECTOR" profile-save "$P" "Snappy look" >/dev/null
+check "profile-save writes the profile" test -f "$SD_SUPPORT_DIR/Profiles/Snappy look/profile.json"
+check "profiles lists the saved one" grep -q "Snappy look" <<<"$("$DIRECTOR" profiles)"
 cp "$TMP/draft.json" "$P/plan.json"
+"$DIRECTOR" profile "$P" "Snappy look" >/dev/null
+check "profile by name applies the saved style" plan_py "sys.exit(0 if plan['style']['motion'] == 'snappy' else 1)"
+expect_error "an unknown profile name lists the saved ones" "Snappy look" "$DIRECTOR" profile "$P" "Nope"
+expect_error "profile-save refuses a name with a slash" "can't be a profile name" "$DIRECTOR" profile-save "$P" "a/b"
+cp "$TMP/draft.json" "$P/plan.json"
+
+# --- the app's settings
+check "settings lists the app's settings" grep -q "^pauseLevel = normal" <<<"$("$DIRECTOR" settings)"
+"$DIRECTOR" settings set pauseLevel tight >/dev/null
+check "settings set then get" test "$("$DIRECTOR" settings get pauseLevel)" = "tight"
+check "settings are saved where the app reads them" test "$(defaults read "$SD_DEFAULTS_DOMAIN" pauseLevel)" = "tight"
+expect_error "settings refuses a value the app wouldn't take" "gentle, normal, tight" "$DIRECTOR" settings set pauseLevel loose
+expect_error "settings refuses an unknown key" "no setting named" "$DIRECTOR" settings get volume
+expect_error "settings refuses a default profile that isn't saved" "no profile named" "$DIRECTOR" settings set defaultProfile Nope
+"$DIRECTOR" settings set polishVoice true >/dev/null
+"$DIRECTOR" settings set defaultProfile "Snappy look" >/dev/null
+
+# --- draft: the app's first draft, with those settings
+expect_error "draft won't overwrite edits without --force" "--force" "$DIRECTOR" draft "$P"
+out=$("$DIRECTOR" draft "$P" --force)
+check "draft names the profile it used ($out)" grep -q "profile Snappy look" <<<"$out"
+check "draft applies the default profile, pause level and voice polish" plan_py "
+a = plan.get('audio') or {}
+sys.exit(0 if plan['style']['motion'] == 'snappy' and plan['pauses'] == 'tight' and a.get('normalize') and a.get('warm') else 1)"
+check "draft still cuts the silence" plan_py "sys.exit(0 if not any(s['start'] <= 5.5 < s['end'] for s in plan['segments']) else 1)"
+cp "$TMP/draft.json" "$P/plan.json"
+
+# --- animation templates and project files
+out=$("$DIRECTOR" template "$P" freeze storyboard)
+check "template freeze copies it into the video ($out)" test -f "$P/animations/templates/storyboard.js"
+check "a second freeze leaves it alone" grep -q "already" <<<"$("$DIRECTOR" template "$P" freeze storyboard)"
+echo "// edited" >>"$P/animations/templates/storyboard.js"
+"$DIRECTOR" template "$P" save storyboard >/dev/null
+check "template save puts the video's copy in My Templates" grep -q "// edited" "$SD_SUPPORT_DIR/Animations/templates/storyboard.js"
+rm -rf "$SD_SUPPORT_DIR/Animations"
+"$DIRECTOR" template "$P" update storyboard >/dev/null
+check "template update replaces the video's copy with the library's" sh -c "! grep -q '// edited' '$P/animations/templates/storyboard.js'"
+expect_error "template freeze of an unknown one lists the others" "hub" "$DIRECTOR" template "$P" freeze nope
+printf 'not a lut\n' >"$TMP/bad.cube"
+expect_error "add refuses a LUT that doesn't load" "cube" "$DIRECTOR" add "$P" lut "$TMP/bad.cube"
+cp "$P/screen.mp4" "$TMP/clip.mp4"
+out=$("$DIRECTOR" add "$P" broll "$TMP/clip.mp4")
+check "add copies a file and prints the path for the plan ($out)" test "$out" = "broll/clip.mp4" -a -f "$P/broll/clip.mp4"
+expect_error "add of a missing file fails" "no such file" "$DIRECTOR" add "$P" music "$TMP/nope.m4a"
+expect_error "add of an unknown kind prints usage" "usage:" "$DIRECTOR" add "$P" video "$TMP/bad.cube"
 
 # --- render, still, gif, debug
 "$DIRECTOR" render "$P" "$TMP/out.mp4" >/dev/null 2>&1

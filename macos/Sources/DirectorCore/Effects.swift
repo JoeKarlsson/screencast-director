@@ -73,7 +73,7 @@ public struct EffectSources {
   public let personal: URL
 
   public static var personalFolder: URL {
-    FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Screencast Director/Effects")
+    AppPreferences.supportFolder.appendingPathComponent("Effects")
   }
 
   public init(project: URL?, personal: URL = EffectSources.personalFolder) {

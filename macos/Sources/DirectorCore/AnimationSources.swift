@@ -17,8 +17,7 @@ public struct AnimationSources {
   public let builtIn: URL
 
   public static var personalFolder: URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Application Support/Screencast Director/Animations")
+    AppPreferences.supportFolder.appendingPathComponent("Animations")
   }
 
   public init(project: URL?, builtIn: URL, personal: URL = AnimationSources.personalFolder) {

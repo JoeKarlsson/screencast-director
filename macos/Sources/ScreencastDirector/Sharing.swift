@@ -35,15 +35,8 @@ final class SharingSettings: ObservableObject {
     }
   }
 
-  /// nil until endpoint, bucket and both keys are filled in.
-  var config: S3.Config? {
-    guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespaces)), url.scheme != nil, !bucket.isEmpty,
-      !accessKey.isEmpty, !secretKey.isEmpty
-    else { return nil }
-    return S3.Config(
-      endpoint: url, region: region.isEmpty ? "us-east-1" : region, bucket: bucket, accessKey: accessKey, secretKey: secretKey,
-      publicBase: publicBase.isEmpty ? nil : publicBase)
-  }
+  /// nil until endpoint, bucket and both keys are filled in (the same settings `director upload` uses).
+  var config: S3.Config? { S3.Config.saved() }
 
   /// A filled-in endpoint that isn't https (shown as a warning; uploads still work).
   var insecure: Bool {
