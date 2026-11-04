@@ -11,10 +11,11 @@ import Foundation
 //                                           prints "focused" or "missing"
 //   axpress <pid> field-value <placeholder>  print that text field's text
 //   axpress <pid> click-title               a real mouse click on the middle of the first window's title bar
+//   axpress <pid> drag <x1> <y1> <x2> <y2>  a real mouse drag between two screen points, in small steps
 
 let args = CommandLine.arguments
 func usage() -> Never {
-  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title\n".utf8))
+  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2>\n".utf8))
   exit(2)
 }
 guard args.count >= 3, let pid = pid_t(args[1]) else { usage() }
@@ -95,6 +96,22 @@ case "click-title":
     usleep(50_000)
   }
   print("clicked")
+case "drag":
+  guard args.count == 7, let x1 = Double(args[3]), let y1 = Double(args[4]), let x2 = Double(args[5]), let y2 = Double(args[6])
+  else { usage() }
+  func post(_ type: CGEventType, _ x: Double, _ y: Double) {
+    CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)?
+      .post(tap: .cghidEventTap)
+    usleep(30_000)
+  }
+  post(.leftMouseDown, x1, y1)
+  for i in 1...20 {
+    let f = Double(i) / 20
+    post(.leftMouseDragged, x1 + (x2 - x1) * f, y1 + (y2 - y1) * f)
+  }
+  usleep(200_000)
+  post(.leftMouseUp, x2, y2)
+  print("dragged")
 default:
   usage()
 }

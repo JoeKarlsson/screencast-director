@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # UI smoke test: builds dist/Screencast Director.app, launches that copy on a synthetic project in a
 # temp folder, and drives it through System Events: the editor opens, pressing a timeline bar
-# selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, and the
+# selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, dragging
+# the last clip to the front reorders it, Publish's cover button saves coverAt, and the
 # Audio tab's sound and music pickers add a library sound and set a library track.
 #
 #   macos/smoke-test.sh             # build, then test
@@ -10,6 +11,9 @@
 # Safe to run next to your installed copy: it never touches /Applications or your projects folder
 # (-projectsFolder points the test instance at the temp folder), finds its own window by PID
 # (both copies have the same process name), and stops only the PID it started.
+# It ignores saved window state, puts its window at a fixed spot on the main screen and finds the
+# editor as the last pane, so a closed, moved or maximized window or a hidden
+# sidebar in your installed copy (they share defaults) doesn't break it.
 # Needs: a logged-in GUI session, Accessibility permission for your terminal, ffmpeg (for the
 # fixture). It sends two key presses, so don't type while it runs.
 set -euo pipefail
@@ -58,7 +62,8 @@ SH
 chmod +x "$TMP/claude"
 echo fail >"$TMP/claude-mode"
 
-"$APP/Contents/MacOS/ScreencastDirector" -projectsFolder "$TMP" -openProject "$PROJECT" -claudePath "$TMP/claude" -ai.provider claudeCode \
+"$APP/Contents/MacOS/ScreencastDirector" -projectsFolder "$TMP" -openProject "$PROJECT" -claudePath "$TMP/claude" -ai.provider claudeCode -ApplePersistenceIgnoreState YES \
+  -"NSWindow Frame main" "120 60 1400 860 0 0 1512 982" \
   >"$TMP/app.log" 2>&1 &
 PID=$!
 echo "launched test instance, PID $PID"
@@ -79,7 +84,7 @@ on run argv
 end run
 OSA
 }
-EDITOR='group 2 of splitter group 1 of group 1 of window 1'
+EDITOR='last group of splitter group 1 of group 1 of window 1'
 TIMELINE="scroll area 1 of group 1 of splitter group 1 of $EDITOR"
 INSPECTOR="scroll area 1 of group 2 of splitter group 1 of $EDITOR"
 
@@ -157,6 +162,45 @@ front
 ax 'key code 6 using command down' >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json after the Claude box step"
+
+# 4c. Dragging the last clip's bar to the front of the timeline makes it play first (a cold open),
+# and ⌘Z puts it back. The drag is a real mouse drag: the bar's own gesture is what's tested.
+first_start() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["segments"][0]["start"])' "$PROJECT/plan.json"; }
+geom="$(ax "set p to position of button $clip_bar of $TIMELINE
+    set s to size of button $clip_bar of $TIMELINE
+    set minX to item 1 of p
+    set ps to position of every button of $TIMELINE
+    repeat with i from 1 to count of ps
+      set q to item i of ps
+      if item 2 of q = item 2 of p and item 1 of q < minX then set minX to item 1 of q
+    end repeat
+    return ((item 1 of p) as text) & \" \" & ((item 2 of p) as text) & \" \" & ((item 1 of s) as text) & \" \" & ((item 2 of s) as text) & \" \" & (minX as text)")"
+read -r bx by bw bh minx <<<"$geom"
+front
+[[ "$("$AXPRESS" "$PID" drag $((bx + bw / 2)) $((by + bh / 2)) $((minx + 3)) $((by + bh / 2)))" == dragged ]] || fail "couldn't drag the clip"
+for _ in $(seq 1 20); do [[ "$(first_start)" == 10.5 ]] && break; sleep 0.2; done
+[[ "$(first_start)" == 10.5 ]] || fail "dragging the 10.5 s clip to the front didn't make it play first (first clip starts at $(first_start))"
+echo "ok: dragging the last clip to the front made it play first"
+front
+ax 'key code 6 using command down' >/dev/null # ⌘Z
+for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
+[[ "$(segments)" == "$original" ]] || fail "⌘Z didn't undo the clip move"
+echo "ok: ⌘Z put the clip back"
+
+# 4d. Publish's "Use Playhead Frame for a Cover" saves the playhead's time in plan.json's coverAt.
+covers() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("coverAt", []))' "$PROJECT/plan.json"; }
+[[ "$("$AXPRESS" "$PID" help "Captions (SRT)*")" == pressed ]] || fail "no Publish button"
+sleep 1
+[[ "$("$AXPRESS" "$PID" help "Make a cover from the camera frame*")" == pressed ]] || fail "no cover button in Publish"
+for _ in $(seq 1 20); do [[ "$(covers)" != "[]" ]] && break; sleep 0.2; done
+[[ "$(covers)" != "[]" ]] || fail "the cover button didn't save a cover time in plan.json"
+echo "ok: the cover button saved coverAt $(covers) in plan.json"
+[[ "$("$AXPRESS" "$PID" help "Go back to picking*")" == pressed ]] || fail "no Clear button after picking a cover"
+for _ in $(seq 1 20); do [[ "$(covers)" == "[]" ]] && break; sleep 0.2; done
+[[ "$(covers)" == "[]" ]] || fail "Clear didn't remove the cover times"
+echo "ok: Clear removed them"
+[[ "$("$AXPRESS" "$PID" help "Close Publish")" == pressed ]] || fail "no Done button in Publish"
+sleep 0.5
 
 # 5. The Audio tab's sound picker adds a library sound: plan.json names it and the project gets a copy.
 # SwiftUI buttons here have no AX title, so they're found by their help text.

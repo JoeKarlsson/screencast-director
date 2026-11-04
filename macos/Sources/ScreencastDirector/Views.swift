@@ -861,7 +861,7 @@ struct PublishView: View {
       Spacer(minLength: 0)
       HStack {
         Spacer()
-        Button("Done") { project.showPublish = false }.keyboardShortcut(.defaultAction)
+        Button("Done") { project.showPublish = false }.keyboardShortcut(.defaultAction).help("Close Publish")
       }
     }
     .padding(20)
