@@ -17,11 +17,12 @@ public enum Selection: Equatable {
   case animation(Int)
   case sfx(Int)
   case effectRange(Int)
+  case punchIn(Int)
 
   /// Items that can be dragged or nudged in time (clips are trimmed, cuts restored).
   public var movable: Bool {
     switch self {
-    case .zoom, .layout, .callout, .annotation, .marker, .insert, .animation, .sfx, .effectRange: return true
+    case .zoom, .layout, .callout, .annotation, .marker, .insert, .animation, .sfx, .effectRange, .punchIn: return true
     default: return false
     }
   }
@@ -82,6 +83,7 @@ extension Plan {
     case .animation(let i): return animationList.indices.contains(i)
     case .sfx(let i): return sfxList.indices.contains(i)
     case .effectRange(let i): return effectRangeList.indices.contains(i)
+    case .punchIn(let i): return punchInList.indices.contains(i)
     case .gap(let g): return gaps.contains(g)
     }
   }
@@ -100,6 +102,7 @@ extension Plan {
     case .animation(let i): return (animationList[i].start, animationList[i].end)
     case .sfx(let i): return (sfxList[i].t, sfxList[i].t)
     case .effectRange(let i): return (effectRangeList[i].start, effectRangeList[i].end)
+    case .punchIn(let i): return (punchInList[i].start, punchInList[i].end)
     case .gap(let g): return (g.start, g.end)
     }
   }
@@ -111,7 +114,7 @@ extension Plan {
       + callouts.indices.map { .callout($0) } + annotationList.indices.map { .annotation($0) }
       + markerList.indices.map { .marker($0) } + insertList.indices.map { .insert($0) }
       + animationList.indices.map { .animation($0) } + sfxList.indices.map { .sfx($0) }
-      + effectRangeList.indices.map { .effectRange($0) }
+      + effectRangeList.indices.map { .effectRange($0) } + punchInList.indices.map { .punchIn($0) }
   }
 
   /// Deletes the selected items: clips are cut and cuts restored by time (indices shift as the
@@ -119,7 +122,7 @@ extension Plan {
   public mutating func delete(_ items: [Selection]) {
     var cuts: [Range<Double>] = [], restores: [Gap] = []
     var zoomIdx: [Int] = [], layoutIdx: [Int] = [], calloutIdx: [Int] = [], markIdx: [Int] = [], markerIdx: [Int] = []
-    var insertIdx: [Int] = [], animationIdx: [Int] = [], effectIdx: [Int] = [], rangeIdx: [Int] = []
+    var insertIdx: [Int] = [], animationIdx: [Int] = [], effectIdx: [Int] = [], rangeIdx: [Int] = [], punchIdx: [Int] = []
     for s in items {
       switch s {
       case .segment(let i) where segments.indices.contains(i): cuts.append(segments[i].start..<segments[i].end)
@@ -133,6 +136,7 @@ extension Plan {
       case .animation(let i): animationIdx.append(i)
       case .sfx(let i): effectIdx.append(i)
       case .effectRange(let i): rangeIdx.append(i)
+      case .punchIn(let i): punchIdx.append(i)
       default: break
       }
     }
@@ -150,6 +154,7 @@ extension Plan {
     markerList = removing(markerList, markerIdx)
     sfxList = removing(sfxList, effectIdx)
     effectRangeList = removing(effectRangeList, rangeIdx)
+    punchInList = removing(punchInList, punchIdx)
     for g in restores { restore(g) }
     for r in cuts { cut(range: r) }
   }
@@ -167,7 +172,7 @@ extension Plan {
   /// moved item is now (normalizing re-sorts the lists).
   public mutating func shift(_ items: [Selection], by d: Double) -> [Selection] {
     var marks = annotationList, pins = markerList, clips = insertList, anims = animationList, effects = sfxList
-    var ranges = effectRangeList
+    var ranges = effectRangeList, punches = punchInList
     var moved: [(Selection, Any)] = []
     for s in items {
       switch s {
@@ -204,6 +209,10 @@ extension Plan {
         ranges[i].start += d
         ranges[i].end += d
         moved.append((s, ranges[i]))
+      case .punchIn(let i) where punches.indices.contains(i):
+        punches[i].start += d
+        punches[i].end += d
+        moved.append((s, punches[i]))
       default: break
       }
     }
@@ -213,6 +222,7 @@ extension Plan {
     animationList = anims
     sfxList = effects
     effectRangeList = ranges
+    punchInList = punches
     normalize()
     return moved.compactMap { s, value in
       switch (s, value) {
@@ -225,6 +235,7 @@ extension Plan {
       case (.animation, let a as Animation): return animationList.firstIndex(of: a).map { .animation($0) }
       case (.sfx, let e as SoundEffect): return sfxList.firstIndex(of: e).map { .sfx($0) }
       case (.effectRange, let r as EffectRange): return effectRangeList.firstIndex(of: r).map { .effectRange($0) }
+      case (.punchIn, let p as PunchIn): return punchInList.firstIndex(of: p).map { .punchIn($0) }
       default: return nil
       }
     }
@@ -272,6 +283,10 @@ extension Plan {
       effectRangeList[i].start = start
       effectRangeList[i].end = end
       moved = effectRangeList[i]
+    case .punchIn(let i):
+      punchInList[i].start = start
+      punchInList[i].end = end
+      moved = punchInList[i]
     case .segment, .gap, .marker, .sfx:
       return nil
     }
@@ -284,6 +299,7 @@ extension Plan {
     case let c as Insert: return insertList.firstIndex(of: c).map { .insert($0) }
     case let a as Animation: return animationList.firstIndex(of: a).map { .animation($0) }
     case let r as EffectRange: return effectRangeList.firstIndex(of: r).map { .effectRange($0) }
+    case let p as PunchIn: return punchInList.firstIndex(of: p).map { .punchIn($0) }
     default: return nil
     }
   }
@@ -294,6 +310,15 @@ extension Plan {
     guard effectRangeList.indices.contains(i), effectRangeList[i].name != name else { return }
     effectRangeList[i].name = name
     effectRangeList[i].params = nil
+  }
+
+  /// A new camera punch-in over `range` (the in/out marks), else 1.5 s from `t`: 1.5x, framed like
+  /// the camera. nil without a camera, or with no room left in the recording.
+  public func newPunchIn(at t: Double, over range: Range<Double>? = nil) -> PunchIn? {
+    guard camera != nil else { return nil }
+    let span = range ?? t..<min(source.duration, t + 1.5)
+    guard span.upperBound - span.lowerBound >= 0.2 else { return nil }
+    return PunchIn(start: span.lowerBound, end: span.upperBound, scale: 1.5)
   }
 
   /// A copy of zoom `i` placed half a second after it, kept inside the recording.
@@ -423,6 +448,9 @@ private func selectedLine(_ selection: Selection, _ plan: Plan) -> String? {
   case .effectRange(let i):
     let r = plan.effectRangeList[i]
     return "Selected effect range #\(i): \(r.name) source \(fmtTime(r.start))-\(fmtTime(r.end))"
+  case .punchIn(let i):
+    let p = plan.punchInList[i]
+    return "Selected camera punch-in #\(i): \(p.scale.formatted())x source \(fmtTime(p.start))-\(fmtTime(p.end))"
   }
 }
 

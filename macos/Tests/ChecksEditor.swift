@@ -191,3 +191,28 @@ func timelineRowChecks() {
   expect(rows.visible.last == .sounds, "a sound attached to a title shows the Sound FX row")
   expect(rows.y(.broll) == rows.total, "a hidden row sits below the shown ones")
 }
+
+// Camera punch-ins as timeline items: added at the playhead or over the in/out range, selected,
+// dragged, trimmed and deleted like any bar, and only with a camera.
+func punchInChecks() {
+  let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 20, captureStart: nil, camera: nil)
+  var plan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp/sd-punch"), source: src))
+  expect(plan.newPunchIn(at: 3) == nil, "no punch-in without a camera")
+  plan.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  let p = plan.newPunchIn(at: 3)
+  expect(p?.start == 3 && p?.end == 4.5 && p?.scale == 1.5, "a punch-in is 1.5x for 1.5 s from the playhead")
+  expect(plan.newPunchIn(at: 3, over: 6..<9)?.end == 9, "a punch-in spans the in/out range")
+  expect(plan.newPunchIn(at: 19.9) == nil, "no punch-in in the last moment of the recording")
+  plan.punchInList = [PunchIn(start: 10, end: 12, scale: 2), p!]
+  plan.normalize()
+  expect(plan.punchInList.map(\.start) == [3, 10], "punch-ins are kept in time order")
+  expect(plan.allItems.contains(.punchIn(1)) && Selection.punchIn(0).movable, "a punch-in is a movable timeline item")
+  expect(TimelineRows(plan: plan, hasWords: false).visible.contains(.punchIns), "punch-ins show their timeline row")
+  expect(TimelineTrack.of(.punchIn(0)) == .punchIns, "a punch-in's bar sits on the Punch-in row")
+  let moved = plan.shift([.punchIn(1)], by: -8)
+  expect(moved == [.punchIn(0)] && plan.punchInList.map(\.start) == [2, 3], "dragging a punch-in earlier re-sorts it (\(plan.punchInList.map(\.start)))")
+  expect(plan.retime(.punchIn(1), start: 3, end: 5) == .punchIn(1) && plan.punchInList[1].end == 5, "trimming a punch-in retimes it")
+  plan.delete([.punchIn(0), .punchIn(1)])
+  expect(plan.camera?.punchIns == nil, "deleting every punch-in leaves no empty list")
+  expect(!TimelineRows(plan: plan, hasWords: false).visible.contains(.punchIns), "the Punch-in row hides again")
+}

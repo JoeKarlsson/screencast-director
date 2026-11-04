@@ -114,6 +114,7 @@ extension TimelineTrack {
     case .words: return "Words"
     case .zooms: return "Zoom"
     case .layouts: return "Layout"
+    case .punchIns: return "Punch-in"
     case .titles: return "Titles"
     case .marks: return "Marks"
     case .broll: return "B-roll"
@@ -130,6 +131,7 @@ extension TimelineTrack {
     case .words: return "text.quote"
     case .zooms: return "plus.magnifyingglass"
     case .layouts: return "rectangle.split.2x1"
+    case .punchIns: return "plus.viewfinder"
     case .titles: return "textformat"
     case .marks: return "scribble"
     case .broll: return "photo.on.rectangle"
@@ -146,6 +148,7 @@ extension TimelineTrack {
     case .words: return Theme.words
     case .zooms: return Theme.zoom
     case .layouts: return Theme.layout
+    case .punchIns: return Theme.punchIn
     case .titles: return Theme.title
     case .marks: return Theme.mark
     case .broll: return Theme.broll

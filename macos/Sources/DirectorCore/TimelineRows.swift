@@ -2,7 +2,7 @@ import Foundation
 
 /// The timeline's rows, top to bottom. Their look (label, icon, color) lives in the app.
 public enum TimelineTrack: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations, effects, sounds
+  case ruler, clips, audio, words, zooms, layouts, punchIns, titles, marks, broll, animations, effects, sounds
 
   public var height: Double {
     switch self {
@@ -26,6 +26,7 @@ public enum TimelineTrack: CaseIterable {
     case .animation: return .animations
     case .sfx: return .sounds
     case .effectRange: return .effects
+    case .punchIn: return .punchIns
     case .marker: return nil
     }
   }
@@ -47,6 +48,7 @@ public struct TimelineRows: Equatable {
       case .words: return hasWords
       case .zooms: return !plan.zooms.isEmpty
       case .layouts: return !plan.layouts.isEmpty
+      case .punchIns: return !plan.punchInList.isEmpty
       case .titles: return !plan.callouts.isEmpty
       case .marks: return !plan.annotationList.isEmpty
       case .broll: return !plan.insertList.isEmpty

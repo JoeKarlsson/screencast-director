@@ -780,6 +780,13 @@ final class ProjectModel: ObservableObject {
     if let i = self.plan?.layouts.firstIndex(of: l) { selection = .layout(i) }
   }
 
+  /// A camera punch-in over the in/out range, or 1.5 s from the playhead.
+  func addPunchIn() {
+    guard let p = plan?.newPunchIn(at: playheadSrc, over: markedRange) else { return }
+    apply { $0.punchInList.append(p) }
+    if let i = plan?.punchInList.firstIndex(of: p) { select(.punchIn(i), adding: false) }
+  }
+
   func addCallout(style: String = "title") {
     guard let plan else { return }
     let t = playheadSrc

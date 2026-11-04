@@ -17,6 +17,7 @@ enum Theme {
   static let animation = Color(red: 0.93, green: 0.62, blue: 0.05)
   static let sfx = Color.mint
   static let effect = Color.cyan
+  static let punchIn = Color.yellow
   static let recording = Color.red
   static let ai = Color.orange
   /// Status: all set, needs attention, failed.

@@ -59,6 +59,7 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
   items(\.insertList, kind: "insert", { "B-roll \(($0.file as NSString).lastPathComponent) at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.annotationList, kind: "annotation", { "\($0.kind)\($0.text.map { " “\($0)”" } ?? "") at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.animationList, kind: "animation", { "\($0.template) animation at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
+  items(\.punchInList, kind: "punch-in", { "\($0.scale.formatted())x punch-in at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.effectRangeList, kind: "effect", { "\($0.name) effect at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.sfxList, kind: "sound", { "sound \(($0.file as NSString).lastPathComponent) at \(fmtTime($0.t))" }, { ($0.t, $0.t) })
   if old.withTimedItems(from: new) != new {
@@ -99,6 +100,12 @@ extension Plan {
     set { cursor = newValue }
   }
 
+  /// The camera's `punchIns` as a plain list (empty when there are none, or no camera to punch).
+  public var punchInList: [PunchIn] {
+    get { camera?.punchIns ?? [] }
+    set { camera?.punchIns = newValue.isEmpty ? nil : newValue }
+  }
+
   /// `effectRanges` as a plain list (empty when there are none).
   public var effectRangeList: [EffectRange] {
     get { effectRanges ?? [] }
@@ -124,6 +131,7 @@ extension Plan {
     p.animations = other.animations
     p.sfx = other.sfx
     p.effectRanges = other.effectRanges
+    p.punchInList = other.punchInList
     return p
   }
 }

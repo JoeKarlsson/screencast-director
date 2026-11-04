@@ -42,13 +42,13 @@ extension InspectorView {
       items.filter {
         switch ($0, kind) {
         case (.segment, "clip"), (.gap, "cut"), (.zoom, "zoom"), (.layout, "layout"), (.callout, "title"), (.annotation, "annotation"),
-          (.marker, "marker"), (.insert, "B-roll"), (.animation, "animation"), (.effectRange, "effect"):
+          (.marker, "marker"), (.insert, "B-roll"), (.animation, "animation"), (.effectRange, "effect"), (.punchIn, "punch-in"):
           return true
         default: return false
         }
       }.count
     }
-    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll", "animation", "effect"].compactMap { k -> String? in
+    let parts = ["clip", "cut", "zoom", "layout", "title", "annotation", "marker", "B-roll", "animation", "effect", "punch-in"].compactMap { k -> String? in
       let n = count(k)
       return n == 0 ? nil : "\(n) \(k)\(n == 1 ? "" : "s")"
     }
@@ -164,6 +164,33 @@ extension InspectorView {
           bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2, "\((z.seconds ?? plan.style.transition).formatted()) s")
         previewButton(z.start)
       }
+      removeButton()
+    case .punchIn(let i) where plan.punchInList.indices.contains(i):
+      let p = plan.punchInList[i]
+      let cam = plan.camera
+      itemHeader("Punch-in", "plus.viewfinder", Theme.punchIn, range(p.start, p.end))
+      InspectorSection("Scale", detail: "A hard cut tighter on the camera. Below 1× widens, for something held up beside you.") {
+        slider("Scale", bindItem("punchScale\(i)", \.punchInList, i, \.scale) { ($0 * 20).rounded() / 20 }, 0.5...3, "\(p.scale.formatted())×")
+      }
+      InspectorSection("Aim", detail: p.x == nil && p.y == nil ? "Centered where the camera is framed." : "Moved off the camera's framing.") {
+        slider(
+          "Across", bindItem("punchX\(i)", \.punchInList, i, \.x, or: cam?.x ?? 0.5) { ($0 * 100).rounded() / 100 }, 0...1,
+          "\(Int(((p.x ?? cam?.x ?? 0.5) * 100).rounded()))%")
+        slider(
+          "Down", bindItem("punchY\(i)", \.punchInList, i, \.y, or: cam?.y ?? 0.5) { ($0 * 100).rounded() / 100 }, 0...1,
+          "\(Int(((p.y ?? cam?.y ?? 0.5) * 100).rounded()))%")
+        if p.x != nil || p.y != nil {
+          Button("Use the Camera's Framing") {
+            project.apply { plan in
+              guard plan.punchInList.indices.contains(i) else { return }
+              plan.punchInList[i].x = nil
+              plan.punchInList[i].y = nil
+            }
+          }
+          .help("Center the punch-in where the camera is framed")
+        }
+      }
+      previewButton(p.start)
       removeButton()
     case .layout(let i) where plan.layouts.indices.contains(i):
       let l = plan.layouts[i]

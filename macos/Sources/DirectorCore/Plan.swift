@@ -68,10 +68,12 @@ public struct PunchIn: Codable, Equatable {
   public var x: Double?
   public var y: Double?
   public var note: String?
-  public init(start: Double, end: Double, scale: Double, note: String? = nil) {
+  public init(start: Double, end: Double, scale: Double, x: Double? = nil, y: Double? = nil, note: String? = nil) {
     self.start = start
     self.end = end
     self.scale = scale
+    self.x = x
+    self.y = y
     self.note = note
   }
 }

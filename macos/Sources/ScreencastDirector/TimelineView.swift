@@ -138,6 +138,11 @@ struct TimelineView: View {
         .toolMenu()
         .accessibilityLabel("Layout")
         .help("Change the camera layout from the playhead (⌃L, or 1-4)")
+        iconButton(
+          "Punch-in", "plus.viewfinder", help: "Punch in on the camera over the in/out range, or for 1.5 s from the playhead",
+          action: project.addPunchIn
+        )
+        .disabled(project.plan?.camera == nil)
         Menu {
           ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
             Button { project.addCallout(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
@@ -409,6 +414,13 @@ struct TimelineView: View {
         let sel = Selection.layout(i)
         let (a, b) = range(sel, l.start, l.end)
         bar(sel: sel, start: a, end: b, track: .layouts, color: Theme.layout, label: modeName(l.mode), movable: true) { s, e in
+          project.retime(sel, start: s, end: e)
+        }
+      }
+      ForEach(Array(plan.punchInList.enumerated()), id: \.offset) { i, p in
+        let sel = Selection.punchIn(i)
+        let (a, b) = range(sel, p.start, p.end)
+        bar(sel: sel, start: a, end: b, track: .punchIns, color: Theme.punchIn, label: p.note ?? "\(p.scale.formatted())×", movable: true) { s, e in
           project.retime(sel, start: s, end: e)
         }
       }

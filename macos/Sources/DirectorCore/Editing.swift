@@ -110,6 +110,15 @@ extension Plan {
       }.filter { $0.end - $0.start >= 0.2 && !$0.file.isEmpty }.sorted { $0.start < $1.start }
       inserts = kept.isEmpty ? nil : kept
     }
+    if let list = camera?.punchIns {
+      let kept: [PunchIn] = list.map { p in
+        var p = p
+        p.start = max(0, p.start)
+        p.end = min(dur, p.end)
+        return p
+      }.filter { $0.end - $0.start >= 0.2 && $0.scale > 0 }.sorted { $0.start < $1.start }
+      camera?.punchIns = kept.isEmpty ? nil : kept
+    }
     if let list = effectRanges {
       let kept: [EffectRange] = list.map { r in
         var r = r
@@ -402,6 +411,7 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
     + diff(old.insertList, new.insertList) { ($0.start, $0.end) }
     + diff(old.animationList, new.animationList) { ($0.start, $0.end) } + diff(old.sfxList, new.sfxList) { ($0.t, $0.t) }
     + diff(old.effectRangeList, new.effectRangeList) { ($0.start, $0.end) }
+    + diff(old.punchInList, new.punchInList) { ($0.start, $0.end) }
   var merged: [(Double, Double)] = []
   for r in all.sorted(by: { $0.0 < $1.0 }) {
     if let last = merged.last, r.0 <= last.1 {
