@@ -5,7 +5,7 @@ import Foundation
 import ImageIO
 import Vision
 
-/// Everything about the look of each output frame: the native counterpart of src/Screencast.tsx.
+/// Everything about the look of each output frame.
 /// Built once per plan; `render` is called by the compositor for every frame.
 public final class Scene: @unchecked Sendable {
   public let plan: Plan

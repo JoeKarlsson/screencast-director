@@ -33,7 +33,7 @@ extension Scene {
     }
 
     guard let ctx = Scene.context(Int(W), Int(H)) else { return nil }
-    // Flip to top-left coordinates like the CSS version; text is unflipped per draw.
+    // Flip to top-left coordinates, which plan boxes use; text is unflipped per draw.
     ctx.translateBy(x: 0, y: H)
     ctx.scaleBy(x: 1, y: -1)
     /// Overlays mid-blur are drawn on their own and blurred with Core Image, above the rest.
@@ -48,7 +48,7 @@ extension Scene {
         let (k, tx, ty) = screenMap(b, cam)
         let cx = tx + k * c.x * plan.source.width
         let cy = ty + k * c.y * plan.source.height
-        // Sized like the CSS version: px inside the zoomed card, so they grow with the zoom.
+        // Sized in px inside the zoomed card, so they grow with the zoom.
         let d = (18 + age * 50) * u * cam.scale
         let rect = CGRect(x: cx - d / 2, y: cy - d / 2, width: d, height: d)
         let accent = Scene.color(look.accent ?? "#78a0ff")
