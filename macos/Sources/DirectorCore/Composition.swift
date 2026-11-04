@@ -166,35 +166,15 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
 
   let effects = try await addSoundEffects(plan, project: project, scene: scene, total: total, to: comp)
 
-  withExtendedLifetime(camAsset) {}
-  withExtendedLifetime(screenAsset) {}
-  withExtendedLifetime(effects.assets) {}
-  withExtendedLifetime(cleanAsset) {}
-  withExtendedLifetime(music.asset) {}
-  // Rounding can leave a track (usually the camera) a few milliseconds past the last frame.
-  // AVPlayer rejects a video composition whose instruction doesn't cover every track and then
-  // plays nothing at all (black, silent), so trim everything to the exact frame count.
-  if comp.duration > total {
-    comp.removeTimeRange(CMTimeRange(start: total, end: comp.duration))
-  }
-  // The same rule the other way: an outro card (or a camera that stops early) leaves tracks short
-  // of the end, and a trailing empty edit doesn't count toward a track's length. Fill the gap with
-  // a stretched sliver of the source; the compositor draws the card over it and the audio is
-  // muted there. (Segments start after the intro, which leaves an empty edit at the front.)
   var fills: [(AVMutableCompositionTrack, AVAssetTrack)] = [(vTrack, srcVideo)]
   if let aTrack, let srcAudio { fills.append((aTrack, srcAudio)) }
   if let camTrack, let (track, _, _) = camSource { fills.append((camTrack, track)) }
   if let handleTrack { fills.append((handleTrack, srcVideo)) }
   fills += broll.fills
   if let fill = effects.fill { fills.append(fill) }
-  for (track, src) in fills where track.timeRange.end < total {
-    let at = track.timeRange.end
-    let sliver = CMTimeRange(start: src.timeRange.start, duration: CMTimeMinimum(src.timeRange.duration, t(0.5)))
-    try insert(track, sliver, of: src, at: at, "padding")
-    track.scaleTimeRange(CMTimeRange(start: at, duration: sliver.duration), toDuration: CMTimeSubtract(total, at))
-  }
-  // The padding inserts from these assets too.
-  withExtendedLifetime((camAsset, screenAsset, cleanAsset, broll.assets, effects.assets)) {}
+  try fitTracks(comp, to: total, padding: fills)
+  // Every track inserts from these assets (padding too), and a track whose asset is freed fails.
+  withExtendedLifetime((camAsset, screenAsset, cleanAsset, broll.assets, effects.assets, music.asset)) {}
   if scene.outroStart < scene.frameCount {
     audioParams?.setVolume(0, at: CMTime(value: CMTimeValue(scene.outroStart), timescale: fps))
   }
@@ -210,6 +190,25 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   let mix = AVMutableAudioMix()
   mix.inputParameters = [audioParams, music.params, effects.params].compactMap { $0 }
   return BuiltComposition(asset: comp, videoComposition: vc, audioMix: mix, scene: scene, warnings: warnings)
+}
+
+/// Makes every track end exactly at `total`. Rounding can leave a track (usually the camera) a few
+/// milliseconds past the last frame, and AVPlayer rejects a video composition whose instruction
+/// doesn't cover every track, then plays nothing at all (black, silent). The other way, an outro
+/// card (or a camera that stops early) leaves tracks short of the end, and a trailing empty edit
+/// doesn't count toward a track's length, so each short track in `padding` is filled with a
+/// stretched sliver of its source; the compositor draws the card over it and the audio is muted
+/// there. (Segments start after the intro, which leaves an empty edit at the front.)
+private func fitTracks(_ comp: AVMutableComposition, to total: CMTime, padding: [(AVMutableCompositionTrack, AVAssetTrack)]) throws {
+  if comp.duration > total {
+    comp.removeTimeRange(CMTimeRange(start: total, end: comp.duration))
+  }
+  for (track, src) in padding where track.timeRange.end < total {
+    let at = track.timeRange.end
+    let sliver = CMTimeRange(start: src.timeRange.start, duration: CMTimeMinimum(src.timeRange.duration, t(0.5)))
+    try insert(track, sliver, of: src, at: at, "padding")
+    track.scaleTimeRange(CMTimeRange(start: at, duration: sliver.duration), toDuration: CMTimeSubtract(total, at))
+  }
 }
 
 /// Crossfade handles: the frames each dissolve fades to, on their own track (nil without crossfades).

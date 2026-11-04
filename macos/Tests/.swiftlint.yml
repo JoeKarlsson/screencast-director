@@ -1,0 +1,5 @@
+# Check programs are long lists of expectations by design, so the size rules don't apply here.
+disabled_rules:
+  - function_body_length
+  - type_body_length
+  - cyclomatic_complexity

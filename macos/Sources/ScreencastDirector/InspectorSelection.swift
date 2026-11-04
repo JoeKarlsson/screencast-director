@@ -85,286 +85,346 @@ extension InspectorView {
   func singlePane(_ plan: Plan) -> some View {
     switch project.selection {
     case .segment(let i) where plan.segments.indices.contains(i):
-      let s = plan.segments[i]
-      itemHeader("Clip", "film", Theme.clip, "\(range(s.start, s.end)) · \(fmtTime((s.end - s.start) / s.speed)) in the video")
-      InspectorSection("Speed", detail: "Faster than 1× plays without sound.") {
-        Picker("Speed", selection: bindItem("speed\(i)", \.segments, i, \.speed)) {
-          ForEach([1.0, 1.5, 2, 3, 4, 8], id: \.self) { Text("\($0.formatted())×").tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-      }
-      if i > 0 {
-        InspectorSection("Cut into this clip", detail: "A styled cut for a new section. Plain cuts suit trimmed pauses.") {
-          Picker("Transition", selection: bindItem("transition\(i)", \.segments, i, \.transition)) {
-            Text("Plain cut").tag(String?.none)
-            ForEach(Segment.transitions, id: \.name) { Text($0.label).tag(String?.some($0.name)) }
-          }
-          .labelsHidden()
-          previewButton(s.start)
-        }
-      }
-      InspectorSection("Order",
-        detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
-        HStack(spacing: 6) {
-          Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
-            .help("Play this clip first")
-          Button { project.moveSelectedClip(to: i - 1) } label: { Label("Earlier", systemImage: "arrow.left") }
-            .help("Play this clip one place earlier")
-          Button { project.moveSelectedClip(to: i + 1) } label: { Label("Later", systemImage: "arrow.right") }
-            .help("Play this clip one place later")
-          Button { project.moveSelectedClip(to: plan.segments.count - 1) } label: { Label("Last", systemImage: "arrow.right.to.line") }
-            .help("Play this clip last")
-        }
-        .controlSize(.small)
-        .disabled(plan.segments.count < 2)
-        if s.repeats == true {
-          Text("A repeat: this moment also plays in its own place.").font(.caption).foregroundStyle(.secondary)
-        } else {
-          Button {
-            let range = s.start..<s.end
-            project.apply { _ = $0.repeatRange(range, before: nil) }
-            project.selection = .segment(0)
-          } label: { Label("Repeat as Cold Open", systemImage: "repeat").frame(maxWidth: .infinity) }
-          .controlSize(.small)
-          .help("Play this clip again at the very start, keeping it where it is too")
-          let at = project.playheadSrc
-          Button {
-            let range = s.start..<s.end
-            project.apply { _ = $0.repeatRange(range, before: at) }
-            if let j = project.plan?.segments.firstIndex(where: { $0.repeats == true && $0.start == range.lowerBound && $0.end == range.upperBound }) {
-              project.selection = .segment(j)
-            }
-          } label: { Label("Repeat at Playhead", systemImage: "repeat.1").frame(maxWidth: .infinity) }
-          .controlSize(.small)
-          .disabled((s.start..<s.end).contains(at))
-          .help("Play this clip again where the playhead is, keeping it where it is too (move the playhead outside the clip first)")
-        }
-      }
-      HStack(spacing: 8) {
-        Button(action: project.splitAtPlayhead) { Label("Split at Playhead", systemImage: "scissors").frame(maxWidth: .infinity) }
-        removeButton("Cut Clip")
-      }
+      clipPane(plan, i)
     case .gap(let g):
-      itemHeader("Cut", "scissors", Theme.cut, range(g.start, g.end))
-      InspectorSection("Not in the video", detail: "This part of the recording is cut. Restore it to bring it back at normal speed.") {
-        Button { project.restore(g) } label: { Label("Restore at 1×", systemImage: "arrow.uturn.backward").frame(maxWidth: .infinity) }
-      }
+      cutPane(plan, g)
     case .zoom(let i) where plan.zooms.indices.contains(i):
-      let z = plan.zooms[i]
-      itemHeader("Zoom", "plus.magnifyingglass", Theme.zoom, range(z.start, z.end))
-      InspectorSection("Scale") {
-        slider("Scale", bindItem("zoomScale\(i)", \.zooms, i, \.scale) { ($0 * 10).rounded() / 10 }, 1.1...3, "\(z.scale.formatted())×")
-      }
-      InspectorSection("Focus", detail: "Drag on the frame to aim the zoom. The box is what stays in view.") {
-        FocusPicker(project: project, ui: ui, index: i, zoom: z)
-        Button {
-          let f = zoomFocus(at: z.start + 0.5, clicks: project.project?.clicks ?? [])
-          project.apply {
-            guard $0.zooms.indices.contains(i) else { return }
-            $0.zooms[i].x = f.x
-            $0.zooms[i].y = f.y
-          }
-        } label: {
-          Label("Aim at Last Click", systemImage: "cursorarrow.click").frame(maxWidth: .infinity)
-        }
-      }
-      InspectorSection("Motion", detail: "How this zoom moves in and out. Default follows the motion style.") {
-        LabeledContent("Ease") {
-          Picker("Ease", selection: bindItem("zoomEase\(i)", \.zooms, i, \.ease)) {
-            Text("Style (\(MotionStyle.named(plan.style.motion).label))").tag(String?.none)
-            ForEach(Ease.names, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
-          }
-          .labelsHidden()
-          EaseCurve(ease: Ease.named(z.ease) ?? MotionStyle.named(plan.style.motion).ease, active: true).frame(width: 44, height: 24)
-        }
-        slider(
-          "Length",
-          bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2,
-            "\((z.seconds ?? plan.style.transition).formatted()) s")
-        previewButton(z.start)
-      }
-      noteSection(bindItem("zoomNote\(i)", \.zooms, i, \.note, or: "", store: emptyAsNil))
-      removeButton()
+      zoomPane(plan, i)
     case .punchIn(let i) where plan.punchInList.indices.contains(i):
-      let p = plan.punchInList[i]
-      let cam = plan.camera
-      itemHeader("Punch-in", "plus.viewfinder", Theme.punchIn, range(p.start, p.end))
-      InspectorSection("Scale", detail: "A hard cut tighter on the camera. Below 1× widens, for something held up beside you.") {
-        slider("Scale", bindItem("punchScale\(i)", \.punchInList, i, \.scale) { ($0 * 20).rounded() / 20 }, 0.5...3, "\(p.scale.formatted())×")
-      }
-      InspectorSection("Aim", detail: p.x == nil && p.y == nil ? "Centered where the camera is framed." : "Moved off the camera's framing.") {
-        slider(
-          "Across", bindItem("punchX\(i)", \.punchInList, i, \.x, or: cam?.x ?? 0.5) { ($0 * 100).rounded() / 100 }, 0...1,
-          "\(Int(((p.x ?? cam?.x ?? 0.5) * 100).rounded()))%")
-        slider(
-          "Down", bindItem("punchY\(i)", \.punchInList, i, \.y, or: cam?.y ?? 0.5) { ($0 * 100).rounded() / 100 }, 0...1,
-          "\(Int(((p.y ?? cam?.y ?? 0.5) * 100).rounded()))%")
-        if p.x != nil || p.y != nil {
-          Button("Use the Camera's Framing") {
-            project.apply { plan in
-              guard plan.punchInList.indices.contains(i) else { return }
-              plan.punchInList[i].x = nil
-              plan.punchInList[i].y = nil
-            }
-          }
-          .help("Center the punch-in where the camera is framed")
-        }
-      }
-      previewButton(p.start)
-      noteSection(bindItem("punchNote\(i)", \.punchInList, i, \.note, or: "", store: emptyAsNil))
-      removeButton()
+      punchInPane(plan, i)
     case .layout(let i) where plan.layouts.indices.contains(i):
-      let l = plan.layouts[i]
-      itemHeader("Layout", "rectangle.split.2x1", Theme.layout, range(l.start, l.end))
-      InspectorSection("Layout", detail: "How the screen and camera share the frame for this range.") {
-        layoutPicker(bindItem("layout\(i)", \.layouts, i, \.mode), hasCamera: plan.camera != nil)
-      }
-      noteSection(bindItem("layoutNote\(i)", \.layouts, i, \.note, or: "", store: emptyAsNil))
-      removeButton()
+      layoutPane(plan, i)
     case .callout(let i) where plan.callouts.indices.contains(i):
-      let c = plan.callouts[i]
-      let motion = MotionStyle.named(plan.style.motion)
-      itemHeader("Title", "textformat", Theme.title, range(c.start, c.end))
-      InspectorSection("Style") {
-        ChoiceTiles(choices: ChoiceTiles.calloutStyles, selected: c.style ?? "title") { style in
-          project.apply {
-            guard $0.callouts.indices.contains(i) else { return }
-            $0.callouts[i].style = style == "title" ? nil : style
-          }
-        }
-      }
-      InspectorSection("Text") {
-        TextField("Title", text: bindItem("callout\(i)", \.callouts, i, \.text)).textFieldStyle(.roundedBorder)
-        if (c.style ?? "title") != "title" {
-          TextField(
-            c.style == "chapter" ? "Label above, e.g. Part 2" : c.style == "lower-third" ? "Second line, e.g. a role" : "Second line",
-            text: bindItem("calloutSub\(i)", \.callouts, i, \.subtitle, or: "", store: emptyAsNil)
-          )
-          .textFieldStyle(.roundedBorder)
-        }
-      }
-      InspectorSection("Animation") {
-        MotionPicker(title: "In", motion: bindItem("calloutIn\(i)", \.callouts, i, \.enter), fallback: motion.enter)
-        MotionPicker(title: "Out", motion: bindItem("calloutOut\(i)", \.callouts, i, \.exit), fallback: motion.exit)
-        previewButton(c.start)
-      }
-      soundSection(bindItem("calloutSound\(i)", \.callouts, i, \.sound))
-      removeButton()
+      titlePane(plan, i)
     case .insert(let i) where plan.insertList.indices.contains(i):
-      let c = plan.insertList[i]
-      itemHeader("B-roll", "photo.on.rectangle", Theme.broll, range(c.start, c.end))
-      InspectorSection((c.file as NSString).lastPathComponent, detail: c.isImage ? "A picture." : "A clip, played at real time and muted.") {
-        Picker("Where", selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement)) {
-          Text("In the screen").tag(String?.none)
-          Text("Full frame").tag(String?.some("full"))
-        }
-        .pickerStyle(.segmented)
-        Picker("Fit", selection: bindItem("insertFit\(i)", \.insertList, i, \.fit)) {
-          Text("Fill").tag(String?.none)
-          Text("Show all").tag(String?.some("fit"))
-        }
-        .pickerStyle(.segmented)
-        if !c.isImage {
-          slider(
-            "Start at",
-            bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 }, 0...30, "\((c.from ?? 0).formatted()) s")
-        }
-      }
-      InspectorSection("Animation") {
-        MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: plan.brollDefaultMotion)
-        MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: plan.brollDefaultMotion)
-        previewButton(c.start)
-      }
-      noteSection(bindItem("insertNote\(i)", \.insertList, i, \.note, or: "", store: emptyAsNil))
-      removeButton()
+      brollPane(plan, i)
     case .animation(let i) where plan.animationList.indices.contains(i):
-      let a = plan.animationList[i]
-      itemHeader(a.note ?? "Animation", "sparkles", Theme.animation, range(a.start, a.end))
-      AnimationEditor(project: project, ui: ui, i: i)
-      previewButton(a.start)
-      noteSection(bindItem("animationNote\(i)", \.animationList, i, \.note, or: "", store: emptyAsNil))
-      removeButton()
+      animationPane(plan, i)
     case .sfx(let i) where plan.sfxList.indices.contains(i):
-      let e = plan.sfxList[i]
-      itemHeader(e.note ?? "Sound Effect", "speaker.wave.2", Theme.sfx, fmtTime(e.t))
-      InspectorSection("Sound", detail: (e.file as NSString).lastPathComponent) {
-        slider(
-          "Volume",
-          bindItem("sfxGain\(i)", \.sfxList, i, \.gainDB, or: 0) { $0.rounded() }, -24...6, "\(Int((e.gainDB ?? 0).rounded())) dB")
-      }
-      previewButton(e.t)
-      removeButton()
+      soundEffectPane(plan, i)
     case .effectRange(let i) where plan.effectRangeList.indices.contains(i):
-      let r = plan.effectRangeList[i]
-      let sources = EffectSources(project: project.dir)
-      let manifest = sources.manifest(r.name)
-      itemHeader(manifest?.title ?? r.name, "wand.and.stars", Theme.effect, range(r.start, r.end))
-      InspectorSection("Effect", detail: manifest == nil ? "\(r.name) isn't in the Effects folder, so the video won't build." : "Drawn only for this stretch.") {
-        let effectName = bind(
-          nil, { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].name : r.name },
-          { plan, name in plan.switchEffect(ofRange: i, to: name) })
-        Picker("Effect", selection: effectName) {
-          ForEach(Array(Set(sources.available() + [r.name])).sorted(), id: \.self) { Text(sources.manifest($0)?.title ?? $0).tag($0) }
-        }
-        Picker("On", selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer)) {
-          Text("Its own (\(manifest?.layer ?? "frame"))").tag(String?.none)
-          ForEach(Effects.layers, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
-        }
-      }
-      if let params = manifest?.params, !params.isEmpty {
-        InspectorSection("Settings") {
-          effectParamSliders("effectParam\(i)", params, \.effectRangeList, i, \.params)
-        }
-      }
-      previewButton(r.start)
-      noteSection(bindItem("rangeNote\(i)", \.effectRangeList, i, \.note, or: "", store: emptyAsNil))
-      removeButton()
+      effectRangePane(plan, i)
     case .marker(let i) where plan.markerList.indices.contains(i):
-      let m = plan.markerList[i]
-      itemHeader("Marker", "flag", Theme.accent, fmtTime(m.t))
-      InspectorSection("Name", detail: "A note to yourself, or to the AI: \"zoom in after the intro marker\". ; and ' jump between markers.") {
-        TextField(
-          "Intro ends",
-          text: bindItem("markerLabel\(i)", \.markerList, i, \.label, or: "", store: emptyAsNil)
-        )
-        .textFieldStyle(.roundedBorder)
-      }
-      removeButton()
+      markerPane(plan, i)
     case .annotation(let i) where plan.annotationList.indices.contains(i):
-      let a = plan.annotationList[i]
-      let motion = MotionStyle.named(plan.style.motion)
-      itemHeader("Annotation", "scribble", Theme.mark, range(a.start, a.end))
-      InspectorSection("Kind") {
-        ChoiceTiles(choices: ChoiceTiles.annotationKinds, selected: a.kind, pick: { kind in
-          project.apply {
-            guard $0.annotationList.indices.contains(i) else { return }
-            $0.annotationList[i].kind = kind
-          }
-        }, columns: 5)
-      }
-      InspectorSection("Where", detail: "Drag across the frame to draw the area. It follows zooms.") {
-        RectPicker(project: project, ui: ui, index: i, mark: a)
-      }
-      if a.kind == "box" || a.kind == "arrow" {
-        InspectorSection("Label") {
-          TextField(
-            "Optional label",
-            text: bindItem("markText\(i)", \.annotationList, i, \.text, or: "", store: emptyAsNil)
-          )
-          .textFieldStyle(.roundedBorder)
-        }
-      }
-      InspectorSection("Animation") {
-        MotionPicker(title: "In", motion: bindItem("markIn\(i)", \.annotationList, i, \.enter), fallback: motion.enter)
-        MotionPicker(title: "Out", motion: bindItem("markOut\(i)", \.annotationList, i, \.exit), fallback: motion.exit)
-        previewButton(a.start)
-      }
-      soundSection(bindItem("markSound\(i)", \.annotationList, i, \.sound))
-      removeButton()
+      annotationPane(plan, i)
     default:
       nothingSelected
     }
+  }
+
+  @ViewBuilder
+  func clipPane(_ plan: Plan, _ i: Int) -> some View {
+    let s = plan.segments[i]
+    itemHeader("Clip", "film", Theme.clip, "\(range(s.start, s.end)) · \(fmtTime((s.end - s.start) / s.speed)) in the video")
+    InspectorSection("Speed", detail: "Faster than 1× plays without sound.") {
+      Picker("Speed", selection: bindItem("speed\(i)", \.segments, i, \.speed)) {
+        ForEach([1.0, 1.5, 2, 3, 4, 8], id: \.self) { Text("\($0.formatted())×").tag($0) }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+    }
+    if i > 0 {
+      InspectorSection("Cut into this clip", detail: "A styled cut for a new section. Plain cuts suit trimmed pauses.") {
+        Picker("Transition", selection: bindItem("transition\(i)", \.segments, i, \.transition)) {
+          Text("Plain cut").tag(String?.none)
+          ForEach(Segment.transitions, id: \.name) { Text($0.label).tag(String?.some($0.name)) }
+        }
+        .labelsHidden()
+        previewButton(s.start)
+      }
+    }
+    InspectorSection("Order",
+      detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
+      HStack(spacing: 6) {
+        Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
+          .help("Play this clip first")
+        Button { project.moveSelectedClip(to: i - 1) } label: { Label("Earlier", systemImage: "arrow.left") }
+          .help("Play this clip one place earlier")
+        Button { project.moveSelectedClip(to: i + 1) } label: { Label("Later", systemImage: "arrow.right") }
+          .help("Play this clip one place later")
+        Button { project.moveSelectedClip(to: plan.segments.count - 1) } label: { Label("Last", systemImage: "arrow.right.to.line") }
+          .help("Play this clip last")
+      }
+      .controlSize(.small)
+      .disabled(plan.segments.count < 2)
+      if s.repeats == true {
+        Text("A repeat: this moment also plays in its own place.").font(.caption).foregroundStyle(.secondary)
+      } else {
+        Button {
+          let range = s.start..<s.end
+          project.apply { _ = $0.repeatRange(range, before: nil) }
+          project.selection = .segment(0)
+        } label: { Label("Repeat as Cold Open", systemImage: "repeat").frame(maxWidth: .infinity) }
+        .controlSize(.small)
+        .help("Play this clip again at the very start, keeping it where it is too")
+        let at = project.playheadSrc
+        Button {
+          let range = s.start..<s.end
+          project.apply { _ = $0.repeatRange(range, before: at) }
+          if let j = project.plan?.segments.firstIndex(where: { $0.repeats == true && $0.start == range.lowerBound && $0.end == range.upperBound }) {
+            project.selection = .segment(j)
+          }
+        } label: { Label("Repeat at Playhead", systemImage: "repeat.1").frame(maxWidth: .infinity) }
+        .controlSize(.small)
+        .disabled((s.start..<s.end).contains(at))
+        .help("Play this clip again where the playhead is, keeping it where it is too (move the playhead outside the clip first)")
+      }
+    }
+    HStack(spacing: 8) {
+      Button(action: project.splitAtPlayhead) { Label("Split at Playhead", systemImage: "scissors").frame(maxWidth: .infinity) }
+      removeButton("Cut Clip")
+    }
+  }
+
+  @ViewBuilder
+  func cutPane(_ plan: Plan, _ g: Gap) -> some View {
+    itemHeader("Cut", "scissors", Theme.cut, range(g.start, g.end))
+    InspectorSection("Not in the video", detail: "This part of the recording is cut. Restore it to bring it back at normal speed.") {
+      Button { project.restore(g) } label: { Label("Restore at 1×", systemImage: "arrow.uturn.backward").frame(maxWidth: .infinity) }
+    }
+  }
+
+  @ViewBuilder
+  func zoomPane(_ plan: Plan, _ i: Int) -> some View {
+    let z = plan.zooms[i]
+    itemHeader("Zoom", "plus.magnifyingglass", Theme.zoom, range(z.start, z.end))
+    InspectorSection("Scale") {
+      slider("Scale", bindItem("zoomScale\(i)", \.zooms, i, \.scale) { ($0 * 10).rounded() / 10 }, 1.1...3, "\(z.scale.formatted())×")
+    }
+    InspectorSection("Focus", detail: "Drag on the frame to aim the zoom. The box is what stays in view.") {
+      FocusPicker(project: project, ui: ui, index: i, zoom: z)
+      Button {
+        let f = zoomFocus(at: z.start + 0.5, clicks: project.project?.clicks ?? [])
+        project.apply {
+          guard $0.zooms.indices.contains(i) else { return }
+          $0.zooms[i].x = f.x
+          $0.zooms[i].y = f.y
+        }
+      } label: {
+        Label("Aim at Last Click", systemImage: "cursorarrow.click").frame(maxWidth: .infinity)
+      }
+    }
+    InspectorSection("Motion", detail: "How this zoom moves in and out. Default follows the motion style.") {
+      LabeledContent("Ease") {
+        Picker("Ease", selection: bindItem("zoomEase\(i)", \.zooms, i, \.ease)) {
+          Text("Style (\(MotionStyle.named(plan.style.motion).label))").tag(String?.none)
+          ForEach(Ease.names, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
+        }
+        .labelsHidden()
+        EaseCurve(ease: Ease.named(z.ease) ?? MotionStyle.named(plan.style.motion).ease, active: true).frame(width: 44, height: 24)
+      }
+      slider(
+        "Length",
+        bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2,
+          "\((z.seconds ?? plan.style.transition).formatted()) s")
+      previewButton(z.start)
+    }
+    noteSection(bindItem("zoomNote\(i)", \.zooms, i, \.note, or: "", store: emptyAsNil))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func punchInPane(_ plan: Plan, _ i: Int) -> some View {
+    let p = plan.punchInList[i]
+    let cam = plan.camera
+    itemHeader("Punch-in", "plus.viewfinder", Theme.punchIn, range(p.start, p.end))
+    InspectorSection("Scale", detail: "A hard cut tighter on the camera. Below 1× widens, for something held up beside you.") {
+      slider("Scale", bindItem("punchScale\(i)", \.punchInList, i, \.scale) { ($0 * 20).rounded() / 20 }, 0.5...3, "\(p.scale.formatted())×")
+    }
+    InspectorSection("Aim", detail: p.x == nil && p.y == nil ? "Centered where the camera is framed." : "Moved off the camera's framing.") {
+      slider(
+        "Across", bindItem("punchX\(i)", \.punchInList, i, \.x, or: cam?.x ?? 0.5) { ($0 * 100).rounded() / 100 }, 0...1,
+        "\(Int(((p.x ?? cam?.x ?? 0.5) * 100).rounded()))%")
+      slider(
+        "Down", bindItem("punchY\(i)", \.punchInList, i, \.y, or: cam?.y ?? 0.5) { ($0 * 100).rounded() / 100 }, 0...1,
+        "\(Int(((p.y ?? cam?.y ?? 0.5) * 100).rounded()))%")
+      if p.x != nil || p.y != nil {
+        Button("Use the Camera's Framing") {
+          project.apply { plan in
+            guard plan.punchInList.indices.contains(i) else { return }
+            plan.punchInList[i].x = nil
+            plan.punchInList[i].y = nil
+          }
+        }
+        .help("Center the punch-in where the camera is framed")
+      }
+    }
+    previewButton(p.start)
+    noteSection(bindItem("punchNote\(i)", \.punchInList, i, \.note, or: "", store: emptyAsNil))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func layoutPane(_ plan: Plan, _ i: Int) -> some View {
+    let l = plan.layouts[i]
+    itemHeader("Layout", "rectangle.split.2x1", Theme.layout, range(l.start, l.end))
+    InspectorSection("Layout", detail: "How the screen and camera share the frame for this range.") {
+      layoutPicker(bindItem("layout\(i)", \.layouts, i, \.mode), hasCamera: plan.camera != nil)
+    }
+    noteSection(bindItem("layoutNote\(i)", \.layouts, i, \.note, or: "", store: emptyAsNil))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func titlePane(_ plan: Plan, _ i: Int) -> some View {
+    let c = plan.callouts[i]
+    let motion = MotionStyle.named(plan.style.motion)
+    itemHeader("Title", "textformat", Theme.title, range(c.start, c.end))
+    InspectorSection("Style") {
+      ChoiceTiles(choices: ChoiceTiles.calloutStyles, selected: c.style ?? "title") { style in
+        project.apply {
+          guard $0.callouts.indices.contains(i) else { return }
+          $0.callouts[i].style = style == "title" ? nil : style
+        }
+      }
+    }
+    InspectorSection("Text") {
+      TextField("Title", text: bindItem("callout\(i)", \.callouts, i, \.text)).textFieldStyle(.roundedBorder)
+      if (c.style ?? "title") != "title" {
+        TextField(
+          c.style == "chapter" ? "Label above, e.g. Part 2" : c.style == "lower-third" ? "Second line, e.g. a role" : "Second line",
+          text: bindItem("calloutSub\(i)", \.callouts, i, \.subtitle, or: "", store: emptyAsNil)
+        )
+        .textFieldStyle(.roundedBorder)
+      }
+    }
+    InspectorSection("Animation") {
+      MotionPicker(title: "In", motion: bindItem("calloutIn\(i)", \.callouts, i, \.enter), fallback: motion.enter)
+      MotionPicker(title: "Out", motion: bindItem("calloutOut\(i)", \.callouts, i, \.exit), fallback: motion.exit)
+      previewButton(c.start)
+    }
+    soundSection(bindItem("calloutSound\(i)", \.callouts, i, \.sound))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func brollPane(_ plan: Plan, _ i: Int) -> some View {
+    let c = plan.insertList[i]
+    itemHeader("B-roll", "photo.on.rectangle", Theme.broll, range(c.start, c.end))
+    InspectorSection((c.file as NSString).lastPathComponent, detail: c.isImage ? "A picture." : "A clip, played at real time and muted.") {
+      Picker("Where", selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement)) {
+        Text("In the screen").tag(String?.none)
+        Text("Full frame").tag(String?.some("full"))
+      }
+      .pickerStyle(.segmented)
+      Picker("Fit", selection: bindItem("insertFit\(i)", \.insertList, i, \.fit)) {
+        Text("Fill").tag(String?.none)
+        Text("Show all").tag(String?.some("fit"))
+      }
+      .pickerStyle(.segmented)
+      if !c.isImage {
+        slider(
+          "Start at",
+          bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 }, 0...30, "\((c.from ?? 0).formatted()) s")
+      }
+    }
+    InspectorSection("Animation") {
+      MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: plan.brollDefaultMotion)
+      MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: plan.brollDefaultMotion)
+      previewButton(c.start)
+    }
+    noteSection(bindItem("insertNote\(i)", \.insertList, i, \.note, or: "", store: emptyAsNil))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func animationPane(_ plan: Plan, _ i: Int) -> some View {
+    let a = plan.animationList[i]
+    itemHeader(a.note ?? "Animation", "sparkles", Theme.animation, range(a.start, a.end))
+    AnimationEditor(project: project, ui: ui, i: i)
+    previewButton(a.start)
+    noteSection(bindItem("animationNote\(i)", \.animationList, i, \.note, or: "", store: emptyAsNil))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func soundEffectPane(_ plan: Plan, _ i: Int) -> some View {
+    let e = plan.sfxList[i]
+    itemHeader(e.note ?? "Sound Effect", "speaker.wave.2", Theme.sfx, fmtTime(e.t))
+    InspectorSection("Sound", detail: (e.file as NSString).lastPathComponent) {
+      slider(
+        "Volume",
+        bindItem("sfxGain\(i)", \.sfxList, i, \.gainDB, or: 0) { $0.rounded() }, -24...6, "\(Int((e.gainDB ?? 0).rounded())) dB")
+    }
+    previewButton(e.t)
+    removeButton()
+  }
+
+  @ViewBuilder
+  func effectRangePane(_ plan: Plan, _ i: Int) -> some View {
+    let r = plan.effectRangeList[i]
+    let sources = EffectSources(project: project.dir)
+    let manifest = sources.manifest(r.name)
+    itemHeader(manifest?.title ?? r.name, "wand.and.stars", Theme.effect, range(r.start, r.end))
+    InspectorSection("Effect", detail: manifest == nil ? "\(r.name) isn't in the Effects folder, so the video won't build." : "Drawn only for this stretch.") {
+      let effectName = bind(
+        nil, { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].name : r.name },
+        { plan, name in plan.switchEffect(ofRange: i, to: name) })
+      Picker("Effect", selection: effectName) {
+        ForEach(Array(Set(sources.available() + [r.name])).sorted(), id: \.self) { Text(sources.manifest($0)?.title ?? $0).tag($0) }
+      }
+      Picker("On", selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer)) {
+        Text("Its own (\(manifest?.layer ?? "frame"))").tag(String?.none)
+        ForEach(Effects.layers, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
+      }
+    }
+    if let params = manifest?.params, !params.isEmpty {
+      InspectorSection("Settings") {
+        effectParamSliders("effectParam\(i)", params, \.effectRangeList, i, \.params)
+      }
+    }
+    previewButton(r.start)
+    noteSection(bindItem("rangeNote\(i)", \.effectRangeList, i, \.note, or: "", store: emptyAsNil))
+    removeButton()
+  }
+
+  @ViewBuilder
+  func markerPane(_ plan: Plan, _ i: Int) -> some View {
+    let m = plan.markerList[i]
+    itemHeader("Marker", "flag", Theme.accent, fmtTime(m.t))
+    InspectorSection("Name", detail: "A note to yourself, or to the AI: \"zoom in after the intro marker\". ; and ' jump between markers.") {
+      TextField(
+        "Intro ends",
+        text: bindItem("markerLabel\(i)", \.markerList, i, \.label, or: "", store: emptyAsNil)
+      )
+      .textFieldStyle(.roundedBorder)
+    }
+    removeButton()
+  }
+
+  @ViewBuilder
+  func annotationPane(_ plan: Plan, _ i: Int) -> some View {
+    let a = plan.annotationList[i]
+    let motion = MotionStyle.named(plan.style.motion)
+    itemHeader("Annotation", "scribble", Theme.mark, range(a.start, a.end))
+    InspectorSection("Kind") {
+      ChoiceTiles(choices: ChoiceTiles.annotationKinds, selected: a.kind, pick: { kind in
+        project.apply {
+          guard $0.annotationList.indices.contains(i) else { return }
+          $0.annotationList[i].kind = kind
+        }
+      }, columns: 5)
+    }
+    InspectorSection("Where", detail: "Drag across the frame to draw the area. It follows zooms.") {
+      RectPicker(project: project, ui: ui, index: i, mark: a)
+    }
+    if a.kind == "box" || a.kind == "arrow" {
+      InspectorSection("Label") {
+        TextField(
+          "Optional label",
+          text: bindItem("markText\(i)", \.annotationList, i, \.text, or: "", store: emptyAsNil)
+        )
+        .textFieldStyle(.roundedBorder)
+      }
+    }
+    InspectorSection("Animation") {
+      MotionPicker(title: "In", motion: bindItem("markIn\(i)", \.annotationList, i, \.enter), fallback: motion.enter)
+      MotionPicker(title: "Out", motion: bindItem("markOut\(i)", \.annotationList, i, \.exit), fallback: motion.exit)
+      previewButton(a.start)
+    }
+    soundSection(bindItem("markSound\(i)", \.annotationList, i, \.sound))
+    removeButton()
   }
 
   /// A slider per effect param, for the i-th effect in `list` (ranges or the always-on effects).

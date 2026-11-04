@@ -2,262 +2,316 @@ import Foundation
 
 /// The plan as a readable timeline. Claude reads this before editing plan.json.
 public func describe(_ project: Project, _ plan: Plan) -> String {
-  let fps = plan.output.fps
-  let mapped = mapPlan(plan)
-  let screen = ScreenText.load(project.dir)
+  var d = Describer(project: project, plan: plan)
+  d.header()
+  d.timeline()
+  d.notes()
+  d.framing()
+  d.items()
+  d.sound()
+  d.effects()
+  d.libraries()
+  if plan.captions.enabled { d.out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
+  return d.out.joined(separator: "\n")
+}
 
-  func said(_ a: Double, _ b: Double) -> String {
-    let text = project.words.filter { $0.start < b && $0.end > a }.map(\.text).joined(separator: " ")
-    return text.isEmpty ? "" : "\"\(text)\""
-  }
-  func activity(_ a: Double, _ b: Double) -> String {
-    let ev = project.events.filter { $0.t >= a && $0.t < b }
-    var parts: [String] = []
-    let keys = ev.filter { $0.type == .key }.count
-    if keys > 0 { parts.append("\(keys) keys") }
-    parts += ev.filter { $0.type == .click }.map { c in
-      String(format: "click@%@(%.2f,%.2f)", fmtTime(c.t), c.x, c.y) + (ScreenText.clicked(screen, at: c.t).map { " on \"\($0)\"" } ?? "")
-    }
-    let labels = ev.compactMap { $0.type == .key ? $0.label : nil }
-    if !labels.isEmpty { parts.append(labels.joined(separator: " ")) }
-    parts += ev.filter { $0.type == .retake }.map { "RETAKE@\(fmtTime($0.t))" }
-    return parts.isEmpty ? "" : "[\(parts.joined(separator: ", "))]"
-  }
-  func line(_ parts: String...) -> String {
-    parts.filter { !$0.isEmpty }.joined(separator: " ")
-  }
-
+/// Builds `describe`'s text one section at a time.
+private struct Describer {
+  let project: Project
+  let plan: Plan
+  let fps: Int
+  let mapped: [MappedSegment]
+  let screen: [ScreenText.Sample]
   var out: [String] = []
-  out.append("# \(project.dir.path)")
-  out.append("motion style: \(MotionStyle.named(plan.style.motion).name), moves \(plan.style.transition.formatted()) s")
-  out.append(
-    "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(planSeconds(plan))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
-  )
-  // Up top, so they can't be missed: they read as glitches.
-  for f in flashes(plan, dir: project.dir) { out.append("WARNING: \(describeFlash(f, plan)); make it last a second or more, or cover it") }
-  out.append("")
-  out.append("## Timeline (source times; out = position in the final video)")
-  let cards = cardFrames(plan)
-  if cards.intro > 0 {
-    out.append("  INTRO card out \(fmtTime(0)) for \(fmtTime(Double(cards.intro) / Double(fps))) \"\(plan.intro?.title ?? "")\"")
-  }
-  var cursor = 0.0
-  // A skip forward lists the real cuts in it, and notes any of it that's a moved clip playing
-  // elsewhere; a jump back is marked. Cuts never reached that way are listed at the end.
-  let gaps = plan.gaps
-  var listed = Set<Int>()
-  func cuts(_ a: Double, _ b: Double) {
-    // Only cuts touching this skip's edges here (the rest come up next to their own clips).
-    for (k, g) in gaps.enumerated() where g.end > a + 0.01 && g.start < b - 0.01 && !listed.contains(k)
-      && (g.start <= a + 0.01 || g.end >= b - 0.01 || (a == 0 && b == plan.source.duration)) {
-      listed.insert(k)
-      out.append(line("  CUT  src \(fmtTime(g.start))-\(fmtTime(g.end))", said(g.start, g.end), activity(g.start, g.end)))
-    }
-  }
-  for s in mapped {
-    if s.repeats {
-      out.append("  REPEAT: plays src \(fmtTime(s.start))-\(fmtTime(s.end)) again (it also plays in its own place)")
-    } else if s.start < cursor - 0.001 {
-      out.append("  MOVED: jumps back to src \(fmtTime(s.start))")
-    } else if s.start - cursor > 0.05 {
-      cuts(cursor, s.start)
-      if let moved = mapped.first(where: { !$0.repeats && $0.start < s.start && $0.end > cursor }) {
-        out.append("  SKIPS src \(fmtTime(max(cursor, moved.start)))-\(fmtTime(min(s.start, moved.end))) (moved, plays elsewhere)")
-      }
-    }
-    let speed = s.speed == 1 ? "1x " : "\(s.speed.formatted())x"
-    if let t = s.transition, s.outStart > cards.intro { out.append("  ~\(t) cut~") }
-    out.append(
-      line(
-        "  \(speed)  src \(fmtTime(s.start))-\(fmtTime(s.end))  out \(fmtTime(Double(s.outStart) / Double(fps)))  (\(s.note ?? ""))",
-        said(s.start, s.end), activity(s.start, s.end)))
-    if !s.repeats { cursor = s.end }
-  }
-  cuts(0, plan.source.duration)
-  if cards.outro > 0 {
-    let at = Double(planFrames(plan) - cards.outro) / Double(fps)
-    out.append("  OUTRO card out \(fmtTime(at)) for \(fmtTime(Double(cards.outro) / Double(fps))) \"\(plan.outro?.title ?? "")\"")
+
+  init(project: Project, plan: Plan) {
+    self.project = project
+    self.plan = plan
+    fps = plan.output.fps
+    mapped = mapPlan(plan)
+    screen = ScreenText.load(project.dir)
   }
 
-  if !project.retakes.isEmpty {
-    out.append("")
-    out.append("## Retake marks (the phrase before each was a flub; the redo follows)")
-    out.append("  " + project.retakes.map { fmtTime($0) }.joined(separator: ", "))
-  }
-  if !project.script.isEmpty {
-    out.append("")
-    out.append("## Script (script.md, \(project.script.count) lines). Keep the last good take of each line.")
-    let missing = missingScriptLines(project.script, words: project.words, plan: plan)
-    if !missing.isEmpty {
-      out.append("  Not in the edit (never said, or every take is cut):")
-      for l in missing.prefix(12) { out.append("  - \"\(l)\"") }
+    func said(_ a: Double, _ b: Double) -> String {
+      let text = project.words.filter { $0.start < b && $0.end > a }.map(\.text).joined(separator: " ")
+      return text.isEmpty ? "" : "\"\(text)\""
     }
-  }
-  if !project.editPlan.isEmpty {
-    out.append("")
-    out.append("## Edit plan (script.md header: the edit the user planned; each quote is spoken words to find in the transcript)")
-    for l in project.editPlan { out.append("  " + l) }
+    func activity(_ a: Double, _ b: Double) -> String {
+      let ev = project.events.filter { $0.t >= a && $0.t < b }
+      var parts: [String] = []
+      let keys = ev.filter { $0.type == .key }.count
+      if keys > 0 { parts.append("\(keys) keys") }
+      parts += ev.filter { $0.type == .click }.map { c in
+        String(format: "click@%@(%.2f,%.2f)", fmtTime(c.t), c.x, c.y) + (ScreenText.clicked(screen, at: c.t).map { " on \"\($0)\"" } ?? "")
+      }
+      let labels = ev.compactMap { $0.type == .key ? $0.label : nil }
+      if !labels.isEmpty { parts.append(labels.joined(separator: " ")) }
+      parts += ev.filter { $0.type == .retake }.map { "RETAKE@\(fmtTime($0.t))" }
+      return parts.isEmpty ? "" : "[\(parts.joined(separator: ", "))]"
+    }
+    func line(_ parts: String...) -> String {
+      parts.filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+  /// Where the video is, its length and motion style, and flash warnings up top so they can't be missed.
+  mutating func header() {
+    out.append("# \(project.dir.path)")
+    out.append("motion style: \(MotionStyle.named(plan.style.motion).name), moves \(plan.style.transition.formatted()) s")
+    out.append(
+      "source \(fmtTime(plan.source.duration)) -> output \(fmtTime(planSeconds(plan))) at \(plan.output.width)x\(plan.output.height)@\(fps)"
+    )
+    // Up top, so they can't be missed: they read as glitches.
+    for f in flashes(plan, dir: project.dir) { out.append("WARNING: \(describeFlash(f, plan)); make it last a second or more, or cover it") }
   }
 
-  out.append("")
-  out.append("## Zooms")
-  if plan.zooms.isEmpty { out.append("  (none)") }
-  for (i, z) in plan.zooms.enumerated() {
-    out.append(
-      line(
-        "  #\(i) src \(fmtTime(z.start))-\(fmtTime(z.end)) at (\(z.x.formatted()), \(z.y.formatted())) x\(z.scale.formatted())",
-        ScreenText.near(screen, x: z.x, y: z.y, from: z.start, to: z.end).map { "aimed at \"\($0)\"" } ?? "",
-        z.ease.map { "ease \($0)" } ?? "", z.seconds.map { "move \($0.formatted()) s" } ?? "", z.note ?? "", said(z.start, z.end)))
-  }
-  out.append("")
-  out.append("## Layout: default \"\(plan.defaultLayout.rawValue)\"\(plan.camera == nil ? " (no camera recorded)" : "")")
-  for l in plan.layouts { out.append(line("  src \(fmtTime(l.start))-\(fmtTime(l.end)) \(l.mode.rawValue)", l.note ?? "")) }
-  for run in cameraHidesScreen(project, plan) {
-    out.append("  WARNING: full camera hides screen activity at src \(fmtTime(run.start))-\(fmtTime(run.end)) (\(run.count) clicks/keys); use pip or side there")
-  }
-  if let lut = plan.camera?.grade?.lut {
-    do {
-      guard let url = Scene.fileURL(lut, dir: project.dir) else { throw DirectorError("no project folder") }
-      _ = try CubeLUT.load(url)
-    } catch {
-      out.append("  WARNING: camera LUT \(lut) isn't applied: \(error.localizedDescription)")
+  /// Every clip in play order with what's said and done in it, the cuts between, and the cards.
+  mutating func timeline() {
+    out.append("")
+    out.append("## Timeline (source times; out = position in the final video)")
+    let cards = cardFrames(plan)
+    if cards.intro > 0 {
+      out.append("  INTRO card out \(fmtTime(0)) for \(fmtTime(Double(cards.intro) / Double(fps))) \"\(plan.intro?.title ?? "")\"")
     }
-  }
-  if let look = plan.look, !look.badColors.isEmpty {
-    out.append("")
-    out.append("## Colors")
-    for problem in look.badColors { out.append("  WARNING: \(problem)") }
-  }
-  if let look = plan.look, case let problems = Fonts.problems(look), !problems.isEmpty {
-    out.append("")
-    out.append("## Fonts")
-    for problem in problems { out.append("  WARNING: \(problem)") }
-  }
-  if let punches = plan.camera?.punchIns, !punches.isEmpty {
-    out.append("")
-    out.append("## Camera punch-ins")
-    for p in punches {
-      let at = p.x != nil || p.y != nil ? " at (\((p.x ?? 0.5).formatted()), \((p.y ?? 0.5).formatted()))" : ""
-      out.append(line("  src \(fmtTime(p.start))-\(fmtTime(p.end)) \(p.scale.formatted())x\(at)", p.note ?? ""))
-    }
-  }
-  if !plan.callouts.isEmpty {
-    out.append("")
-    out.append("## Callouts")
-    for c in plan.callouts {
-      out.append(
-        line(
-          "  src \(fmtTime(c.start))-\(fmtTime(c.end)) \(c.style ?? "title") \"\(c.text)\"", c.subtitle.map { "/ \"\($0)\"" } ?? "",
-          c.enter.map { "in:\($0.preset)" } ?? "", c.exit.map { "out:\($0.preset)" } ?? ""))
-    }
-  }
-  if let marks = plan.annotations, !marks.isEmpty {
-    out.append("")
-    out.append("## Annotations (rect x,y,w,h in screen fractions)")
-    for a in marks {
-      out.append(
-        line(
-          "  src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.kind) (\(a.x.formatted()), \(a.y.formatted()), \(a.w.formatted()), \(a.h.formatted()))",
-          a.text.map { "\"\($0)\"" } ?? "", a.note ?? ""))
-    }
-  }
-  if let list = plan.inserts, !list.isEmpty {
-    out.append("")
-    out.append("## Inserts (B-roll)")
-    for (i, a) in list.enumerated() {
-      out.append(
-        line(
-          "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : "in the screen")",
-          a.fit == "fit" ? "fit" : "", a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
-    }
-  }
-  if !plan.animationList.isEmpty {
-    out.append("")
-    out.append("## Animations (template, cues in source time)")
-    for (i, a) in plan.animationList.enumerated() {
-      let cues = (a.cues ?? [:]).sorted { $0.value < $1.value }.map { "\($0.key) \(fmtTime($0.value))" }.joined(separator: ", ")
-      out.append(line("  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.template)", cues.isEmpty ? "" : "cues: \(cues)", a.note ?? ""))
-    }
-  }
-  if let marks = plan.markers, !marks.isEmpty {
-    out.append("")
-    out.append("## Markers (the user's named points)")
-    for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
-  }
-  if !plan.clipList.isEmpty {
-    out.append("")
-    out.append("## Clips (exported on their own: a source range of this edit, in a format)")
-    for c in plan.clipList {
-      let segs = plan.trimmed(to: c, words: project.words, silences: project.silences).segments
-      let seconds = Double(totalFrames(mapSegments(segs, fps: plan.output.fps))) / Double(plan.output.fps)
-      let length = segs.isEmpty ? "WARNING: entirely cut, nothing to export" : "\(fmtTime(seconds)) long"
-      out.append(line("  \"\(c.name)\" src \(fmtTime(c.start))-\(fmtTime(c.end))", c.preset?.name ?? "current format", length, said(c.start, c.start + 3)))
-    }
-  }
-  let library = AudioLibrary(.sounds)
-  let musicLibrary = AudioLibrary(.music)
-  func inProject(_ file: String) -> Bool {
-    Scene.fileURL(file, dir: project.dir).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
-  }
-  let effects = plan.soundEffects
-  if !effects.isEmpty {
-    let free = plan.sfxList
-    out.append("")
-    out.append("## Sound effects (sfx #n, or attached to the item named)")
-    for e in effects {
-      let at = srcToOut(mapped, e.t, fps: fps).map { "out \(fmtTime($0 / Double(fps)))" } ?? "CUT (won't play)"
-      let label = free.firstIndex(of: e).map { "sfx #\($0)" } ?? "on"
-      let missing = inProject(e.file) || (try? library.entry(forPlanPath: e.file)) != nil ? "" : "MISSING FILE"
-      out.append(line("  \(label) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? "", missing))
-    }
-    for (i, e) in free.enumerated() where srcToOut(mapped, e.t, fps: fps) == nil {
-      out.append("  WARNING: sfx #\(i) at src \(fmtTime(e.t)) is in a cut and won't play; move it, or attach it to the item it belongs to")
-    }
-  }
-  if let music = plan.music {
-    out.append("")
-    let missing = inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
-    out.append("## Music: \(music.file)" + missing)
-  }
-  if let effects = plan.effects, !effects.isEmpty {
-    out.append("")
-    out.append("## Effects (shaders from the video's effects/ folder or the personal Effects library)")
-    let sources = EffectSources(project: project.dir)
-    for e in effects {
-      let params = (e.params ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.formatted())" }.joined(separator: " ")
-      let missing = sources.folder(e.name) == nil ? "MISSING: the video won't build" : ""
-      out.append(line("  \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing))
-    }
-  }
-  if !plan.effectRangeList.isEmpty {
-    out.append("")
-    out.append("## Effect ranges (an effect only from start to end)")
-    let sources = EffectSources(project: project.dir)
-    for (i, e) in plan.effectRangeList.enumerated() {
-      let params = (e.params ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.formatted())" }.joined(separator: " ")
-      let missing = sources.folder(e.name) == nil ? "MISSING: the video won't build" : ""
-      out.append(line("  #\(i) src \(fmtTime(e.start))-\(fmtTime(e.end)) \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing, e.note ?? ""))
-    }
-  }
-  func listLibrary(_ lib: AudioLibrary, _ heading: String) {
-    out.append("")
-    do {
-      let items = try lib.items()
-      out.append("## \(heading) (use as \"\(lib.kind.planFolder)/<file>\"; it's copied into the project when the video builds)")
-      var categories: [String] = []
-      for e in items where !categories.contains(e.item.category) { categories.append(e.item.category) }
-      for c in categories {
-        let names = items.filter { $0.item.category == c }.map { e in e.item.file + (e.item.use.map { " (\($0))" } ?? "") }
-        out.append("  \(c): " + names.joined(separator: ", "))
+    var cursor = 0.0
+    // A skip forward lists the real cuts in it, and notes any of it that's a moved clip playing
+    // elsewhere; a jump back is marked. Cuts never reached that way are listed at the end.
+    let gaps = plan.gaps
+    var listed = Set<Int>()
+    func cuts(_ a: Double, _ b: Double) {
+      // Only cuts touching this skip's edges here (the rest come up next to their own clips).
+      for (k, g) in gaps.enumerated() where g.end > a + 0.01 && g.start < b - 0.01 && !listed.contains(k)
+        && (g.start <= a + 0.01 || g.end >= b - 0.01 || (a == 0 && b == plan.source.duration)) {
+        listed.insert(k)
+        out.append(line("  CUT  src \(fmtTime(g.start))-\(fmtTime(g.end))", said(g.start, g.end), activity(g.start, g.end)))
       }
-    } catch {
-      out.append("## \(heading): couldn't load (\(error.localizedDescription))")
+    }
+    for s in mapped {
+      if s.repeats {
+        out.append("  REPEAT: plays src \(fmtTime(s.start))-\(fmtTime(s.end)) again (it also plays in its own place)")
+      } else if s.start < cursor - 0.001 {
+        out.append("  MOVED: jumps back to src \(fmtTime(s.start))")
+      } else if s.start - cursor > 0.05 {
+        cuts(cursor, s.start)
+        if let moved = mapped.first(where: { !$0.repeats && $0.start < s.start && $0.end > cursor }) {
+          out.append("  SKIPS src \(fmtTime(max(cursor, moved.start)))-\(fmtTime(min(s.start, moved.end))) (moved, plays elsewhere)")
+        }
+      }
+      let speed = s.speed == 1 ? "1x " : "\(s.speed.formatted())x"
+      if let t = s.transition, s.outStart > cards.intro { out.append("  ~\(t) cut~") }
+      out.append(
+        line(
+          "  \(speed)  src \(fmtTime(s.start))-\(fmtTime(s.end))  out \(fmtTime(Double(s.outStart) / Double(fps)))  (\(s.note ?? ""))",
+          said(s.start, s.end), activity(s.start, s.end)))
+      if !s.repeats { cursor = s.end }
+    }
+    cuts(0, plan.source.duration)
+    if cards.outro > 0 {
+      let at = Double(planFrames(plan) - cards.outro) / Double(fps)
+      out.append("  OUTRO card out \(fmtTime(at)) for \(fmtTime(Double(cards.outro) / Double(fps))) \"\(plan.outro?.title ?? "")\"")
+    }
+
+  }
+
+  /// Retake marks, the script and its edit plan.
+  mutating func notes() {
+    if !project.retakes.isEmpty {
+      out.append("")
+      out.append("## Retake marks (the phrase before each was a flub; the redo follows)")
+      out.append("  " + project.retakes.map { fmtTime($0) }.joined(separator: ", "))
+    }
+    if !project.script.isEmpty {
+      out.append("")
+      out.append("## Script (script.md, \(project.script.count) lines). Keep the last good take of each line.")
+      let missing = missingScriptLines(project.script, words: project.words, plan: plan)
+      if !missing.isEmpty {
+        out.append("  Not in the edit (never said, or every take is cut):")
+        for l in missing.prefix(12) { out.append("  - \"\(l)\"") }
+      }
+    }
+    if !project.editPlan.isEmpty {
+      out.append("")
+      out.append("## Edit plan (script.md header: the edit the user planned; each quote is spoken words to find in the transcript)")
+      for l in project.editPlan { out.append("  " + l) }
+    }
+
+    out.append("")
+  }
+
+  /// Zooms, layouts, the camera LUT, look colors and fonts, and punch-ins.
+  mutating func framing() {
+    out.append("## Zooms")
+    if plan.zooms.isEmpty { out.append("  (none)") }
+    for (i, z) in plan.zooms.enumerated() {
+      out.append(
+        line(
+          "  #\(i) src \(fmtTime(z.start))-\(fmtTime(z.end)) at (\(z.x.formatted()), \(z.y.formatted())) x\(z.scale.formatted())",
+          ScreenText.near(screen, x: z.x, y: z.y, from: z.start, to: z.end).map { "aimed at \"\($0)\"" } ?? "",
+          z.ease.map { "ease \($0)" } ?? "", z.seconds.map { "move \($0.formatted()) s" } ?? "", z.note ?? "", said(z.start, z.end)))
+    }
+    out.append("")
+    out.append("## Layout: default \"\(plan.defaultLayout.rawValue)\"\(plan.camera == nil ? " (no camera recorded)" : "")")
+    for l in plan.layouts { out.append(line("  src \(fmtTime(l.start))-\(fmtTime(l.end)) \(l.mode.rawValue)", l.note ?? "")) }
+    for run in cameraHidesScreen(project, plan) {
+      out.append("  WARNING: full camera hides screen activity at src \(fmtTime(run.start))-\(fmtTime(run.end)) (\(run.count) clicks/keys); use pip or side there")
+    }
+    if let lut = plan.camera?.grade?.lut {
+      do {
+        guard let url = Scene.fileURL(lut, dir: project.dir) else { throw DirectorError("no project folder") }
+        _ = try CubeLUT.load(url)
+      } catch {
+        out.append("  WARNING: camera LUT \(lut) isn't applied: \(error.localizedDescription)")
+      }
+    }
+    if let look = plan.look, !look.badColors.isEmpty {
+      out.append("")
+      out.append("## Colors")
+      for problem in look.badColors { out.append("  WARNING: \(problem)") }
+    }
+    if let look = plan.look, case let problems = Fonts.problems(look), !problems.isEmpty {
+      out.append("")
+      out.append("## Fonts")
+      for problem in problems { out.append("  WARNING: \(problem)") }
+    }
+    if let punches = plan.camera?.punchIns, !punches.isEmpty {
+      out.append("")
+      out.append("## Camera punch-ins")
+      for p in punches {
+        let at = p.x != nil || p.y != nil ? " at (\((p.x ?? 0.5).formatted()), \((p.y ?? 0.5).formatted()))" : ""
+        out.append(line("  src \(fmtTime(p.start))-\(fmtTime(p.end)) \(p.scale.formatted())x\(at)", p.note ?? ""))
+      }
     }
   }
-  listLibrary(library, "Sound library, for sfx and attached sounds")
-  listLibrary(musicLibrary, "Music library, for music.file")
-  if plan.captions.enabled { out.append("\ncaptions: \(plan.captions.style ?? "pill"), up to \(plan.captions.maxWords) words") }
-  return out.joined(separator: "\n")
+
+  /// Titles, annotations, B-roll, animations, markers and clips.
+  mutating func items() {
+    if !plan.callouts.isEmpty {
+      out.append("")
+      out.append("## Callouts")
+      for c in plan.callouts {
+        out.append(
+          line(
+            "  src \(fmtTime(c.start))-\(fmtTime(c.end)) \(c.style ?? "title") \"\(c.text)\"", c.subtitle.map { "/ \"\($0)\"" } ?? "",
+            c.enter.map { "in:\($0.preset)" } ?? "", c.exit.map { "out:\($0.preset)" } ?? ""))
+      }
+    }
+    if let marks = plan.annotations, !marks.isEmpty {
+      out.append("")
+      out.append("## Annotations (rect x,y,w,h in screen fractions)")
+      for a in marks {
+        out.append(
+          line(
+            "  src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.kind) (\(a.x.formatted()), \(a.y.formatted()), \(a.w.formatted()), \(a.h.formatted()))",
+            a.text.map { "\"\($0)\"" } ?? "", a.note ?? ""))
+      }
+    }
+    if let list = plan.inserts, !list.isEmpty {
+      out.append("")
+      out.append("## Inserts (B-roll)")
+      for (i, a) in list.enumerated() {
+        out.append(
+          line(
+            "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : "in the screen")",
+            a.fit == "fit" ? "fit" : "", a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
+      }
+    }
+    if !plan.animationList.isEmpty {
+      out.append("")
+      out.append("## Animations (template, cues in source time)")
+      for (i, a) in plan.animationList.enumerated() {
+        let cues = (a.cues ?? [:]).sorted { $0.value < $1.value }.map { "\($0.key) \(fmtTime($0.value))" }.joined(separator: ", ")
+        out.append(line("  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.template)", cues.isEmpty ? "" : "cues: \(cues)", a.note ?? ""))
+      }
+    }
+    if let marks = plan.markers, !marks.isEmpty {
+      out.append("")
+      out.append("## Markers (the user's named points)")
+      for (i, m) in marks.enumerated() { out.append(line("  #\(i) src \(fmtTime(m.t))", m.label.map { "\"\($0)\"" } ?? "", said(m.t - 1, m.t + 1))) }
+    }
+    if !plan.clipList.isEmpty {
+      out.append("")
+      out.append("## Clips (exported on their own: a source range of this edit, in a format)")
+      for c in plan.clipList {
+        let segs = plan.trimmed(to: c, words: project.words, silences: project.silences).segments
+        let seconds = Double(totalFrames(mapSegments(segs, fps: plan.output.fps))) / Double(plan.output.fps)
+        let length = segs.isEmpty ? "WARNING: entirely cut, nothing to export" : "\(fmtTime(seconds)) long"
+        out.append(line("  \"\(c.name)\" src \(fmtTime(c.start))-\(fmtTime(c.end))", c.preset?.name ?? "current format", length, said(c.start, c.start + 3)))
+      }
+    }
+  }
+
+  /// Sound effects and music, flagging files that are neither in the project nor in a library.
+  mutating func sound() {
+    let library = AudioLibrary(.sounds)
+    let musicLibrary = AudioLibrary(.music)
+    func inProject(_ file: String) -> Bool {
+      Scene.fileURL(file, dir: project.dir).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+    }
+    let effects = plan.soundEffects
+    if !effects.isEmpty {
+      let free = plan.sfxList
+      out.append("")
+      out.append("## Sound effects (sfx #n, or attached to the item named)")
+      for e in effects {
+        let at = srcToOut(mapped, e.t, fps: fps).map { "out \(fmtTime($0 / Double(fps)))" } ?? "CUT (won't play)"
+        let label = free.firstIndex(of: e).map { "sfx #\($0)" } ?? "on"
+        let missing = inProject(e.file) || (try? library.entry(forPlanPath: e.file)) != nil ? "" : "MISSING FILE"
+        out.append(line("  \(label) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? "", missing))
+      }
+      for (i, e) in free.enumerated() where srcToOut(mapped, e.t, fps: fps) == nil {
+        out.append("  WARNING: sfx #\(i) at src \(fmtTime(e.t)) is in a cut and won't play; move it, or attach it to the item it belongs to")
+      }
+    }
+    if let music = plan.music {
+      out.append("")
+      let missing = inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
+      out.append("## Music: \(music.file)" + missing)
+    }
+  }
+
+  /// Always-on effects and effect ranges.
+  mutating func effects() {
+    if let effects = plan.effects, !effects.isEmpty {
+      out.append("")
+      out.append("## Effects (shaders from the video's effects/ folder or the personal Effects library)")
+      let sources = EffectSources(project: project.dir)
+      for e in effects {
+        let params = (e.params ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.formatted())" }.joined(separator: " ")
+        let missing = sources.folder(e.name) == nil ? "MISSING: the video won't build" : ""
+        out.append(line("  \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing))
+      }
+    }
+    if !plan.effectRangeList.isEmpty {
+      out.append("")
+      out.append("## Effect ranges (an effect only from start to end)")
+      let sources = EffectSources(project: project.dir)
+      for (i, e) in plan.effectRangeList.enumerated() {
+        let params = (e.params ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.formatted())" }.joined(separator: " ")
+        let missing = sources.folder(e.name) == nil ? "MISSING: the video won't build" : ""
+        out.append(line("  #\(i) src \(fmtTime(e.start))-\(fmtTime(e.end)) \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing, e.note ?? ""))
+      }
+    }
+  }
+
+  /// The sound and music libraries, for picking files.
+  mutating func libraries() {
+    func listLibrary(_ lib: AudioLibrary, _ heading: String) {
+      out.append("")
+      do {
+        let items = try lib.items()
+        out.append("## \(heading) (use as \"\(lib.kind.planFolder)/<file>\"; it's copied into the project when the video builds)")
+        var categories: [String] = []
+        for e in items where !categories.contains(e.item.category) { categories.append(e.item.category) }
+        for c in categories {
+          let names = items.filter { $0.item.category == c }.map { e in e.item.file + (e.item.use.map { " (\($0))" } ?? "") }
+          out.append("  \(c): " + names.joined(separator: ", "))
+        }
+      } catch {
+        out.append("## \(heading): couldn't load (\(error.localizedDescription))")
+      }
+    }
+    listLibrary(AudioLibrary(.sounds), "Sound library, for sfx and attached sounds")
+    listLibrary(AudioLibrary(.music), "Music library, for music.file")
+  }
 }
 
 /// Kept stretches where the layout is full camera but the screen has clicks or typing: the demo the
