@@ -104,7 +104,8 @@ extension InspectorView {
           previewButton(s.start)
         }
       }
-      InspectorSection("Order", detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
+      InspectorSection("Order",
+        detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
         HStack(spacing: 6) {
           Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
             .help("Play this clip first")
@@ -179,7 +180,8 @@ extension InspectorView {
         }
         slider(
           "Length",
-          bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2, "\((z.seconds ?? plan.style.transition).formatted()) s")
+          bindItem("zoomSeconds\(i)", \.zooms, i, \.seconds, or: plan.style.transition) { ($0 * 10).rounded() / 10 }, 0.2...2,
+            "\((z.seconds ?? plan.style.transition).formatted()) s")
         previewButton(z.start)
       }
       noteSection(bindItem("zoomNote\(i)", \.zooms, i, \.note, or: "", store: emptyAsNil))
@@ -299,7 +301,10 @@ extension InspectorView {
       let manifest = sources.manifest(r.name)
       itemHeader(manifest?.title ?? r.name, "wand.and.stars", Theme.effect, range(r.start, r.end))
       InspectorSection("Effect", detail: manifest == nil ? "\(r.name) isn't in the Effects folder, so the video won't build." : "Drawn only for this stretch.") {
-        Picker("Effect", selection: bind(nil, { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].name : r.name }, { plan, name in plan.switchEffect(ofRange: i, to: name) })) {
+        let effectName = bind(
+          nil, { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].name : r.name },
+          { plan, name in plan.switchEffect(ofRange: i, to: name) })
+        Picker("Effect", selection: effectName) {
           ForEach(Array(Set(sources.available() + [r.name])).sorted(), id: \.self) { Text(sources.manifest($0)?.title ?? $0).tag($0) }
         }
         Picker("On", selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer)) {

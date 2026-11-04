@@ -36,7 +36,8 @@ extension Scene {
       if isCurrent { current = wordRange }
       s.append(
         Scene.text(
-          text, size: (social ? 92 : bold ? 64 : 42) * sizeScale * (emphasized.contains(i) ? 1.2 : 1) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha, font: look.captionFont,
+          text, size: (social ? 92 : bold ? 64 : 42) * sizeScale * (emphasized.contains(i) ? 1.2 : 1) * u, weight: social ? .heavy : bold ? .bold : .semibold, alpha: alpha,
+            font: look.captionFont,
           color: color, stroke: social || boxed ? 0 : bold ? 7 : 0))
     }
     // Social captions stay clear of the like and share buttons down the right edge.

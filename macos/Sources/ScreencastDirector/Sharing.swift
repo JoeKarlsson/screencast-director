@@ -52,7 +52,8 @@ struct SharingSection: View {
     Section("Sharing") {
       TextField("Endpoint", text: $sharing.endpoint, prompt: Text("http://192.168.0.202:9000"))
       if sharing.insecure {
-        Label("This endpoint isn't HTTPS: keys are signed, but uploads and links travel unencrypted. Fine on a home network, not on public Wi-Fi.", systemImage: "exclamationmark.triangle.fill")
+        Label("This endpoint isn't HTTPS: keys are signed, but uploads and links travel unencrypted. Fine on a home network, not on public Wi-Fi.",
+          systemImage: "exclamationmark.triangle.fill")
           .font(.caption).foregroundStyle(Theme.warning)
       }
       TextField("Region", text: $sharing.region)
@@ -60,7 +61,7 @@ struct SharingSection: View {
       SecureField("Access key", text: Binding(get: { sharing.accessKey }, set: { sharing.accessKey = $0 }))
       SecureField("Secret key", text: Binding(get: { sharing.secretKey }, set: { sharing.secretKey = $0 }))
       TextField("Public URL", text: $sharing.publicBase, prompt: Text("https://media.example.com (blank: endpoint/bucket)"))
-      Text("Any S3-compatible store: MinIO, AWS S3, Cloudflare R2, Backblaze B2. Keys are stored in your Keychain. **Upload and Copy Link** in the Export menu puts a file here and copies its public link.")
+      Text("Any S3-compatible store: MinIO, AWS S3, Cloudflare R2, Backblaze B2. Keys are stored in your Keychain. **Upload and Copy Link** in the Export menu puts a file here and copies its public link.")  // swiftlint:disable:this line_length
         .font(.caption).foregroundStyle(.secondary)
     }
   }

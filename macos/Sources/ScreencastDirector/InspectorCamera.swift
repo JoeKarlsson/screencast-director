@@ -30,7 +30,8 @@ extension InspectorView {
         "Lip sync", detail: "Slide right if your lips move after you speak, left if before.", isOpen: fold("lipSync", open: false)
       ) {
         let offset = plan.camera?.offset ?? 0
-        slider("Offset", bind("camOffset", { $0.camera?.offset ?? 0 }, { $0.camera?.offset = ($1 * 100).rounded() / 100 }), min(-1, offset)...max(1, offset), String(format: "%+.2f s", offset))
+        slider("Offset", bind("camOffset", { $0.camera?.offset ?? 0 }, { $0.camera?.offset = ($1 * 100).rounded() / 100 }), min(-1, offset)...max(1, offset),
+          String(format: "%+.2f s", offset))
         Button(action: project.syncCameraToVoice) {
           Label("Sync to My Voice", systemImage: "waveform.and.person.filled").frame(maxWidth: .infinity)
         }
@@ -44,7 +45,8 @@ extension InspectorView {
         let cam = plan.camera
         let place = bubblePlacement(plan)
         slider(
-          "Size", bind("bubbleSize", { $0.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize }, { $0.camera?.bubbleSize = ($1 * 100).rounded() / 100 }), 0.12...0.6, "\(Int((cam?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
+          "Size", bind("bubbleSize", { $0.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize }, { $0.camera?.bubbleSize = ($1 * 100).rounded() / 100 }), 0.12...0.6,
+            "\(Int((cam?.bubbleSize ?? Plan.Camera.defaultBubbleSize) * 100))%")
         slider("Across", Binding(get: { project.plan.map { bubblePlacement($0).x } ?? place.x }, set: { v in
           project.apply(coalesce: "bubbleMove") { p in
             let y = bubblePlacement(p).y

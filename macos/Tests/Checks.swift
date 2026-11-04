@@ -225,7 +225,8 @@ struct Checks {
         let builtIns = try AudioLibrary(kind, personal: URL(fileURLWithPath: "/nonexistent")).items()
         expect(builtIns.count >= (kind == .sounds ? 30 : 10), "built-in \(kind) load")
         expect(builtIns.allSatisfy { FileManager.default.fileExists(atPath: $0.url.path) }, "every built-in \(kind) file exists")
-        expect(builtIns.allSatisfy { $0.item.license == "CC0 1.0" && $0.item.source != nil && $0.item.author != nil }, "every built-in \(kind) item is CC0 with a source and author")
+        expect(builtIns.allSatisfy { $0.item.license == "CC0 1.0" && $0.item.source != nil && $0.item.author != nil },
+          "every built-in \(kind) item is CC0 with a source and author")
         expect(Set(builtIns.map(\.item.file)).count == builtIns.count, "built-in \(kind) files are unique")
       }
       let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("sd-audio-\(UUID().uuidString)")
@@ -400,11 +401,12 @@ struct Checks {
     expect(get.signature == "f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41", "S3 GET example signature (\(get.signature))")
     expect(
       get.headers["authorization"]
-        == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",
+        == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",  // swiftlint:disable:this line_length
       "S3 GET example Authorization header")
     let s3c = S3.Config(endpoint: URL(string: "http://192.168.0.202:9000/")!, bucket: "videos", accessKey: "a", secretKey: "b")
     expect(S3.objectURL(s3c, key: "my demo/clip 1.gif").absoluteString == "http://192.168.0.202:9000/videos/my%20demo/clip%201.gif", "object URL")
-    expect(S3.key(for: URL(fileURLWithPath: "/x/out.MP4"), name: "2026-10-12 Demo: Take #2", date: Date(timeIntervalSince1970: 5), nonce: "0a1b2c3d") == "2026-10-12-demo-take-2-5-0a1b2c3d.mp4", "upload key")
+    expect(S3.key(for: URL(fileURLWithPath: "/x/out.MP4"), name: "2026-10-12 Demo: Take #2", date: Date(timeIntervalSince1970: 5),
+      nonce: "0a1b2c3d") == "2026-10-12-demo-take-2-5-0a1b2c3d.mp4", "upload key")
     let k1 = S3.key(for: URL(fileURLWithPath: "/x/a.gif"), name: "a"), k2 = S3.key(for: URL(fileURLWithPath: "/x/a.gif"), name: "a")
     expect(k1 != k2 && k1.range(of: #"^a-\d+-[0-9a-f]{8}\.gif$"#, options: .regularExpression) != nil, "upload keys get a random suffix (\(k1))")
 
@@ -721,12 +723,15 @@ struct Checks {
     expect(paced.trimmed(to: Clip(name: "t", start: 0, end: 10), words: gappy).segments.count == 1, "no pace keeps the edit's pauses")
     let clipDir = URL(fileURLWithPath: "/m/Connect AI and Dots")
     expect(exportURL(dir: clipDir).lastPathComponent == "Connect AI and Dots.mp4", "exports are named after the project")
-    expect(exportURL(dir: clipDir, preset: ExportPreset.all.first { $0.id == "youtube-4k" }).lastPathComponent == "Connect AI and Dots (4K).mp4", "a preset export says its format")
+    expect(exportURL(dir: clipDir, preset: ExportPreset.all.first { $0.id == "youtube-4k" }).lastPathComponent == "Connect AI and Dots (4K).mp4",
+      "a preset export says its format")
     expect(exportURL(dir: clipDir, clip: Clip(name: "Steps 1/3", start: 0, end: 1)).lastPathComponent == "Connect AI and Dots - Steps 1-3.mp4", "a clip export says its name")
     let tall = Plan.Output(width: 2160, height: 3840, fps: 30)
     expect(exportURL(dir: clipDir, size: tall).lastPathComponent == "Connect AI and Dots 2160x3840.mp4", "an export ends in its resolution")
-    expect(exportURL(dir: clipDir, clip: Clip(name: "Hook", start: 0, end: 1), size: Plan.Output(width: 1080, height: 1920, fps: 30)).lastPathComponent == "Connect AI and Dots - Hook 1080x1920.mp4", "so does a clip's")
-    expect(isExportFile("Connect AI and Dots - Hook.mp4", project: "Connect AI and Dots") && isExportFile("out.mp4", project: "x") && !isExportFile("screen.mp4", project: "x"), "exports are recognized, old and new names")
+    expect(exportURL(dir: clipDir, clip: Clip(name: "Hook", start: 0, end: 1), size: Plan.Output(width: 1080, height: 1920,
+      fps: 30)).lastPathComponent == "Connect AI and Dots - Hook 1080x1920.mp4", "so does a clip's")
+    expect(isExportFile("Connect AI and Dots - Hook.mp4", project: "Connect AI and Dots") && isExportFile("out.mp4", project: "x") && !isExportFile("screen.mp4", project: "x"),
+      "exports are recognized, old and new names")
     let clipText = describe(p, clipped)
     expect(clipText.contains("\"Hook\" src 0:03.0-0:08.0") && clipText.contains("WARNING: entirely cut"), "describe lists clips and flags an empty one")
 
@@ -760,7 +765,8 @@ struct Checks {
     opener.defaultLayout = .pip
     let cameraBoxes = layoutBoxes(.camera, plan: opener)
     let full = cameraBoxes.screen.vec + cameraBoxes.cam.vec
-    let openerSteps = Scene.layoutSteps(opener, [OutLayout(startF: 0, endF: 60, mode: .camera), OutLayout(startF: 200, endF: 300, mode: .camera)], frames: 300, style: MotionStyle.named(nil))
+    let openerSteps = Scene.layoutSteps(opener, [OutLayout(startF: 0, endF: 60, mode: .camera), OutLayout(startF: 200, endF: 300, mode: .camera)], frames: 300,
+      style: MotionStyle.named(nil))
     expect(openerSteps.at(0) == full && openerSteps.at(299) == full, "full camera from the first frame to the last")
     expect(openerSteps.at(130) != full, "the middle still eases to pip")
 
@@ -918,7 +924,8 @@ struct Checks {
     let markMap = mapSegments([Segment(start: 0, end: 2, speed: 1), Segment(start: 4, end: 6, speed: 1)], fps: fps)
     let markWords = [Word(text: "kept", start: 0.5, end: 1), Word(text: "cut", start: 3, end: 3.2), Word(text: "later", start: 4.5, end: 5)]
     let srcMarks = speechMarks(markWords, mapped: markMap, fps: fps, pxPerSec: 4, outputTime: false)
-    expect(srcMarks == [SpeechMark(x: 2, width: 2, kept: true), SpeechMark(x: 12, width: 1, kept: false), SpeechMark(x: 18, width: 2, kept: true)], "source-axis speech marks (\(srcMarks))")
+    expect(srcMarks == [SpeechMark(x: 2, width: 2, kept: true), SpeechMark(x: 12, width: 1, kept: false), SpeechMark(x: 18, width: 2, kept: true)],
+      "source-axis speech marks (\(srcMarks))")
     let outMarks = speechMarks(markWords, mapped: markMap, fps: fps, pxPerSec: 4, outputTime: true)
     expect(outMarks.map(\.x) == [2, 10], "output-axis speech marks skip cut words (\(outMarks.map(\.x)))")
 
@@ -979,17 +986,23 @@ struct Checks {
     // hub's background field shows its own apps, each once before any repeats, never the grid's.
     let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
     expect(templateScripts.evaluateScript("stageTransform(1920, 1080)").toString() == "translate(0px, 0px) scale(1)", "a 16:9 clip fills the frame with the stage")
-    expect(templateScripts.evaluateScript("stageTransform(1080, 1920)").toString() == "translate(0px, 656.25px) scale(0.5625)", "a vertical clip fits the stage evenly and centers it instead of stretching it")
-    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1000, 1000, true))").toString() == #"{"w":1350,"h":1350,"reflow":true}"#, "a template that reflows gets a square board for a square card")
-    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1000, 1000, false))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#, "one that doesn't keeps the 16:9 board")
-    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1920, 1080, true))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#, "16:9 always gets the classic board")
+    expect(templateScripts.evaluateScript("stageTransform(1080, 1920)").toString() == "translate(0px, 656.25px) scale(0.5625)",
+      "a vertical clip fits the stage evenly and centers it instead of stretching it")
+    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1000, 1000, true))").toString() == #"{"w":1350,"h":1350,"reflow":true}"#,
+      "a template that reflows gets a square board for a square card")
+    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1000, 1000, false))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#,
+      "one that doesn't keeps the 16:9 board")
+    expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1920, 1080, true))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#,
+      "16:9 always gets the classic board")
     expect(templateScripts.evaluateScript("TEMPLATES.storyboard.reflows").toBool(), "the storyboard lays itself out on any board")
     // The terminal theme routes lines at right angles and holds them still; its entrances flicker on, no bounce.
     let route = templateScripts.evaluateScript(#"THEME = "terminal"; handCurve([0, 0], [100, 50], 0.3, 1).d"#).toString() ?? ""
-    expect(route.range(of: #"^M0,0 L(4[89]|5[012]),0 L\1,50 L100,50$"#, options: .regularExpression) != nil, "terminal lines run across, down, across, the bend jittering a little (\(route))")
+    expect(route.range(of: #"^M0,0 L(4[89]|5[012]),0 L\1,50 L100,50$"#, options: .regularExpression) != nil,
+      "terminal lines run across, down, across, the bend jittering a little (\(route))")
     let halfway = templateScripts.evaluateScript("handCurve([0, 0], [100, 50], 0, 1).at(0.5)[1]").toDouble()
     expect(abs(halfway - 25) < 3, "a terminal line's midpoint is about halfway along its route (\(halfway))")
-    expect(templateScripts.evaluateScript("[popScale(1.04, 1), popScale(1.06, 1), popScale(1.5, 1)].join()").toString() == "1,0,1", "terminal entrances flicker, then hold at full size")
+    expect(templateScripts.evaluateScript("[popScale(1.04, 1), popScale(1.06, 1), popScale(1.5, 1)].join()").toString() == "1,0,1",
+      "terminal entrances flicker, then hold at full size")
     templateScripts.evaluateScript(#"THEME = """#)
     for t in templates {
       let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)

@@ -61,7 +61,7 @@ func effectChecks() {
 
   // toCut counts any visible change, not just cuts between clips: here a layout change at source 3 s
   // in a video with one clip (red is toCut / 10, green is cutTime / 10, blue is whether cutIndex is 0).
-  writeEffect(personal, "cutprobe", metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return float4(clamp(s.toCut / 10.0, 0.0, 1.0), clamp(s.cutTime / 10.0, 0.0, 1.0), s.cutIndex == 0.0 ? 1.0 : 0.0, 1); }")
+  writeEffect(personal, "cutprobe", metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return float4(clamp(s.toCut / 10.0, 0.0, 1.0), clamp(s.cutTime / 10.0, 0.0, 1.0), s.cutIndex == 0.0 ? 1.0 : 0.0, 1); }")  // swiftlint:disable:this line_length
   do {
     var single = plan
     single.segments = [Segment(start: 0, end: 12, speed: 1)]
@@ -109,7 +109,7 @@ func effectChecks() {
   // Tracking: blobs reach only effects that ask. On the screen they're the pointer (red is the first
   // blob's center x / the layer's width, green its kind / 20, blue how many there are / 4).
   writeEffect(personal, "blobprobe", layer: "screen", tracking: true,
-    metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return s.blobs > 0 ? float4((src.blobs[0].box.x + src.blobs[0].box.z / 2) / s.size.x, src.blobs[0].info.x / 20, s.blobs / 4, 1) : float4(0, 0, 0, 1); }")
+    metal: "float4 effect(Layer src, float2 pos, Signals s, constant float *p) { return s.blobs > 0 ? float4((src.blobs[0].box.x + src.blobs[0].box.z / 2) / s.size.x, src.blobs[0].info.x / 20, s.blobs / 4, 1) : float4(0, 0, 0, 1); }")  // swiftlint:disable:this line_length
   do {
     var still = plan
     still.segments = [Segment(start: 0, end: 12, speed: 1)]

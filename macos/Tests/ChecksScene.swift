@@ -334,7 +334,8 @@ func sceneDrawingChecks() {
     "a punch-in's framing point moves the camera (\(toRight), \(toLeft), mirrored \(toLeftMirrored))")
   talking.camera?.punchIns?[0].scale = 0.5
   talking.camera?.zoom = 1.5
-  let widened = Scene(plan: talking, words: [], clicks: [], shortcuts: []).cameraFraming(layoutBoxes(.camera, plan: talking).cam, frame: 90, cameraWidth: 1280, cameraHeight: 720).zoom
+  let widened = Scene(plan: talking, words: [], clicks: [], shortcuts: []).cameraFraming(layoutBoxes(.camera, plan: talking).cam, frame: 90, cameraWidth: 1280,
+    cameraHeight: 720).zoom
   expect(widened == 1, "a punch-in below 1 widens the framing, never past the whole camera (\(widened))")
   let mid = CIImage(color: CIColor(red: 0.4, green: 0.4, blue: 0.4)).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8))
   let brighter = pixel(Scene.graded(mid, Grade(exposure: 1)), x: 4, y: 4), darker = pixel(Scene.graded(mid, Grade(exposure: -1)), x: 4, y: 4)
@@ -373,10 +374,12 @@ func sceneDrawingChecks() {
   let invertScene = lutScene("luts/invert.cube")
   // Read once when the scene is built, so deleting the file afterwards doesn't change frames.
   try? FileManager.default.removeItem(at: lutDir.appendingPathComponent("luts/invert.cube"))
-  let inverted = pixel(Scene.graded(CIImage(color: CIColor(red: 0.2, green: 0.5, blue: 0.8)).cropped(to: mid.extent), Grade(lut: "luts/invert.cube"), lut: invertScene.cameraLUT), x: 4, y: 4)
+  let inverted = pixel(Scene.graded(CIImage(color: CIColor(red: 0.2, green: 0.5, blue: 0.8)).cropped(to: mid.extent), Grade(lut: "luts/invert.cube"), lut: invertScene.cameraLUT),
+    x: 4, y: 4)
   expect(near(inverted, [0.8, 0.5, 0.2], 0.04), "a LUT recolors the camera (\(inverted))")
   // A watermark (and so the card logos) named relative to the project loads from the project folder.
-  let logoCtx = CGContext(data: nil, width: 4, height: 4, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  let logoCtx = CGContext(data: nil, width: 4, height: 4, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
   try? Publish.writePNG(logoCtx.makeImage()!, to: lutDir.appendingPathComponent("logo.png"))
   var marked = base
   marked.look = Look()
@@ -418,7 +421,8 @@ func sceneDrawingChecks() {
     redLamp?.fixWarmth == -1 && redLamp?.advice.contains("Too strong") == true && redLamp?.advice.contains("in the edit neutralizes") == false,
     "a cast past Warmth's range says the edit can't fully undo it, not to set Warmth -1 (\(String(describing: redLamp)))")
   let fluorescent = WhiteBalance.measure(wall.applyingFilter("CIColorMatrix", parameters: ["inputGVector": CIVector(x: 0, y: 1.2, z: 0, w: 0)]))
-  expect((fluorescent?.tint ?? 0) > WhiteBalance.Reading.tintTolerance && fluorescent?.advice.contains("green") == true, "a green cast is read as green (\(String(describing: fluorescent)))")
+  expect((fluorescent?.tint ?? 0) > WhiteBalance.Reading.tintTolerance && fluorescent?.advice.contains("green") == true,
+    "a green cast is read as green (\(String(describing: fluorescent)))")
   expect(WhiteBalance.measure(CIImage(color: .black).cropped(to: room)) == nil, "a black frame (lens cap, no light) has nothing to judge")
 
   // Cutout with no one in the frame: the background is removed, so nothing of the camera shows.

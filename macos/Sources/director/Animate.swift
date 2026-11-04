@@ -31,7 +31,8 @@ enum Animate {
     if try plan.removeUnusedAnimationClips(dir: dir) == nil {
       log("plan.json doesn't load right now, so unused animation clips are kept")
     }
-    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.animationOutput, dir: dir, look: plan.look, safeTop: plan.animationSafeTop)) } : plan.animationsToRender(dir: dir)
+    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.animationOutput, dir: dir, look: plan.look,
+      safeTop: plan.animationSafeTop)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }
     let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     for (i, a, path) in todo {

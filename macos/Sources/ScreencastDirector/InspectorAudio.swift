@@ -9,7 +9,8 @@ extension InspectorView {
   @ViewBuilder
   func audioPane(_ plan: Plan) -> some View {
     PaneTitle(title: "Audio")
-    InspectorSection("Voice", detail: "Normalize evens out your voice phrase by phrase, so quiet and loud moments sit at the same steady level; a limiter keeps peaks from clipping.") {
+    InspectorSection("Voice",
+      detail: "Normalize evens out your voice phrase by phrase, so quiet and loud moments sit at the same steady level; a limiter keeps peaks from clipping.") {
       toggle("Normalize voice", (plan.audio?.normalize ?? false) && !project.levels.isEmpty
         ? String(format: "Adds %+.1f dB.", AudioGain.normalizeGain(project.levels)) : "",
         bind(nil, { $0.audioSettings.normalize ?? false }, { $0.audioSettings.normalize = $1 }))
@@ -19,7 +20,8 @@ extension InspectorView {
       toggle("Clean up voice", "Removes room noise, hum and echo. The first time takes a few seconds.",
         bind(nil, { $0.audioSettings.cleanup ?? false }, { $0.audioSettings.cleanup = $1 }))
         .help("Removes room noise, hum and echo with Apple's voice isolation. The first time takes a few seconds.")
-      slider("Volume", bind("gain", { $0.audioSettings.gainDB ?? 0 }, { $0.audioSettings.gainDB = ($1 * 2).rounded() / 2 }), -12...12, String(format: "%+.1f dB", plan.audio?.gainDB ?? 0))
+      slider("Volume", bind("gain", { $0.audioSettings.gainDB ?? 0 }, { $0.audioSettings.gainDB = ($1 * 2).rounded() / 2 }), -12...12, String(format: "%+.1f dB",
+        plan.audio?.gainDB ?? 0))
     }
     InspectorSection("Music", detail: "A background track, looped to the video's length. It drops while you talk.") {
       if let music = plan.music {
@@ -33,8 +35,10 @@ extension InspectorView {
             .help("Remove the music")
             .accessibilityLabel("Remove")
         }
-        slider("Volume", bind("musicVolume", { $0.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, { $0.music?.volumeDB = $1.rounded() }), -40...0, String(format: "%.0f dB", music.volumeDB ?? MusicDuck.defaultVolumeDB))
-        slider("Under voice", bind("musicDuck", { $0.music?.duckDB ?? MusicDuck.defaultDuckDB }, { $0.music?.duckDB = $1.rounded() }), -40...0, String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB))
+        slider("Volume", bind("musicVolume", { $0.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, { $0.music?.volumeDB = $1.rounded() }), -40...0, String(format: "%.0f dB",
+          music.volumeDB ?? MusicDuck.defaultVolumeDB))
+        slider("Under voice", bind("musicDuck", { $0.music?.duckDB ?? MusicDuck.defaultDuckDB }, { $0.music?.duckDB = $1.rounded() }), -40...0, String(format: "%.0f dB",
+          music.duckDB ?? MusicDuck.defaultDuckDB))
       }
       // One row: the library (most picks) and a file of your own.
       HStack(spacing: 8) {

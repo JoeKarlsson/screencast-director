@@ -32,7 +32,8 @@ extension Plan {
     // moved out of recording order has no gap to its neighbor to join).
     var joined: [Segment] = []
     for s in playSegments {
-      if var last = joined.last, s.repeats != true, last.repeats != true, s.start >= last.end - 1e-6, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1, s.speed == 1,
+      if var last = joined.last, s.repeats != true, last.repeats != true, s.start >= last.end - 1e-6, s.start - last.end < 6, wasPause(last.end, s.start), last.speed == 1,
+        s.speed == 1,
         !paused.contains(where: { $0.0 < s.start && $0.1 > last.end }) {
         last.end = s.end
         joined[joined.count - 1] = last

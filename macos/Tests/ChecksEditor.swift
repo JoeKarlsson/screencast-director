@@ -80,7 +80,8 @@ func editorActionChecks() {
   ranged.effectRangeList = [EffectRange(start: 9, end: 12, name: "track"), EffectRange(start: 3, end: 5, name: "track"), EffectRange(start: 18, end: 25, name: "track")]
   ranged.normalize()
   expect(ranged.effectRangeList.map(\.start) == [3, 9, 18] && ranged.effectRangeList[2].end == 20, "effect ranges are sorted and kept inside the recording")
-  expect(ranged.allItems.suffix(3) == [.effectRange(0), .effectRange(1), .effectRange(2)] && ranged.timeRange(of: .effectRange(1))! == (9, 12), "effect ranges are timeline items")
+  expect(ranged.allItems.suffix(3) == [.effectRange(0), .effectRange(1), .effectRange(2)] && ranged.timeRange(of: .effectRange(1))! == (9, 12),
+    "effect ranges are timeline items")
   expect(ranged.retime(.effectRange(0), start: 13, end: 15) == .effectRange(1), "a dragged effect range is found after re-sorting")
   expect(ranged.shift([.effectRange(0)], by: 1) == [.effectRange(0)] && ranged.effectRangeList[0].start == 10, "an effect range moves with the group")
   ranged.effectRangeList[0].params = ["lines": 0.3]
@@ -114,7 +115,8 @@ func editorActionChecks() {
     Word(text: "Hello", start: 0.5, end: 1), Word(text: "there", start: 1.2, end: 1.6), Word(text: "cut", start: 8.5, end: 9),
     Word(text: "back", start: 11, end: 11.5),
   ]
-  expect(wordIndex(at: 1.3, in: words) == 1 && wordIndex(at: 1.1, in: words) == nil && wordIndex(at: 11, in: words) == 3 && wordIndex(at: 1, in: []) == nil, "word under the playhead")
+  expect(wordIndex(at: 1.3, in: words) == 1 && wordIndex(at: 1.1, in: words) == nil && wordIndex(at: 11, in: words) == 3 && wordIndex(at: 1, in: []) == nil,
+    "word under the playhead")
   expect(wordRange(0...1, in: words) == 0.5..<1.6 && wordRange(2...4, in: words) == nil, "selected words' range")
   expect(wordsAreCut(2...2, in: words, plan: base) && !wordsAreCut(1...2, in: words, plan: base), "Restore only when every selected word is cut")
   expect(extendWordSelection(1...1, by: 1, wordCount: 4) == 1...2 && extendWordSelection(1...3, by: 1, wordCount: 4) == 1...3, "⇧→ grows to the last word")

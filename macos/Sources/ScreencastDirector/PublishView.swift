@@ -51,7 +51,8 @@ struct PublishView: View {
 
       let thumbs = project.publishFiles.filter { $0.pathExtension == "png" }
       if !thumbs.isEmpty {
-        Text(covers.isEmpty ? "Thumbnails: your clearest camera frames, with the title in your profile's style" : "Thumbnails: the frames you picked, with the title in your profile's style").font(.headline)
+        let picked = covers.isEmpty ? "your clearest camera frames" : "the frames you picked"
+        Text("Thumbnails: \(picked), with the title in your profile's style").font(.headline)
         ScrollView(.horizontal) {
           HStack(spacing: 10) {
             ForEach(thumbs, id: \.self) { url in
