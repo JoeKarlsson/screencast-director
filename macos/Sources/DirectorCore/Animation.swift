@@ -57,7 +57,9 @@ public struct Animation: Codable, Equatable {
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps,
       brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) },
       top: safeTop > 0 ? safeTop : nil)
-    let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data())
+    // Encoding plain values can only fail on a non-finite number; hash the key's description then,
+    // so two different animations never share the empty-data name.
+    let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data(String(reflecting: key).utf8))
     return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
   }
 
@@ -129,6 +131,23 @@ extension Plan {
     return Set(plans.flatMap { p in
       animationList.map { ($0.clipPath(p.animationOutput, dir: dir, look: look, safeTop: p.animationSafeTop) as NSString).lastPathComponent }
     })
+  }
+
+  /// Deletes clips in `.animations/` that neither this plan nor the saved plan.json can use (this plan
+  /// may be one clip's, or another format's). Returns the names it deleted, or nil when plan.json exists
+  /// but doesn't load (half-written mid-edit): then nothing is deleted, since its clips can't be known.
+  public func removeUnusedAnimationClips(dir: URL) throws -> [String]? {
+    let folder = dir.appendingPathComponent(".animations")
+    let planFile = dir.appendingPathComponent("plan.json")
+    var wanted = animationClipNames(dir: dir)
+    if FileManager.default.fileExists(atPath: planFile.path) {
+      guard let saved = try? Plan.load(planFile) else { return nil }
+      wanted.formUnion(saved.animationClipNames(dir: dir))
+    }
+    guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+    let unused = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { !wanted.contains($0) }
+    for f in unused { try FileManager.default.removeItem(at: folder.appendingPathComponent(f)) }
+    return unused
   }
 
   /// Seconds into an animation's clip where it starts playing: past the part the edit cuts from its

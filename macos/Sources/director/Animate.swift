@@ -28,11 +28,8 @@ enum Animate {
     }
     let folder = dir.appendingPathComponent(".animations")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    // Keep every clip the saved plan can use too: this plan may be one clip's, or another format's.
-    let saved = try? Plan.load(dir.appendingPathComponent("plan.json"))
-    let wanted = plan.animationClipNames(dir: dir).union(saved?.animationClipNames(dir: dir) ?? [])
-    for f in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !wanted.contains(f) {
-      try? FileManager.default.removeItem(at: folder.appendingPathComponent(f))
+    if try plan.removeUnusedAnimationClips(dir: dir) == nil {
+      log("plan.json doesn't load right now, so unused animation clips are kept")
     }
     let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.animationOutput, dir: dir, look: plan.look, safeTop: plan.animationSafeTop)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }

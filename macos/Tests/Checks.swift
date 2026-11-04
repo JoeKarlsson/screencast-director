@@ -605,6 +605,19 @@ struct Checks {
     expect(keep.contains(clipName(animPlan.output)) && keep.contains(clipName(fourK.output)), "clip cleanup keeps the preview's clips and a 4K export's")
     expect(!keep.contains((retitled.clipPath(fourK.output, dir: noProject) as NSString).lastPathComponent), "clip cleanup still drops clips of old data")
     expect(fourK.animationsToRender(dir: noProject).first?.path == anim.clipPath(fourK.output, dir: noProject), "a 4K export needs its own 4K clips")
+    // Clip cleanup deletes clips no plan uses, but keeps everything while plan.json is half-written.
+    let cleanDir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-anim-clean-\(UUID().uuidString)")
+    let clipsDir = cleanDir.appendingPathComponent(".animations")
+    try? FileManager.default.createDirectory(at: clipsDir, withIntermediateDirectories: true)
+    let usedClip = (anim.clipPath(animPlan.animationOutput, dir: cleanDir, look: animPlan.look, safeTop: animPlan.animationSafeTop) as NSString).lastPathComponent
+    for f in [usedClip, "old.mp4"] { FileManager.default.createFile(atPath: clipsDir.appendingPathComponent(f).path, contents: Data()) }
+    try? Data("{ \"segments\": [".utf8).write(to: cleanDir.appendingPathComponent("plan.json"))
+    expect((try? animPlan.removeUnusedAnimationClips(dir: cleanDir)) == .some(nil), "clip cleanup is skipped while plan.json doesn't load")
+    expect(FileManager.default.fileExists(atPath: clipsDir.appendingPathComponent("old.mp4").path), "a half-written plan.json deletes no clips")
+    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("plan.json"))
+    expect((try? animPlan.removeUnusedAnimationClips(dir: cleanDir)) == .some(["old.mp4"]), "clip cleanup deletes the clip no plan uses")
+    expect(FileManager.default.fileExists(atPath: clipsDir.appendingPathComponent(usedClip).path), "clip cleanup keeps the plan's own clip")
+    try? FileManager.default.removeItem(at: cleanDir)
 
     // Every bundled template has a manifest the editor can read, and a new one spreads its beats over its own stretch.
     let templateDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Resources/animations/templates")
