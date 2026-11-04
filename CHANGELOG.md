@@ -80,6 +80,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - What you asked is kept with the recording, so the history is still there after switching recordings.
 
 ### Editing
+- First drafts have no blink-length clips: a clip under a second that plays straight into the next one, like the bit of pause kept at a cut, joins that clip, so a draft no longer opens with a flash. Speech is never folded into a sped-up clip.
 - Drag a clip on the timeline to reorder it: a white line shows where it will land, and it plays there when you let go (output-time view; in the recording-order view clips stay put). ⌥⌘← and ⌥⌘→ play the selected clip earlier or later.
 - Publish > Use Playhead Frame for a Cover: pick up to three moments for the covers (saved in the plan as `coverAt`), instead of the clearest faces. Landscape thumbnails match the vertical covers: the title big on the dark left, you framed on the right. Thumbnails show at their own shape in Publish.
 - Repeat a clip: play a moment again as a cold open while it stays in its place too (Order > Repeat as Cold Open, or `director repeat <dir> <start> <end> [--before <t>]`). Zooms, punch-ins, B-roll and captions play in both showings, titles and sounds only in the original.
