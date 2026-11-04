@@ -191,14 +191,7 @@ struct TimelineView: View {
           let names = sources.available()
           if names.isEmpty {
             Text("No effects installed")
-            Button("Open Effects Folder") {
-              do {
-                try FileManager.default.createDirectory(at: EffectSources.personalFolder, withIntermediateDirectories: true)
-                NSWorkspace.shared.open(EffectSources.personalFolder)
-              } catch {
-                Notices.shared.show(error, "Couldn't make the Effects folder")
-              }
-            }
+            Button("Open Effects Folder") { openEffectsFolder() }
           }
           ForEach(names, id: \.self) { name in
             Button(sources.manifest(name)?.title ?? name) { project.addEffectRange(name) }

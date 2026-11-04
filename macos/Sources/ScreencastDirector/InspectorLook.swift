@@ -70,6 +70,7 @@ extension InspectorView {
       }
     }
     logoSection(plan)
+    effectsSection(plan)
     InspectorSection("Titles & chips", detail: "Fonts and colors for titles, chapter cards and shortcut chips.", isOpen: fold("titles", open: false)) {
       fontPicker("Title font", \.titleFont, plan)
       fontPicker("Chip font", \.chipFont, plan)
@@ -112,6 +113,53 @@ extension InspectorView {
         .labelsHidden()
         .help("How animations look. Changing it re-renders them.")
       }
+    }
+  }
+
+  /// Effects drawn on the whole video (timeline effect bars are for one stretch).
+  func effectsSection(_ plan: Plan) -> some View {
+    let sources = EffectSources(project: project.dir)
+    let installed = sources.available()
+    return InspectorSection(
+      "Effects", detail: "Shaders drawn over the whole video. The wand on the timeline adds one for a stretch instead.",
+      isOpen: fold("effects", open: !plan.effectList.isEmpty)
+    ) {
+      ForEach(Array(plan.effectList.enumerated()), id: \.offset) { i, e in
+        let manifest = sources.manifest(e.name)
+        if i > 0 { Divider() }
+        HStack(spacing: 8) {
+          Image(systemName: "wand.and.stars").foregroundStyle(Theme.effect)
+          Text(manifest?.title ?? e.name).lineLimit(1)
+          if manifest == nil { Text("missing").font(.caption).foregroundStyle(Theme.warning) }
+          Spacer(minLength: 4)
+          Button { project.apply { p in if p.effectList.indices.contains(i) { p.effectList.remove(at: i) } } } label: {
+            Image(systemName: "xmark.circle.fill")
+          }
+          .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove \(manifest?.title ?? e.name)")
+        }
+        LabeledContent("On") {
+          Picker("Layer", selection: bindItem("effectLayer\(i)", \.effectList, i, \.layer)) {
+            Text("Its own (\(manifest?.layer ?? "frame"))").tag(String?.none)
+            ForEach(Effects.layers, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
+          }
+          .labelsHidden()
+        }
+        if let params = manifest?.params, !params.isEmpty {
+          effectParamSliders("allEffectParam\(i)", params, \.effectList, i, \.params)
+        }
+      }
+      Menu {
+        if installed.isEmpty {
+          Text("No effects installed")
+          Button("Open Effects Folder") { openEffectsFolder() }
+        }
+        ForEach(installed, id: \.self) { name in
+          Button(sources.manifest(name)?.title ?? name) { project.apply { $0.effectList.append(EffectUse(name: name)) } }
+        }
+      } label: {
+        Label("Add Effect", systemImage: "plus")
+      }
+      .help("Draw an installed effect over the whole video")
     }
   }
 
@@ -395,5 +443,15 @@ extension InspectorView {
 
   func cardText(_ kp: WritableKeyPath<Plan, Card?>, _ field: WritableKeyPath<Card, String?>) -> Binding<String> {
     bind("card\(kp.hashValue)\(field.hashValue)", { $0[keyPath: kp]?[keyPath: field] ?? "" }, { $0[keyPath: kp]?[keyPath: field] = $1 })
+  }
+}
+
+/// Opens the personal Effects folder in Finder, making it first if needed.
+func openEffectsFolder() {
+  do {
+    try FileManager.default.createDirectory(at: EffectSources.personalFolder, withIntermediateDirectories: true)
+    NSWorkspace.shared.open(EffectSources.personalFolder)
+  } catch {
+    Notices.shared.show(error, "Couldn't make the Effects folder")
   }
 }

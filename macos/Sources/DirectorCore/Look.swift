@@ -139,6 +139,30 @@ public struct Profile: Codable, Equatable {
     self.defaultLayout = defaultLayout
   }
 
+  /// What Save as Profile can carry besides the look, style, captions, layout and effects.
+  public enum Extra: CaseIterable {
+    case music, voice, camera
+  }
+
+  /// A profile made from a video: its look (the intro's title back to the "{title}" template), style,
+  /// captions, default layout and always-on effects, plus the `extras` asked for.
+  public static func saved(from plan: Plan, name: String, extras: Set<Extra>) -> Profile {
+    var look = plan.look ?? Look()
+    look.name = nil
+    look.intro = plan.intro.map { var c = $0; c.title = "{title}"; return c } ?? look.intro
+    look.outro = plan.outro ?? look.outro
+    var p = Profile(name: name, style: plan.style, look: look, captions: plan.captions,
+      // A screen-only video's layout says nothing about where a camera should go.
+      defaultLayout: plan.camera != nil ? plan.defaultLayout : nil)
+    p.effects = plan.effects
+    if extras.contains(.music) { p.music = plan.music }
+    if extras.contains(.voice) { p.audio = plan.audio }
+    if extras.contains(.camera), let cam = plan.camera {
+      p.camera = CameraDefaults(grade: cam.grade, bubbleSize: cam.bubbleSize, bubbleShape: cam.bubbleShape, bubbleBorder: cam.bubbleBorder, bubbleShadow: cam.bubbleShadow)
+    }
+    return p
+  }
+
   /// Loads profile.json from a folder and makes asset paths absolute.
   public static func load(_ dir: URL) throws -> Profile {
     var p = try JSONDecoder().decode(Profile.self, from: Data(contentsOf: dir.appendingPathComponent("profile.json")))

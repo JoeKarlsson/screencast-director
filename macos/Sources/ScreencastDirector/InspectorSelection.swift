@@ -286,19 +286,7 @@ extension InspectorView {
       }
       if let params = manifest?.params, !params.isEmpty {
         InspectorSection("Settings") {
-          ForEach(params, id: \.name) { p in
-            let lo = p.min ?? 0, hi = p.max ?? max(1, p.default * 2)
-            let value = bind(
-              "effectParam\(i)\(p.name)",
-              { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].params?[p.name] ?? p.default : p.default },
-              { plan, v in
-                guard plan.effectRangeList.indices.contains(i) else { return }
-                var all = plan.effectRangeList[i].params ?? [:]
-                all[p.name] = (v * 100).rounded() / 100
-                plan.effectRangeList[i].params = all
-              })
-            slider(p.name.capitalized, value, lo...hi, (r.params?[p.name] ?? p.default).formatted(.number.precision(.fractionLength(0...2))))
-          }
+          effectParamSliders("effectParam\(i)", params, \.effectRangeList, i, \.params)
         }
       }
       previewButton(r.start)
@@ -347,6 +335,25 @@ extension InspectorView {
       removeButton()
     default:
       nothingSelected
+    }
+  }
+
+  /// A slider per effect param, for the i-th effect in `list` (ranges or the always-on effects).
+  func effectParamSliders<E>(
+    _ key: String, _ params: [EffectManifest.Param], _ list: WritableKeyPath<Plan, [E]>, _ i: Int, _ field: WritableKeyPath<E, [String: Double]?>
+  ) -> some View {
+    ForEach(params, id: \.name) { p in
+      let lo = p.min ?? 0, hi = p.max ?? max(1, p.default * 2)
+      let value = bind(
+        "\(key)\(p.name)",
+        { plan in plan[keyPath: list].indices.contains(i) ? plan[keyPath: list][i][keyPath: field]?[p.name] ?? p.default : p.default },
+        { plan, v in
+          guard plan[keyPath: list].indices.contains(i) else { return }
+          var all = plan[keyPath: list][i][keyPath: field] ?? [:]
+          all[p.name] = (v * 100).rounded() / 100
+          plan[keyPath: list][i][keyPath: field] = all
+        })
+      slider(p.name.capitalized, value, lo...hi, value.wrappedValue.formatted(.number.precision(.fractionLength(0...2))))
     }
   }
 

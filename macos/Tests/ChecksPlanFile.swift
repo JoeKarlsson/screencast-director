@@ -46,4 +46,23 @@ func planFileChecks() {
   expect(!caps.isBold, "pill captions aren't bold")
   caps.style = "social"
   expect(caps.isBold, "social captions are bold")
+
+  // Save as Profile keeps the effects and layout, and music, voice and camera only when asked.
+  var branded = plan
+  branded.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  branded.camera?.bubbleShape = "rounded"
+  branded.defaultLayout = .side
+  branded.effects = [EffectUse(name: "analog", params: ["bloom": 2])]
+  branded.music = Music(file: "/tmp/track.m4a", volumeDB: -20)
+  branded.audio = AudioSettings(normalize: true, warm: true)
+  let lean = Profile.saved(from: branded, name: "Lean", extras: [])
+  expect(lean.effects == branded.effects && lean.defaultLayout == .side, "a saved profile keeps the effects and the default layout")
+  expect(lean.music == nil && lean.audio == nil && lean.camera == nil, "music, voice and camera stay out unless asked for")
+  let fullProfile = Profile.saved(from: branded, name: "Full", extras: Set(Profile.Extra.allCases))
+  var fresh = plan
+  fresh.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  fullProfile.apply(to: &fresh)
+  expect(fresh.music == branded.music && fresh.audio?.warm == true && fresh.camera?.bubbleShape == "rounded" && fresh.effects == branded.effects,
+    "applying a full profile brings back its music, voice, camera and effects")
+  expect(Profile.saved(from: plan, name: "Screen", extras: []).defaultLayout == nil, "a screen-only video's profile sets no layout")
 }

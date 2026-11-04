@@ -106,6 +106,12 @@ extension Plan {
     set { camera?.punchIns = newValue.isEmpty ? nil : newValue }
   }
 
+  /// The always-on `effects` as a plain list (empty when there are none).
+  public var effectList: [EffectUse] {
+    get { effects ?? [] }
+    set { effects = newValue.isEmpty ? nil : newValue }
+  }
+
   /// `effectRanges` as a plain list (empty when there are none).
   public var effectRangeList: [EffectRange] {
     get { effectRanges ?? [] }

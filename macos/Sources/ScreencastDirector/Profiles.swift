@@ -48,16 +48,10 @@ final class ProfileStore: ObservableObject {
   }
 
   /// Saves a video's current look and style as a profile (asset paths stay absolute).
-  func save(from plan: Plan, as name: String) throws {
+  func save(from plan: Plan, as name: String, extras: Set<Profile.Extra>) throws {
     let dir = root.appendingPathComponent(name)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    var look = plan.look ?? Look()
-    look.name = nil
-    // The video's cards become the profile's: the intro's title turns back into the
-    // recording-name template, so each new video gets its own.
-    look.intro = plan.intro.map { var c = $0; c.title = "{title}"; return c } ?? look.intro
-    look.outro = plan.outro ?? look.outro
-    let profile = Profile(name: name, style: plan.style, look: look, captions: plan.captions)
+    let profile = Profile.saved(from: plan, name: name, extras: extras)
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try enc.encode(profile).write(to: dir.appendingPathComponent("profile.json"))
@@ -75,7 +69,25 @@ final class ProfileStore: ObservableObject {
     alert.informativeText = "Saves this video's background, frame, fonts, colors and logo so new videos can use them."
     let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
     field.placeholderString = "Profile name"
-    alert.accessoryView = field
+    // Effects and the default layout always come along; these are a choice, since not every video
+    // with the look wants the same track or voice processing.
+    let boxes: [(Profile.Extra, NSButton)] = [
+      (.music, NSButton(checkboxWithTitle: "Include the music", target: nil, action: nil)),
+      (.voice, NSButton(checkboxWithTitle: "Include the voice settings", target: nil, action: nil)),
+      (.camera, NSButton(checkboxWithTitle: "Include the camera color and bubble", target: nil, action: nil)),
+    ].filter { extra, _ in
+      switch extra {
+      case .music: return plan.music != nil
+      case .voice: return plan.audio != nil
+      case .camera: return plan.camera != nil
+      }
+    }
+    let stack = NSStackView(views: [field] + boxes.map(\.1))
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 6
+    stack.frame = NSRect(x: 0, y: 0, width: 260, height: 24 + CGFloat(boxes.count) * 24)
+    alert.accessoryView = stack
     alert.addButton(withTitle: "Save")
     alert.addButton(withTitle: "Cancel")
     presentAlert(alert) { [self] response in
@@ -83,7 +95,7 @@ final class ProfileStore: ObservableObject {
       let name = field.stringValue.trimmingCharacters(in: .whitespaces)
       guard !name.isEmpty, !name.contains("/") else { return }
       do {
-        try save(from: plan, as: name)
+        try save(from: plan, as: name, extras: Set(boxes.filter { $0.1.state == .on }.map(\.0)))
         Notices.shared.show("Saved the profile \(name).")
       } catch {
         Notices.shared.show(error, "Couldn't save the profile")
