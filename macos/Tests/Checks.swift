@@ -798,6 +798,12 @@ struct Checks {
     let notAFont = FileManager.default.temporaryDirectory.appendingPathComponent("sd-not-a-font-\(UUID().uuidString).ttf")
     try? Data("nope".utf8).write(to: notAFont)
     defer { try? FileManager.default.removeItem(at: notAFont) }
+    // The preview and an export register fonts at once; many threads at once must not crash or lose a result.
+    let raceFonts = (0..<64).map { "\(notAFont.path).\($0)" }
+    DispatchQueue.concurrentPerform(iterations: 64) { i in Fonts.register([raceFonts[i], raceFonts[(i + 1) % 64]]) }
+    var raced = Look()
+    raced.fontFiles = raceFonts
+    expect(Fonts.problems(raced).count == 64, "fonts registered from many threads at once are each remembered once")
     var fonted = fx
     fonted.look = Look()
     fonted.look?.fontFiles = [notAFont.path]

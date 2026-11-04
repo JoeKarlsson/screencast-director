@@ -194,12 +194,16 @@ public struct Profile: Codable, Equatable {
 }
 
 public enum Fonts {
-  /// Each font file tried so far, and why it couldn't be registered (nil when it was).
+  /// Each font file tried so far, and why it couldn't be registered (nil when it was). The preview and
+  /// an export register fonts from different threads, so every access holds `lock`.
   nonisolated(unsafe) private static var tried: [String: String?] = [:]
+  private static let lock = NSLock()
 
   /// Registers font files for this process (once each). A file that can't be registered is skipped
   /// here, so the frame still renders; `problems` says why, and `describe` warns about it.
   public static func register(_ paths: [String]?) {
+    lock.lock()
+    defer { lock.unlock() }
     for path in paths ?? [] where tried[path] == nil {
       var error: Unmanaged<CFError>?
       let ok = CTFontManagerRegisterFontsForURL(URL(fileURLWithPath: path) as CFURL, .process, &error)
@@ -216,7 +220,7 @@ public enum Fonts {
     register(look.fontFiles)
     var out: [String] = []
     for path in look.fontFiles ?? [] {
-      if case .some(.some(let why)) = tried[path] { out.append("font file \(path) isn't used: \(why)") }
+      if case .some(.some(let why)) = lock.withLock({ tried[path] }) { out.append("font file \(path) isn't used: \(why)") }
     }
     for (field, name) in [("titleFont", look.titleFont), ("captionFont", look.captionFont), ("chipFont", look.chipFont)] {
       guard let name, !isAvailable(name) else { continue }
