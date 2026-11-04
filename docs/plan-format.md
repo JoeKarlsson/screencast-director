@@ -19,7 +19,7 @@ Each project folder holds the recording and a `plan.json` that describes the edi
 - `effects`: shader plugins drawn on the screen, camera or whole frame, like `[{ "name": "analog", "params": { "bloom": 2 } }]`. See [effects.md](effects.md).
 - `intro` / `outro` (macOS app only): `{ "enabled": true, "title": "...", "subtitle": "...", "duration": 2.5 }` adds a full-frame card before or after the video. A card is shown unless `"enabled": false`. Source times don't change; the output starts after the intro.
 
-The full schema is in `macos/Sources/DirectorCore/Plan.swift`.
+The full schema is in `macos/Sources/DirectorCore/Plan.swift` (the plan itself), `PlanItems.swift` (zooms, punch-ins, layouts, titles, B-roll, markers, annotations), `PlanAudio.swift`, `Look.swift`, `Effects.swift`, `Animation.swift` and `Clips.swift`.
 
 ## Project folder
 

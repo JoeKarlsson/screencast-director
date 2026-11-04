@@ -105,12 +105,6 @@ public enum JSONValue: Codable, Equatable {
 }
 
 extension Plan {
-  /// `animations` as a plain list (empty when there are none).
-  public var animationList: [Animation] {
-    get { animations ?? [] }
-    set { animations = newValue.isEmpty ? nil : newValue }
-  }
-
   /// Rendered animations as full-frame B-roll, for the renderer and the composition. An animation
   /// that hasn't been rendered yet is left out (the app and `director render` render it first).
   public func animationInserts(dir: URL?) -> [Insert] {

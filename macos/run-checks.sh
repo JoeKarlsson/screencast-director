@@ -9,6 +9,8 @@ cd "$(dirname "$0")"
 name=$1
 shift
 mkdir -p .build/checks
+# Every DirectorCore source, subfolders included (the paths have no spaces).
+# shellcheck disable=SC2046
 swiftc -swift-version 5 -parse-as-library -suppress-warnings -target arm64-apple-macos15.0 \
-  Sources/DirectorCore/*.swift "$@" -o ".build/checks/$name"
+  $(find Sources/DirectorCore -name "*.swift") "$@" -o ".build/checks/$name"
 ".build/checks/$name"

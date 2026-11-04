@@ -66,3 +66,33 @@ public enum InputEvents {
     try JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]) + Data("\n".utf8)
   }
 }
+
+public struct Word: Codable, Equatable {
+  public var text: String
+  public var start: Double
+  public var end: Double
+  public init(text: String, start: Double, end: Double) {
+    self.text = text
+    self.start = start
+    self.end = end
+  }
+}
+
+public enum InputKind: String, Codable {
+  case move, click, scroll, key, retake
+}
+
+public struct InputEvent: Equatable {
+  public var t: Double
+  public var type: InputKind
+  public var x: Double
+  public var y: Double
+  public var label: String?
+  public init(t: Double, type: InputKind, x: Double, y: Double, label: String? = nil) {
+    self.t = t
+    self.type = type
+    self.x = x
+    self.y = y
+    self.label = label
+  }
+}

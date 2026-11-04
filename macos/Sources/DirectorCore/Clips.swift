@@ -32,12 +32,6 @@ public struct Clip: Codable, Equatable {
 }
 
 extension Plan {
-  /// `clips` as a plain list (empty when there are none).
-  public var clipList: [Clip] {
-    get { clips ?? [] }
-    set { clips = newValue.isEmpty ? nil : newValue }
-  }
-
   /// A new social clip over `range`: vertical, named "Clip N" with the first free number.
   public func newClip(over range: Range<Double>) -> Clip {
     let names = Set(clipList.map(\.name))

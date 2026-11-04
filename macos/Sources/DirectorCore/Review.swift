@@ -70,60 +70,6 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
 }
 
 extension Plan {
-  /// `annotations` as a plain list (empty when there are none).
-  public var annotationList: [Annotation] {
-    get { annotations ?? [] }
-    set { annotations = newValue.isEmpty ? nil : newValue }
-  }
-
-  /// `inserts` as a plain list (empty when there are none).
-  public var insertList: [Insert] {
-    get { inserts ?? [] }
-    set { inserts = newValue.isEmpty ? nil : newValue }
-  }
-
-  /// `markers` as a plain list (empty when there are none), kept in time order.
-  public var markerList: [Marker] {
-    get { markers ?? [] }
-    set { markers = newValue.isEmpty ? nil : newValue.sorted { $0.t < $1.t } }
-  }
-
-  /// `audio`, starting from the defaults when the plan has none.
-  public var audioSettings: AudioSettings {
-    get { audio ?? AudioSettings() }
-    set { audio = newValue }
-  }
-
-  /// `cursor`, starting from the defaults when the plan has none.
-  public var cursorSettings: CursorSettings {
-    get { cursor ?? CursorSettings() }
-    set { cursor = newValue }
-  }
-
-  /// The camera's `punchIns` as a plain list (empty when there are none, or no camera to punch).
-  public var punchInList: [PunchIn] {
-    get { camera?.punchIns ?? [] }
-    set { camera?.punchIns = newValue.isEmpty ? nil : newValue }
-  }
-
-  /// The always-on `effects` as a plain list (empty when there are none).
-  public var effectList: [EffectUse] {
-    get { effects ?? [] }
-    set { effects = newValue.isEmpty ? nil : newValue }
-  }
-
-  /// `effectRanges` as a plain list (empty when there are none).
-  public var effectRangeList: [EffectRange] {
-    get { effectRanges ?? [] }
-    set { effectRanges = newValue.isEmpty ? nil : newValue }
-  }
-
-  /// `sfx` as a plain list (empty when there are none).
-  public var sfxList: [SoundEffect] {
-    get { sfx ?? [] }
-    set { sfx = newValue.isEmpty ? nil : newValue }
-  }
-
   /// This plan with `other`'s clips and timed items: everything planChanges reviews item by item,
   /// so what's left differing is the look and settings.
   func withTimedItems(from other: Plan) -> Plan {
@@ -140,4 +86,61 @@ extension Plan {
     p.punchInList = other.punchInList
     return p
   }
+}
+
+/// What an AI's second look at its own edit needs: for each zoom, what was said and clicked while
+/// it's on screen, and every cut edge that lands inside a word.
+public func editReview(_ project: Project, _ plan: Plan) -> String {
+  var lines: [String] = []
+  let fps = plan.output.fps
+  let mapped = mapPlan(plan)
+  for (i, z) in plan.zooms.enumerated() {
+    let said = project.words.filter { $0.end > z.start && $0.start < z.end }.map(\.text).joined(separator: " ")
+    let clicks = project.events.filter { $0.type == .click && $0.t >= z.start && $0.t < z.end }
+      .map { String(format: "(%.2f, %.2f)", $0.x, $0.y) }
+    let mid = Int(srcToOutClamped(mapped, (z.start + z.end) / 2, fps: fps))
+    lines.append(
+      "zoom #\(i) src \(fmtTime(z.start))-\(fmtTime(z.end)) at " + String(format: "(%.2f, %.2f) x%.1f", z.x, z.y, z.scale)
+        + ": said \"\(said)\"" + (clicks.isEmpty ? ", no clicks" : ", clicks at " + clicks.joined(separator: " "))
+        + "; middle is output frame \(mid)")
+  }
+  // Each place the video jumps over a cut, and the frame 0.5 s after it.
+  for (i, m) in mapped.enumerated() where i > 0 ? abs(mapped[i - 1].end - m.start) > 0.001 : m.start > 0.001 {
+    lines.append("cut before src \(fmtTime(m.start)): 0.5 s after it is output frame \(m.outStart + fps / 2)")
+  }
+  for s in plan.segments {
+    for edge in [s.start, s.end] {
+      if let w = project.words.first(where: { $0.start + 0.05 < edge && edge < $0.end - 0.05 }) {
+        lines.append("cut edge at src \(fmtTime(edge)) splits the word \"\(w.text)\" (\(fmtTime(w.start))-\(fmtTime(w.end)))")
+      }
+    }
+  }
+  for f in flashes(plan, dir: project.dir) { lines.append("WARNING: \(describeFlash(f, plan))") }
+  return lines.isEmpty ? "No zooms and no cuts inside words." : lines.joined(separator: "\n")
+}
+
+/// Source-time ranges an edit touched: clips and timed items (zooms, layouts, titles, annotations,
+/// B-roll, animations, sound effects) that were added, removed or changed between two plans, merged
+/// where they overlap. The timeline flashes these after an AI edit.
+public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
+  func diff<T: Equatable>(_ a: [T], _ b: [T], _ range: (T) -> (Double, Double)) -> [(Double, Double)] {
+    a.filter { !b.contains($0) }.map(range) + b.filter { !a.contains($0) }.map(range)
+  }
+  let all =
+    diff(old.segments, new.segments) { ($0.start, $0.end) } + diff(old.zooms, new.zooms) { ($0.start, $0.end) }
+    + diff(old.layouts, new.layouts) { ($0.start, $0.end) } + diff(old.callouts, new.callouts) { ($0.start, $0.end) }
+    + diff(old.annotations ?? [], new.annotations ?? []) { ($0.start, $0.end) }
+    + diff(old.insertList, new.insertList) { ($0.start, $0.end) }
+    + diff(old.animationList, new.animationList) { ($0.start, $0.end) } + diff(old.sfxList, new.sfxList) { ($0.t, $0.t) }
+    + diff(old.effectRangeList, new.effectRangeList) { ($0.start, $0.end) }
+    + diff(old.punchInList, new.punchInList) { ($0.start, $0.end) }
+  var merged: [(Double, Double)] = []
+  for r in all.sorted(by: { $0.0 < $1.0 }) {
+    if let last = merged.last, r.0 <= last.1 {
+      merged[merged.count - 1].1 = max(last.1, r.1)
+    } else {
+      merged.append(r)
+    }
+  }
+  return merged
 }
