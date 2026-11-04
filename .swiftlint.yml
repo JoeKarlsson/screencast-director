@@ -10,6 +10,10 @@ disabled_rules:
   - large_tuple            # (start, end, speed)-style tuples are clearer than one-off structs
   - function_parameter_count
   - todo
+  - optional_data_string_conversion  # process output and file text decode lossily on purpose: a bad byte shouldn't drop the whole text
+
+type_name:
+  excluded: [S3]  # the service's name
 
 line_length:
   warning: 180

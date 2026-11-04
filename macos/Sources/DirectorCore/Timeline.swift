@@ -7,7 +7,7 @@ public struct MappedSegment: Equatable {
   public var end: Double
   public var speed: Double
   public var note: String?
-  public var transition: String? = nil
+  public var transition: String?
   /// First output frame of this segment.
   public var outStart: Int
   public var frames: Int
@@ -162,8 +162,8 @@ public struct OutZoom: Equatable {
   public var x: Double
   public var y: Double
   public var scale: Double
-  public var ease: String? = nil
-  public var seconds: Double? = nil
+  public var ease: String?
+  public var seconds: Double?
 }
 
 public func zoomsToOut(_ zooms: [Zoom], _ mapped: [MappedSegment], fps: Int) -> [OutZoom] {

@@ -110,8 +110,7 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     panel.delegate = self
     self.panel = panel
     if let saved = UserDefaults.standard.string(forKey: originKey).map(NSPointFromString),
-      NSScreen.screens.contains(where: { $0.visibleFrame.contains(NSRect(origin: saved, size: size)) })
-    {
+      NSScreen.screens.contains(where: { $0.visibleFrame.contains(NSRect(origin: saved, size: size)) }) {
       panel.setFrameOrigin(saved)
     } else if let frame = (screen ?? NSScreen.main)?.visibleFrame {
       panel.setFrameOrigin(NSPoint(x: frame.midX - size.width / 2, y: frame.minY + 48))

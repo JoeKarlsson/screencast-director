@@ -7,8 +7,7 @@ enum AnimationLibrary {
   /// The built-in set: in the app bundle, or the source tree for a `swift build` run.
   static let builtIn: URL = {
     if let bundled = Bundle.main.resourceURL?.appendingPathComponent("animations"),
-      FileManager.default.fileExists(atPath: bundled.appendingPathComponent("animation.html").path)
-    {
+      FileManager.default.fileExists(atPath: bundled.appendingPathComponent("animation.html").path) {
       return bundled
     }
     return URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources/animations").standardizedFileURL

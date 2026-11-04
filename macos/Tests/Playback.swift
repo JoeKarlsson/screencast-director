@@ -200,8 +200,7 @@ struct Playback {
         RunLoop.main.run(until: Date().addingTimeInterval(1.0 / 60))
         let now = out.itemTime(forHostTime: CACurrentMediaTime())
         if out.hasNewPixelBuffer(forItemTime: now), out.copyPixelBuffer(forItemTime: now, itemTimeForDisplay: nil) != nil,
-          now.seconds < 1 || now.seconds >= 3.5
-        {
+          now.seconds < 1 || now.seconds >= 3.5 {
           cardFrames += 1
         }
       }

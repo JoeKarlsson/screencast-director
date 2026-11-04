@@ -146,11 +146,11 @@ extension InspectorView {
     _ title: String, _ kp: WritableKeyPath<Grade, Double?>, _ neutral: Double, _ range: ClosedRange<Double>, _ fmt: String
   ) -> some View {
     let value = project.plan?.camera?.grade?[keyPath: kp] ?? neutral
-    let binding = bind("grade\(title)", { $0.camera?.grade?[keyPath: kp] ?? neutral }) { p, v in
+    let binding = bind("grade\(title)", { $0.camera?.grade?[keyPath: kp] ?? neutral }, { p, v in
       var g = p.camera?.grade ?? Grade()
       g[keyPath: kp] = (v * 100).rounded() / 100
       p.camera?.grade = g
-    }
+    })
     return slider(title, binding, range, String(format: fmt, value))
   }
 }

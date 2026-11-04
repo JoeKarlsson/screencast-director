@@ -56,7 +56,8 @@ struct AppCommands: Commands {
   @Environment(\.openWindow) var openWindow
 
   var body: some Commands {
-    let _ = app.openMainWindow = { openWindow(id: "main") }
+    // A statement in a result builder needs `let _ =`; a bare `_ =` doesn't compile here.
+    let _ = app.openMainWindow = { openWindow(id: "main") }  // swiftlint:disable:this redundant_discardable_let
     CommandGroup(replacing: .newItem) {
       Button("New Recording…") { app.showRecordSetup() }
         .keyboardShortcut("n")

@@ -360,8 +360,7 @@ do {
     let env = ProcessInfo.processInfo.environment
     let config: S3.Config
     if let endpoint = env["S3_ENDPOINT"].flatMap(URL.init(string:)), let bucket = env["S3_BUCKET"],
-      let access = env["S3_ACCESS_KEY"], let secret = env["S3_SECRET_KEY"]
-    {
+      let access = env["S3_ACCESS_KEY"], let secret = env["S3_SECRET_KEY"] {
       config = S3.Config(
         endpoint: endpoint, region: env["S3_REGION"] ?? "us-east-1", bucket: bucket, accessKey: access, secretKey: secret,
         publicBase: env["S3_PUBLIC_BASE"])

@@ -161,7 +161,7 @@ extension TimelineView {
     let step: Double = pps > 120 ? 1 : pps > 40 ? 5 : pps > 12 ? 10 : 30
     let minor = step / (step == 1 ? 4 : 5)
     let length = axisLength
-    return Canvas { ctx, size in
+    return Canvas { ctx, _ in
       var i = 0
       while Double(i) * minor <= length {
         let t = Double(i) * minor
@@ -198,7 +198,7 @@ extension TimelineView {
     let fps = project.fps
     let h = Track.audio.height
     let output = ui.outputTime
-    return Canvas { ctx, size in
+    return Canvas { ctx, _ in
       guard !levels.isEmpty else { return }
       // One bar per 2 px column, from the loudest 50 ms sample in it.
       let step = max(1, Int((2 / pps) / 0.05))

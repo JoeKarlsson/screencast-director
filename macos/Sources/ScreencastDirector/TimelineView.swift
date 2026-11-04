@@ -38,7 +38,7 @@ struct TimelineView: View {
                     ui.zoom(by: base * v.magnification / ui.pxPerSec, around: axis(project.playheadSrc))
                   }
                   .onEnded { _ in ui.pinchBase = nil })
-              .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }) { _, r in ui.scrolled(to: r) }
+              .onScrollGeometryChange(for: CGRect.self, of: { $0.visibleRect }, action: { _, r in ui.scrolled(to: r) })
               .onChange(of: project.aiChange?.id) { _, id in
                 guard id != nil, let ranges = project.aiChange?.ranges else { return }
                 flash(ranges, proxy)
@@ -186,7 +186,7 @@ struct TimelineView: View {
   }
 
   /// ⇧ or ⌘ held: clicks and drag boxes add to the selection.
-  var adding: Bool { !NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty }
+  var adding: Bool { !NSEvent.modifierFlags.isDisjoint(with: [.shift, .command]) }
 
   @ViewBuilder
   func tracks(_ plan: Plan) -> some View {

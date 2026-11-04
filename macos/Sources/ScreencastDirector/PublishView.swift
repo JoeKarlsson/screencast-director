@@ -57,7 +57,7 @@ struct PublishView: View {
             ForEach(thumbs, id: \.self) { url in
               if let img = NSImage(contentsOf: url) {
                 // Each at its own shape: vertical covers stay vertical.
-                Image(nsImage: img).resizable().aspectRatio(contentMode: .fit).frame(height: 220)
+                Image(nsImage: img).resizable().scaledToFit().frame(height: 220)
                   .clipShape(RoundedRectangle(cornerRadius: 8))
                   .onTapGesture { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                   .help(url.lastPathComponent)

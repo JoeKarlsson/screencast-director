@@ -413,7 +413,7 @@ extension InspectorView {
             } catch {
               Notices.shared.show(error, "Couldn't add \(entry.item.name)")
             }
-          }) { ui.showItemSoundPicker = false }
+          }, close: { ui.showItemSoundPicker = false })
         }
       }
       if let s = sound.wrappedValue {

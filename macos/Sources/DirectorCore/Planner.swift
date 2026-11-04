@@ -168,8 +168,7 @@ public func buildZooms(_ p: Project) -> [Zoom] {
   for f in focus {
     if f.fx < 0 || f.fx > 1 || f.fy < 0 || f.fy > 1 { continue }  // another display
     if let prev = clusters.last?.last, f.e.t - prev.e.t <= Rules.zoomGap,
-      hypot(f.fx - prev.fx, f.fy - prev.fy) <= Rules.zoomDistance
-    {
+      hypot(f.fx - prev.fx, f.fy - prev.fy) <= Rules.zoomDistance {
       clusters[clusters.count - 1].append(f)
     } else {
       clusters.append([f])

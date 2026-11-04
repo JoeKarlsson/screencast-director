@@ -46,7 +46,6 @@ extension ProjectModel {
     }
   }
 
-
   func run(_ label: String, _ work: @escaping @MainActor () async throws -> Void) {
     guard !busy else { return }
     busy = true

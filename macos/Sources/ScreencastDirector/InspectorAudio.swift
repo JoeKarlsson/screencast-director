@@ -43,7 +43,7 @@ extension InspectorView {
         }
         .help("Pick background music from the library")
         .popover(isPresented: $ui.showMusicPicker, arrowEdge: .leading) {
-          AudioPicker(kind: .music, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.useMusic($0) }) { ui.showMusicPicker = false }
+          AudioPicker(kind: .music, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.useMusic($0) }, close: { ui.showMusicPicker = false })
         }
         Button("File…") { project.chooseMusicFile() }
           .help("Use a music file of your own")
@@ -72,7 +72,7 @@ extension InspectorView {
         Button { openPicker(.sounds) } label: { Label("Add Sound Effect…", systemImage: "speaker.wave.2").frame(maxWidth: .infinity) }
           .help("Pick a sound effect to add at the playhead")
           .popover(isPresented: $ui.showSoundPicker, arrowEdge: .leading) {
-            AudioPicker(kind: .sounds, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.addSound($0) }) { ui.showSoundPicker = false }
+            AudioPicker(kind: .sounds, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.addSound($0) }, close: { ui.showSoundPicker = false })
           }
     }
     InspectorSection("Pauses", detail: "How hard to cut silence. Cuts that removed words always stay cut.") {

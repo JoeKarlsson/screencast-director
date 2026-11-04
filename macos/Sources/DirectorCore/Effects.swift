@@ -347,15 +347,15 @@ public enum Effects {
 
 /// Runs an effect's compiled shader inside Core Image, so it draws the same in preview and export.
 final class EffectKernel: CIImageProcessorKernel {
-  override class var outputFormat: CIFormat { .RGBAh }
-  override class func formatForInput(at input: Int32) -> CIFormat { .RGBAh }
+  override static var outputFormat: CIFormat { .RGBAh }
+  override static func formatForInput(at input: Int32) -> CIFormat { .RGBAh }
 
-  override class func roi(forInput input: Int32, arguments: [String: Any]?, outputRect: CGRect) -> CGRect {
+  override static func roi(forInput input: Int32, arguments: [String: Any]?, outputRect: CGRect) -> CGRect {
     let reach = CGFloat((arguments?["effect"] as? LoadedEffect)?.reach ?? 0)
     return outputRect.insetBy(dx: -reach, dy: -reach)
   }
 
-  override class func process(with inputs: [CIImageProcessorInput]?, arguments: [String: Any]?, output: CIImageProcessorOutput) throws {
+  override static func process(with inputs: [CIImageProcessorInput]?, arguments: [String: Any]?, output: CIImageProcessorOutput) throws {
     guard let effect = arguments?["effect"] as? LoadedEffect, let extent = arguments?["extent"] as? CGRect,
       let signals = arguments?["signals"] as? Data, let blobs = arguments?["blobs"] as? Data, let input = inputs?.first,
       let src = input.metalTexture, let dst = output.metalTexture, let buffer = output.metalCommandBuffer,

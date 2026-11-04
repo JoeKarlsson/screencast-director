@@ -8,8 +8,7 @@ import ScreenCaptureKit
 /// into a new project folder. Everything is stamped on the host clock, so source.json's captureStart
 /// and the camera offset line events and camera up with the screen to the frame.
 final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelegate, AVCaptureVideoDataOutputSampleBufferDelegate,
-  @unchecked Sendable
-{
+  @unchecked Sendable {
   @Published private(set) var isRecording = false
   @Published private(set) var startedAt: Date?
   /// Set when ScreenCaptureKit stops the stream on its own (mic unplugged, window closed, display

@@ -80,8 +80,7 @@ public func flashes(_ plan: Plan, dir: URL? = nil, minSeconds: Double = 1.0) -> 
   // A clip under half a second is a flicker even when what's on screen stays the same kind of thing.
   let mapped = scene.mapped
   for (k, m) in mapped.enumerated() where Double(m.frames) < 0.5 * fps && mapped.count > 1
-    && !out.contains(where: { $0.startF < Double(m.outStart + m.frames) && $0.endF > Double(m.outStart) })
-  {
+    && !out.contains(where: { $0.startF < Double(m.outStart + m.frames) && $0.endF > Double(m.outStart) }) {
     out.append(
       Flash(
         startF: Double(m.outStart), endF: Double(m.outStart + m.frames), what: "clip src \(fmtTime(m.start))-\(fmtTime(m.end))",

@@ -27,8 +27,7 @@ extension Scene {
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
     let pointerAt = b.opacity > 0.01 && !screenHidden ? cursorPosition(frame: f) : nil
     if page == nil && chip == nil && shownCallouts.isEmpty && shownMarks.isEmpty && ripples.isEmpty && !border && !brackets
-      && watermark == nil && pointerAt == nil
-    {
+      && watermark == nil && pointerAt == nil {
       return nil
     }
 

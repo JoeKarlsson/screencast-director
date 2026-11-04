@@ -212,7 +212,7 @@ struct TranscriptView: View {
         speed == nil ? Color.secondary.opacity(0.6) : (speed ?? 1) > 1.01 ? Theme.fast : filler ? Color.secondary : Color.primary)
       .padding(.horizontal, 2)
       .background(RoundedRectangle(cornerRadius: 3).fill(background))
-      .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("transcript")) }) { ui.frames[i] = $0 }
+      .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("transcript")) }, action: { ui.frames[i] = $0 })
       .onTapGesture { project.clickWord(i, extend: NSEvent.modifierFlags.contains(.shift)) }
       .help("\(fmtTime(w.start))\(speed == nil ? ", cut" : (speed ?? 1) > 1.01 ? ", \((speed ?? 1).formatted())x" : "")\(filler ? ", filler word" : "")")
       .accessibilityAddTraits(.isButton)

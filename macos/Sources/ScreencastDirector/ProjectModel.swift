@@ -94,8 +94,8 @@ final class ProjectModel: ObservableObject {
     loadFromDisk()
     watchPlan()
     loadAsks()
-    quitObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) {
-      [weak self] _ in MainActor.assumeIsolated { self?.stopForQuit() }
+    quitObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.stopForQuit() }
     }
   }
 
@@ -317,8 +317,7 @@ final class ProjectModel: ObservableObject {
     // yet. Apply this change on top of the file, not over it.
     // Checking the modification date first keeps a slider drag from reading the file every tick.
     if planMtime() != lastPlanMtime, pendingWrite == nil, let disk = try? Data(contentsOf: planURL), disk != lastPlanData,
-      let fresh = try? JSONDecoder().decode(Plan.self, from: disk)
-    {
+      let fresh = try? JSONDecoder().decode(Plan.self, from: disk) {
       if let old = plan { undoStack.append(old) }
       lastPlanData = disk
       lastPlanMtime = planMtime()
