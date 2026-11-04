@@ -165,3 +165,26 @@ func recordedBrollChecks() {
   let before = RecordedBroll.insert(file: "broll/a.mov", playhead: -1, length: 2, duration: 20)
   expect(before.start == 0 && before.end == 2, "a playhead before the start clamps to 0 (\(before))")
 }
+
+// The timeline's rows: ruler, clips and audio always; words with a transcript; the rest only while
+// they have items, stacked without gaps for the hidden ones.
+func timelineRowChecks() {
+  let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 20, captureStart: nil, camera: nil)
+  var plan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp/sd-rows"), source: src))
+  plan.intro = nil
+  plan.outro = nil
+  expect(TimelineRows(plan: nil, hasWords: true).visible == [.ruler, .clips, .audio], "with no plan, only the fixed rows show")
+  let bare = TimelineRows(plan: plan, hasWords: false)
+  expect(bare.visible == [.ruler, .clips, .audio], "an empty plan shows only the ruler, clips and audio (\(bare.visible))")
+  expect(TimelineRows(plan: plan, hasWords: true).visible == [.ruler, .clips, .audio, .words], "a transcript adds the words row")
+  plan.zooms = [Zoom(start: 1, end: 3, x: 0.5, y: 0.5, scale: 2)]
+  plan.callouts = [Callout(start: 5, end: 6, text: "Hi")]
+  var rows = TimelineRows(plan: plan, hasWords: false)
+  expect(rows.visible == [.ruler, .clips, .audio, .zooms, .titles], "a zoom and a title add their rows (\(rows.visible))")
+  expect(rows.y(.titles) == rows.y(.zooms) + TimelineTrack.zooms.height + TimelineRows.gap, "titles sit right under zooms when layouts are hidden")
+  expect(rows.total == rows.y(.titles) + TimelineTrack.titles.height + TimelineRows.gap, "the timeline is as tall as its shown rows")
+  plan.callouts[0].sound = Sound(file: "sfx/pop.m4a")
+  rows = TimelineRows(plan: plan, hasWords: false)
+  expect(rows.visible.last == .sounds, "a sound attached to a title shows the Sound FX row")
+  expect(rows.y(.broll) == rows.total, "a hidden row sits below the shown ones")
+}

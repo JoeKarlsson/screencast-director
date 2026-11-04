@@ -12,6 +12,9 @@ struct TimelineView: View {
   private static let snapDistance: CGFloat = 6
   private static let playheadColor = Color.red
 
+  /// The rows shown: empty ones are hidden (TimelineRows).
+  private var rows: TimelineRows { TimelineRows(plan: project.plan, hasWords: !(project.project?.words.isEmpty ?? true)) }
+
   var body: some View {
     VStack(spacing: 8) {
       toolbar
@@ -21,7 +24,7 @@ struct TimelineView: View {
             labels
             ScrollViewReader { proxy in
               ScrollView(.horizontal) {
-                tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, axisLength * ui.pxPerSec), height: Track.total)
+                tracks(plan).frame(width: max(geo.size.width - Self.headerWidth, axisLength * ui.pxPerSec), height: rows.total)
                   .onContinuousHover { phase in
                     if case .active(let p) = phase { ui.pointerTime = p.x / ui.pxPerSec } else { ui.pointerTime = nil }
                   }
@@ -65,7 +68,7 @@ struct TimelineView: View {
             if ui.isFitted(width: ui.width, seconds: ui.axisSeconds) { ui.fit(l) } else { ui.axisSeconds = l }
           }
         }
-        .frame(height: Track.total + 14)
+        .frame(height: rows.total + 14)
       }
     }
   }
@@ -103,7 +106,7 @@ struct TimelineView: View {
         shape.fill(Theme.ai.opacity(0.22))
           .overlay(shape.strokeBorder(Theme.ai, lineWidth: 1.5))
           .shadow(color: Theme.ai.opacity(0.9), radius: 8)
-          .frame(width: max(4, x(r.1) - x(r.0)), height: Track.total)
+          .frame(width: max(4, x(r.1) - x(r.0)), height: rows.total)
           .offset(x: x(r.0))
       }
       .opacity(ui.flashOpacity)
@@ -195,7 +198,19 @@ struct TimelineView: View {
         .help("Add an animation over the in/out range, the selected words, or from the playhead")
         Menu {
           let sources = EffectSources(project: project.dir)
-          ForEach(sources.available(), id: \.self) { name in
+          let names = sources.available()
+          if names.isEmpty {
+            Text("No effects installed")
+            Button("Open Effects Folder") {
+              do {
+                try FileManager.default.createDirectory(at: EffectSources.personalFolder, withIntermediateDirectories: true)
+                NSWorkspace.shared.open(EffectSources.personalFolder)
+              } catch {
+                Notices.shared.show(error, "Couldn't make the Effects folder")
+              }
+            }
+          }
+          ForEach(names, id: \.self) { name in
             Button(sources.manifest(name)?.title ?? name) { project.addEffectRange(name) }
           }
         } label: {
@@ -307,7 +322,7 @@ struct TimelineView: View {
   /// Track headers: the track's icon in its color, and its name.
   private var labels: some View {
     ZStack(alignment: .topLeading) {
-      ForEach(Track.allCases.filter { $0 != .ruler }, id: \.self) { t in
+      ForEach(rows.visible.filter { $0 != .ruler }, id: \.self) { t in
         HStack(spacing: 5) {
           Image(systemName: t.icon)
             .font(.system(size: t == .words ? 9 : 10, weight: .semibold))
@@ -321,10 +336,10 @@ struct TimelineView: View {
         .padding(.leading, 6)
         .frame(width: Self.headerWidth - 6, height: t.height, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.04)))
-        .offset(y: t.y)
+        .offset(y: rows.y(t))
       }
     }
-    .frame(width: Self.headerWidth, height: Track.total, alignment: .topLeading)
+    .frame(width: Self.headerWidth, height: rows.total, alignment: .topLeading)
   }
 
   // MARK: Tracks
@@ -467,7 +482,7 @@ struct TimelineView: View {
       }
       if let s = ui.snap {
         Rectangle().fill(Color.primary.opacity(0.8))
-          .frame(width: 1, height: Track.total - Track.ruler.height)
+          .frame(width: 1, height: rows.total - Track.ruler.height)
           .offset(x: x(s) - 0.5, y: Track.ruler.height)
           .allowsHitTesting(false)
       }
@@ -479,15 +494,15 @@ struct TimelineView: View {
   /// A faint band behind each track. Clicking an empty spot moves the playhead there and deselects.
   private var lanes: some View {
     ZStack(alignment: .topLeading) {
-      ForEach(Track.allCases.filter { $0 != .ruler }, id: \.self) { t in
+      ForEach(rows.visible.filter { $0 != .ruler }, id: \.self) { t in
         RoundedRectangle(cornerRadius: 5, style: .continuous)
           .fill(Color.primary.opacity(0.03))
           .frame(height: t.height)
-          .offset(y: t.y)
+          .offset(y: rows.y(t))
       }
     }
     // Offsets don't grow a ZStack, so give it the tracks' full height to catch clicks everywhere.
-    .frame(maxWidth: .infinity, minHeight: Track.total, alignment: .topLeading)
+    .frame(maxWidth: .infinity, minHeight: rows.total, alignment: .topLeading)
     .contentShape(Rectangle())
     .onTapGesture(coordinateSpace: .local) { loc in
       if !adding {
@@ -516,7 +531,7 @@ struct TimelineView: View {
   private func items(in box: CGRect, _ plan: Plan) -> [Selection] {
     plan.allItems.filter { s in
       guard let track = Track.of(s), let (a, b) = plan.timeRange(of: s) else { return false }
-      return box.intersects(CGRect(x: x(a), y: track.y, width: max(3, xEnd(b) - x(a)), height: track.height))
+      return box.intersects(CGRect(x: x(a), y: rows.y(track), width: max(3, xEnd(b) - x(a)), height: track.height))
     }
   }
 
@@ -527,13 +542,13 @@ struct TimelineView: View {
       let a = project.inPoint ?? 0, b = project.outPoint ?? plan.source.duration
       ZStack(alignment: .topLeading) {
         Rectangle().fill(Theme.accent.opacity(0.1))
-          .frame(width: max(1, xEnd(b) - x(a)), height: Track.total - Track.ruler.height)
+          .frame(width: max(1, xEnd(b) - x(a)), height: rows.total - Track.ruler.height)
           .offset(x: x(a), y: Track.ruler.height)
         if let i = project.inPoint {
-          InOutBracket(left: true).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: Track.total - 2).offset(x: x(i), y: 1)
+          InOutBracket(left: true).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: rows.total - 2).offset(x: x(i), y: 1)
         }
         if let o = project.outPoint {
-          InOutBracket(left: false).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: Track.total - 2).offset(x: x(o) - 6, y: 1)
+          InOutBracket(left: false).stroke(Theme.accent, lineWidth: 2).frame(width: 6, height: rows.total - 2).offset(x: x(o) - 6, y: 1)
         }
       }
       .allowsHitTesting(false)
@@ -557,7 +572,7 @@ struct TimelineView: View {
         .frame(height: Track.sounds.height - 4)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Theme.sfx.opacity(0.6), lineWidth: 1))
         .contentShape(Rectangle())
-        .offset(x: x(t), y: Track.sounds.y + 2)
+        .offset(x: x(t), y: rows.y(.sounds) + 2)
         .onTapGesture {
           project.select(a.owner, adding: adding)
           project.seek(src: a.t)
@@ -582,7 +597,7 @@ struct TimelineView: View {
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.sfx.opacity(selected ? 0.9 : 0.22)))
         .overlay(alignment: .leading) { Rectangle().fill(Theme.sfx).frame(width: 2) }
         .contentShape(Rectangle())
-        .offset(x: x(t), y: Track.sounds.y + 2)
+        .offset(x: x(t), y: rows.y(.sounds) + 2)
         .onTapGesture {
           project.select(sel, adding: adding)
           project.seek(src: e.t)
@@ -633,7 +648,7 @@ struct TimelineView: View {
         let (t, _) = range(sel, m.t, m.t)
         let selected = project.isSelected(sel)
         Rectangle().fill(Theme.accent.opacity(0.35))
-          .frame(width: 1, height: Track.total - Track.ruler.height)
+          .frame(width: 1, height: rows.total - Track.ruler.height)
           .offset(x: x(t), y: Track.ruler.height)
           .allowsHitTesting(false)
         HStack(spacing: 3) {
@@ -679,14 +694,14 @@ struct TimelineView: View {
   private var playhead: some View {
     ZStack(alignment: .top) {
       Rectangle().fill(Self.playheadColor)
-        .frame(width: 1.5, height: Track.total - 4)
+        .frame(width: 1.5, height: rows.total - 4)
         .offset(y: 4)
       PlayheadCap().fill(Self.playheadColor)
         .frame(width: 11, height: 15)
         .offset(y: 2)
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
-    .frame(width: 12, height: Track.total, alignment: .top)
+    .frame(width: 12, height: rows.total, alignment: .top)
     .modifier(
       PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped, outputTime: ui.outputTime))
     .allowsHitTesting(false)
@@ -763,7 +778,7 @@ struct TimelineView: View {
       }
     }
     .frame(height: h)
-    .offset(y: Track.audio.y)
+    .offset(y: rows.y(.audio))
     .allowsHitTesting(false)
   }
 
@@ -797,7 +812,7 @@ struct TimelineView: View {
       }
     }
     .frame(height: Track.words.height)
-    .offset(y: Track.words.y)
+    .offset(y: rows.y(.words))
     .allowsHitTesting(false)
   }
 
@@ -822,7 +837,7 @@ struct TimelineView: View {
       .onTapGesture { project.select(sel, adding: adding) }
       .onHover { setHover(sel, $0) }
       .help("Cut: select it and press ⌫ to restore")
-      .offset(x: x(g.start), y: Track.clips.y)
+      .offset(x: x(g.start), y: rows.y(.clips))
   }
 
   private func setHover(_ sel: Selection, _ inside: Bool) {
@@ -838,7 +853,7 @@ struct TimelineView: View {
       .frame(width: 3, height: Track.clips.height + 8)
       .shadow(color: .black.opacity(0.5), radius: 2)
       .allowsHitTesting(false)
-      .offset(x: px - 1.5, y: Track.clips.y - 4)
+      .offset(x: px - 1.5, y: rows.y(.clips) - 4)
   }
 
   /// A selectable bar with drag handles on both edges; `movable` bars can also be dragged whole.
@@ -961,7 +976,7 @@ struct TimelineView: View {
       .overlay(alignment: .trailing) {
         if trimmable { handle(sel: sel, start: start, end: end, left: false, limits: limits, commit: commit) }
       }
-      .offset(x: x(start), y: track.y)
+      .offset(x: x(start), y: rows.y(track))
   }
 
   /// The source recording's frames for a clip bar, or nil without a plan.

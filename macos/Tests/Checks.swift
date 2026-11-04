@@ -1059,6 +1059,7 @@ struct Checks {
     recordedBrollChecks()
     reorderChecks()
     planFileChecks()
+    timelineRowChecks()
     flashChecks()
     coverChecks()
     inputEventChecks()

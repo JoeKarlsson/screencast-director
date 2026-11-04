@@ -21,6 +21,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- The timeline hides empty rows: the ruler, clips and audio always show, words with a transcript, and Zoom, Layout, Titles, Marks, B-roll, Animations, Effects and Sound FX only once they have something on them. The Effect menu says when no effects are installed and opens the Effects folder.
 - Plans with missing fields load: one from before plan versions, or one written by hand without `callouts`, `clickRipples` or `style`, used to fail to open. Missing fields take the defaults a new video gets.
 - Settings › AI keeps the Test Connection result when the window redraws, and the button is off when Claude Code isn't installed. Publish's Copy says why when it can't read a file instead of copying nothing.
 - Preview volume: a speaker button and slider under the preview set how loud it plays while you edit (click the speaker to mute). The export keeps the video's own levels.

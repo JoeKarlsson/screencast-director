@@ -102,33 +102,10 @@ final class TimelineUI: ObservableObject {
   }
 }
 
-enum Track: CaseIterable {
-  case ruler, clips, audio, words, zooms, layouts, titles, marks, broll, animations, effects, sounds
+/// The timeline's rows (DirectorCore's TimelineTrack), with how each one looks.
+typealias Track = TimelineTrack
 
-  var height: CGFloat {
-    switch self {
-    case .ruler: return 22
-    case .clips: return 34
-    case .audio: return 30
-    case .words: return 18
-    default: return 24
-    }
-  }
-  /// The track an item's bar sits on (nil for markers, which sit in the ruler).
-  static func of(_ s: Selection) -> Track? {
-    switch s {
-    case .segment, .gap: return .clips
-    case .zoom: return .zooms
-    case .layout: return .layouts
-    case .callout: return .titles
-    case .annotation: return .marks
-    case .insert: return .broll
-    case .animation: return .animations
-    case .sfx: return .sounds
-    case .effectRange: return .effects
-    case .marker: return nil
-    }
-  }
+extension TimelineTrack {
   var label: String {
     switch self {
     case .ruler: return ""
@@ -177,15 +154,6 @@ enum Track: CaseIterable {
     case .sounds: return Theme.sfx
     }
   }
-  var y: CGFloat {
-    var y: CGFloat = 0
-    for t in Track.allCases {
-      if t == self { return y }
-      y += t.height + 4
-    }
-    return y
-  }
-  static var total: CGFloat { allCases.reduce(0) { $0 + $1.height + 4 } }
 }
 
 /// Diagonal hatching, for cuts and sped-up clips.
