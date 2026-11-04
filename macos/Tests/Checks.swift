@@ -959,8 +959,10 @@ struct Checks {
     expect(templateScripts.evaluateScript("JSON.stringify(stageSize(1920, 1080, true))").toString() == #"{"w":1920,"h":1080,"reflow":false}"#, "16:9 always gets the classic board")
     expect(templateScripts.evaluateScript("TEMPLATES.storyboard.reflows").toBool(), "the storyboard lays itself out on any board")
     // The terminal theme routes lines at right angles and holds them still; its entrances flicker on, no bounce.
-    expect(templateScripts.evaluateScript(#"THEME = "terminal"; handCurve([0, 0], [100, 50], 0.3, 1).d"#).toString() == "M0,0 L50,0 L50,50 L100,50", "terminal lines run across, down, across")
-    expect(templateScripts.evaluateScript("JSON.stringify(handCurve([0, 0], [100, 50], 0, 1).at(0.5))").toString() == "[50,25]", "a terminal line's midpoint is halfway along its route")
+    let route = templateScripts.evaluateScript(#"THEME = "terminal"; handCurve([0, 0], [100, 50], 0.3, 1).d"#).toString() ?? ""
+    expect(route.range(of: #"^M0,0 L(4[89]|5[012]),0 L\1,50 L100,50$"#, options: .regularExpression) != nil, "terminal lines run across, down, across, the bend jittering a little (\(route))")
+    let halfway = templateScripts.evaluateScript("handCurve([0, 0], [100, 50], 0, 1).at(0.5)[1]").toDouble()
+    expect(abs(halfway - 25) < 3, "a terminal line's midpoint is about halfway along its route (\(halfway))")
     expect(templateScripts.evaluateScript("[popScale(1.04, 1), popScale(1.06, 1), popScale(1.5, 1)].join()").toString() == "1,0,1", "terminal entrances flicker, then hold at full size")
     templateScripts.evaluateScript(#"THEME = """#)
     for t in templates {

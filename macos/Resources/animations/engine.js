@@ -50,7 +50,7 @@ function path(width, color) {
 function bez(p0, p1, p2, p3, u) { const v = 1 - u; return [0, 1].map(i => v*v*v*p0[i] + 3*v*v*u*p1[i] + 3*v*u*u*p2[i] + u*u*u*p3[i]); }
 // A hand-drawn curve from a to b, "boiling" six times a second; `tangle` throws the middle around.
 function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
-  if (THEME === "terminal") return elbow(a, b);
+  if (THEME === "terminal") return elbow(a, b, t, seed);
   const r = rand(seed * 31 + Math.floor(t * 6));
   const j = () => (r() - .5) * 3.2;
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
@@ -59,9 +59,11 @@ function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
   const c2 = [a[0] + dx * .66 + nx * bend + (r2() - .5) * k + j(), a[1] + dy * .66 + ny * bend + (r2() - .5) * k + j()];
   return { d: `M${a[0] + j()},${a[1] + j()} C${c1} ${c2} ${b[0] + j()},${b[1] + j()}`, at: u => bez(a, c1, c2, b, u) };
 }
-// A right-angle route from a to b (across, down or up, across), for the terminal theme.
-function elbow(a, b) {
-  const mx = Math.round((a[0] + b[0]) / 2);
+// A right-angle route from a to b (across, down or up, across), for the terminal theme. Its bend
+// jitters a couple of pixels twelve times a second, like a signal on a CRT.
+function elbow(a, b, t = 0, seed = 1) {
+  const j = (rand(seed * 31 + Math.floor(t * 12))() - .5) * 4;
+  const mx = Math.round((a[0] + b[0]) / 2 + j);
   const pts = [a, [mx, a[1]], [mx, b[1]], b];
   const lens = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
   const total = lens.reduce((x, y) => x + y, 0) || 1;
@@ -119,13 +121,56 @@ function showTally(rows, t, text, numSize) {
   });
 }
 function camera(t, push, shake, seed = 1) {
-  if (THEME === "terminal") { cam.style.transform = ""; return; }
+  // Terminal: a camcorder on a tripod, drifting and pushing in slowly, never tilting or shaking.
+  // Now and then the picture slips sideways for a frame, like a tape losing sync.
+  if (THEME === "terminal") {
+    const r = rand(seed * 100 + Math.floor(t * 12));
+    const s = push * (1 + .012 * Math.sin(t * 1.1));
+    const slip = r() < .06 ? (r() - .5) * 28 : 0;
+    cam.style.transform = `translate(${14 * Math.sin(t * .7) + slip}px, ${9 * Math.sin(t * .53 + 1)}px) scale(${s})`;
+    return;
+  }
   const r = rand(seed * 100 + Math.floor(t * 12));
   const s = push * (1 + .005 * Math.sin(t * 1.3));
   const sx = (r() - .5) * shake, sy = (r() - .5) * shake, rot = (r() - .5) * shake * .05;
   cam.style.transform = `translate(${sx}px, ${sy}px) rotate(${rot}deg) scale(${s})`;
 }
 function grain(t) { document.getElementById("turb").setAttribute("seed", 1 + Math.floor(t * 3) % 5); }
+// The terminal theme's life, every frame: the phosphor shimmers, the scanlines roll down, the grain
+// changes, and a packet runs along each line once it's drawn.
+function terminalTick(t) {
+  const r = rand(Math.floor(t * 12) + 7);
+  // The shimmer flickers the scanline layer, not a filter on the whole stage, which renders ten times slower.
+  const scan = document.getElementById("vignette");
+  if (scan) {
+    scan.style.opacity = (.6 + .4 * r()).toFixed(3);
+    scan.style.backgroundPosition = `0 ${((t * 12) % 4).toFixed(2)}px, 0 0`;
+  }
+  document.getElementById("turb")?.setAttribute("seed", 1 + Math.floor(t * 3) % 5);
+  lines.querySelectorAll("path").forEach((p, i) => {
+    if (typeof p.getTotalLength !== "function") return;
+    const done = p.style.opacity !== "0" && parseFloat(p.style.strokeDashoffset) <= 0.001;
+    // Two packets per line, each a bright square in a faint glow.
+    if (!p.packets) {
+      p.packets = [0, .5].map(() => ["glow", "core"].map(kind => {
+        const q = document.createElementNS(NS, "rect");
+        const size = kind === "glow" ? 34 : 16;
+        q.setAttribute("width", size); q.setAttribute("height", size); q.setAttribute("fill", "var(--accent)");
+        q.setAttribute("opacity", kind === "glow" ? .22 : 1);
+        lines.appendChild(q);
+        return { q, size };
+      }));
+    }
+    const len = done ? p.getTotalLength() : 0;
+    p.packets.forEach((pair, k) => {
+      const at = done ? p.getPointAtLength(((t * .7 + i * .37 + k * .5) % 1) * len) : null;
+      pair.forEach(({ q, size }) => {
+        q.style.visibility = done ? "visible" : "hidden";
+        if (at) { q.setAttribute("x", at.x - size / 2); q.setAttribute("y", at.y - size / 2); }
+      });
+    });
+  });
+}
 // A cue's time (seconds from the animation's start), or a fallback when the plan leaves it out.
 function cue(cues, name, fallback) { return typeof cues[name] === "number" ? cues[name] : fallback; }
 
@@ -176,6 +221,7 @@ window.init = async function (config) {
   window.seek = t => {
     seekTemplate(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
+    if (THEME === "terminal") terminalTick(t);
   };
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);

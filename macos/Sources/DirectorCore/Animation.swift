@@ -27,7 +27,7 @@ public struct Animation: Codable, Equatable {
   }
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
-  public static let engineVersion = 3
+  public static let engineVersion = 4
 
   /// Shifts the animation and its cues together, so the beats keep landing where they did in it.
   public mutating func move(by d: Double) {
