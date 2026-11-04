@@ -128,4 +128,22 @@ extension ProjectModel {
     apply { $0 = old }
     status = "Restored the version from \(DateFormatter.localizedString(from: (PlanHistory.list(planURL: planURL).first { $0.url == url }?.date ?? Date()), dateStyle: .none, timeStyle: .medium)). ⌘Z undoes it."
   }
+
+  /// More > Check Edit: cuts that clip a word and flashes (shots too short to read), as a notice that
+  /// jumps to the first one.
+  func checkEdit() {
+    guard let plan else { return }
+    let clipped = cutsInsideWords(plan, words: words)
+    let flashed = flashes(plan, dir: dir)
+    var parts: [String] = []
+    if !clipped.isEmpty {
+      parts.append("\(clipped.count) cut\(clipped.count == 1 ? "" : "s") clip a word (" + clipped.prefix(3).map { "“\($0.word.text)” at \(fmtTime($0.edge))" }.joined(separator: ", ") + ")")
+    }
+    if !flashed.isEmpty { parts.append("\(flashed.count) shot\(flashed.count == 1 ? " is" : "s are") too short to read") }
+    guard let first = clipped.first?.edge else {
+      Notices.shared.show(parts.isEmpty ? "No cuts clip a word, and no shots are too short." : parts.joined(separator: "; ") + ".", error: !parts.isEmpty)
+      return
+    }
+    Notices.shared.show(parts.joined(separator: "; ") + ".", error: true, action: "Show") { [weak self] in self?.seek(src: first) }
+  }
 }

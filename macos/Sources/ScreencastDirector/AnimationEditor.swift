@@ -213,7 +213,35 @@ struct AnimationEditor: View {
       }
       .buttonStyle(.borderless)
       .help("Set \(label.lowercased()) to the playhead")
+      beatSound(key, label, a)
     }
+  }
+
+  /// The sound a beat plays (`sounds[cue]`), picked from the sound library and copied into sfx/.
+  private func beatSound(_ key: String, _ label: String, _ a: DirectorCore.Animation) -> some View {
+    let current = a.sounds?[key]
+    return Menu {
+      if current != nil {
+        Button("No Sound") { project.editAnimation(i) { $0.sounds?.removeValue(forKey: key); if $0.sounds?.isEmpty == true { $0.sounds = nil } } }
+        Divider()
+      }
+      ForEach((try? AudioLibrary(.sounds).items()) ?? [], id: \.url) { entry in
+        Button(entry.item.name) {
+          do {
+            let file = try AudioLibrary(.sounds).freeze(entry, project: project.dir)
+            project.editAnimation(i) { $0.sounds = ($0.sounds ?? [:]).merging([key: Sound(file: file, gainDB: current?.gainDB)]) { $1 } }
+          } catch {
+            Notices.shared.show(error, "Couldn't add \(entry.item.name)")
+          }
+        }
+      }
+    } label: {
+      Image(systemName: current == nil ? "speaker" : "speaker.wave.2.fill")
+    }
+    .menuStyle(.borderlessButton)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help(current.map { "Plays \(($0.file as NSString).lastPathComponent) on \(label.lowercased())" } ?? "Play a sound on \(label.lowercased())")
   }
 
   private func setCue(_ key: String, _ t: Double) {

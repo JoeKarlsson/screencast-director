@@ -18,6 +18,8 @@ struct EditorToolbar: ToolbarContent {
       Menu {
         Button("Re-analyze (keep my edits)") { project.analyzeAndPlan() }
         Button("Start Over from a Fresh Draft") { project.analyzeAndPlan(force: true) }
+        Button("Check Edit") { project.checkEdit() }
+          .help("Look for cuts that clip a word and shots too short to read")
         Button("Version History…") { project.showHistory = true }
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.planURL]) }

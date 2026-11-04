@@ -309,7 +309,9 @@ final class Library: ObservableObject {
   }
 
   /// Copies a video in as a new project (no input log, so zooms come from Claude, not clicks).
-  func importVideo(_ video: URL) async throws -> URL {
+  /// Copies a screen recording (and optionally a camera video of the same take) into a new project.
+  /// The camera starts at offset 0; analysis then lines it up with the voice (LipSync).
+  func importVideo(_ video: URL, camera: URL? = nil) async throws -> URL {
     let dir = settings.projectsURL.appendingPathComponent(video.deletingPathExtension().lastPathComponent)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let name = "screen." + video.pathExtension.lowercased()
@@ -318,7 +320,12 @@ final class Library: ObservableObject {
     guard let track = try await asset.loadTracks(withMediaType: .video).first else { throw CompositionError.noVideo(name) }
     let size = try await track.load(.naturalSize)
     let source = Project.Source(
-      video: name, width: size.width, height: size.height, duration: try await asset.load(.duration).seconds, captureStart: nil, camera: nil)
+      video: name, width: size.width, height: size.height, duration: try await asset.load(.duration).seconds, captureStart: nil,
+      camera: try camera.map { cam in
+        let camName = "camera." + cam.pathExtension.lowercased()
+        try FileManager.default.copyItem(at: cam, to: dir.appendingPathComponent(camName))
+        return Plan.Camera(video: camName, offset: 0)
+      })
     try JSONEncoder().encode(source).write(to: dir.appendingPathComponent("source.json"))
     return dir
   }

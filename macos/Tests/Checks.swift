@@ -1068,6 +1068,7 @@ struct Checks {
     planFileChecks()
     timelineRowChecks()
     punchInChecks()
+    checkEditChecks()
     flashChecks()
     coverChecks()
     inputEventChecks()

@@ -108,12 +108,8 @@ public func editReview(_ project: Project, _ plan: Plan) -> String {
   for (i, m) in mapped.enumerated() where i > 0 ? abs(mapped[i - 1].end - m.start) > 0.001 : m.start > 0.001 {
     lines.append("cut before src \(fmtTime(m.start)): 0.5 s after it is output frame \(m.outStart + fps / 2)")
   }
-  for s in plan.segments {
-    for edge in [s.start, s.end] {
-      if let w = project.words.first(where: { $0.start + 0.05 < edge && edge < $0.end - 0.05 }) {
-        lines.append("cut edge at src \(fmtTime(edge)) splits the word \"\(w.text)\" (\(fmtTime(w.start))-\(fmtTime(w.end)))")
-      }
-    }
+  for (edge, w) in cutsInsideWords(plan, words: project.words) {
+    lines.append("cut edge at src \(fmtTime(edge)) splits the word \"\(w.text)\" (\(fmtTime(w.start))-\(fmtTime(w.end)))")
   }
   for f in flashes(plan, dir: project.dir) { lines.append("WARNING: \(describeFlash(f, plan))") }
   return lines.isEmpty ? "No zooms and no cuts inside words." : lines.joined(separator: "\n")
@@ -143,4 +139,12 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
     }
   }
   return merged
+}
+
+/// Clip edges that land inside a spoken word (more than 50 ms in from either end), which clips the
+/// word: each edge in source seconds with the word it splits.
+public func cutsInsideWords(_ plan: Plan, words: [Word]) -> [(edge: Double, word: Word)] {
+  plan.segments.flatMap { s in [s.start, s.end] }.compactMap { edge in
+    words.first { $0.start + 0.05 < edge && edge < $0.end - 0.05 }.map { (edge, $0) }
+  }
 }

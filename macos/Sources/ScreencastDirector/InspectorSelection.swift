@@ -127,6 +127,17 @@ extension InspectorView {
           } label: { Label("Repeat as Cold Open", systemImage: "repeat").frame(maxWidth: .infinity) }
           .controlSize(.small)
           .help("Play this clip again at the very start, keeping it where it is too")
+          let at = project.playheadSrc
+          Button {
+            let range = s.start..<s.end
+            project.apply { _ = $0.repeatRange(range, before: at) }
+            if let j = project.plan?.segments.firstIndex(where: { $0.repeats == true && $0.start == range.lowerBound && $0.end == range.upperBound }) {
+              project.selection = .segment(j)
+            }
+          } label: { Label("Repeat at Playhead", systemImage: "repeat.1").frame(maxWidth: .infinity) }
+          .controlSize(.small)
+          .disabled((s.start..<s.end).contains(at))
+          .help("Play this clip again where the playhead is, keeping it where it is too (move the playhead outside the clip first)")
         }
       }
       HStack(spacing: 8) {

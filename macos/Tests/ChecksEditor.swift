@@ -216,3 +216,15 @@ func punchInChecks() {
   expect(plan.camera?.punchIns == nil, "deleting every punch-in leaves no empty list")
   expect(!TimelineRows(plan: plan, hasWords: false).visible.contains(.punchIns), "the Punch-in row hides again")
 }
+
+// More > Check Edit: clip edges inside a word are found; edges in the gaps between words aren't.
+func checkEditChecks() {
+  let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 20, captureStart: nil, camera: nil)
+  var plan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp/sd-check-edit"), source: src))
+  let words = [Word(text: "open", start: 1, end: 1.5), Word(text: "settings", start: 1.6, end: 2.4), Word(text: "now", start: 5, end: 5.4)]
+  plan.segments = [Segment(start: 0, end: 2.0, speed: 1), Segment(start: 4.5, end: 10, speed: 1)]
+  let clipped = cutsInsideWords(plan, words: words)
+  expect(clipped.count == 1 && clipped[0].word.text == "settings" && clipped[0].edge == 2.0, "a clip ending mid-word is found (\(clipped.map(\.word.text)))")
+  plan.segments[0].end = 2.5
+  expect(cutsInsideWords(plan, words: words).isEmpty, "edges between words aren't")
+}

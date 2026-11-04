@@ -240,17 +240,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let panel = NSOpenPanel()
     panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
     panel.message = "Pick a screen recording to edit. It's copied into your recordings folder."
+    let withCamera = NSButton(checkboxWithTitle: "I also have a camera video of this take", target: nil, action: nil)
+    panel.accessoryView = withCamera
+    panel.isAccessoryViewDisclosed = true
     let open: (NSApplication.ModalResponse) -> Void = { [weak self] response in
       guard response == .OK, let url = panel.url else { return }
-      self?.importVideo(url)
+      guard withCamera.state == .on else { self?.importVideo(url); return }
+      // A second panel for the camera; the sheet has to close before the next one opens.
+      DispatchQueue.main.async {
+        let cam = NSOpenPanel()
+        cam.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
+        cam.message = "Pick the camera video. Analysis lines it up with your voice."
+        presentPanel(cam) { r in
+          guard r == .OK, let camURL = cam.url else { return }
+          self?.importVideo(url, camera: camURL)
+        }
+      }
     }
     presentPanel(panel, then: open)
   }
 
-  func importVideo(_ url: URL) {
+  func importVideo(_ url: URL, camera: URL? = nil) {
     Task { @MainActor in
       do {
-        let dir = try await library.importVideo(url)
+        let dir = try await library.importVideo(url, camera: camera)
         library.refresh()
         library.selection = dir
         library.current?.analyzeAndPlan()
