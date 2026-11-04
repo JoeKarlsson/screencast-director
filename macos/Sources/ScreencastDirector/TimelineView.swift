@@ -270,6 +270,7 @@ struct TimelineView: View {
       .toolMenu()
       .accessibilityLabel("Annotate range")
       .help("An annotation over the range")
+      iconButton("Make clip", "rectangle.portrait.on.rectangle.portrait", help: "Make a vertical social clip of the range (set it up in Format › Clips)", action: project.makeClipFromRange)
       iconButton("Clear range", "xmark", help: "Clear the in/out range (⌥X)", action: project.clearInOut)
     }
   }

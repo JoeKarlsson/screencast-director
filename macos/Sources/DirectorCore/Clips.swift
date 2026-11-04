@@ -38,6 +38,13 @@ extension Plan {
     set { clips = newValue.isEmpty ? nil : newValue }
   }
 
+  /// A new social clip over `range`: vertical, named "Clip N" with the first free number.
+  public func newClip(over range: Range<Double>) -> Clip {
+    let names = Set(clipList.map(\.name))
+    let n = (1...).first { !names.contains("Clip \($0)") }!
+    return Clip(name: "Clip \(n)", start: range.lowerBound, end: range.upperBound, format: "vertical")
+  }
+
   /// The edit cut down to a clip's range and reshaped for its format. Only the animations that
   /// start inside it stay (so only those render), and the intro and outro cards are left out. With a
   /// `pace`, the clip's pauses are re-cut: from measured `silences` when there are some (the better

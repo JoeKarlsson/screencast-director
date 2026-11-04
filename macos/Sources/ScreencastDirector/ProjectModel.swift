@@ -1287,6 +1287,13 @@ final class ProjectModel: ObservableObject {
     })
   }
 
+  /// A vertical social clip over the in/out range, shown in the Format tab to name and set up.
+  func makeClipFromRange() {
+    guard let range = markedRange, let c = plan?.newClip(over: range) else { return }
+    apply { $0.clipList.append(c) }
+    status = "\(c.name): \(fmtTime(c.start))-\(fmtTime(c.end)). Set it up in Format › Clips, then export it from the Export menu."
+  }
+
   /// Queues clips for export, each cut from the edit in its own format, named "<project> - <clip>.mp4".
   func exportClips(_ clips: [Clip]) {
     flushWrite()

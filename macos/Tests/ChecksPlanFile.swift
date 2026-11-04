@@ -65,4 +65,11 @@ func planFileChecks() {
   expect(fresh.music == branded.music && fresh.audio?.warm == true && fresh.camera?.bubbleShape == "rounded" && fresh.effects == branded.effects,
     "applying a full profile brings back its music, voice, camera and effects")
   expect(Profile.saved(from: plan, name: "Screen", extras: []).defaultLayout == nil, "a screen-only video's profile sets no layout")
+
+  // A clip made from the in/out range: vertical, with the first free "Clip N" name.
+  var clipped = plan
+  let first = clipped.newClip(over: 2..<9)
+  expect(first.name == "Clip 1" && first.start == 2 && first.end == 9 && first.preset?.id == "vertical", "a new clip is a vertical Clip 1 over the range")
+  clipped.clipList = [first, Clip(name: "Clip 3", start: 0, end: 1)]
+  expect(clipped.newClip(over: 4..<6).name == "Clip 2", "a new clip takes the first free number")
 }

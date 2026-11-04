@@ -116,6 +116,55 @@ extension InspectorView {
     }
   }
 
+  /// Social clips cut from this edit: each a range in its own format, exported from the Export menu.
+  func clipsSection(_ plan: Plan) -> some View {
+    InspectorSection(
+      "Clips", detail: plan.clipList.isEmpty
+        ? "Pieces of this edit exported on their own, like a vertical short. Mark a range with I and O, then press the clip button on the timeline."
+        : "Pieces of this edit exported on their own. Export them from the Export menu."
+    ) {
+      ForEach(Array(plan.clipList.enumerated()), id: \.offset) { i, c in
+        if i > 0 { Divider() }
+        HStack(spacing: 8) {
+          TextField("Name", text: bindItem("clipName\(i)", \.clipList, i, \.name)).textFieldStyle(.roundedBorder)
+          Button { project.seek(src: c.start) } label: { Text("\(fmtTime(c.start))-\(fmtTime(c.end))").monospacedDigit() }
+            .buttonStyle(.borderless).help("Go to the clip's start")
+          Button { project.apply { p in if p.clipList.indices.contains(i) { p.clipList.remove(at: i) } } } label: {
+            Image(systemName: "xmark.circle.fill")
+          }
+          .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove \(c.name)")
+        }
+        LabeledContent("Format") {
+          Picker("Format", selection: bindItem("clipFormat\(i)", \.clipList, i, \.format)) {
+            Text("This video's").tag(String?.none)
+            ForEach(ExportPreset.all, id: \.id) { Text($0.name).tag(String?.some($0.id)) }
+          }
+          .labelsHidden()
+        }
+        LabeledContent("Hook") {
+          TextField("A title for the first \(Int(Clip.titleSeconds)) s", text: bindItem("clipTitle\(i)", \.clipList, i, \.title, or: "", store: emptyAsNil))
+            .textFieldStyle(.roundedBorder)
+        }
+        LabeledContent("Pauses") {
+          Picker("Pauses", selection: bindItem("clipPace\(i)", \.clipList, i, \.pace)) {
+            Text("As edited").tag(PauseLevel?.none)
+            ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag(PauseLevel?.some($0)) }
+          }
+          .labelsHidden()
+        }
+        LabeledContent("Logo") {
+          Text(c.logo.map { ($0 as NSString).lastPathComponent } ?? "None").lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+          Spacer(minLength: 0)
+          Button("Choose…") { project.chooseLogo { p, file in if p.clipList.indices.contains(i) { p.clipList[i].logo = file } } }
+            .controlSize(.small).help("A logo shown small at the top of this clip")
+          if c.logo != nil {
+            Button("Remove") { project.apply { p in if p.clipList.indices.contains(i) { p.clipList[i].logo = nil } } }.controlSize(.small)
+          }
+        }
+      }
+    }
+  }
+
   /// Effects drawn on the whole video (timeline effect bars are for one stretch).
   func effectsSection(_ plan: Plan) -> some View {
     let sources = EffectSources(project: project.dir)
@@ -403,6 +452,7 @@ extension InspectorView {
         .labelsHidden()
       }
     }
+    clipsSection(plan)
     InspectorSection("Intro and outro", detail: "Full-frame title cards in the profile's fonts and colors. A profile can switch them on for every video.") {
       cardControls(plan, \.intro, "Intro card")
       Divider()
