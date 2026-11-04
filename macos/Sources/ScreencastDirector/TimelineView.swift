@@ -7,17 +7,17 @@ struct TimelineView: View {
   @ObservedObject var ui: TimelineUI
 
   /// Width of the track header column.
-  private static let headerWidth: CGFloat = 76
+  static let headerWidth: CGFloat = 76
   /// How close (in points) a dragged edge must come to another edge to snap to it.
-  private static let snapDistance: CGFloat = 6
-  private static let playheadColor = Color.red
+  static let snapDistance: CGFloat = 6
+  static let playheadColor = Color.red
 
   /// The rows shown: empty ones are hidden (TimelineRows).
-  private var rows: TimelineRows { TimelineRows(plan: project.plan, hasWords: !(project.project?.words.isEmpty ?? true)) }
+  var rows: TimelineRows { TimelineRows(plan: project.plan, hasWords: !(project.project?.words.isEmpty ?? true)) }
 
   var body: some View {
     VStack(spacing: 8) {
-      toolbar
+      toolRow
       if let plan = project.plan {
         GeometryReader { geo in
           HStack(spacing: 0) {
@@ -74,7 +74,7 @@ struct TimelineView: View {
   }
 
   /// Show the AI edit's ranges at full glow, scroll the first into view, then fade out.
-  private func flash(_ ranges: [(Double, Double)], _ proxy: ScrollViewProxy) {
+  func flash(_ ranges: [(Double, Double)], _ proxy: ScrollViewProxy) {
     ui.flashRanges = ranges
     ui.flashOpacity = 1
     DispatchQueue.main.async {
@@ -88,10 +88,10 @@ struct TimelineView: View {
     }
   }
 
-  private static let flashAnchor = "aiFlash"
+  static let flashAnchor = "aiFlash"
 
   /// A glow over every track at each range the last AI edit changed. Fades on its own.
-  private var aiFlash: some View {
+  var aiFlash: some View {
     let first = ui.flashRanges.min(by: { $0.0 < $1.0 })
     return ZStack(alignment: .topLeading) {
       // Invisible target for scrolling to the first range.
@@ -115,195 +115,13 @@ struct TimelineView: View {
     .accessibilityHidden(true)
   }
 
-  // MARK: Toolbar
-
-  private var toolbar: some View {
-    HStack(spacing: 10) {
-      toolGroup {
-        iconButton("Split", "scissors", help: "Split the clip at the playhead (C)", action: project.splitAtPlayhead)
-        iconButton(
-          isGap ? "Restore" : "Delete", isGap ? "arrow.uturn.backward" : "trash",
-          help: isGap ? "Restore the selected cut (⌫)" : "Cut the selected clip, or remove the selected zoom, layout or title (⌫)",
-          action: project.deleteSelection)
-          .disabled(project.selectedItems.isEmpty)
-      }
-      if project.markedRange != nil { rangeActions }
-      toolGroup {
-        iconButton("Zoom", "plus.magnifyingglass", help: "Add a zoom at the playhead, aimed at the last click (Z)", action: project.addZoom)
-        Menu {
-          ForEach(LayoutMode.allCases, id: \.self) { m in Button(modeName(m)) { project.addLayout(m) } }
-        } label: {
-          Image(systemName: "rectangle.split.2x1")
-        }
-        .toolMenu()
-        .accessibilityLabel("Layout")
-        .help("Change the camera layout from the playhead (⌃L, or 1-4)")
-        iconButton(
-          "Punch-in", "plus.viewfinder", help: "Punch in on the camera over the in/out range, or for 1.5 s from the playhead",
-          action: project.addPunchIn
-        )
-        .disabled(project.plan?.camera == nil)
-        Menu {
-          ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
-            Button { project.addCallout(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
-          }
-        } label: {
-          Image(systemName: "textformat")
-        } primaryAction: {
-          project.addCallout()
-        }
-        .toolMenu()
-        .accessibilityLabel("Title")
-        .help("Add a title at the playhead (T); hold for lower thirds, slates and chapters")
-        Menu {
-          ForEach(ChoiceTiles.annotationKinds, id: \.name) { k in
-            Button { project.addAnnotation(k.name) } label: { Label(k.label, systemImage: k.icon) }
-          }
-        } label: {
-          Image(systemName: "scribble")
-        }
-        .toolMenu()
-        .accessibilityLabel("Annotate")
-        .help("Add a spotlight, box, arrow, highlight or blur at the playhead, around the last click (A)")
-        Menu {
-          Button { project.addInsert() } label: { Label("Pick a Picture or Clip…", systemImage: "photo") }
-          Button { project.recordBroll() } label: { Label("Record B-roll…", systemImage: "video.badge.plus") }
-        } label: {
-          Image(systemName: "photo.on.rectangle")
-        } primaryAction: {
-          project.addInsert()
-        }
-        .toolMenu()
-        .accessibilityLabel("B-roll")
-        .help("Show a picture or clip over the video from the playhead; hold to record B-roll from the camera or screen")
-        Menu {
-          ForEach(AnimationLibrary.templates(project.dir).map(\.template), id: \.name) { t in
-            Button { project.addAnimation(t) } label: { Text("\(t.title): \(t.summary)") }
-          }
-          // A template whose manifest can't be read would otherwise just be missing from this list.
-          ForEach(AnimationLibrary.sources(project.dir).templateProblems(), id: \.self) { Text($0) }
-        } label: {
-          Image(systemName: "sparkles")
-        }
-        .toolMenu()
-        .accessibilityLabel("Animate")
-        .help("Add an animation over the in/out range, the selected words, or from the playhead")
-        Menu {
-          let sources = EffectSources(project: project.dir)
-          let names = sources.available()
-          if names.isEmpty {
-            Text("No effects installed")
-            Button("Open Effects Folder") { openEffectsFolder() }
-          }
-          ForEach(names, id: \.self) { name in
-            Button(sources.manifest(name)?.title ?? name) { project.addEffectRange(name) }
-          }
-        } label: {
-          Image(systemName: "wand.and.stars")
-        }
-        .toolMenu()
-        .accessibilityLabel("Effect")
-        .help("Turn an effect on for the in/out range, or 5 s from the playhead (effects you installed in the Effects folder)")
-      }
-      Spacer(minLength: 4)
-      HStack(spacing: 6) {
-        Image(systemName: "minus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
-        Slider(
-          value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: axis(project.playheadSrc)) }), in: ui.minPxPerSec...400)
-          .accessibilityLabel("Timeline zoom")
-          .controlSize(.small)
-          .frame(minWidth: 60, maxWidth: 120)
-          .help("Timeline zoom")
-        Image(systemName: "plus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
-      }
-      toolGroup {
-        Toggle(isOn: Binding(get: { ui.outputTime }, set: { on in
-          ui.outputTime = on
-          ui.fit(axisLength(on))
-        })) {
-          Image(systemName: "rectangle.compress.vertical").frame(width: 28, height: 22)
-        }
-        .toggleStyle(.button)
-        .buttonStyle(.borderless)
-        .accessibilityLabel("Output time")
-        .help(ui.outputTime ? "Showing the finished video's length; click for the whole recording" : "Show the finished video's length: cuts collapse, sped-up clips shrink")
-        iconButton("Fit", "arrow.left.and.right", help: "Fit the whole timeline") {
-          ui.fit(axisLength)
-        }
-      }
-    }
-    .font(.system(size: 13))
-    .disabled(!project.hasPlan)
-  }
-
-  /// What to do with the in/out range: cut, speed up, zoom, title, annotate, or clear it.
-  private var rangeActions: some View {
-    toolGroup {
-      Text("In/Out").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.accent).padding(.horizontal, 6)
-      iconButton("Cut range", "scissors.badge.ellipsis", help: "Cut the in/out range", action: project.cutMarked)
-      Menu {
-        ForEach([1.5, 2, 3, 4, 8], id: \.self) { s in Button("\(s.formatted())×") { project.speedMarked(s) } }
-      } label: {
-        Image(systemName: "hare")
-      }
-      .toolMenu()
-      .accessibilityLabel("Speed up range")
-      .help("Speed up the range (sped-up parts are muted, so use it for typing and waiting)")
-      iconButton("Zoom range", "plus.magnifyingglass", help: "Zoom in over the range", action: project.zoomOverRange)
-      Menu {
-        ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
-          Button { project.titleOverRange(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
-        }
-      } label: {
-        Image(systemName: "textformat")
-      } primaryAction: {
-        project.titleOverRange(style: "title")
-      }
-      .toolMenu()
-      .accessibilityLabel("Title over range")
-      .help("A title over the range, worded from what's said")
-      Menu {
-        ForEach(ChoiceTiles.annotationKinds, id: \.name) { k in
-          Button { project.annotateRange(k.name) } label: { Label(k.label, systemImage: k.icon) }
-        }
-      } label: {
-        Image(systemName: "scribble")
-      }
-      .toolMenu()
-      .accessibilityLabel("Annotate range")
-      .help("An annotation over the range")
-      iconButton("Make clip", "rectangle.portrait.on.rectangle.portrait", help: "Make a vertical social clip of the range (set it up in Format › Clips)", action: project.makeClipFromRange)
-      iconButton("Clear range", "xmark", help: "Clear the in/out range (⌥X)", action: project.clearInOut)
-    }
-  }
-
-  /// A borderless icon button of the toolbar's standard size.
-  private func iconButton(_ title: String, _ symbol: String, help: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .frame(width: 28, height: 22)
-        .contentShape(Rectangle())
-    }
-    .buttonStyle(.borderless)
-    .accessibilityLabel(title)
-    .help(help)
-  }
-
-  /// Related toolbar buttons on one shared rounded backing.
-  private func toolGroup<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-    HStack(spacing: 0) { content() }
-      .padding(2)
-      .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.055)))
-      .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
-  }
-
-  private var isGap: Bool {
+  var isGap: Bool {
     if case .gap = project.selection { return true }
     return false
   }
 
   /// Track headers: the track's icon in its color, and its name.
-  private var labels: some View {
+  var labels: some View {
     ZStack(alignment: .topLeading) {
       ForEach(rows.visible.filter { $0 != .ruler }, id: \.self) { t in
         HStack(spacing: 5) {
@@ -328,22 +146,22 @@ struct TimelineView: View {
   // MARK: Tracks
 
   /// A source time's position along the axis, in seconds: itself, or its output time in output mode.
-  private func axis(_ t: Double) -> Double {
+  func axis(_ t: Double) -> Double {
     ui.outputTime ? srcToOutClamped(project.mapped, t, fps: project.fps) / Double(project.fps) : t
   }
 
-  private func x(_ t: Double) -> CGFloat { CGFloat(axis(t) * ui.pxPerSec) }
+  func x(_ t: Double) -> CGFloat { CGFloat(axis(t) * ui.pxPerSec) }
 
   /// Where a range's (exclusive) end sits: in output mode, the end of the kept moment before it, so
   /// a clip moved out of recording order doesn't stretch to wherever the next recorded moment plays.
-  private func xEnd(_ t: Double) -> CGFloat {
+  func xEnd(_ t: Double) -> CGFloat {
     guard ui.outputTime else { return x(t) }
     return CGFloat(srcToOutClamped(project.mapped, t, fps: project.fps, before: true) / Double(project.fps) * ui.pxPerSec)
   }
 
   /// The source time at a point along the axis (in output mode, a card or the end snaps to the
   /// nearest kept moment).
-  private func time(atX px: CGFloat) -> Double {
+  func time(atX px: CGFloat) -> Double {
     let a = max(0, Double(px) / ui.pxPerSec)
     let duration = project.plan?.source.duration ?? 0
     guard ui.outputTime else { return min(a, duration) }
@@ -355,23 +173,23 @@ struct TimelineView: View {
   }
 
   /// How long the axis is, in seconds.
-  private var axisLength: Double { axisLength(ui.outputTime) }
+  var axisLength: Double { axisLength(ui.outputTime) }
 
-  private func axisLength(_ output: Bool) -> Double {
+  func axisLength(_ output: Bool) -> Double {
     output ? Double(project.totalOutFrames) / Double(project.fps) : project.plan?.source.duration ?? 1
   }
 
-  private func range(_ sel: Selection, _ start: Double, _ end: Double) -> (Double, Double) {
+  func range(_ sel: Selection, _ start: Double, _ end: Double) -> (Double, Double) {
     if let d = ui.drag, d.sel == sel { return (d.start, d.end) }
     if let shift = ui.groupShift, sel.movable, project.isSelected(sel) { return (start + shift, end + shift) }
     return (start, end)
   }
 
   /// ⇧ or ⌘ held: clicks and drag boxes add to the selection.
-  private var adding: Bool { !NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty }
+  var adding: Bool { !NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty }
 
   @ViewBuilder
-  private func tracks(_ plan: Plan) -> some View {
+  func tracks(_ plan: Plan) -> some View {
     ZStack(alignment: .topLeading) {
       lanes
       ruler(plan)
@@ -482,7 +300,7 @@ struct TimelineView: View {
   }
 
   /// A faint band behind each track. Clicking an empty spot moves the playhead there and deselects.
-  private var lanes: some View {
+  var lanes: some View {
     ZStack(alignment: .topLeading) {
       ForEach(rows.visible.filter { $0 != .ruler }, id: \.self) { t in
         RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -518,7 +336,7 @@ struct TimelineView: View {
   }
 
   /// The items whose bars a drag box touches (markers sit in the ruler, outside the box's reach).
-  private func items(in box: CGRect, _ plan: Plan) -> [Selection] {
+  func items(in box: CGRect, _ plan: Plan) -> [Selection] {
     plan.allItems.filter { s in
       guard let track = Track.of(s), let (a, b) = plan.timeRange(of: s) else { return false }
       return box.intersects(CGRect(x: x(a), y: rows.y(track), width: max(3, xEnd(b) - x(a)), height: track.height))
@@ -527,7 +345,7 @@ struct TimelineView: View {
 
   /// The in/out range: a band over the tracks and brackets in the ruler.
   @ViewBuilder
-  private func inOutBand(_ plan: Plan) -> some View {
+  func inOutBand(_ plan: Plan) -> some View {
     if project.inPoint != nil || project.outPoint != nil {
       let a = project.inPoint ?? 0, b = project.outPoint ?? plan.source.duration
       ZStack(alignment: .topLeading) {
@@ -546,498 +364,6 @@ struct TimelineView: View {
     }
   }
 
-  /// Sound effects: a chip at each effect's start on its own row (click to jump and select, drag to move).
-  /// Sounds attached to a title or annotation sit at its start; clicking one selects that item.
-  private func soundEffects(_ plan: Plan) -> some View {
-    ZStack(alignment: .topLeading) {
-      ForEach(Array(attachedSounds(plan).enumerated()), id: \.offset) { _, a in
-        let (t, _) = project.timeRange(a.owner).map { range(a.owner, $0.0, $0.1) } ?? (a.t, a.t)
-        let name = ((a.file as NSString).lastPathComponent as NSString).deletingPathExtension
-        HStack(spacing: 3) {
-          Image(systemName: "link").font(.system(size: 8, weight: .semibold))
-          if ui.pxPerSec > 8 { Text(name).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
-        }
-        .foregroundStyle(Theme.sfx)
-        .padding(.horizontal, 5)
-        .frame(height: Track.sounds.height - 4)
-        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Theme.sfx.opacity(0.6), lineWidth: 1))
-        .contentShape(Rectangle())
-        .offset(x: x(t), y: rows.y(.sounds) + 2)
-        .onTapGesture {
-          project.select(a.owner, adding: adding)
-          project.seek(src: a.t)
-        }
-        .help("\(name), attached to \(a.label). It moves with it; change it in the inspector.")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Sound \(name) on \(a.label)")
-        .accessibilityAddTraits(.isButton)
-      }
-      ForEach(Array(plan.sfxList.enumerated()), id: \.offset) { i, e in
-        let sel = Selection.sfx(i)
-        let (t, _) = range(sel, e.t, e.t)
-        let selected = project.isSelected(sel)
-        let name = ((e.file as NSString).lastPathComponent as NSString).deletingPathExtension
-        HStack(spacing: 3) {
-          Image(systemName: "speaker.wave.2.fill").font(.system(size: 9, weight: .semibold))
-          if ui.pxPerSec > 8 { Text(name).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
-        }
-        .foregroundStyle(selected ? Color.white : Theme.sfx)
-        .padding(.horizontal, 5)
-        .frame(height: Track.sounds.height - 4)
-        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.sfx.opacity(selected ? 0.9 : 0.22)))
-        .overlay(alignment: .leading) { Rectangle().fill(Theme.sfx).frame(width: 2) }
-        .contentShape(Rectangle())
-        .offset(x: x(t), y: rows.y(.sounds) + 2)
-        .onTapGesture {
-          project.select(sel, adding: adding)
-          project.seek(src: e.t)
-        }
-        .simultaneousGesture(
-          DragGesture(minimumDistance: 2)
-            .onChanged { v in
-              var nt = time(atX: x(e.t) + v.translation.width)
-              nt += snapShift([nt], start: e.t, end: e.t)
-              ui.drag = (sel, nt, nt)
-            }
-            .onEnded { _ in
-              ui.snap = nil
-              guard let d = ui.drag, d.sel == sel else { return }
-              ui.drag = nil
-              project.select(sel, adding: false)
-              project.moveSelected(by: d.start - e.t)
-            }
-        )
-        .help("Sound effect \(name) at \(fmtTime(e.t))\(e.note.map { ": \($0)" } ?? ""). Click to jump, drag to move, ⌫ to remove.")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Sound effect \(name) at \(fmtTime(e.t))")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-          project.select(sel, adding: false)
-          project.seek(src: e.t)
-        }
-      }
-    }
-  }
-
-  /// Sounds attached to titles and annotations, with the item each belongs to.
-  private func attachedSounds(_ plan: Plan) -> [(t: Double, file: String, owner: Selection, label: String)] {
-    var out: [(t: Double, file: String, owner: Selection, label: String)] = []
-    for (i, c) in plan.callouts.enumerated() { if let s = c.sound { out.append((c.start, s.file, .callout(i), "the title \"\(c.text)\"")) } }
-    for (i, m) in plan.annotationList.enumerated() { if let s = m.sound { out.append((m.start, s.file, .annotation(i), "an annotation")) } }
-    for (i, an) in plan.animationList.enumerated() {
-      for (cue, s) in an.sounds ?? [:] { out.append((cue == "start" ? an.start : an.cues?[cue] ?? an.start, s.file, .animation(i), "an animation")) }
-    }
-    return out
-  }
-
-  /// Marker flags in the ruler (click to jump and select, drag to move) and a faint line below each.
-  private func markers(_ plan: Plan) -> some View {
-    ZStack(alignment: .topLeading) {
-      ForEach(Array(plan.markerList.enumerated()), id: \.offset) { i, m in
-        let sel = Selection.marker(i)
-        let (t, _) = range(sel, m.t, m.t)
-        let selected = project.isSelected(sel)
-        Rectangle().fill(Theme.accent.opacity(0.35))
-          .frame(width: 1, height: rows.total - Track.ruler.height)
-          .offset(x: x(t), y: Track.ruler.height)
-          .allowsHitTesting(false)
-        HStack(spacing: 3) {
-          MarkerFlag().fill(selected ? Color.white : Theme.accent).frame(width: 9, height: 12)
-          if let label = m.label, !label.isEmpty, ui.pxPerSec > 8 {
-            Text(label).font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent).lineLimit(1).fixedSize()
-          }
-        }
-        .contentShape(Rectangle())
-        .offset(x: x(t), y: 0)
-        .onTapGesture {
-          project.select(sel, adding: adding)
-          project.seek(src: m.t)
-        }
-        .simultaneousGesture(
-          DragGesture(minimumDistance: 2)
-            .onChanged { v in
-              var nt = time(atX: x(m.t) + v.translation.width)
-              nt += snapShift([nt], start: m.t, end: m.t)
-              ui.drag = (sel, nt, nt)
-            }
-            .onEnded { _ in
-              ui.snap = nil
-              guard let d = ui.drag, d.sel == sel else { return }
-              ui.drag = nil
-              project.select(sel, adding: false)
-              project.moveSelected(by: d.start - m.t)
-            }
-        )
-        .help("Marker\(m.label.map { ": \($0)" } ?? "") at \(fmtTime(m.t)). Click to jump, drag to move, ⌫ to remove.")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Marker \(m.label ?? "") at \(fmtTime(m.t))")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-          project.select(sel, adding: false)
-          project.seek(src: m.t)
-        }
-      }
-    }
-  }
-
-  /// The playhead: a grip in the ruler and a line through the tracks. The ruler handles dragging it.
-  private var playhead: some View {
-    ZStack(alignment: .top) {
-      Rectangle().fill(Self.playheadColor)
-        .frame(width: 1.5, height: rows.total - 4)
-        .offset(y: 4)
-      PlayheadCap().fill(Self.playheadColor)
-        .frame(width: 11, height: 15)
-        .offset(y: 2)
-        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
-    }
-    .frame(width: 12, height: rows.total, alignment: .top)
-    .modifier(
-      PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped, outputTime: ui.outputTime))
-    .allowsHitTesting(false)
-  }
-
-  private func ruler(_ plan: Plan) -> some View {
-    let pps = ui.pxPerSec
-    let step: Double = pps > 120 ? 1 : pps > 40 ? 5 : pps > 12 ? 10 : 30
-    let minor = step / (step == 1 ? 4 : 5)
-    let length = axisLength
-    return Canvas { ctx, size in
-      var i = 0
-      while Double(i) * minor <= length {
-        let t = Double(i) * minor
-        let px = t * pps
-        let major = i % Int((step / minor).rounded()) == 0
-        ctx.fill(
-          Path(CGRect(x: px, y: major ? 13 : 17, width: 1, height: major ? 9 : 5)),
-          with: .color(.secondary.opacity(major ? 0.7 : 0.35)))
-        if major {
-          ctx.draw(
-            Text(fmtTime(t).replacingOccurrences(of: ".0", with: "")).font(.system(size: 9, weight: .medium).monospacedDigit())
-              .foregroundColor(.secondary),
-            at: CGPoint(x: px + 3, y: 7), anchor: .leading)
-        }
-        i += 1
-      }
-    }
-    .frame(height: Track.ruler.height)
-    .contentShape(Rectangle())
-    .gesture(
-      DragGesture(minimumDistance: 0).onChanged { v in
-        project.player.pause()
-        project.seek(src: time(atX: v.location.x))
-      }
-    )
-    .help("Click or drag to move the playhead")
-  }
-
-  /// The voice waveform from measured loudness; cut ranges are dimmed.
-  private func audio(_ plan: Plan) -> some View {
-    let pps = ui.pxPerSec
-    let levels = project.levels
-    let mapped = project.mapped
-    let fps = project.fps
-    let h = Track.audio.height
-    let output = ui.outputTime
-    return Canvas { ctx, size in
-      guard !levels.isEmpty else { return }
-      // One bar per 2 px column, from the loudest 50 ms sample in it.
-      let step = max(1, Int((2 / pps) / 0.05))
-      var i = 0
-      while i < levels.count {
-        let chunk = levels[i..<min(i + step, levels.count)]
-        let t = chunk.first!.0
-        let db = chunk.map(\.1).max() ?? -90
-        let v = max(0, min(1, (db + 55) / 50))
-        let barH = max(1, v * (h - 6))
-        let out = srcToOut(mapped, t, fps: fps)
-        let kept = out != nil
-        if output && !kept {
-          i += step
-          continue
-        }
-        // In output time a sped-up stretch is drawn narrower, at its real length.
-        let speed = output ? (mapped.first { t >= $0.start && t < $0.end }?.speed ?? 1) : 1
-        let w = max(1, Double(step) * 0.05 * pps / speed - 0.6)
-        let px = output ? (out ?? 0) / Double(fps) * pps : t * pps
-        let rect = CGRect(x: px, y: (h - barH) / 2, width: w, height: barH)
-        ctx.fill(
-          Path(roundedRect: rect, cornerRadius: min(w, barH) / 2),
-          with: .color(kept ? Theme.audio.opacity(0.8) : Color.secondary.opacity(0.25)))
-        i += step
-      }
-    }
-    .frame(height: h)
-    .offset(y: rows.y(.audio))
-    .allowsHitTesting(false)
-  }
-
-  private func words(_ plan: Plan) -> some View {
-    let pps = ui.pxPerSec
-    let ws = project.project?.words ?? []
-    let mapped = project.mapped
-    let fps = project.fps
-    let output = ui.outputTime
-    return Canvas { ctx, size in
-      // Zoomed out too far for readable labels: mark where words are spoken instead.
-      guard pps >= 10 else {
-        let barH: CGFloat = 4
-        for m in speechMarks(ws, mapped: mapped, fps: fps, pxPerSec: pps, outputTime: output) {
-          let rect = CGRect(x: m.x, y: (size.height - barH) / 2, width: m.width, height: barH)
-          ctx.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(m.kept ? Color.primary.opacity(0.45) : Color.secondary.opacity(0.2)))
-        }
-        return
-      }
-      var lastEnd: CGFloat = -1000
-      for w in ws {
-        let out = srcToOut(mapped, w.start, fps: fps)
-        if output && out == nil { continue }
-        let px = output ? (out ?? 0) / Double(fps) * pps : w.start * pps
-        guard px > lastEnd + 2 else { continue }
-        let kept = out != nil
-        let text = ctx.resolve(Text(w.text).font(.system(size: 9)).foregroundColor(kept ? .primary.opacity(0.85) : .secondary.opacity(0.5)))
-        let sz = text.measure(in: CGSize(width: 400, height: 20))
-        ctx.draw(text, at: CGPoint(x: px + 2, y: 9), anchor: .leading)
-        lastEnd = px + sz.width
-      }
-    }
-    .frame(height: Track.words.height)
-    .offset(y: rows.y(.words))
-    .allowsHitTesting(false)
-  }
-
-  /// A cut: hatched and dashed, selectable so it can be restored.
-  private func gap(_ g: Gap) -> some View {
-    let sel = Selection.gap(g)
-    let selected = project.isSelected(sel)
-    let hovered = ui.hover == sel
-    let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-    return shape.fill(Color.primary.opacity(hovered ? 0.07 : 0.035))
-      .overlay(Hatch().stroke(Color.primary.opacity(hovered ? 0.16 : 0.1), lineWidth: 1).clipShape(shape))
-      .overlay(
-        shape.strokeBorder(
-          selected ? Color.accentColor : Color.primary.opacity(0.22),
-          style: StrokeStyle(lineWidth: selected ? 1.5 : 1, dash: selected ? [] : [4, 3])))
-      .frame(width: max(2, x(g.end) - x(g.start)), height: Track.clips.height)
-      .contentShape(Rectangle())
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel("Cut at \(fmtTime(g.start))")
-      .accessibilityAddTraits(.isButton)
-      .accessibilityAction { project.select(sel, adding: false) }
-      .onTapGesture { project.select(sel, adding: adding) }
-      .onHover { setHover(sel, $0) }
-      .help("Cut: select it and press ⌫ to restore")
-      .offset(x: x(g.start), y: rows.y(.clips))
-  }
-
-  private func setHover(_ sel: Selection, _ inside: Bool) {
-    if inside { ui.hover = sel } else if ui.hover == sel { ui.hover = nil }
-  }
-
-  /// Where a dragged clip would drop: a line at the edge between the clips of `slot`.
-  private func clipDropMarker(slot: Int) -> some View {
-    let mapped = project.mapped
-    let frame = slot < mapped.count ? mapped[slot].outStart : mapped.last.map { $0.outStart + $0.frames } ?? 0
-    let px = CGFloat(Double(frame) / Double(project.fps) * ui.pxPerSec)
-    return Capsule().fill(Color.white)
-      .frame(width: 3, height: Track.clips.height + 8)
-      .shadow(color: .black.opacity(0.5), radius: 2)
-      .allowsHitTesting(false)
-      .offset(x: px - 1.5, y: rows.y(.clips) - 4)
-  }
-
-  /// A selectable bar with drag handles on both edges; `movable` bars can also be dragged whole.
-  /// `badge` is a capsule before the label (a clip's speed); `striped` hatches it (sped-up clips).
-  /// `reorder` is a clip's index: in output time, dragging its body moves it to play elsewhere.
-  private func bar(
-    sel: Selection, start: Double, end: Double, track: Track, color: Color, label: String,
-    badge: String? = nil, striped: Bool = false, movable: Bool, bounds: ClosedRange<Double>? = nil,
-    reorder: Int? = nil, commit: @escaping (Double, Double) -> Void
-  ) -> some View {
-    let selected = project.isSelected(sel)
-    // Trim handles only when this is the one selected item.
-    let trimmable = project.selection == sel && project.multi.isEmpty
-    let hovered = ui.hover == sel
-    let w = max(3, xEnd(end) - x(start))
-    let limits = bounds ?? 0...(project.plan?.source.duration ?? 0)
-    let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-    let base = selected ? 1 : hovered ? 0.85 : 0.7
-    let film = track == .clips ? filmstrip(start: start, end: end, barX: x(start), barW: w) : nil
-    return shape
-      .fill(color.opacity(striped ? base * 0.6 : base))
-      .overlay {
-        // Frames under a tint of the track color, so the bar still reads as a clip.
-        if let film {
-          ZStack {
-            film
-            shape.fill(color.opacity(selected ? 0.3 : hovered ? 0.4 : 0.5))
-            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
-          }
-        }
-      }
-      .overlay(shape.fill(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .top, endPoint: .center)))
-      .overlay {
-        if striped { Hatch(spacing: 7).stroke(Color.white.opacity(0.22), lineWidth: 2).clipShape(shape) }
-      }
-      .overlay(
-        shape.strokeBorder(
-          selected ? Color.white : Color.white.opacity(hovered ? 0.35 : 0.12), lineWidth: selected ? 1.5 : 0.5)
-      )
-      .overlay(alignment: .leading) {
-        HStack(spacing: 5) {
-          if let badge, w > 30 {
-            Text(badge).font(.system(size: 9, weight: .bold).monospacedDigit())
-              .lineLimit(1).fixedSize()
-              .padding(.horizontal, 4).padding(.vertical, 1)
-              .background(Capsule().fill(Color.black.opacity(0.25)))
-          }
-          if w > 24 && !label.isEmpty {
-            Text(label).font(.system(size: 10, weight: .medium)).lineLimit(1)
-          }
-        }
-        .foregroundStyle(.white)
-        .shadow(color: .black.opacity(film == nil ? 0 : 0.6), radius: 1.5)
-        .padding(.horizontal, 7)
-      }
-      .clipShape(shape)
-      .shadow(color: selected ? color.opacity(0.55) : .black.opacity(hovered ? 0.15 : 0), radius: selected ? 5 : 2, y: 1)
-      .frame(width: w, height: track.height)
-      .contentShape(Rectangle())
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel("\(track.label) \([badge, label].compactMap { $0 }.joined(separator: " ")) at \(fmtTime(start))")
-      .accessibilityAddTraits(.isButton)
-      .accessibilityAction {
-        project.select(sel, adding: false)
-        project.seek(src: start)
-      }
-      .onTapGesture(coordinateSpace: .local) { loc in
-        let add = adding
-        project.select(sel, adding: add)
-        if !add { project.seek(src: time(atX: x(start) + loc.x)) }
-      }
-      .onHover { setHover(sel, $0) }
-      .simultaneousGesture(
-        DragGesture(minimumDistance: 3)
-          .onChanged { v in
-            if let clip = reorder {
-              // Recording order (source time) has no play order to drop into, so clips stay put there.
-              guard ui.outputTime else { return }
-              if project.selection != sel || !project.multi.isEmpty { project.select(sel, adding: false) }
-              let frame = Double(x(start) + v.location.x) / ui.pxPerSec * Double(project.fps)
-              ui.clipDrop = clipDrop(moving: clip, atFrame: frame, mapped: project.mapped).map { (clip, $0.slot, $0.target) }
-              return
-            }
-            guard movable else { return }
-            if project.isSelected(sel), !project.multi.isEmpty {
-              // Several items selected: they all move together, snapping on this bar's edges.
-              var shift = time(atX: x(start) + v.translation.width) - start
-              shift += snapShift([start + shift, end + shift], start: start, end: end)
-              ui.groupShift = shift
-              return
-            }
-            if !project.isSelected(sel) { project.select(sel, adding: false) }
-            let len = end - start
-            let clamp = { (s: Double) in min(max(limits.lowerBound, s), limits.upperBound - len) }
-            var s = clamp(time(atX: x(start) + v.translation.width))
-            s = clamp(s + snapShift([s, s + len], start: start, end: end))
-            ui.drag = (sel, s, s + len)
-          }
-          .onEnded { _ in
-            if let clip = reorder {
-              guard let d = ui.clipDrop, d.clip == clip else { return }
-              ui.clipDrop = nil
-              project.moveSelectedClip(to: d.target)
-              return
-            }
-            ui.snap = nil
-            if let shift = ui.groupShift {
-              ui.groupShift = nil
-              project.moveSelected(by: shift)
-              return
-            }
-            guard movable, let d = ui.drag, d.sel == sel else { return }
-            ui.drag = nil
-            commit(d.start, d.end)
-          }
-      )
-      .overlay(alignment: .leading) {
-        if trimmable { handle(sel: sel, start: start, end: end, left: true, limits: limits, commit: commit) }
-      }
-      .overlay(alignment: .trailing) {
-        if trimmable { handle(sel: sel, start: start, end: end, left: false, limits: limits, commit: commit) }
-      }
-      .offset(x: x(start), y: rows.y(track))
-  }
-
-  /// The source recording's frames for a clip bar, or nil without a plan.
-  private func filmstrip(start: Double, end: Double, barX: CGFloat, barW: CGFloat) -> EquatableView<Filmstrip>? {
-    guard let src = project.plan?.source, src.height > 0 else { return nil }
-    let cache = FilmstripCache.shared(dir: project.dir, video: src.video, duration: src.duration)
-    return Filmstrip(
-      cache: cache, viewport: ui.viewport, start: start, end: end, barX: barX, barW: barW, height: Track.clips.height,
-      aspect: src.width / src.height
-    ).equatable()
-  }
-
-  private func handle(
-    sel: Selection, start: Double, end: Double, left: Bool, limits: ClosedRange<Double>,
-    commit: @escaping (Double, Double) -> Void
-  ) -> some View {
-    return Capsule().fill(Color.white)
-      .frame(width: 4)
-      .padding(.vertical, 6)
-      .padding(.horizontal, 2)
-      .shadow(color: .black.opacity(0.3), radius: 1)
-      .contentShape(Rectangle().inset(by: -3))
-      // A pointer style, not push/pop: a handle that vanishes under the pointer can't leave it stuck.
-      .pointerStyle(.columnResize)
-      .highPriorityGesture(
-        DragGesture(minimumDistance: 1)
-          .onChanged { v in
-            var t = time(atX: x(left ? start : end) + v.translation.width)
-            t += snapShift([t], start: start, end: end)
-            ui.drag =
-              left
-              ? (sel, min(max(limits.lowerBound, t), end - 0.1), end)
-              : (sel, start, max(min(limits.upperBound, t), start + 0.1))
-          }
-          .onEnded { _ in
-            ui.snap = nil
-            guard let d = ui.drag, d.sel == sel else { return }
-            ui.drag = nil
-            commit(d.start, d.end)
-          }
-      )
-  }
-
-  // MARK: Snapping
-
-  /// Edges a dragged item can snap to: the playhead, the ends of the recording, the in/out points,
-  /// and every item's start and end (the dragged item's saved edges excluded).
-  private func snapTargets(start: Double, end: Double) -> [Double] {
-    guard let p = project.plan else { return [] }
-    var ts = [project.playheadSrc, 0, p.source.duration] + [project.inPoint, project.outPoint].compactMap { $0 }
-    for s in p.allItems { if let (a, b) = p.timeRange(of: s) { ts += [a, b] } }
-    return ts.filter { abs($0 - start) > 1e-9 && abs($0 - end) > 1e-9 || $0 == project.playheadSrc }
-  }
-
-  /// The shift that lands the nearest of `edges` on a target within `snapDistance` points (0 when
-  /// none is close, or while ⌘ is held). Sets or clears the guide line.
-  private func snapShift(_ edges: [Double], start: Double, end: Double) -> Double {
-    guard !NSEvent.modifierFlags.contains(.command) else {
-      ui.snap = nil
-      return 0
-    }
-    let tolerance = Double(Self.snapDistance) / ui.pxPerSec
-    var best: (shift: Double, at: Double)?
-    for t in snapTargets(start: start, end: end) {
-      for e in edges where abs(t - e) <= tolerance && abs(t - e) < abs(best?.shift ?? .infinity) {
-        best = (t - e, t)
-      }
-    }
-    if ui.snap != best?.at { ui.snap = best?.at }
-    return best?.shift ?? 0
-  }
 }
 
 func modeName(_ m: LayoutMode) -> String {
