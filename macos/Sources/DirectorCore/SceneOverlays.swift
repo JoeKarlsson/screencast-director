@@ -326,7 +326,7 @@ extension Scene {
     let style = plan.captions.style ?? "pill"
     // Social is bold made for vertical: bigger, and it sits on the seam over the split camera.
     let social = style == "social"
-    let bold = style == "bold" || social
+    let bold = plan.captions.isBold
     let boxed = !bold || plan.captions.box == true
     let sizeScale = min(2, max(0.5, plan.captions.size ?? 1))
     let s = NSMutableAttributedString()

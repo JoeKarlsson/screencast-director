@@ -78,27 +78,44 @@ extension InspectorView {
       : "This recording has the system cursor baked in. Record with the cursor hidden to restyle and smooth it.") {
       if project.project?.source.cursorHidden == true {
         toggle("Show cursor", bind(nil, { !($0.cursorSettings.hidden ?? false) }, { $0.cursorSettings.hidden = $1 ? nil : true }))
+      }
+      if project.project?.source.cursorHidden == true && plan.cursor?.hidden != true {
         slider("Size", bind("cursorSize", { $0.cursorSettings.size ?? 32 }, { $0.cursorSettings.size = $1.rounded() }), 16...72, "\(Int(plan.cursor?.size ?? 32)) pt")
         slider("Smoothing", bind("cursorSmoothing", { $0.cursorSettings.smoothing ?? 0.12 }, { $0.cursorSettings.smoothing = ($1 * 100).rounded() / 100 }), 0...0.4, String(format: "%.2f s", plan.cursor?.smoothing ?? 0.12))
       }
       toggle("Click ripples", "A ring where you click.", bind("ripples", { $0.clickRipples }, { $0.clickRipples = $1 }))
+      toggle("Shortcut labels", "Shows chips like ⌘K when you press a shortcut.", bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
     }
-    InspectorSection("Captions", detail: "Burned in from the transcript, in the profile's fonts.") {
+    let hasWords = !(project.project?.words.isEmpty ?? true)
+    InspectorSection(
+      "Captions", detail: hasWords ? "Burned in from the transcript, in the profile's fonts." : "This recording has no transcript to caption."
+    ) {
       toggle("Captions", bind("captions", { $0.captions.enabled }, { $0.captions.enabled = $1 }))
-      Picker("Style", selection: bind("captionStyle", { $0.captions.style ?? "pill" }, { $0.captions.style = $1 == "pill" ? nil : $1 })) {
-        ForEach(Plan.Captions.styles, id: \.name) { Text($0.label).tag($0.name) }
-      }
-      .pickerStyle(.menu)
-      .disabled(!plan.captions.enabled)
-      LabeledContent("Words") {
-        Text("\(plan.captions.maxWords) per caption").monospacedDigit()
-        Spacer(minLength: 0)
-        Stepper("Words per caption", value: bind("maxWords", { $0.captions.maxWords }, { $0.captions.maxWords = $1 }), in: 3...14)
+      // Off, the caption settings have nothing to change; they come back as they were.
+      if plan.captions.enabled {
+        LabeledContent("Style") {
+          Picker("Style", selection: bind("captionStyle", { $0.captions.style ?? "pill" }, { $0.captions.style = $1 == "pill" ? nil : $1 })) {
+            ForEach(Plan.Captions.styles, id: \.name) { Text($0.label).tag($0.name) }
+          }
+          .pickerStyle(.menu)
           .labelsHidden()
+        }
+        LabeledContent("Words") {
+          Text("\(plan.captions.maxWords) per caption").monospacedDigit()
+          Spacer(minLength: 0)
+          Stepper("Words per caption", value: bind("maxWords", { $0.captions.maxWords }, { $0.captions.maxWords = $1 }), in: 3...14)
+            .labelsHidden()
+        }
+        captionLook(plan)
       }
-      .disabled(!plan.captions.enabled)
-      captionLook(plan).disabled(!plan.captions.enabled)
     }
+    // The checklist lists earlier chapter chips, so it needs at least two.
+    if plan.callouts.filter({ $0.style == "chapter" }).count >= 2 {
+      chaptersSection(plan)
+    }
+  }
+
+  func chaptersSection(_ plan: Plan) -> some View {
     InspectorSection("Chapters") {
       toggle("Checklist", "Vertical step chips list the earlier steps under them, ticked.", bind("checklist", { $0.look?.chapterChecklist == true }, { p, on in
         var look = p.look ?? Look()
@@ -106,16 +123,13 @@ extension InspectorView {
         p.look = look
       }))
     }
-    InspectorSection("Keyboard") {
-      toggle("Shortcut labels", "Shows chips like ⌘K when you press a shortcut.", bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
-    }
   }
 
   /// Caption colors, box, font, size and place. Colors and font live in the look (the profile's),
   /// size, box and place in the captions.
   @ViewBuilder
   func captionLook(_ plan: Plan) -> some View {
-    let bold = ["bold", "social"].contains(plan.captions.style ?? "pill")
+    let bold = plan.captions.isBold
     let lookBind = { (key: String, get: @escaping (Look) -> String?, set: @escaping (inout Look, String) -> Void, fallback: String) in
       self.bind(key, { hexColor(get($0.look ?? Look()) ?? fallback) }, { p, c in
         var look = p.look ?? Look()
@@ -155,12 +169,14 @@ extension InspectorView {
       toggle("Box behind the words", "A box in the box color, for words over a busy picture.",
         bind("capBox", { $0.captions.box == true }, { $0.captions.box = $1 ? true : nil }))
     }
-    slider("Box opacity", bind("capOpacity", { $0.look?.captionBackgroundOpacity ?? 0.78 }, { p, v in
-      var look = p.look ?? Look()
-      look.captionBackgroundOpacity = (v * 100).rounded() / 100
-      p.look = look
-    }), 0...1, "\(Int(((plan.look?.captionBackgroundOpacity ?? 0.78) * 100).rounded()))%")
-    .disabled(bold && plan.captions.box != true)
+    // Bold captions draw no box unless asked for one, so there's no opacity to set.
+    if !bold || plan.captions.box == true {
+      slider("Box opacity", bind("capOpacity", { $0.look?.captionBackgroundOpacity ?? 0.78 }, { p, v in
+        var look = p.look ?? Look()
+        look.captionBackgroundOpacity = (v * 100).rounded() / 100
+        p.look = look
+      }), 0...1, "\(Int(((plan.look?.captionBackgroundOpacity ?? 0.78) * 100).rounded()))%")
+    }
     LabeledContent("Font") {
       Picker("Font", selection: bind("capFont", { $0.look?.captionFont ?? "" }, { p, name in
         var look = p.look ?? Look()

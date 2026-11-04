@@ -183,7 +183,7 @@ public final class Scene: @unchecked Sendable {
     let total = Double(frameCount)
     cutFrames = kinds.keys.filter { $0 > 0 && $0 < total }.sorted()
     cutKinds = cutFrames.map { kinds[$0]!.rawValue }
-    let maxWords = ["bold", "social"].contains(plan.captions.style ?? "") ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
+    let maxWords = plan.captions.isBold ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
     pages = plan.captions.enabled ? Scene.captionPages(words, m, fps: fps, maxWords: maxWords) : []
     motion = MotionStyle.named(plan.style.motion)
     if motion.name == "classic" {

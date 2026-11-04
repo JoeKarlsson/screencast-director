@@ -40,4 +40,10 @@ func planFileChecks() {
   expect(minimal?.style == .standard && minimal?.clickRipples == true && minimal?.shortcutChips == true, "missing style and overlays get the built-in defaults")
   expect(minimal?.captions.enabled == false && minimal?.captions.maxWords == 7, "an empty captions object is off, 7 words a page")
   expect(minimal?.zooms == [] && minimal?.layouts == [] && minimal?.callouts == [] && minimal?.defaultLayout == .screen, "missing lists are empty")
+
+  // Bold and social captions share their big-word rules (Scene, the overlay drawing and the inspector).
+  var caps = Plan.Captions(enabled: true, maxWords: 7)
+  expect(!caps.isBold, "pill captions aren't bold")
+  caps.style = "social"
+  expect(caps.isBold, "social captions are bold")
 }

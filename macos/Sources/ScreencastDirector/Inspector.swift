@@ -32,10 +32,14 @@ final class InspectorUI: ObservableObject {
     }
   }
   @Published var tab: Tab = .selection
+  /// Folded sections the user opened or closed, by key; the rest use their default (see `fold`).
+  @Published var folds: [String: Bool] = [:]
   /// An app typed into an animation's app list, before Return adds it.
   @Published var newAnimationApp = ""
   @Published var showSoundPicker = false
   @Published var showMusicPicker = false
+  /// The library picker for the selected title's or mark's own sound.
+  @Published var showItemSoundPicker = false
   /// The open picker's library, loaded when it opens (so new files in My Sounds or My Music show up).
   var pickerEntries: [AudioLibrary.Entry] = []
   let audioPreview = AudioPreview()
@@ -157,6 +161,12 @@ struct InspectorView: View {
   ) -> Binding<T> {
     let item = bindItem(key, list, i, field)
     return Binding(get: { item.wrappedValue ?? fallback }, set: { item.wrappedValue = store($0) })
+  }
+
+  /// Whether a foldable section is open: what the user last chose, else `open`, which a section sets
+  /// from whether it matters for this video (a bubble nothing shows starts closed).
+  func fold(_ key: String, open: Bool) -> Binding<Bool> {
+    Binding(get: { ui.folds[key] ?? open }, set: { ui.folds[key] = $0 })
   }
 
   /// For text fields over optional strings: an emptied field clears the value.

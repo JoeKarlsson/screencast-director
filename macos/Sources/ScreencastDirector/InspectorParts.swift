@@ -51,29 +51,55 @@ struct PaneTitle: View {
   }
 }
 
-/// A card of related controls under a small header.
+/// A card of related controls under a small header. With `isOpen`, the header folds the card: a
+/// section that rarely matters for this video can start closed.
 struct InspectorSection<Content: View>: View {
   let title: String
   let detail: String
+  let isOpen: Binding<Bool>?
   let content: Content
 
-  init(_ title: String, detail: String = "", @ViewBuilder content: () -> Content) {
+  init(_ title: String, detail: String = "", isOpen: Binding<Bool>? = nil, @ViewBuilder content: () -> Content) {
     self.title = title
     self.detail = detail
+    self.isOpen = isOpen
     self.content = content()
   }
 
   var body: some View {
+    let open = isOpen?.wrappedValue ?? true
     VStack(alignment: .leading, spacing: 12) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title).font(.subheadline.weight(.semibold))
-        if !detail.isEmpty {
-          Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+      if let isOpen {
+        Button {
+          withAnimation(.easeInOut(duration: 0.15)) { isOpen.wrappedValue.toggle() }
+        } label: {
+          HStack(alignment: .firstTextBaseline, spacing: 6) {
+            header
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(.secondary)
+              .rotationEffect(.degrees(open ? 90 : 0))
+          }
+          .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .help(open ? "Hide \(title)" : "Show \(title)")
+      } else {
+        header
       }
-      content
+      if open { content }
     }
     .card()
+  }
+
+  private var header: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title).font(.subheadline.weight(.semibold))
+      if !detail.isEmpty {
+        Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 }
 

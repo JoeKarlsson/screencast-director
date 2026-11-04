@@ -320,19 +320,40 @@ extension InspectorView {
     }
   }
 
-  /// The sound an item plays as it appears: any audio file in the project's sfx folder.
+  /// The sound an item plays as it appears: an audio file in the project's sfx folder, or one from
+  /// the sound library (copied into sfx/).
   func soundSection(_ sound: Binding<Sound?>) -> some View {
     var files = soundFiles()
     if let current = sound.wrappedValue?.file, !files.contains(current) { files.append(current) }
-    return InspectorSection("Sound", detail: "Plays as it appears, and moves with it. Add files to the project's sfx folder.") {
-      Picker(
-        "Sound",
-        selection: Binding(
-          get: { sound.wrappedValue?.file ?? "" },
-          set: { f in sound.wrappedValue = f.isEmpty ? nil : Sound(file: f, gainDB: sound.wrappedValue?.gainDB) })
-      ) {
-        Text("None").tag("")
-        ForEach(files, id: \.self) { f in Text(((f as NSString).lastPathComponent as NSString).deletingPathExtension).tag(f) }
+    return InspectorSection("Sound", detail: "Plays as it appears, and moves with it.") {
+      HStack(spacing: 8) {
+        // The project's own sounds, when it has any; the library is always one click away.
+        if !files.isEmpty {
+          Picker(
+            "Sound",
+            selection: Binding(
+              get: { sound.wrappedValue?.file ?? "" },
+              set: { f in sound.wrappedValue = f.isEmpty ? nil : Sound(file: f, gainDB: sound.wrappedValue?.gainDB) })
+          ) {
+            Text("None").tag("")
+            ForEach(files, id: \.self) { f in Text(((f as NSString).lastPathComponent as NSString).deletingPathExtension).tag(f) }
+          }
+          .labelsHidden()
+        }
+        Button { openPicker(.sounds, forItem: true) } label: {
+          Label(files.isEmpty ? "Choose a Sound…" : "Library…", systemImage: "speaker.wave.2").frame(maxWidth: files.isEmpty ? .infinity : nil)
+        }
+        .help("Pick this item's sound from the sound library")
+        .popover(isPresented: $ui.showItemSoundPicker, arrowEdge: .leading) {
+          AudioPicker(kind: .sounds, preview: ui.audioPreview, entries: ui.pickerEntries, add: { entry in
+            do {
+              let file = try AudioLibrary(.sounds).freeze(entry, project: project.dir)
+              sound.wrappedValue = Sound(file: file, gainDB: sound.wrappedValue?.gainDB)
+            } catch {
+              Notices.shared.show(error, "Couldn't add \(entry.item.name)")
+            }
+          }) { ui.showItemSoundPicker = false }
+        }
       }
       if let s = sound.wrappedValue {
         slider(

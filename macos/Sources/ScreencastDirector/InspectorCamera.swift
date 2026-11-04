@@ -9,7 +9,10 @@ extension InspectorView {
   @ViewBuilder
   func cameraPane(_ plan: Plan) -> some View {
     PaneTitle(title: "Camera")
-    if plan.camera != nil {
+    if let camera = plan.camera {
+      InspectorSection("Split screen", detail: "The default; add Layout ranges on the timeline to switch for part of the video.") {
+        layoutPicker(bind("defaultLayout", { $0.defaultLayout }, { $0.defaultLayout = $1 }), hasCamera: true)
+      }
       InspectorSection("Framing", detail: "Drag to pick what stays centered; zoom in to reframe.") {
         CameraFramer(project: project, ui: ui)
         slider("Zoom", bind("camZoom", { $0.camera?.zoom ?? 1 }, { $0.camera?.zoom = ($1 * 20).rounded() / 20 }), 1...2.5, "\((plan.camera?.zoom ?? 1).formatted())×")
@@ -17,14 +20,21 @@ extension InspectorView {
           Label("Center on My Face", systemImage: "face.smiling").frame(maxWidth: .infinity)
         }
       }
-      InspectorSection("Lip sync", detail: "Slide right if your lips move after you speak, left if before.") {
+      InspectorSection(
+        "Lip sync", detail: "Slide right if your lips move after you speak, left if before.", isOpen: fold("lipSync", open: false)
+      ) {
         let offset = plan.camera?.offset ?? 0
-        slider("Camera", bind("camOffset", { $0.camera?.offset ?? 0 }, { $0.camera?.offset = ($1 * 100).rounded() / 100 }), min(-1, offset)...max(1, offset), String(format: "%+.2f s", offset))
+        slider("Offset", bind("camOffset", { $0.camera?.offset ?? 0 }, { $0.camera?.offset = ($1 * 100).rounded() / 100 }), min(-1, offset)...max(1, offset), String(format: "%+.2f s", offset))
         Button(action: project.syncCameraToVoice) {
           Label("Sync to My Voice", systemImage: "waveform.and.person.filled").frame(maxWidth: .infinity)
         }
       }
-      InspectorSection("Bubble", detail: "The camera while you demo. Drag it anywhere in the preview, or set it here.") {
+      // The bubble only matters while a layout shows it; otherwise it starts folded.
+      let showsBubble = plan.defaultLayout == .pip || plan.layouts.contains { $0.mode == .pip }
+      InspectorSection(
+        "Bubble", detail: "The camera while you demo. Drag it anywhere in the preview, or set it here.",
+        isOpen: fold("bubble", open: showsBubble)
+      ) {
         let cam = plan.camera
         let place = bubblePlacement(plan)
         slider(
@@ -61,21 +71,24 @@ extension InspectorView {
           }
           .controlSize(.small)
         }
-        LabeledContent("Shape") {
-          Picker("Shape", selection: bind(nil, { $0.camera?.bubbleShape ?? "circle" }, { $0.camera?.bubbleShape = $1 == "circle" ? nil : $1 })) {
-            ForEach(Plan.Camera.shapes, id: \.name) { Text($0.label).tag($0.name) }
+        toggle(
+          "Cut out background", "Just you, with no shape around you.",
+          bind(nil, { $0.camera?.cutout == true }, { $0.camera?.cutout = $1 ? true : nil }))
+        // A cutout has no shape, border or shadow to set.
+        if cam?.cutout != true {
+          LabeledContent("Shape") {
+            Picker("Shape", selection: bind(nil, { $0.camera?.bubbleShape ?? "circle" }, { $0.camera?.bubbleShape = $1 == "circle" ? nil : $1 })) {
+              ForEach(Plan.Camera.shapes, id: \.name) { Text($0.label).tag($0.name) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
           }
-          .pickerStyle(.segmented)
-          .labelsHidden()
+          toggle("Border", bind(nil, { $0.camera?.bubbleBorder != false }, { $0.camera?.bubbleBorder = $1 ? nil : false }))
+          toggle("Shadow", bind(nil, { $0.camera?.bubbleShadow != false }, { $0.camera?.bubbleShadow = $1 ? nil : false }))
         }
-        .disabled(cam?.cutout == true)
-        Toggle("Border", isOn: bind(nil, { $0.camera?.bubbleBorder != false }, { $0.camera?.bubbleBorder = $1 ? nil : false }))
-        .disabled(cam?.cutout == true)
-        Toggle("Shadow", isOn: bind(nil, { $0.camera?.bubbleShadow != false }, { $0.camera?.bubbleShadow = $1 ? nil : false }))
-        .disabled(cam?.cutout == true)
-        Toggle("Mirror (flip left to right)", isOn: bind(nil, { $0.camera?.mirror == true }, { $0.camera?.mirror = $1 ? true : nil }))
-        .help("Flip the camera so text it shows reads the right way, for a camera that records mirrored")
-        Toggle("Cut out background (just you, no shape)", isOn: bind(nil, { $0.camera?.cutout == true }, { $0.camera?.cutout = $1 ? true : nil }))
+        toggle(
+          "Mirror", "Flip left to right, for a camera that records mirrored.",
+          bind(nil, { $0.camera?.mirror == true }, { $0.camera?.mirror = $1 ? true : nil }))
       }
       InspectorSection("Color", detail: "Start from a preset, then fine-tune.") {
         FlowLayout(spacing: 6, lineSpacing: 6) {
@@ -88,31 +101,38 @@ extension InspectorView {
               }
             }
             .controlSize(.small)
+            .help("Grade the camera with the \(preset.name) preset")
           }
         }
-        gradeSlider("Exposure", \.exposure, 0, -1...1, "%+.2f")
-        gradeSlider("Highlights", \.highlights, 0, -1...0, "%+.2f")
-        gradeSlider("Shadows", \.shadows, 0, -1...1, "%+.2f")
-        gradeSlider("Contrast", \.contrast, 1, 0.7...1.4, "%.2f")
-        gradeSlider("Saturation", \.saturation, 1, 0...1.6, "%.2f")
-        gradeSlider("Vibrance", \.vibrance, 0, -1...1, "%+.2f")
-        gradeSlider("Warmth", \.warmth, 0, -1...1, "%+.2f")
-        LabeledContent("LUT") {
-          Text(plan.camera?.grade?.lut.map { ($0 as NSString).lastPathComponent } ?? "None")
-            .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
-          Button("Choose…") { project.chooseLUT() }
-            .controlSize(.small).help("Choose a .cube LUT")
-          if plan.camera?.grade?.lut != nil {
-            Button("Remove") { project.apply { $0.camera?.grade?.lut = nil } }
-              .controlSize(.small).help("Remove the LUT")
-          }
+        DisclosureGroup("Fine-tune", isExpanded: fold("gradeFineTune", open: camera.grade != nil)) {
+          VStack(alignment: .leading, spacing: 12) { gradeSliders(plan) }.padding(.top, 8)
         }
+        .font(.callout)
       }
     } else {
       emptyState("video.slash", "No camera", "This recording has no camera video. Turn on \"Record camera\" in Settings for the next one.")
     }
-    InspectorSection("Split screen", detail: "The default; add Layout ranges on the timeline to switch for part of the video.") {
-      layoutPicker(bind("defaultLayout", { $0.defaultLayout }, { $0.defaultLayout = $1 }), hasCamera: plan.camera != nil)
+  }
+
+  /// The grade's sliders and LUT, under Color's Fine-tune.
+  @ViewBuilder
+  func gradeSliders(_ plan: Plan) -> some View {
+    gradeSlider("Exposure", \.exposure, 0, -1...1, "%+.2f")
+    gradeSlider("Highlights", \.highlights, 0, -1...0, "%+.2f")
+    gradeSlider("Shadows", \.shadows, 0, -1...1, "%+.2f")
+    gradeSlider("Contrast", \.contrast, 1, 0.7...1.4, "%.2f")
+    gradeSlider("Saturation", \.saturation, 1, 0...1.6, "%.2f")
+    gradeSlider("Vibrance", \.vibrance, 0, -1...1, "%+.2f")
+    gradeSlider("Warmth", \.warmth, 0, -1...1, "%+.2f")
+    LabeledContent("LUT") {
+      Text(plan.camera?.grade?.lut.map { ($0 as NSString).lastPathComponent } ?? "None")
+        .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+      Button("Choose…") { project.chooseLUT() }
+        .controlSize(.small).help("Choose a .cube LUT")
+      if plan.camera?.grade?.lut != nil {
+        Button("Remove") { project.apply { $0.camera?.grade?.lut = nil } }
+          .controlSize(.small).help("Remove the LUT")
+      }
     }
   }
 

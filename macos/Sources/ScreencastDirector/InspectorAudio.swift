@@ -35,15 +35,18 @@ extension InspectorView {
         }
         slider("Volume", bind("musicVolume", { $0.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, { $0.music?.volumeDB = $1.rounded() }), -40...0, String(format: "%.0f dB", music.volumeDB ?? MusicDuck.defaultVolumeDB))
         slider("Under voice", bind("musicDuck", { $0.music?.duckDB ?? MusicDuck.defaultDuckDB }, { $0.music?.duckDB = $1.rounded() }), -40...0, String(format: "%.0f dB", music.duckDB ?? MusicDuck.defaultDuckDB))
-      } else {
-        Button { project.chooseMusicFile() } label: { Label("Add Music File…", systemImage: "music.note.list").frame(maxWidth: .infinity) }
       }
-      Button { openPicker(.music) } label: {
-        Label(plan.music == nil ? "Music Library…" : "Change Music…", systemImage: "music.quarternote.3").frame(maxWidth: .infinity)
-      }
-      .help("Pick background music from the library")
-      .popover(isPresented: $ui.showMusicPicker, arrowEdge: .leading) {
-        AudioPicker(kind: .music, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.useMusic($0) }) { ui.showMusicPicker = false }
+      // One row: the library (most picks) and a file of your own.
+      HStack(spacing: 8) {
+        Button { openPicker(.music) } label: {
+          Label(plan.music == nil ? "Music Library…" : "Change Music…", systemImage: "music.quarternote.3").frame(maxWidth: .infinity)
+        }
+        .help("Pick background music from the library")
+        .popover(isPresented: $ui.showMusicPicker, arrowEdge: .leading) {
+          AudioPicker(kind: .music, preview: ui.audioPreview, entries: ui.pickerEntries, add: { project.useMusic($0) }) { ui.showMusicPicker = false }
+        }
+        Button("File…") { project.chooseMusicFile() }
+          .help("Use a music file of your own")
       }
     }
     InspectorSection("Sound Effects", detail: "One-shot sounds at moments in the video. Add one at the playhead, or ask Claude.") {
@@ -81,10 +84,11 @@ extension InspectorView {
     }
   }
 
-  func openPicker(_ kind: AudioLibrary.Kind) {
+  /// Opens the sound or music library; `forItem` picks the selected title's or mark's own sound.
+  func openPicker(_ kind: AudioLibrary.Kind, forItem: Bool = false) {
     do {
       ui.pickerEntries = try AudioLibrary(kind).items()
-      if kind == .sounds { ui.showSoundPicker = true } else { ui.showMusicPicker = true }
+      if forItem { ui.showItemSoundPicker = true } else if kind == .sounds { ui.showSoundPicker = true } else { ui.showMusicPicker = true }
     } catch {
       Notices.shared.show(error, "Couldn't load the \(kind == .sounds ? "sound" : "music") library")
     }

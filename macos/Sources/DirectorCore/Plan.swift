@@ -297,6 +297,9 @@ public struct Plan: Codable, Equatable {
     /// they're said. Case and punctuation don't matter.
     public var emphasis: [String]?
 
+    /// Bold and social captions: big words, a few at a time, with an optional box behind them.
+    public var isBold: Bool { style == "bold" || style == "social" }
+
     public static let styles: [(name: String, label: String)] = [
       ("pill", "Pill"), ("karaoke", "Karaoke"), ("pop", "Word Pop"), ("bold", "Bold"), ("social", "Social (big, for vertical)"),
     ]
