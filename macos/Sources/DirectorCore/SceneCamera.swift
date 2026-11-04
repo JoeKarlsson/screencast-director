@@ -33,7 +33,7 @@ extension Scene {
   }
 
   func cameraCard(_ src0: CIImage, box b: Box, frame f: Double) -> CIImage {
-    var src = Scene.graded(src0, plan.camera?.grade, lut: cameraLUT)
+    var src = withEffects(Scene.graded(src0, plan.camera?.grade, lut: cameraLUT), layer: "camera", frame: Int(f))
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
     let mirrored = cam?.mirror == true

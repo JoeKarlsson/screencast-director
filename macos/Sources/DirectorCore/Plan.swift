@@ -338,6 +338,8 @@ public struct Plan: Codable, Equatable {
   /// back to the look's card, then the look's watermark.
   public var intro: Card?
   public var outro: Card?
+  /// Shaders from effect folders drawn on the screen, the camera or the whole frame (see Effects).
+  public var effects: [EffectUse]?
   /// Source seconds the publish covers are made from (up to three, oldest dropped first); nil
   /// picks the clearest camera frames.
   public var coverAt: [Double]?

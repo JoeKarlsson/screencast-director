@@ -20,6 +20,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- Effects: shader plugins that draw on the screen, the camera or the whole frame, under titles and captions. They react to clicks, cuts and clip speed. Install one in the Effects folder and list it in the plan's or profile's `effects` ([docs/effects.md](docs/effects.md)). None ship with the app.
 - A punch-in can move the camera's framing point (`x`, `y`) and widen (`scale` below 1), to cut to something held up beside your face that a vertical crop would cut off.
 - Captions: drag them anywhere in the preview, and set their text, highlight and box colors, box opacity, font and size in Cursor & Overlays > Captions. Bold and social captions can have a box behind the words (`captions.box`, `x`, `y`, `size`).
 - Reorder clips: play any part of the recording first (a cold open) or anywhere else. Select a clip and use Order > First, Earlier, Later, Last, or `director move <dir> <start> <end> [--before <t>]`. Its zooms, titles, captions, B-roll and sounds move with it. Older videos keep playing in recording order.

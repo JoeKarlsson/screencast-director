@@ -50,9 +50,10 @@ private func insert(_ track: AVMutableCompositionTrack, _ range: CMTimeRange, of
 }
 
 public func buildComposition(project: Project, plan: Plan) async throws -> BuiltComposition {
+  let loadedEffects = try Effects.load(plan.effects ?? [], sources: EffectSources(project: project.dir))
   let scene = Scene(
     plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts, cursorPath: project.cursorPath,
-    dir: project.dir)
+    dir: project.dir, effects: loadedEffects)
   let fps = Int32(plan.output.fps)
   let comp = AVMutableComposition()
 

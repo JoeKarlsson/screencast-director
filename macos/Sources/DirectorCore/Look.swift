@@ -96,6 +96,8 @@ public struct Profile: Codable, Equatable {
   /// Camera color and bubble; only the fields set here change a video's (and only if it has a camera).
   public var camera: CameraDefaults?
   public var defaultLayout: LayoutMode?
+  /// Effects every video with this profile uses (names from the personal Effects folder).
+  public var effects: [EffectUse]?
 
   public struct CameraDefaults: Codable, Equatable {
     /// The whole grade; a `lut` path is relative to the profile folder.
@@ -173,6 +175,7 @@ public struct Profile: Codable, Equatable {
       if let v = camera.bubbleShadow { plan.camera?.bubbleShadow = v }
     }
     if let defaultLayout { plan.defaultLayout = defaultLayout }
+    if let effects { plan.effects = effects }
     // Cards the profile switches on. Text already in the plan (typed by hand) is kept.
     func card(_ c: Card?, _ old: Card?) -> Card? {
       guard let c, c.isOn else { return old }

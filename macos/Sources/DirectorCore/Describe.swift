@@ -214,6 +214,16 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
     let missing = inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
     out.append("## Music: \(music.file)" + missing)
   }
+  if let effects = plan.effects, !effects.isEmpty {
+    out.append("")
+    out.append("## Effects (shaders from the video's effects/ folder or the personal Effects library)")
+    let sources = EffectSources(project: project.dir)
+    for e in effects {
+      let params = (e.params ?? [:]).sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.formatted())" }.joined(separator: " ")
+      let missing = sources.folder(e.name) == nil ? "MISSING: the video won't build" : ""
+      out.append(line("  \(e.name)", e.layer.map { "on \($0)" } ?? "", params, missing))
+    }
+  }
   func listLibrary(_ lib: AudioLibrary, _ heading: String) {
     out.append("")
     do {

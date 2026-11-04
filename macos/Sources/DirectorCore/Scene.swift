@@ -46,6 +46,10 @@ public final class Scene: @unchecked Sendable {
   let watermark: CGImage?
   let introLogo: CGImage?
   let outroLogo: CGImage?
+  /// Compiled effects, drawn in plan order on their layer.
+  let effects: [LoadedEffect]
+  /// Output frames where one clip cuts to the next, for the effects' `toCut`.
+  let cutFrames: [Double]
   /// Clicks in output frames, for cropped formats whose camera rests on the last click.
   let focusClicks: [(f: Double, x: Double, y: Double)]
 
@@ -69,9 +73,11 @@ public final class Scene: @unchecked Sendable {
   let clickTimes: [Double]
 
   public init(
-    plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil
+    plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
+    effects: [LoadedEffect] = []
   ) {
     self.plan = plan
+    self.effects = effects
     self.dir = dir
     self.words = words
     cameraLUT = plan.camera?.grade?.lut.flatMap { Scene.fileURL($0, dir: dir) }.flatMap { try? CubeLUT.load($0) }
@@ -149,6 +155,7 @@ public final class Scene: @unchecked Sendable {
     insertImages = images
     cuts = m.dropFirst().compactMap { seg in seg.transition.map { (Double(seg.outStart), $0) } }
     fades = crossfades(m, fps: fps)
+    cutFrames = m.dropFirst().map { Double($0.outStart) }
     let maxWords = ["bold", "social"].contains(plan.captions.style ?? "") ? min(plan.captions.maxWords, 3) : plan.captions.maxWords
     pages = plan.captions.enabled ? Scene.captionPages(words, m, fps: fps, maxWords: maxWords) : []
     motion = MotionStyle.named(plan.style.motion)
@@ -293,7 +300,7 @@ public final class Scene: @unchecked Sendable {
       image = shadow(withWindowBar(b, 1), opacity: 0.45, blur: 40 * u, drop: 30 * u).composited(over: image)
       if let chrome = windowChrome(b, opacity: b.opacity) { image = chrome.composited(over: image) }
       let blur = cameraMotion(f, box: b, cam: cam, base: base)
-      image = screenCard(screen, box: b, cam: cam, blur: blur).composited(over: image)
+      image = screenCard(withEffects(screen, layer: "screen", frame: f), box: b, cam: cam, blur: blur).composited(over: image)
       image = privacyBlurs(image, frame: Double(f), screen: b, cam: cam)
       image = broll(image, frame: Double(f), full: false, box: b, frames: insertFrames)
     }
@@ -312,6 +319,7 @@ public final class Scene: @unchecked Sendable {
       }
     }
     image = broll(image, frame: Double(f), full: true, box: b, frames: insertFrames)
+    image = withEffects(image.cropped(to: CGRect(x: 0, y: 0, width: W, height: H)), layer: "frame", frame: f)
     if let overlay = overlays(frame: Double(f), screen: b, cam: cam, camBox: camera != nil && plan.camera != nil ? cb : nil) {
       image = overlay.composited(over: image)
     }
@@ -485,5 +493,31 @@ public final class Scene: @unchecked Sendable {
         .cropped(to: extent)
     }
     return masked(placed, ciRect(b), radius: b.r, opacity: b.opacity)
+  }
+}
+
+extension Scene {
+  /// What the effects know about output frame `f`.
+  func effectSignals(_ f: Int) -> EffectSignals {
+    var s = EffectSignals()
+    let fd = Double(f), rate = Double(fps)
+    s.time = Float(fd / rate)
+    s.frame = Float(f)
+    if let c = focusClicks.last(where: { $0.f <= fd }) {
+      s.sinceClick = Float((fd - c.f) / rate)
+      s.clickX = Float(c.x)
+      s.clickY = Float(c.y)
+    }
+    if let nearest = cutFrames.map({ abs($0 - fd) }).min() { s.toCut = Float(nearest / rate) }
+    if let clip = mapped.first(where: { f >= $0.outStart && f < $0.outStart + $0.frames }) { s.speed = Float(clip.speed) }
+    return s
+  }
+
+  /// The image with each effect for this layer drawn on it, in plan order.
+  func withEffects(_ image: CIImage, layer: String, frame f: Int) -> CIImage {
+    let these = effects.filter { $0.layer == layer }
+    guard !these.isEmpty else { return image }
+    let signals = effectSignals(f)
+    return these.reduce(image) { $1.apply($0, signals: signals) }
   }
 }
