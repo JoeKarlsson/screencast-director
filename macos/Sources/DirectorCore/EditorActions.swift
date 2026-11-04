@@ -288,6 +288,14 @@ extension Plan {
     }
   }
 
+  /// Switches effect range `i` to another effect. Its settings belong to the old effect (the new one
+  /// may not have them, and a plan with an unknown param doesn't load), so they're cleared.
+  public mutating func switchEffect(ofRange i: Int, to name: String) {
+    guard effectRangeList.indices.contains(i), effectRangeList[i].name != name else { return }
+    effectRangeList[i].name = name
+    effectRangeList[i].params = nil
+  }
+
   /// A copy of zoom `i` placed half a second after it, kept inside the recording.
   public func duplicateOfZoom(_ i: Int) -> Zoom? {
     guard zooms.indices.contains(i) else { return nil }

@@ -83,6 +83,9 @@ func editorActionChecks() {
   expect(ranged.allItems.suffix(3) == [.effectRange(0), .effectRange(1), .effectRange(2)] && ranged.timeRange(of: .effectRange(1))! == (9, 12), "effect ranges are timeline items")
   expect(ranged.retime(.effectRange(0), start: 13, end: 15) == .effectRange(1), "a dragged effect range is found after re-sorting")
   expect(ranged.shift([.effectRange(0)], by: 1) == [.effectRange(0)] && ranged.effectRangeList[0].start == 10, "an effect range moves with the group")
+  ranged.effectRangeList[0].params = ["lines": 0.3]
+  ranged.switchEffect(ofRange: 0, to: "cut-glitch")
+  expect(ranged.effectRangeList[0].name == "cut-glitch" && ranged.effectRangeList[0].params == nil, "switching a range's effect clears the old effect's settings")
   ranged.delete([.effectRange(0), .effectRange(1), .effectRange(2)])
   expect(ranged.effectRanges == nil, "deleting every effect range clears the list")
 

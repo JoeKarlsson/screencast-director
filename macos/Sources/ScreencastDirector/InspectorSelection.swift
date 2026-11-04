@@ -249,7 +249,7 @@ extension InspectorView {
       let manifest = sources.manifest(r.name)
       itemHeader(manifest?.title ?? r.name, "wand.and.stars", Theme.effect, range(r.start, r.end))
       InspectorSection("Effect", detail: manifest == nil ? "\(r.name) isn't in the Effects folder, so the video won't build." : "Drawn only for this stretch.") {
-        Picker("Effect", selection: bindItem("effectName\(i)", \.effectRangeList, i, \.name)) {
+        Picker("Effect", selection: bind(nil, { plan in plan.effectRangeList.indices.contains(i) ? plan.effectRangeList[i].name : r.name }, { plan, name in plan.switchEffect(ofRange: i, to: name) })) {
           ForEach(Array(Set(sources.available() + [r.name])).sorted(), id: \.self) { Text(sources.manifest($0)?.title ?? $0).tag($0) }
         }
         Picker("On", selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer)) {
