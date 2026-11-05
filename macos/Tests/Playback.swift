@@ -169,7 +169,9 @@ struct Playback {
       String(
         format: "frames=%d size=%dx%d luma min=%.1f max=%.1f played to %.2fs", frames, size.0, size.1, minLuma, maxLuma,
         player.currentTime().seconds))
-    expect(frames >= 20, "playback delivered frames (\(frames))")
+    // The bug this guards against plays nothing at all (black and silent). How many frames arrive in
+    // real time depends on the machine: 73 on an M-series Mac, anywhere from 14 to 59 on CI's VMs.
+    expect(frames >= 10, "playback delivered frames (\(frames))")
     expect(size.0 == Int(built.videoComposition.renderSize.width), "frames are the render size")
     expect(minLuma > 30, "no black frames (darkest mean luma \(String(format: "%.1f", minLuma)))")
 
