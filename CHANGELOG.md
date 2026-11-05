@@ -23,6 +23,9 @@ Each release lists what changed for people using the app or the CLI. The version
 - `screencastdirector://` links drive recording in the running app (`record/start`, `stop`, `pause`, `resume`, `restart`, `discard`, `retake`) and open a recording (`open?project=<folder>`).
 - Rendering an animation from the CLI while the app has the same video open no longer breaks either render. Each one cleaned up the other's in-progress file, and the app could hang.
 
+### Sound and music
+- Work-only sounds and music: files in `Work/Sounds` and `Work/Music` (in the support folder) are listed, and can be built into a video, only when its profile has `"work": true` in its profile.json. A video with another profile that uses one fails `director validate` and won't render. Applying a profile now records its name in the plan as `profile`.
+
 ### Recording
 - The camera records at the best size it offers, up to 4K at 30 fps, with the bitrate to match (40 Mbps at 4K). It used to be held to 1080p whatever the camera could do. Recorded B-roll from a camera too.
 - Record B-roll into the open video (File > Record B-roll…, or hold the B-roll button): a small panel with a live preview records a clip from the camera or the screen into its broll/ folder, then shows it full frame from the playhead for the clip's length. One undo takes it off.

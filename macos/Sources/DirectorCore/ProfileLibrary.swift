@@ -36,6 +36,12 @@ public struct ProfileLibrary: Sendable {
     return try Profile.load(folder(name))
   }
 
+  /// Whether the named profile is a work profile. No name, or a profile that's gone, is not.
+  public func isWork(_ name: String?) throws -> Bool {
+    guard let name, FileManager.default.fileExists(atPath: folder(name).appendingPathComponent("profile.json").path) else { return false }
+    return try load(name).work == true
+  }
+
   public static var defaultName: String {
     get { AppPreferences.defaults.string(forKey: "defaultProfile") ?? "Personal" }
     set { AppPreferences.defaults.set(newValue, forKey: "defaultProfile") }

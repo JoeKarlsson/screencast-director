@@ -154,6 +154,8 @@ public struct Plan: Codable, Equatable, Sendable {
   public var clips: [Clip]?
   /// Branded fonts, colors, frame and logo, from a profile. nil is the built-in look.
   public var look: Look?
+  /// The profile last applied, by name. A work profile's videos can use the work-only sounds and music.
+  public var profile: String?
   /// How hard silences were cut (nil: the planner's normal level).
   public var pauses: PauseLevel?
   /// Voice level: normalize to a standard loudness, plus a manual trim.

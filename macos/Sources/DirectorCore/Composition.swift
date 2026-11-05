@@ -306,7 +306,7 @@ private func addMusic(
 ) async throws -> (params: AVMutableAudioMixInputParameters?, asset: AVURLAsset?) {
   guard let music = plan.music else { return (nil, nil) }
   // A library track the plan names (music/<file>) is copied into the project the first time.
-  try AudioLibrary(.music).freezeMissing([music.file], project: project.dir)
+  try AudioLibrary(.music, for: plan).freezeMissing([music.file], project: project.dir)
   let asset = AVURLAsset(url: resolvePath(music.file, in: project.dir))
   guard let src = try await asset.loadTracks(withMediaType: .audio).first else { throw CompositionError.noAudio(music.file) }
   let range = try await src.load(.timeRange)
@@ -339,7 +339,7 @@ private func addSoundEffects(_ plan: Plan, project: Project, scene: Scene, total
     return (nil, nil, [])
   }
   // Library sounds the plan names (sfx/<file>) are copied into the project the first time.
-  try AudioLibrary(.sounds).freezeMissing(times.map(\.effect.file), project: project.dir)
+  try AudioLibrary(.sounds, for: plan).freezeMissing(times.map(\.effect.file), project: project.dir)
   let params = AVMutableAudioMixInputParameters(track: track)
   var fill: (AVMutableCompositionTrack, AVAssetTrack)?
   var assets: [AVURLAsset] = []

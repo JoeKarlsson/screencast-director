@@ -241,8 +241,16 @@ private struct Describer: Sendable {
 
   /// Sound effects and music, flagging files that are neither in the project nor in a library.
   mutating func sound() {
-    let library = AudioLibrary(.sounds)
-    let musicLibrary = AudioLibrary(.music)
+    let library: AudioLibrary, musicLibrary: AudioLibrary
+    do {
+      library = try AudioLibrary(.sounds, for: plan)
+      musicLibrary = try AudioLibrary(.music, for: plan)
+    } catch {
+      out.append("")
+      out.append("## Sound: couldn't read profile \(plan.profile ?? ""): \(error.localizedDescription)")
+      return
+    }
+    let workOnly = Set(library.workOnlyPaths(plan.soundEffects.map(\.file)) + musicLibrary.workOnlyPaths(plan.music.map { [$0.file] } ?? []))
     func inProject(_ file: String) -> Bool {
       Scene.fileURL(file, dir: project.dir).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     }
@@ -254,7 +262,8 @@ private struct Describer: Sendable {
       for e in effects {
         let at = srcToOut(mapped, e.t, fps: fps).map { "out \(fmtTime($0 / Double(fps)))" } ?? "CUT (won't play)"
         let label = free.firstIndex(of: e).map { "sfx #\($0)" } ?? "on"
-        let missing = inProject(e.file) || (try? library.entry(forPlanPath: e.file)) != nil ? "" : "MISSING FILE"
+        let missing = workOnly.contains(e.file) ? "WORK ONLY (this video's profile isn't a work profile)"
+          : inProject(e.file) || (try? library.entry(forPlanPath: e.file)) != nil ? "" : "MISSING FILE"
         out.append(line("  \(label) src \(fmtTime(e.t)) \(at) \(e.file)", e.gainDB.map { "\($0.formatted()) dB" } ?? "", e.note ?? "", missing))
       }
       for (i, e) in free.enumerated() where srcToOut(mapped, e.t, fps: fps) == nil {
@@ -263,7 +272,8 @@ private struct Describer: Sendable {
     }
     if let music = plan.music {
       out.append("")
-      let missing = inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
+      let missing = workOnly.contains(music.file) ? " WORK ONLY (this video's profile isn't a work profile)"
+        : inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
       out.append("## Music: \(music.file)" + missing)
     }
   }
@@ -309,8 +319,12 @@ private struct Describer: Sendable {
         out.append("## \(heading): couldn't load (\(error.localizedDescription))")
       }
     }
-    listLibrary(AudioLibrary(.sounds), "Sound library, for sfx and attached sounds")
-    listLibrary(AudioLibrary(.music), "Music library, for music.file")
+    do {
+      listLibrary(try AudioLibrary(.sounds, for: plan), "Sound library, for sfx and attached sounds")
+      listLibrary(try AudioLibrary(.music, for: plan), "Music library, for music.file")
+    } catch {
+      out.append("## Sound and music libraries: couldn't load the profile (\(error.localizedDescription))")
+    }
   }
 }
 

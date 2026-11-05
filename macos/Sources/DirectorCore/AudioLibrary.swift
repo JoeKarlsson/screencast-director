@@ -18,7 +18,8 @@ public struct LibraryItem: Codable, Equatable, Sendable {
 
 /// Sound effects or music a plan can use before the file is in the project: the personal folder
 /// (~/Library/Application Support/Screencast Director/Sounds or Music, any audio file) over the ones
-/// built into the app. A plan names one as `sfx/<file>` or `music/<file>`; building the video copies
+/// built into the app. Files licensed for work only (Work/Sounds, Work/Music) are listed only for a
+/// video whose profile is a work profile, and a video with any other profile can't build with them. A plan names one as `sfx/<file>` or `music/<file>`; building the video copies
 /// it into that project folder, so a file changed later in the library never changes a finished video.
 public struct AudioLibrary: Sendable {
   public enum Kind: Sendable {
@@ -30,6 +31,7 @@ public struct AudioLibrary: Sendable {
     public var planFolder: String { self == .sounds ? "sfx" : "music" }
     public var personalCategory: String { self == .sounds ? "My Sounds" : "My Music" }
     var personalName: String { self == .sounds ? "Sounds" : "Music" }
+    var workCategory: String { self == .sounds ? "Work Sounds" : "Work Music" }
   }
 
   static let audioExtensions: Set<String> = ["m4a", "mp3", "wav", "aif", "aiff", "caf", "aac"]
@@ -37,9 +39,17 @@ public struct AudioLibrary: Sendable {
   public let kind: Kind
   public let builtIn: URL
   public let personal: URL
+  /// Files licensed for work videos only (Work/Sounds or Work/Music).
+  public let workOnly: URL
+  /// Whether the video's profile is a work profile, so the work-only files are usable.
+  public let allowsWork: Bool
 
   public static func personalFolder(_ kind: Kind) -> URL {
     AppPreferences.supportFolder.appendingPathComponent(kind.personalName)
+  }
+
+  public static func workFolder(_ kind: Kind) -> URL {
+    AppPreferences.supportFolder.appendingPathComponent("Work").appendingPathComponent(kind.personalName)
   }
 
   /// The app bundle's copy (for the app and the bundled `director`), else this repo's (builds run
@@ -54,10 +64,17 @@ public struct AudioLibrary: Sendable {
       .appendingPathComponent("../../Resources/\(kind.resource)").standardizedFileURL
   }
 
-  public init(_ kind: Kind, builtIn: URL? = nil, personal: URL? = nil) {
+  public init(_ kind: Kind, builtIn: URL? = nil, personal: URL? = nil, workOnly: URL? = nil, allowsWork: Bool = false) {
     self.kind = kind
     self.builtIn = builtIn ?? AudioLibrary.builtInFolder(kind)
     self.personal = personal ?? AudioLibrary.personalFolder(kind)
+    self.workOnly = workOnly ?? AudioLibrary.workFolder(kind)
+    self.allowsWork = allowsWork
+  }
+
+  /// The library a video sees: the work-only files too when its profile is a work profile.
+  public init(_ kind: Kind, for plan: Plan, profiles: ProfileLibrary = ProfileLibrary()) throws {
+    self.init(kind, allowsWork: try profiles.isWork(plan.profile))
   }
 
   public struct Entry: Equatable, Sendable {
@@ -71,19 +88,8 @@ public struct AudioLibrary: Sendable {
   /// file with a built-in item's file name replaces it. Plans name a sound by file name alone
   /// (`sfx/<file>`), so two personal files with the same name in different folders are an error.
   public func items() throws -> [Entry] {
-    let fm = FileManager.default
-    func audioFiles(in folder: URL, category: String) -> [Entry] {
-      let names = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
-      return names.sorted().filter { AudioLibrary.audioExtensions.contains(($0 as NSString).pathExtension.lowercased()) }.map { name in
-        Entry(item: LibraryItem(name: (name as NSString).deletingPathExtension, file: name, category: category), url: folder.appendingPathComponent(name), isPersonal: true)
-      }
-    }
-    var mine = audioFiles(in: personal, category: kind.personalCategory)
-    let subfolders = ((try? fm.contentsOfDirectory(atPath: personal.path)) ?? []).sorted().filter { name in
-      var isDir: ObjCBool = false
-      return !name.hasPrefix(".") && fm.fileExists(atPath: personal.appendingPathComponent(name).path, isDirectory: &isDir) && isDir.boolValue
-    }
-    for folder in subfolders { mine += audioFiles(in: personal.appendingPathComponent(folder), category: folder) }
+    var mine = AudioLibrary.audioFiles(in: personal, looseCategory: kind.personalCategory)
+    if allowsWork { mine += AudioLibrary.audioFiles(in: workOnly, looseCategory: kind.workCategory) }
     var seen: [String: URL] = [:]
     for e in mine {
       if let other = seen[e.item.file] {
@@ -97,6 +103,31 @@ public struct AudioLibrary: Sendable {
       .filter { !taken.contains($0.file) }
       .map { Entry(item: $0, url: builtIn.appendingPathComponent($0.file), isPersonal: false) }
     return mine + builtIns
+  }
+
+  /// The audio files in a folder (loose ones in `looseCategory`, then each subfolder as a category
+  /// named after it, all by name).
+  private static func audioFiles(in folder: URL, looseCategory: String) -> [Entry] {
+    let fm = FileManager.default
+    func files(in dir: URL, category: String) -> [Entry] {
+      let names = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+      return names.sorted().filter { audioExtensions.contains(($0 as NSString).pathExtension.lowercased()) }.map { name in
+        Entry(item: LibraryItem(name: (name as NSString).deletingPathExtension, file: name, category: category), url: dir.appendingPathComponent(name), isPersonal: true)
+      }
+    }
+    let subfolders = ((try? fm.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().filter { name in
+      var isDir: ObjCBool = false
+      return !name.hasPrefix(".") && fm.fileExists(atPath: folder.appendingPathComponent(name).path, isDirectory: &isDir) && isDir.boolValue
+    }
+    return files(in: folder, category: looseCategory) + subfolders.flatMap { files(in: folder.appendingPathComponent($0), category: $0) }
+  }
+
+  /// The paths among these that name a work-only file (by file name, so a copy already in the
+  /// project counts) when the video's profile isn't a work profile.
+  public func workOnlyPaths(_ paths: [String]) -> [String] {
+    guard !allowsWork else { return [] }
+    let workFiles = Set(AudioLibrary.audioFiles(in: workOnly, looseCategory: "").map(\.item.file))
+    return Set(paths).sorted().filter { workFiles.contains(($0 as NSString).lastPathComponent) }
   }
 
   /// The library item a plan path (`sfx/<file>` or `music/<file>`) names, if any.
@@ -121,9 +152,13 @@ public struct AudioLibrary: Sendable {
   }
 
   /// Copies each library item named by these plan paths that the project doesn't have yet into
-  /// it. Returns the plan paths it copied.
+  /// it. Returns the plan paths it copied. Throws when one is work-only and the video isn't.
   @discardableResult
   public func freezeMissing(_ paths: [String], project: URL) throws -> [String] {
+    let blocked = workOnlyPaths(paths)
+    guard blocked.isEmpty else {
+      throw DirectorError("\(blocked.joined(separator: ", ")) \(blocked.count == 1 ? "is" : "are") licensed for work videos only. Apply a work profile (one with \"work\": true) or pick another \(kind == .sounds ? "sound" : "track").")
+    }
     var copied: [String] = []
     for path in Set(paths).sorted() {
       guard !FileManager.default.fileExists(atPath: project.appendingPathComponent(path).path),

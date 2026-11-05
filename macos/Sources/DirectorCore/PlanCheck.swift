@@ -133,12 +133,20 @@ public enum PlanCheck {
       if let path, !exists(path) { out.append("\(what): no file at \(path)") }
     }
     for (i, ins) in plan.insertList.enumerated() { file("inserts[\(i)].file", ins.file) }
-    let sounds = AudioLibrary(.sounds), music = AudioLibrary(.music)
-    for s in plan.soundEffects where !exists(s.file) && (try? sounds.entry(forPlanPath: s.file)) == nil {
-      out.append("sound \(s.file) at \(fmt(s.t)): no such file in the project or the sound library")
-    }
-    if let m = plan.music, !exists(m.file), (try? music.entry(forPlanPath: m.file)) == nil {
-      out.append("music.file: no file at \(m.file) in the project or the music library")
+    do {
+      let sounds = try AudioLibrary(.sounds, for: plan), music = try AudioLibrary(.music, for: plan)
+      let workOnly = sounds.workOnlyPaths(plan.soundEffects.map(\.file)) + music.workOnlyPaths(plan.music.map { [$0.file] } ?? [])
+      for s in plan.soundEffects where !workOnly.contains(s.file) && !exists(s.file) && (try? sounds.entry(forPlanPath: s.file)) == nil {
+        out.append("sound \(s.file) at \(fmt(s.t)): no such file in the project or the sound library")
+      }
+      if let m = plan.music, !workOnly.contains(m.file), !exists(m.file), (try? music.entry(forPlanPath: m.file)) == nil {
+        out.append("music.file: no file at \(m.file) in the project or the music library")
+      }
+      for path in workOnly {
+        out.append("\(path) is licensed for work videos only; profile \(plan.profile.map { "\"\($0)\"" } ?? "(none)") isn't a work profile")
+      }
+    } catch {
+      out.append("profile: \(error.localizedDescription)")
     }
     file("camera.grade.lut", plan.camera?.grade?.lut)
     file("intro.logo", plan.intro?.logo)

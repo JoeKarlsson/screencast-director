@@ -265,6 +265,33 @@ struct Checks {
       expect(try music.entry(forPlanPath: "sfx/advertime.m4a") == nil, "music paths resolve only under music/")
       expect(try music.freezeMissing(["music/advertime.m4a"], project: proj) == ["music/advertime.m4a"], "a library track is copied into music/")
       expect(FileManager.default.fileExists(atPath: proj.appendingPathComponent("music/advertime.m4a").path), "the track is in the project")
+
+      // Work-only files: listed and usable only for a video whose profile is a work profile.
+      let work = tmp.appendingPathComponent("work"), licensed = work.appendingPathComponent("PremiumBeat")
+      try FileManager.default.createDirectory(at: licensed, withIntermediateDirectories: true)
+      try Data("pb".utf8).write(to: licensed.appendingPathComponent("Theme - full.wav"))
+      let personalMusic = AudioLibrary(.music, personal: mine, workOnly: work)
+      let workMusic = AudioLibrary(.music, personal: mine, workOnly: work, allowsWork: true)
+      expect(!(try personalMusic.items()).contains { $0.item.file == "Theme - full.wav" }, "a non-work video doesn't list work-only music")
+      expect(try workMusic.items().first { $0.item.file == "Theme - full.wav" }?.item.category == "PremiumBeat", "a work video lists it under its folder")
+      expect(personalMusic.workOnlyPaths(["music/Theme - full.wav", "music/advertime.m4a"]) == ["music/Theme - full.wav"], "work-only paths are found by file name")
+      expect((try? personalMusic.freezeMissing(["music/Theme - full.wav"], project: proj)) == nil, "a non-work video can't build with work-only music")
+      expect(try workMusic.freezeMissing(["music/Theme - full.wav"], project: proj) == ["music/Theme - full.wav"], "a work video copies it in")
+      expect((try? personalMusic.freezeMissing(["music/Theme - full.wav"], project: proj)) == nil, "a copy already in the project still can't build without a work profile")
+      let profiles = ProfileLibrary(root: tmp.appendingPathComponent("profiles"))
+      var workProfile = Profile(name: "Work", style: sp.style, look: Look())
+      workProfile.work = true
+      for p in [workProfile, Profile(name: "Home", style: sp.style, look: Look())] {
+        try FileManager.default.createDirectory(at: profiles.folder(p.name), withIntermediateDirectories: true)
+        try JSONEncoder().encode(p).write(to: profiles.folder(p.name).appendingPathComponent("profile.json"))
+      }
+      workProfile.apply(to: &sp, name: "Demo")
+      expect(sp.profile == "Work", "applying a profile records its name")
+      expect(try AudioLibrary(.music, for: sp, profiles: profiles).allowsWork, "a work profile's video gets the work-only files")
+      sp.profile = "Home"
+      expect(try !AudioLibrary(.music, for: sp, profiles: profiles).allowsWork, "another profile's doesn't")
+      sp.profile = "Gone"
+      expect(try !AudioLibrary(.music, for: sp, profiles: profiles).allowsWork, "nor does a profile that's gone")
     } catch {
       expect(false, "audio library: \(error)")
     }

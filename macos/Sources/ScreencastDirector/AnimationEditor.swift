@@ -225,7 +225,7 @@ struct AnimationEditor: View {
         Button("No Sound") { project.editAnimation(i) { $0.sounds?.removeValue(forKey: key); if $0.sounds?.isEmpty == true { $0.sounds = nil } } }
         Divider()
       }
-      ForEach((try? AudioLibrary(.sounds).items()) ?? [], id: \.url) { entry in
+      ForEach(project.plan.flatMap { try? AudioLibrary(.sounds, for: $0).items() } ?? [], id: \.url) { entry in
         Button(entry.item.name) {
           do {
             let file = try AudioLibrary(.sounds).freeze(entry, project: project.dir)

@@ -127,6 +127,9 @@ public struct Profile: Codable, Equatable, Sendable {
   public var defaultLayout: LayoutMode?
   /// Effects every video with this profile uses (names from the personal Effects folder).
   public var effects: [EffectUse]?
+  /// A work profile: its videos can use the sounds and music licensed for work only (Work/Sounds,
+  /// Work/Music in the support folder), and no other video can.
+  public var work: Bool?
 
   public struct CameraDefaults: Codable, Equatable, Sendable {
     /// The whole grade; a `lut` path is relative to the profile folder.
@@ -208,6 +211,7 @@ public struct Profile: Codable, Equatable, Sendable {
     var look = self.look
     look.name = name
     plan.look = look
+    plan.profile = self.name
     if let captions {
       plan.captions.maxWords = captions.maxWords
       if let style = captions.style { plan.captions.style = style }

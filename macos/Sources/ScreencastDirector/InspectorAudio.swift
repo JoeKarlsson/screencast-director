@@ -90,8 +90,9 @@ extension InspectorView {
 
   /// Opens the sound or music library; `forItem` picks the selected title's or mark's own sound.
   func openPicker(_ kind: AudioLibrary.Kind, forItem: Bool = false) {
+    guard let plan = project.plan else { return }
     do {
-      ui.pickerEntries = try AudioLibrary(kind).items()
+      ui.pickerEntries = try AudioLibrary(kind, for: plan).items()
       if forItem { ui.showItemSoundPicker = true } else if kind == .sounds { ui.showSoundPicker = true } else { ui.showMusicPicker = true }
     } catch {
       Notices.shared.show(error, "Couldn't load the \(kind == .sounds ? "sound" : "music") library")
