@@ -22,5 +22,7 @@ jobs:
           else
             macos/check-tests.sh "$BEFORE..HEAD"
           fi
+      # CI's compiler can differ from a local one (it has rejected code that built locally), so log it.
+      - run: swift --version
       - run: brew install swiftlint shellcheck ffmpeg
       - run: macos/test-all.sh --no-smoke   # lint, checks, playback, media, CLI and animation renders (the smoke test needs a GUI)
