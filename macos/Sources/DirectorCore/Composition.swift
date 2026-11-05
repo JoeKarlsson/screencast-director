@@ -42,13 +42,14 @@ private let cutRamp = 0.012
 
 private func t(_ s: Double) -> CMTime { CMTime(seconds: s, preferredTimescale: 60000) }
 
-private func insert(_ track: AVMutableCompositionTrack, _ range: CMTimeRange, of src: AVAssetTrack, at: CMTime, _ what: String) throws {
+private func insert(_ track: AVMutableCompositionTrack, _ range: CMTimeRange, of src: AVAssetTrack, at: CMTime, _ what: String) async throws {
   do {
     try track.insertTimeRange(range, of: src, at: at)
   } catch {
+    // The source track's range, for the message; if even that can't load, say so rather than guess.
+    let have = (try? await src.load(.timeRange)).map { "\($0.start.seconds)-\($0.end.seconds)s" } ?? "range unknown"
     throw DirectorError(
-      "Couldn't add \(what) \(range.start.seconds)-\(range.end.seconds)s at \(at.seconds)s (source track "
-        + "\(src.timeRange.start.seconds)-\(src.timeRange.end.seconds)s): \(error.localizedDescription)")
+      "Couldn't add \(what) \(range.start.seconds)-\(range.end.seconds)s at \(at.seconds)s (source track \(have)): \(error.localizedDescription)")
   }
 }
 
@@ -128,12 +129,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
     let srcRange = CMTimeRange(start: t(s.start), end: CMTimeMinimum(t(s.end), screenDuration))
     guard srcRange.duration.seconds > 0 else { continue }
 
-    try insert(vTrack, srcRange, of: srcVideo, at: at, "screen video")
+    try await insert(vTrack, srcRange, of: srcVideo, at: at, "screen video")
     vTrack.scaleTimeRange(CMTimeRange(start: at, duration: srcRange.duration), toDuration: outDur)
     if let aTrack, let srcAudio {
       let audioRange = CMTimeRange(start: srcRange.start, end: CMTimeMinimum(srcRange.end, audioEnd))
       if audioRange.duration.seconds > 0 {
-        try insert(aTrack, audioRange, of: srcAudio, at: at, "audio")
+        try await insert(aTrack, audioRange, of: srcAudio, at: at, "audio")
         let audioOut = audioRange == srcRange ? outDur : t(outDur.seconds * audioRange.duration.seconds / srcRange.duration.seconds)
         aTrack.scaleTimeRange(CMTimeRange(start: at, duration: audioRange.duration), toDuration: audioOut)
       }
@@ -154,13 +155,13 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
       if b > a {
         let lead = (a - (s.start + offset)) / s.speed
         let camAt = CMTimeAdd(at, t(lead))
-        try insert(camTrack, CMTimeRange(start: t(a), end: t(b)), of: track, at: camAt, "camera")
+        try await insert(camTrack, CMTimeRange(start: t(a), end: t(b)), of: track, at: camAt, "camera")
         camTrack.scaleTimeRange(CMTimeRange(start: camAt, duration: t(b - a)), toDuration: t((b - a) / s.speed))
       }
     }
   }
 
-  let handleTrack = try crossfadeHandles(scene, screen: srcVideo, screenDuration: screenDuration, to: comp)
+  let handleTrack = try await crossfadeHandles(scene, screen: srcVideo, screenDuration: screenDuration, to: comp)
 
   let broll = try await addBroll(scene, project: project, to: comp)
 
@@ -175,7 +176,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   if let handleTrack { fills.append((handleTrack, srcVideo)) }
   fills += broll.fills
   if let fill = effects.fill { fills.append(fill) }
-  try fitTracks(comp, to: total, padding: fills)
+  try await fitTracks(comp, to: total, padding: fills)
   // Every track inserts from these assets (padding too), and a track whose asset is freed fails.
   withExtendedLifetime((camAsset, screenAsset, cleanAsset, broll.assets, effects.assets, music.asset)) {}
   if scene.outroStart < scene.frameCount {
@@ -206,14 +207,15 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
 /// doesn't count toward a track's length, so each short track in `padding` is filled with a
 /// stretched sliver of its source; the compositor draws the card over it and the audio is muted
 /// there. (Segments start after the intro, which leaves an empty edit at the front.)
-private func fitTracks(_ comp: AVMutableComposition, to total: CMTime, padding: [(AVMutableCompositionTrack, AVAssetTrack)]) throws {
+private func fitTracks(_ comp: AVMutableComposition, to total: CMTime, padding: [(AVMutableCompositionTrack, AVAssetTrack)]) async throws {
   if comp.duration > total {
     comp.removeTimeRange(CMTimeRange(start: total, end: comp.duration))
   }
   for (track, src) in padding where track.timeRange.end < total {
     let at = track.timeRange.end
-    let sliver = CMTimeRange(start: src.timeRange.start, duration: CMTimeMinimum(src.timeRange.duration, t(0.5)))
-    try insert(track, sliver, of: src, at: at, "padding")
+    let have = try await src.load(.timeRange)
+    let sliver = CMTimeRange(start: have.start, duration: CMTimeMinimum(have.duration, t(0.5)))
+    try await insert(track, sliver, of: src, at: at, "padding")
     track.scaleTimeRange(CMTimeRange(start: at, duration: sliver.duration), toDuration: CMTimeSubtract(total, at))
   }
 }
@@ -221,7 +223,7 @@ private func fitTracks(_ comp: AVMutableComposition, to total: CMTime, padding: 
 /// Crossfade handles: the frames each dissolve fades to, on their own track (nil without crossfades).
 private func crossfadeHandles(
   _ scene: Scene, screen srcVideo: AVAssetTrack, screenDuration: CMTime, to comp: AVMutableComposition
-) throws -> AVMutableCompositionTrack? {
+) async throws -> AVMutableCompositionTrack? {
   let fps = Int32(scene.fps)
   guard !scene.fades.isEmpty, let track = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
     return nil
@@ -233,14 +235,14 @@ private func crossfadeHandles(
     let preStart = max(0, c.next.start - len * c.next.speed)
     if c.next.start - preStart > 0.01 {
       let at = CMTime(value: CMTimeValue(c.f - c.half), timescale: fps)
-      try insert(track, CMTimeRange(start: t(preStart), end: t(c.next.start)), of: srcVideo, at: at, "crossfade handle")
+      try await insert(track, CMTimeRange(start: t(preStart), end: t(c.next.start)), of: srcVideo, at: at, "crossfade handle")
       track.scaleTimeRange(CMTimeRange(start: at, duration: t(c.next.start - preStart)), toDuration: CMTime(value: CMTimeValue(c.half), timescale: fps))
     }
     // After the cut: the previous clip's source carrying on past its end.
     let postEnd = min(srcEnd, c.prev.end + len * c.prev.speed)
     if postEnd - c.prev.end > 0.01 {
       let at = CMTime(value: CMTimeValue(c.f), timescale: fps)
-      try insert(track, CMTimeRange(start: t(c.prev.end), end: t(postEnd)), of: srcVideo, at: at, "crossfade handle")
+      try await insert(track, CMTimeRange(start: t(c.prev.end), end: t(postEnd)), of: srcVideo, at: at, "crossfade handle")
       track.scaleTimeRange(CMTimeRange(start: at, duration: t(postEnd - c.prev.end)), toDuration: CMTime(value: CMTimeValue(c.half), timescale: fps))
     }
   }
@@ -281,14 +283,14 @@ private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableCompos
     let length = min((ins.e - ins.s) / Double(fps), dur.seconds - from)
     guard length > 0.05, let track = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
     let at = CMTime(value: CMTimeValue(ins.s), timescale: fps)
-    try insert(track, CMTimeRange(start: t(from), duration: t(length)), of: src, at: at, "B-roll")
+    try await insert(track, CMTimeRange(start: t(from), duration: t(length)), of: src, at: at, "B-roll")
     // A clip a little shorter than its slot holds its last frame to the end; otherwise the track's
     // end padding (a sliver of the clip's first frame) would flash in before the slot ends.
     let slotEnd = CMTime(value: CMTimeValue(ins.e.rounded(.up)), timescale: fps)
     if track.timeRange.end < slotEnd {
       let held = CMTimeRange(start: t(from + length - 0.05), duration: t(0.05))
       let holdAt = track.timeRange.end
-      try insert(track, held, of: src, at: holdAt, "B-roll hold")
+      try await insert(track, held, of: src, at: holdAt, "B-roll hold")
       track.scaleTimeRange(CMTimeRange(start: holdAt, duration: held.duration), toDuration: CMTimeSubtract(slotEnd, holdAt))
     }
     tracks[ins.index] = track.trackID
@@ -312,7 +314,7 @@ private func addMusic(
   // Loop the track to the end of the video; buildComposition's trim cuts the last pass to length.
   var at = CMTime.zero
   while range.duration.seconds > 0.1 && at < total {
-    try insert(track, range, of: src, at: at, "music")
+    try await insert(track, range, of: src, at: at, "music")
     at = CMTimeAdd(at, range.duration)
   }
   let params = AVMutableAudioMixInputParameters(track: track)
@@ -352,7 +354,7 @@ private func addSoundEffects(_ plan: Plan, project: Project, scene: Scene, total
     let until = i + 1 < times.count ? times[i + 1].at : total
     let length = CMTimeMinimum(range.duration, CMTimeSubtract(until, at))
     guard length.seconds > 0.01 else { continue }
-    try insert(track, CMTimeRange(start: range.start, duration: length), of: src, at: at, "sound effect")
+    try await insert(track, CMTimeRange(start: range.start, duration: length), of: src, at: at, "sound effect")
     params.setVolume(Float(pow(10, (e.gainDB ?? 0) / 20)), at: at)
     // Silent after the effect, so the end padding can't be heard.
     params.setVolume(0, at: CMTimeAdd(at, length))

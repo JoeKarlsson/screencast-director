@@ -331,7 +331,6 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   let ins = insets(plan)
   // Full bleed has square edges; the radius only applies to padded cards.
   let r = ins.fullBleed ? 0 : plan.style.radius * min(W, H) / 1080
-  let edge = ins.fullBleed ? ins.safe : pad
   // A window frame's title bars sit above the cards, so the cards start lower.
   let bar = windowBarHeight(plan)
   let full = (x: pad, y: pad + bar, w: W - 2 * pad, h: H - 2 * pad - bar)
