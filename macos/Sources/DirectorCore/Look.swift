@@ -53,7 +53,7 @@ public struct Look: Codable, Equatable, Sendable {
   public var intro: Card?
   public var outro: Card?
   /// How animations look: nil is the paper collage; "terminal" is dark, with thin outlined cards and
-  /// no drop shadows.
+  /// no drop shadows; "zine" is black and hot pink, drawn in crayon.
   public var animationTheme: String?
 
   public init() {}

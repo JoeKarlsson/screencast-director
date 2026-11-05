@@ -21,7 +21,7 @@ let args = CommandLine.arguments
 func usage() -> Never {
   FileHandle.standardError.write(
     Data(
-      "usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2> | window-id | focused | key <code>\n"
+      "usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2> | window-id | focused | key <code> [cmd]\n"
         .utf8))
   exit(2)
 }
@@ -121,9 +121,11 @@ case "drag":
   print("dragged")
 case "key":
   // Straight to this process, not to whatever app is in front (System Events' `key code` goes to
-  // the frontmost app, and with the installed copy open that's a race).
-  guard args.count == 4, let code = CGKeyCode(args[3]) else { usage() }
-  CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey: code, keyDown: true)?.postToPid(pid)
+  // the frontmost app, and with the installed copy open that's a race). `cmd` holds ⌘ (⌘Z).
+  guard args.count == 4 || (args.count == 5 && args[4] == "cmd"), let code = CGKeyCode(args[3]) else { usage() }
+  let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey: code, keyDown: true)
+  if args.count == 5 { event?.flags = .maskCommand }
+  event?.postToPid(pid)
   usleep(30_000)
   print("sent")
 case "focused":

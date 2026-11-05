@@ -109,6 +109,16 @@ func laterChecks() {
   expect(templateScripts.evaluateScript("[popScale(1.04, 1), popScale(1.06, 1), popScale(1.5, 1)].join()").toString() == "1,0,1",
     "terminal entrances flicker, then hold at full size")
   templateScripts.evaluateScript(#"THEME = """#)
+  // The zine theme's coil under a highlighted word makes a loop per ~70 px of word (counted by its
+  // bottoms), stays the height it's given, and boils: six new shapes a second.
+  let coilShape = templateScripts.evaluateScript("""
+    (() => { const p = coilPath(280, 70, 0).slice(1).split(" L").map(s => s.split(",").map(Number));
+      let back = 0; for (let i = 1; i < p.length; i++) if (p[i][1] > 55 && p[i - 1][1] <= 55) back++;
+      const ys = p.map(q => q[1]); return [back, Math.min(...ys) > -3 && Math.max(...ys) < 73].join(); })()
+    """).toString()
+  expect(coilShape == "4,true", "a 280 px coil makes four loops inside its 70 px (\(coilShape ?? "?"))")
+  expect(templateScripts.evaluateScript("coilPath(280, 70, 0) === coilPath(280, 70, .1) && coilPath(280, 70, 0) !== coilPath(280, 70, .2)").toBool(),
+    "the coil holds a shape for a sixth of a second, then redraws")
   for t in templates {
     let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)
     let cues = "{" + t.cues.map { "\"\($0.key)\": \($0.at)" }.joined(separator: ", ") + "}"

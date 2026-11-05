@@ -109,6 +109,7 @@ extension InspectorView {
         Picker("Animation theme", selection: lookValue(nil, \.animationTheme, "")) {
           Text("Paper collage").tag("")
           Text("Terminal").tag("terminal")
+          Text("Zine").tag("zine")
         }
         .labelsHidden()
         .help("How animations look. Changing it re-renders them.")

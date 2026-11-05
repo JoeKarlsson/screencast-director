@@ -5,8 +5,11 @@
 const NS = "http://www.w3.org/2000/svg";
 const TEMPLATES = {};
 let cam, lines, LOGOS = {};
-// The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion.
+// The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion;
+// "zine" is joekarlsson.com: black, hot pink, crayon lines and coils.
 let THEME = "";
+// The time seek() is drawing, for marks that boil (redraw a little differently six times a second).
+let NOW = 0;
 
 // --- motion -----------------------------------------------------------------
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -42,7 +45,10 @@ function logoHTML(name) {
 function path(width, color) {
   const p = document.createElementNS(NS, "path");
   const term = THEME === "terminal";
-  p.setAttribute("fill", "none"); p.setAttribute("stroke", color); p.setAttribute("stroke-width", term ? Math.min(width, 3) : width);
+  p.setAttribute("fill", "none"); p.setAttribute("stroke", color);
+  p.setAttribute("stroke-width", term ? Math.min(width, 3) : THEME === "zine" ? width * 1.8 : width);
+  // Zine: drawn in crayon, the grainy, broken-edged stroke of the site's scribbles.
+  if (THEME === "zine") p.setAttribute("filter", "url(#crayon)");
   p.setAttribute("stroke-linecap", term ? "square" : "round"); p.setAttribute("stroke-linejoin", term ? "miter" : "round");
   p.setAttribute("pathLength", "1");
   lines.appendChild(p); return p;
@@ -97,8 +103,35 @@ function heading(text, highlight) {
   const h = el("head", html + (THEME === "terminal" ? '<span class="cursor">█</span>' : ""));
   return { node: h, hl: h.querySelector(".hl") };
 }
+// A crayon coil: loops along a line `width` long, like the one under the name on joekarlsson.com.
+// It boils: each point shifts a little, six times a second.
+function coilPath(width, height, t) {
+  const loops = Math.max(2, Math.round(width / 70));
+  const r = rand(Math.floor(t * 6) * 13 + 5), a = width / (2 * Math.PI * loops), b = height * .42, n = loops * 24;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const th = i / n * 2 * Math.PI * loops;
+    const x = a * th - b * .8 * Math.sin(th), y = height / 2 - b * Math.cos(th);
+    pts.push(`${(x + (r() - .5) * 2).toFixed(1)},${(y + (r() - .5) * 2).toFixed(1)}`);
+  }
+  return `M${pts.join(" L")}`;
+}
 function setHL(hl, p) {
   if (!hl) return;
+  // Zine: a pink crayon coil draws itself in under the word.
+  if (THEME === "zine") {
+    if (!hl.coil) {
+      hl.coilWidth = hl.offsetWidth || 300;
+      hl.innerHTML = `<svg width="${hl.coilWidth}" height="70" viewBox="0 0 ${hl.coilWidth} 70" style="overflow:visible">` +
+        `<path pathLength="1" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#crayon)"/></svg>`;
+      hl.coil = hl.querySelector("path");
+    }
+    hl.coil.setAttribute("d", coilPath(hl.coilWidth, 70, NOW));
+    hl.coil.style.strokeDasharray = 1;
+    hl.coil.style.strokeDashoffset = 1 - easeOut(p);
+    hl.coil.style.opacity = p <= 0 ? 0 : 1;
+    return;
+  }
   // Terminal: inverse video that switches on, instead of a highlighter swipe.
   if (THEME === "terminal") { hl.parentElement.classList.toggle("on", p > 0); return; }
   hl.style.transform = `skewX(-8deg) scaleX(${easeOut(p)})`;
@@ -219,6 +252,7 @@ window.init = async function (config) {
   stage.style.transform = `translate(0px, ${top}px) ` + stageTransform(config.width, config.height - top, STAGE);
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
+    NOW = t;
     seekTemplate(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
     if (THEME === "terminal") terminalTick(t);

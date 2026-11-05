@@ -77,6 +77,28 @@ html.theme-terminal .ringmark { mix-blend-mode: normal; border-radius: 0; border
 html.theme-terminal #grain { display: none; }
 html.theme-terminal #vignette { background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 2px, rgba(0,0,0,0) 2px 4px),
   radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); }
+/* Zine theme (look.animationTheme "zine"): joekarlsson.com. A black stage, Anton headings in capitals,
+   hot pink cards and dots with black type, paper-white stickers and tags like the site's nav, and
+   everything drawn (lines, rings, the coil under a highlighted word) in the site's crayon (#crayon). */
+html.theme-zine { --paper: #000000; --ink: #EDEDED; }
+html.theme-zine #grain, html.theme-zine #vignette { display: none; }
+html.theme-zine .head { font-size: 84px; text-transform: uppercase; letter-spacing: .01em; line-height: 1; }
+/* The coil runs over the bottom of the letters, in front, like the one under the name on the site. */
+html.theme-zine .hl { background: none; mix-blend-mode: normal; transform: none; border-radius: 0; left: -4px; right: -4px; top: 48%; height: 70px; z-index: 1; }
+html.theme-zine .sticker, html.theme-zine .ghost { background: #EDEDED; border-radius: 22px; box-shadow: none; }
+html.theme-zine .sticker .word, html.theme-zine .ghost .word { color: #000; font-family: var(--title); font-weight: 400; text-transform: uppercase; }
+html.theme-zine .dot, html.theme-zine .icon { background: var(--accent); box-shadow: none; }
+html.theme-zine .dot img, html.theme-zine .hub img { filter: brightness(0); }
+html.theme-zine .dot .word { color: #000; text-transform: uppercase; }
+html.theme-zine .hub { background: var(--accent); border-radius: 18px; box-shadow: none; }
+html.theme-zine .hub div { color: #000; text-transform: uppercase; }
+html.theme-zine .icon svg { stroke: #000; }
+html.theme-zine .hand { font-size: 52px; text-transform: uppercase; }
+html.theme-zine .chip { background: none; box-shadow: none; padding: 0; }
+html.theme-zine .tag { background: #EDEDED; color: #000; font: 400 32px var(--title); text-transform: uppercase; border-radius: 12px; box-shadow: none; padding: 8px 18px; }
+html.theme-zine .tag::before { display: none; }
+html.theme-zine .num { color: var(--accent); }
+html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-radius: 47% 53% 44% 56% / 55% 45% 53% 47%; filter: url(#crayon); }
 </style>
 </head>
 <body>
@@ -85,6 +107,13 @@ html.theme-terminal #vignette { background: repeating-linear-gradient(0deg, rgba
   <svg id="grain" width="2020" height="1180"><filter id="n"><feTurbulence id="turb" type="fractalNoise" baseFrequency=".85" numOctaves="3" seed="1"/>
     <feColorMatrix values="0 0 0 0 .55  0 0 0 0 .5  0 0 0 0 .42  0 0 0 -1.6 1.25"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
   <div id="vignette"></div>
+  <!-- The crayon texture of joekarlsson.com's scribbles (the zine theme): a grainy, broken edge. -->
+  <svg width="0" height="0" style="position: absolute"><filter id="crayon" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" result="d"/>
+    <feTurbulence type="fractalNoise" baseFrequency="2.2" seed="8" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 1.5" result="holes"/>
+    <feComposite in="d" in2="holes" operator="in"/></filter></svg>
 </div>
 <script src="engine.js"></script>
 </body>

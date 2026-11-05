@@ -43,6 +43,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- A zine theme for animations (`look.animationTheme: "zine"`), after joekarlsson.com: a black stage, Anton headings in capitals, hot pink cards and dots with black type, paper-white stickers and tags, lines and highlight rings drawn in crayon, and a pink crayon coil that draws itself under the highlighted word and wobbles like a hand-drawn line.
 - More › Check Edit lists cuts that clip a word and shots too short to read, and jumps to the first. A clip's Order section can repeat it at the playhead, not only as a cold open. Animation beats can each play a sound from the library. Import Video can bring a camera video of the same take, lined up with your voice during analysis.
 - Problems that used to fail quietly now say so: a plan version that can't be kept in .history, an animation template whose manifest can't be read (listed in the Animate menu), a broken logos.json (the render names it), and a look color that isn't #rrggbb (`describe` warns; it used to draw black).
 - Zooms, punch-ins, layouts, B-roll, animations and effect ranges have a Label field in the inspector; it's what their timeline bar shows. Camera › Split screen can join a padded side-by-side layout into one card.

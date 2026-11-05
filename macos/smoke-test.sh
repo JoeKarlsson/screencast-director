@@ -148,7 +148,7 @@ echo "ok: S set the clip to ${speed}x in plan.json"
 
 # 4. ⌘Z undoes it.
 front
-ax 'key code 6 using command down' >/dev/null # ⌘Z
+"$AXPRESS" "$PID" key 6 cmd >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json (last clip at $(last_speed)x)"
 echo "ok: ⌘Z restored the original plan"
@@ -169,7 +169,7 @@ for _ in $(seq 1 20); do [[ "$(last_speed)" != 1 ]] && break; sleep 0.2; done
 [[ -z "$("$AXPRESS" "$PID" field-value "Ask *")" ]] || fail "S typed into the Claude box after clicking outside it (it holds \"$("$AXPRESS" "$PID" field-value "Ask *")\")"
 echo "ok: clicking outside the Claude box gave S back to the timeline"
 front
-ax 'key code 6 using command down' >/dev/null # ⌘Z
+"$AXPRESS" "$PID" key 6 cmd >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json after the Claude box step"
 
@@ -192,7 +192,7 @@ for _ in $(seq 1 20); do [[ "$(first_start)" == 10.5 ]] && break; sleep 0.2; don
 [[ "$(first_start)" == 10.5 ]] || fail "dragging the 10.5 s clip to the front didn't make it play first (first clip starts at $(first_start))"
 echo "ok: dragging the last clip to the front made it play first"
 front
-ax 'key code 6 using command down' >/dev/null # ⌘Z
+"$AXPRESS" "$PID" key 6 cmd >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't undo the clip move"
 echo "ok: ⌘Z put the clip back"
@@ -245,7 +245,7 @@ for _ in $(seq 1 20); do [[ -z "$(sounds)" ]] && break; sleep 0.2; done
 [[ -z "$(sounds)" ]] || fail "⌫ didn't remove the selected sound (sfx: $(sounds))"
 echo "ok: ⌫ removed the sound"
 front
-ax 'key code 6 using command down' >/dev/null # ⌘Z
+"$AXPRESS" "$PID" key 6 cmd >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(sounds)" == *sfx/pop.m4a* ]] && break; sleep 0.2; done
 [[ "$(sounds)" == *sfx/pop.m4a* ]] || fail "⌘Z didn't bring the sound back"
 echo "ok: ⌘Z brought the sound back"
@@ -255,8 +255,14 @@ echo "ok: ⌘Z brought the sound back"
 [[ "$(press_help "Audio")" == pressed ]] || fail "no Audio tab in the inspector"
 sleep 1
 [[ "$(press_help "Pick background music from the library")" == pressed ]] || fail "no Music Library button in the Audio tab"
-sleep 1
-[[ "$(press_help "Use Advertime as the music")" == pressed ]] || fail "the music picker didn't list Advertime"
+# Like the sound picker, it lists the personal library too, which can take a few seconds to fill in.
+picked=""
+for _ in $(seq 1 20); do
+  picked="$(press_help "Use Advertime as the music")"
+  [[ "$picked" == pressed ]] && break
+  sleep 0.5
+done
+[[ "$picked" == pressed ]] || fail "the music picker didn't list Advertime within 10 s"
 music_file() { python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("music") or {}).get("file", ""))' "$PROJECT/plan.json"; }
 for _ in $(seq 1 20); do [[ "$(music_file)" == music/advertime.m4a ]] && break; sleep 0.2; done
 [[ "$(music_file)" == music/advertime.m4a ]] || fail "choosing Advertime didn't reach plan.json (music: $(music_file))"
