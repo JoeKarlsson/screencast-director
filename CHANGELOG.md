@@ -12,6 +12,10 @@ Each release lists what changed for people using the app or the CLI. The version
   - `director add` copies B-roll, a LUT (checked first), music, a logo or a font into a project.
   - `director settings` reads and changes the app's settings.
   - `director upload` uses the bucket from Settings › Sharing when no `S3_*` variables are set.
+  - `director validate` checks `plan.json` after a hand edit and lists each problem with its JSON path. It catches positions off the screen, overlapping segments, unknown styles, templates and effects, and missing files.
+  - `director status` shows what the recorder is doing, and `--wait ready` blocks until a new recording is saved, drafted and named.
+- The app picks up settings changed by `director settings set` when it comes to the front, so it no longer needs a restart.
+- The Claude box can apply a saved profile ("use my CData look"), freeze or update an animation template, and runs `validate` on its own edits. Every command it runs is held to the open project.
 - `screencastdirector://` links drive recording in the running app (`record/start`, `stop`, `pause`, `resume`, `restart`, `discard`, `retake`) and open a recording (`open?project=<folder>`).
 - Rendering an animation from the CLI while the app has the same video open no longer breaks either render. Each one cleaned up the other's in-progress file, and the app could hang.
 

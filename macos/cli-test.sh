@@ -152,6 +152,30 @@ sys.exit(0 if plan['style']['motion'] == 'snappy' and plan['pauses'] == 'tight' 
 check "draft still cuts the silence" plan_py "sys.exit(0 if not any(s['start'] <= 5.5 < s['end'] for s in plan['segments']) else 1)"
 cp "$TMP/draft.json" "$P/plan.json"
 
+# --- validate
+check "validate passes the draft" grep -q "is valid" <<<"$("$DIRECTOR" validate "$P")"
+plan_py "plan['zooms'].append({'start': 2, 'end': 4, 'x': 1.5, 'y': 0.5, 'scale': 2}); json.dump(plan, open('$P/plan.json', 'w'))"
+expect_error "validate names a zoom off the screen by its path" "zooms[" "$DIRECTOR" validate "$P"
+plan_py "plan['segments'][0]['speed'] = 'fast'; json.dump(plan, open('$P/plan.json', 'w'))"
+expect_error "validate shows where plan.json stops loading" "segments[0].speed: expected a number" "$DIRECTOR" validate "$P"
+cp "$TMP/draft.json" "$P/plan.json"
+
+# --- the recorder's status (the app writes it; here a stand-in file)
+check "status with no recording yet is idle" grep -q '"state" : "idle"' <<<"$("$DIRECTOR" status)"
+mkdir -p "$SD_SUPPORT_DIR"
+printf '{"state": "ready", "project": "%s", "pid": %s, "updated": "2026-11-04T12:00:00Z"}' "$P" "$$" >"$SD_SUPPORT_DIR/recording.json"
+out=$("$DIRECTOR" status --wait ready --timeout 5)
+check "status --wait returns once the recording is ready ($out)" grep -q "\"project\" : \"$P\"" <<<"$out"
+expect_error "status --wait gives up after the timeout" "timed out" "$DIRECTOR" status --wait recording --timeout 1
+printf '{"state": "recording", "pid": 99999999, "updated": "2026-11-04T12:00:00Z"}' >"$SD_SUPPORT_DIR/recording.json"
+expect_error "status --wait notices the app quit mid-recording" "quit" "$DIRECTOR" status --wait ready --timeout 5
+expect_error "status --wait refuses an unknown state" "--wait takes" "$DIRECTOR" status --wait finished
+rm "$SD_SUPPORT_DIR/recording.json"
+
+# --- SD_ONLY_PROJECT (the app's Claude box): commands stay in the project being edited
+expect_error "a locked run refuses another folder" "may only work on" env SD_ONLY_PROJECT="$P" "$DIRECTOR" profile "$P/.." Personal
+check "a locked run works on its own project" env SD_ONLY_PROJECT="$P" "$DIRECTOR" validate "$P"
+
 # --- animation templates and project files
 out=$("$DIRECTOR" template "$P" freeze storyboard)
 check "template freeze copies it into the video ($out)" test -f "$P/animations/templates/storyboard.js"

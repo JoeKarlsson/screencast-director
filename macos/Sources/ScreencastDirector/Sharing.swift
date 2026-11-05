@@ -8,16 +8,29 @@ final class SharingSettings: ObservableObject {
   static let shared = SharingSettings()
   private let d = UserDefaults.standard
 
-  @Published var endpoint: String { didSet { d.set(endpoint, forKey: "s3Endpoint") } }
-  @Published var region: String { didSet { d.set(region, forKey: "s3Region") } }
-  @Published var bucket: String { didSet { d.set(bucket, forKey: "s3Bucket") } }
-  @Published var publicBase: String { didSet { d.set(publicBase, forKey: "s3PublicBase") } }
+  @Published var endpoint: String { didSet { if !loading { d.set(endpoint, forKey: "s3Endpoint") } } }
+  @Published var region: String { didSet { if !loading { d.set(region, forKey: "s3Region") } } }
+  @Published var bucket: String { didSet { if !loading { d.set(bucket, forKey: "s3Bucket") } } }
+  @Published var publicBase: String { didSet { if !loading { d.set(publicBase, forKey: "s3PublicBase") } } }
+
+  private var loading = false
 
   init() {
-    endpoint = d.string(forKey: "s3Endpoint") ?? ""
-    region = d.string(forKey: "s3Region") ?? "us-east-1"
-    bucket = d.string(forKey: "s3Bucket") ?? ""
-    publicBase = d.string(forKey: "s3PublicBase") ?? ""
+    endpoint = ""
+    region = ""
+    bucket = ""
+    publicBase = ""
+    reload()
+  }
+
+  /// Reads the saved settings again (see AppSettings.reload).
+  func reload() {
+    loading = true
+    defer { loading = false }
+    syncSetting(self, \.endpoint, d.string(forKey: "s3Endpoint") ?? "")
+    syncSetting(self, \.region, d.string(forKey: "s3Region") ?? "us-east-1")
+    syncSetting(self, \.bucket, d.string(forKey: "s3Bucket") ?? "")
+    syncSetting(self, \.publicBase, d.string(forKey: "s3PublicBase") ?? "")
   }
 
   var accessKey: String {

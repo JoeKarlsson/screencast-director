@@ -54,6 +54,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
   }
 
+  /// Picks up settings changed outside the app (`director settings set`) each time it comes forward.
+  func applicationDidBecomeActive(_ notification: Notification) {
+    reloadSettings()
+  }
+
+  func reloadSettings() {
+    let folder = settings.projectsFolder
+    settings.reload()
+    AISettings.shared.reload()
+    SharingSettings.shared.reload()
+    ProfileStore.shared.refresh()
+    if settings.projectsFolder != folder { library.refresh() }
+  }
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     MainActor.assumeIsolated {
       ExportQueue.shared.onFinished = { [weak self] job in
@@ -128,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
       Notices.shared.show("Unknown link \(url.absoluteString). Try \(AppURL.forms.map { "\(AppURL.scheme)://\($0)" }.joined(separator: ", ")).", error: true)
       return
     }
+    // A link can arrive before the app comes forward; use the settings as they are now.
+    reloadSettings()
     let recording = recorder.isRecording
     switch command {
     case .startRecording: startRecording()
@@ -156,6 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
   func toggleRecording() {
     if countdown.isRunning {
       countdown.cancel()
+      RecordingStatus.post(.idle, message: "The countdown was cancelled.")
       showMain()
     } else if recorder.isRecording {
       stopRecording()
@@ -175,17 +192,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     recordSetup.close()
     if !settings.showSelfInRecordings { window?.orderOut(nil) }
     let screen = settings.recordedScreen
+    RecordingStatus.post(.countdown)
     countdown.run(seconds: settings.countdown, on: screen) { [weak self] in
       guard let self else { return }
       Task { @MainActor in
         do {
           try await self.recorder.start(in: self.settings.projectsURL, settings: self.settings)
+          RecordingStatus.post(.recording, project: self.recorder.dir)
           if self.settings.showRecordingWidget { self.hud.show(on: screen) }
         } catch {
           self.showMain()
-          Notices.shared.show(
-            "Recording failed: \(error.localizedDescription) Check System Settings > Privacy & Security: Screen & System Audio Recording, Microphone, Camera and Input Monitoring.",
-            error: true)
+          let why =
+            "Recording failed: \(error.localizedDescription) Check System Settings > Privacy & Security: Screen & System Audio Recording, Microphone, Camera and Input Monitoring."
+          RecordingStatus.post(.failed, message: why)
+          Notices.shared.show(why, error: true)
         }
       }
     }
@@ -193,19 +213,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
   func stopRecording(reason: String? = nil) {
     hud.hide()
+    if recorder.isRecording { RecordingStatus.post(.saving, project: recorder.dir, message: reason) }
     Task { @MainActor in
       do {
         guard let dir = try await recorder.stop() else { return }
+        RecordingStatus.post(.drafting, project: dir, message: reason)
         library.refresh()
         library.selection = dir
         showMain()
         if let reason { Notices.shared.show(reason, error: true) }
         library.current?.analyzeAndPlan { [weak self] in
-          guard let self, self.settings.autoName, dir.lastPathComponent.hasPrefix("Recording ") else { return }
-          self.library.suggestName(dir, autoApply: true)
+          // Ready once it's drafted and named, so an agent never works on a folder about to move.
+          let finish = {
+            let drafted = FileManager.default.fileExists(atPath: dir.appendingPathComponent("plan.json").path)
+            RecordingStatus.post(
+              drafted ? .ready : .failed, keepingProjectOr: dir,
+              message: drafted ? nil : "Saved, but the draft failed; the app shows why.")
+          }
+          guard let self, self.settings.autoName, dir.lastPathComponent.hasPrefix("Recording ") else { return finish() }
+          self.library.suggestName(dir, autoApply: true, then: finish)
         }
       } catch {
         showMain()
+        RecordingStatus.post(.failed, message: "Couldn't save the recording: \(error.localizedDescription)")
         Notices.shared.show(error, "Couldn't save the recording")
       }
     }
@@ -224,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     hud.hide()
     Task { @MainActor in
       await recorder.cancel()
+      RecordingStatus.post(.idle, message: "The recording was discarded.")
       showMain()
       Notices.shared.show("Recording discarded.")
     }

@@ -40,19 +40,33 @@ final class AISettings: ObservableObject {
   static let shared = AISettings()
   private let d = UserDefaults.standard
 
-  @Published var provider: AIProvider { didSet { d.set(provider.rawValue, forKey: "ai.provider") } }
-  @Published var anthropicModel: String { didSet { d.set(anthropicModel, forKey: "ai.anthropicModel") } }
-  @Published var baseURL: String { didSet { d.set(baseURL, forKey: "ai.baseURL") } }
-  @Published var model: String { didSet { d.set(model, forKey: "ai.model") } }
+  @Published var provider: AIProvider { didSet { if !loading { d.set(provider.rawValue, forKey: "ai.provider") } } }
+  @Published var anthropicModel: String { didSet { if !loading { d.set(anthropicModel, forKey: "ai.anthropicModel") } } }
+  @Published var baseURL: String { didSet { if !loading { d.set(baseURL, forKey: "ai.baseURL") } } }
+  @Published var model: String { didSet { if !loading { d.set(model, forKey: "ai.model") } } }
   /// API providers: a second request that reviews zooms and cut edges after an edit changes them.
-  @Published var doubleCheck: Bool { didSet { d.set(doubleCheck, forKey: "ai.doubleCheck") } }
+  @Published var doubleCheck: Bool { didSet { if !loading { d.set(doubleCheck, forKey: "ai.doubleCheck") } } }
+
+  private var loading = false
 
   init() {
-    doubleCheck = d.object(forKey: "ai.doubleCheck") as? Bool ?? true
-    provider = AIProvider(rawValue: d.string(forKey: "ai.provider") ?? "") ?? .claudeCode
-    anthropicModel = d.string(forKey: "ai.anthropicModel") ?? "claude-opus-5-5"
-    baseURL = d.string(forKey: "ai.baseURL") ?? EndpointPreset.all[0].baseURL
-    model = d.string(forKey: "ai.model") ?? ""
+    doubleCheck = true
+    provider = .claudeCode
+    anthropicModel = ""
+    baseURL = ""
+    model = ""
+    reload()
+  }
+
+  /// Reads the saved settings again (see AppSettings.reload).
+  func reload() {
+    loading = true
+    defer { loading = false }
+    syncSetting(self, \.doubleCheck, d.object(forKey: "ai.doubleCheck") as? Bool ?? true)
+    syncSetting(self, \.provider, AIProvider(rawValue: d.string(forKey: "ai.provider") ?? "") ?? .claudeCode)
+    syncSetting(self, \.anthropicModel, d.string(forKey: "ai.anthropicModel") ?? "claude-opus-5-5")
+    syncSetting(self, \.baseURL, d.string(forKey: "ai.baseURL") ?? EndpointPreset.all[0].baseURL)
+    syncSetting(self, \.model, d.string(forKey: "ai.model") ?? "")
   }
 
   // Keys live in the Keychain, one per provider.

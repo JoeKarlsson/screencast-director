@@ -28,7 +28,7 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 
 | In the app | From the terminal |
 |---|---|
-| Timeline, inspector, transcript and Claude box edits | edit `plan.json`; `director cut`, `restore`, `move`, `repeat`, `pauses` |
+| Timeline, inspector, transcript and Claude box edits | edit `plan.json`, then `director validate <dir>`; `director cut`, `restore`, `move`, `repeat`, `pauses` |
 | Start Over from a Fresh Draft | `director draft <dir> --force` |
 | Camera › Center on face, Lip sync | `director frame-camera`, `sync-camera` |
 | Apply a profile, Save This Look as a Profile | `director profile <dir> <name>`, `profile-save <dir> <name> [--music] [--voice] [--camera]`, `profiles` |
@@ -39,9 +39,22 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 | Join Recordings, Import Video | `director join`, `sd import` |
 | Settings (recording, drafts, AI, sharing) | `director settings`, `settings get <key>`, `settings set <key> <value>` (API keys stay in Settings) |
 | Record, Stop, Pause, Resume, Restart, Discard, Mark Retake | `open "screencastdirector://record/start"` (`stop`, `pause`, `resume`, `restart`, `discard`, `retake`) |
+| Watch the recording widget | `director status [--wait <state>] [--timeout <s>]` |
 | Open a recording in the editor | `open "screencastdirector://open?project=<folder>"` |
 
-The open app reads its settings when it starts, so quit and reopen it after `director settings set`. Rendering from the CLI while the app has the same video open is safe: each render writes its own temporary file.
+`director validate` checks `plan.json` after a hand edit. It lists each problem with its JSON path, like `zooms[3].x is 1.4; positions are fractions from 0 to 1`, and exits 1 when there are any. Items that run past the end of the recording are only warnings, since they stop there.
+
+`director status` prints the recorder's state as JSON: `idle`, `countdown`, `recording`, `paused`, `saving`, `drafting`, `ready` or `failed`, with the recording's folder once there is one. `ready` comes after the app has drafted and named the recording, so its folder won't move again. To record from a script or an agent:
+
+```sh
+open "screencastdirector://record/start"
+director status --wait recording      # fails if recording couldn't start (permissions, devices)
+# ... the demo ...
+open "screencastdirector://record/stop"
+director status --wait ready          # prints the project folder, drafted and named
+```
+
+The app picks up `director settings set` the next time it comes to the front. Rendering from the CLI while the app has the same video open is safe: each render writes its own temporary file.
 
 ## Importing a recording
 

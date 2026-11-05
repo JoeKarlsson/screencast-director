@@ -38,11 +38,14 @@ public enum PathSafety {
 
   /// `new` with every file path that changed from `previous` and leaves the project put back to
   /// the previous value (or dropped when there was none). Returns the plan and the fields reverted.
-  public static func sanitize(_ new: Plan, previous: Plan, project: URL) -> (Plan, [String]) {
+  /// Paths into `library` (the user's own support folder: profiles' fonts and logos, sounds, music)
+  /// are allowed too, so applying a saved profile keeps its assets.
+  public static func sanitize(_ new: Plan, previous: Plan, project: URL, library: URL = AppPreferences.supportFolder) -> (Plan, [String]) {
     var plan = new
     var reverted: [String] = []
+    func allowed(_ p: String) -> Bool { path(p, isInside: project) || url(resolvePath(p, in: project), isInside: library) }
     func safe(_ value: String?, _ old: String?, _ field: String) -> Bool {
-      guard let value, value != old, !path(value, isInside: project) else { return true }
+      guard let value, value != old, !allowed(value) else { return true }
       reverted.append(field)
       return false
     }
@@ -56,7 +59,7 @@ public enum PathSafety {
     if !safe(plan.music?.file, previous.music?.file, "music.file") { plan.music = previous.music }
     if let list = plan.inserts {
       let known = Set((previous.inserts ?? []).map(\.file))
-      let kept = list.filter { known.contains($0.file) || path($0.file, isInside: project) }
+      let kept = list.filter { known.contains($0.file) || allowed($0.file) }
       if kept.count != list.count {
         reverted.append("inserts.file")
         plan.inserts = kept.isEmpty ? nil : kept
@@ -64,7 +67,7 @@ public enum PathSafety {
     }
     if let list = plan.sfx {
       let known = Set(previous.sfxList.map(\.file))
-      let kept = list.filter { known.contains($0.file) || path($0.file, isInside: project) }
+      let kept = list.filter { known.contains($0.file) || allowed($0.file) }
       if kept.count != list.count {
         reverted.append("sfx.file")
         plan.sfx = kept.isEmpty ? nil : kept
@@ -72,7 +75,7 @@ public enum PathSafety {
     }
     // Attached sounds: one pointing outside the project (and not already there before) is removed.
     let knownSounds = Set(previous.soundEffects.map(\.file))
-    func keep(_ s: Sound?) -> Bool { s.map { knownSounds.contains($0.file) || path($0.file, isInside: project) } ?? true }
+    func keep(_ s: Sound?) -> Bool { s.map { knownSounds.contains($0.file) || allowed($0.file) } ?? true }
     var droppedSound = false
     for i in plan.callouts.indices where !keep(plan.callouts[i].sound) {
       plan.callouts[i].sound = nil
@@ -104,7 +107,7 @@ public enum PathSafety {
       if !safe(plan.look?.outro?.logo, old?.outro?.logo, "look.outro.logo") { plan.look?.outro?.logo = old?.outro?.logo }
       if let fonts = plan.look?.fontFiles {
         let known = Set(old?.fontFiles ?? [])
-        let kept = fonts.filter { known.contains($0) || path($0, isInside: project) }
+        let kept = fonts.filter { known.contains($0) || allowed($0) }
         if kept.count != fonts.count {
           reverted.append("look.fontFiles")
           plan.look?.fontFiles = kept

@@ -431,6 +431,14 @@ struct Checks {
     expect(cleaned.look?.fontFiles == ["/Library/Fonts/Brand.otf", "fonts/ok.otf"], "unchanged and in-project fonts kept")
     expect(Set(reverted) == ["source.video", "camera.video", "music.file", "look.fontFiles"], "reverted fields (\(reverted))")
     expect(cleaned.zooms == [] && PathSafety.sanitize(prior, previous: prior, project: proj).1.isEmpty, "other edits kept; unchanged plan untouched")
+    // A saved profile's assets live in the user's library (the support folder), so Claude may apply one.
+    let library = FileManager.default.temporaryDirectory.appendingPathComponent("sd-library-\(UUID().uuidString)")
+    var profiled = prior
+    profiled.music = Music(file: library.appendingPathComponent("Profiles/CData/track.m4a").path)
+    profiled.look?.fontFiles = [library.appendingPathComponent("Profiles/CData/Brand.otf").path, "/tmp/evil.otf"]
+    let (withProfile, profileReverted) = PathSafety.sanitize(profiled, previous: prior, project: proj, library: library)
+    expect(withProfile.music == profiled.music && withProfile.look?.fontFiles == [profiled.look!.fontFiles![0]],
+      "a profile's library assets are kept, other paths still reverted (\(profileReverted))")
 
     // Motion: easing curves, eased steps and the camera's zoom path.
     for name in Ease.names {

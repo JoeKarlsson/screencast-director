@@ -17,8 +17,10 @@ final class ProfileStore: ObservableObject {
     refresh()
   }
 
+  /// Lists the profiles again and picks up a default set elsewhere (`director settings`).
   func refresh() {
     names = library.names()
+    syncSetting(self, \.defaultName, ProfileLibrary.defaultName)
   }
 
   func load(_ name: String) throws -> Profile {

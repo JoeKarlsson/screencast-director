@@ -12,6 +12,7 @@ let usage = """
     director plan     <dir> [--force]
     director draft    <dir> [--force]               the app's first draft: plan, then the default profile, pause and voice settings, camera centering and lip sync
     director describe <dir>
+    director validate <dir>                         check plan.json after an edit: each problem with its JSON path; exits 1 if there are any
     director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
@@ -22,6 +23,7 @@ let usage = """
     director template <dir> freeze|update|save <name>   copy an animation template into the video, refresh it from the library, or save the video's copy to My Templates
     director add      <dir> broll|lut|music|logo|font <file>   copy a file into the project; prints the path to use in plan.json
     director settings [get <key> | set <key> <value>]   the app's settings (no arguments lists them)
+    director status   [--wait <state>] [--timeout <s>]   what the app's recorder is doing, as JSON (idle, countdown, recording, paused, saving, drafting, ready, failed); --wait blocks until that state (default timeout 600 s)
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
     director sync-camera <dir>                       line the camera up with the voice by watching the lips
@@ -44,9 +46,13 @@ func fail(_ msg: String) -> Never {
 }
 
 let args = Array(CommandLine.arguments.dropFirst())
-// `profiles` and `settings` work on the app, not a project folder.
-guard let command = args.first, args.count >= 2 || ["profiles", "settings"].contains(command) else { fail(usage) }
+// `profiles`, `settings` and `status` work on the app, not a project folder.
+guard let command = args.first, args.count >= 2 || ["profiles", "settings", "status"].contains(command) else { fail(usage) }
 let dir = URL(fileURLWithPath: args.count > 1 ? args[1] : ".").standardizedFileURL
+// The app's Claude box sets this to the project it's editing; every command stays inside it.
+if let only = ProcessInfo.processInfo.environment["SD_ONLY_PROJECT"], !PathSafety.url(dir, isInside: URL(fileURLWithPath: only)) {
+  fail("refusing \(dir.path): this run may only work on \(only)")
+}
 
 /// Refuses a project with nothing for the planner to go on (it would cut the whole recording).
 func requireAnalyzed(_ project: Project) {
@@ -175,6 +181,41 @@ do {
     guard FileManager.default.fileExists(atPath: file.path) else { fail("no such file: \(file.path)") }
     if positional[2] == "lut" { _ = try CubeLUT.load(file) }
     print(try Project.importFile(file, into: folder, dir: dir))
+  case "status":
+    let wanted: RecordingStatus.State? = try {
+      guard let i = args.firstIndex(of: "--wait") else { return nil }
+      guard i + 1 < args.count, let s = RecordingStatus.State(rawValue: args[i + 1]) else {
+        throw DirectorError("--wait takes one of \(RecordingStatus.State.allCases.map(\.rawValue).joined(separator: ", "))")
+      }
+      return s
+    }()
+    let deadline = Date().addingTimeInterval(number("--timeout") ?? 600)
+    func show(_ s: RecordingStatus?) throws {
+      let app = s.map { $0.appRunning } ?? false
+      var out: [String: Any] = ["state": s?.state.rawValue ?? "idle", "appRunning": app]
+      if let s {
+        out["updated"] = ISO8601DateFormatter().string(from: s.updated)
+        if let p = s.project { out["project"] = p }
+        if let m = s.message { out["message"] = m }
+      }
+      let data = try JSONSerialization.data(withJSONObject: out, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+      print(String(decoding: data, as: UTF8.self))
+    }
+    while true {
+      let s = try RecordingStatus.read()
+      guard let wanted else {
+        try show(s)
+        break
+      }
+      if s?.state == wanted {
+        try show(s)
+        break
+      }
+      if let s, s.state == .failed { try show(s); fail("the recording failed: \(s.message ?? "no reason given")") }
+      if let s, s.abandoned { try show(s); fail("the app quit while \(s.state.rawValue)") }
+      if Date() > deadline { try show(s); fail("timed out waiting for \(wanted.rawValue)") }
+      try await Task.sleep(nanoseconds: 500_000_000)
+    }
   case "settings":
     let rest = Array(args.dropFirst())
     func setting(_ key: String) -> AppSetting {
@@ -194,7 +235,7 @@ do {
       try s.set(rest[2])
       print("\(s.key) = \(s.value())")
       if !NSRunningApplication.runningApplications(withBundleIdentifier: AppPreferences.appDomain).isEmpty {
-        print("The app is open and reads its settings when it starts: quit and reopen it to use this.")
+        print("The app is open: it picks this up the next time it comes to the front.")
       }
     default:
       fail(usage)
@@ -209,6 +250,18 @@ do {
   case "describe":
     let project = try Project.load(dir)
     print(describe(project, try Plan.load(project.planURL)))
+  case "validate":
+    let project = try Project.load(dir)
+    let plan: Plan
+    do { plan = try Plan.load(project.planURL) } catch { fail("plan.json doesn't load: \(PlanCheck.describe(error))") }
+    let templates = Set(AnimationSources(project: dir, builtIn: Animate.resources).templates().map(\.template.name))
+    let report = PlanCheck.check(plan, project: project, templates: templates)
+    for w in report.warnings { print("warning: \(w)") }
+    if report.problems.isEmpty {
+      print("plan.json is valid")
+    } else {
+      fail(report.problems.map { "- \($0)" }.joined(separator: "\n") + "\n\(report.problems.count) problem(s) in plan.json")
+    }
   case "review":
     let project = try Project.load(dir)
     print(editReview(project, try Plan.load(project.planURL)))

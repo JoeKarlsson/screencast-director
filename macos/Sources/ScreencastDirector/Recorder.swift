@@ -156,10 +156,18 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     pauseStartedAt = Date()
     pauseHostStart = InputTap.now()
     InputTap.paused = true
+    RecordingStatus.post(.paused, project: dir)
   }
 
   func resume() {
     guard isRecording, isPaused else { return }
+    endPause()
+    RecordingStatus.post(.recording, project: dir)
+  }
+
+  /// Ends a pause, if any (stopping does this too, without reporting it as recording again).
+  private func endPause() {
+    guard isPaused else { return }
     isPaused = false
     if let start = pauseStartedAt { pausedSeconds += Date().timeIntervalSince(start) }
     if let start = pauseHostStart { pauseRanges.append((start, InputTap.now())) }
@@ -184,7 +192,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
   /// only shuts the capture down (the caller deletes the folder).
   func stop(discard: Bool = false) async throws -> URL? {
     guard isRecording, let dir else { return nil }
-    await MainActor.run { resume() }
+    await MainActor.run { endPause() }
     InputTap.stop()
     try? await stream?.stopCapture()
     stream = nil
@@ -377,5 +385,22 @@ extension AVCaptureDevice {
       activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
     }
     return (options[i].width, options[i].height)
+  }
+}
+
+extension RecordingStatus {
+  /// Writes what the recorder is doing for `director status`. A failure is shown, not dropped.
+  static func post(_ state: State, project: URL? = nil, message: String? = nil) {
+    do {
+      try RecordingStatus(state: state, project: project, message: message).write()
+    } catch {
+      Notices.shared.show(error, "Couldn't write the recording status for agents (recording.json)")
+    }
+  }
+
+  /// `post`, keeping the folder the status names now (the app may have renamed it since).
+  static func post(_ state: State, keepingProjectOr fallback: URL, message: String? = nil) {
+    let current = (try? read())?.project.map { URL(fileURLWithPath: $0) }
+    post(state, project: current ?? fallback, message: message)
   }
 }

@@ -84,6 +84,7 @@ final class Library: ObservableObject {
     let wasSelected = selection == url
     if wasSelected { selection = nil }
     try FileManager.default.moveItem(at: url, to: dest)
+    try RecordingStatus.projectMoved(from: url, to: dest)
     transcripts[url] = nil
     if let at = lastOpened.removeValue(forKey: url.standardizedFileURL.path) { lastOpened[dest.standardizedFileURL.path] = at }
     refresh()
@@ -155,18 +156,24 @@ final class Library: ObservableObject {
   }
 
   /// Asks the AI for a short descriptive name from what was said, keeping the date in front.
-  func suggestName(_ url: URL, autoApply: Bool = false) {
+  /// `done` runs when it's finished, named or not.
+  func suggestName(_ url: URL, autoApply: Bool = false, then done: (() -> Void)? = nil) {
     // A rename the user queued wins over the automatic name.
-    if autoApply, pendingRenames[url] != nil { return }
+    if autoApply, pendingRenames[url] != nil {
+      done?()
+      return
+    }
     let obj = (try? Data(contentsOf: url.appendingPathComponent("transcript.json")))
       .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
     let text = String(((obj?["text"] as? String) ?? "").prefix(6000))
     guard !text.isEmpty else {
       status = "No transcript yet to name it from."
+      done?()
       return
     }
     status = "Thinking of a name…"
     Task { @MainActor in
+      defer { done?() }
       do {
         let raw = try await AIText.generate(
           system: "You name screen recordings so they're easy to find later. Reply with only the name: 3 to 7 words, Title Case, plain words, no quotes, no punctuation, no dates.",

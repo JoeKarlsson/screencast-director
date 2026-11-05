@@ -12,6 +12,100 @@ func fileAndFormatChecks() {
   agentInterfaceChecks()
 }
 
+/// `director validate`: precise problems with JSON paths, harmless overruns as warnings.
+private func planCheckChecks() {
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-validate-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: dir) }
+  let (project, draft) = plainPlan(dir, duration: 20)
+  var plan = draft
+  plan.segments = [Segment(start: 0, end: 8, speed: 1), Segment(start: 10, end: 20, speed: 2)]
+  let clean = PlanCheck.check(plan, project: project, templates: ["storyboard"])
+  expect(clean.problems.isEmpty && clean.warnings.isEmpty, "a plain plan validates (\(clean.problems + clean.warnings))")
+
+  var bad = plan
+  bad.zooms = [Zoom(start: 2, end: 4, x: 1.4, y: 0.5, scale: 9)]
+  bad.segments.append(Segment(start: bad.segments[0].start, end: bad.segments[0].end, speed: 1))
+  bad.inserts = [Insert(start: 1, end: 3, file: "broll/missing.png")]
+  bad.callouts = [Callout(start: 5, end: 25, text: "Long", style: "banner")]
+  bad.animations = [Animation(start: 1, end: 3, template: "nope", data: .object([:]), cues: ["late": 9])]
+  let report = PlanCheck.check(bad, project: project, templates: ["storyboard"])
+  func has(_ text: String) -> Bool { report.problems.contains { $0.contains(text) } }
+  expect(has("zooms[0].x is 1.4"), "a zoom off the screen is named by its path (\(report.problems))")
+  expect(has("zooms[0].scale"), "a zoom scale out of range is a problem")
+  expect(has("overlap"), "two segments over the same source time are a problem")
+  expect(has("inserts[0].file: no file at broll/missing.png"), "a missing B-roll file is a problem")
+  expect(has("callouts[0].style is \"banner\""), "an unknown callout style is a problem")
+  expect(has("template \"nope\" doesn't exist") && has("cues.late"), "an unknown template and a cue outside the animation are problems")
+  expect(report.warnings.contains { $0.contains("callouts[0]: ends at 25") }, "running past the recording's end is only a warning (\(report.warnings))")
+
+  // A real plan with text where segments[0].end's number should be.
+  var json = (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(plan))) as? [String: Any] ?? [:]
+  var segs = json["segments"] as? [[String: Any]] ?? []
+  segs[0]["end"] = "x"
+  json["segments"] = segs
+  do {
+    _ = try JSONDecoder().decode(Plan.self, from: JSONSerialization.data(withJSONObject: json))
+    expect(false, "a plan with text for a number doesn't load")
+  } catch {
+    let text = PlanCheck.describe(error)
+    expect(text.hasPrefix("segments[0].end: expected a number"), "a decoding error names the JSON path (\(text))")
+  }
+}
+
+/// The recorder's status file that `director status` reads.
+private func recordingStatusChecks() {
+  let file = FileManager.default.temporaryDirectory.appendingPathComponent("sd-status-\(UUID().uuidString)/recording.json")
+  defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+  expect((try? RecordingStatus.read(from: file)) == .some(nil), "no status file reads as none")
+  let old = URL(fileURLWithPath: "/tmp/Recording 2026-11-04 120000")
+  try? RecordingStatus(state: .drafting, project: old).write(to: file)
+  let read = try? RecordingStatus.read(from: file)
+  expect(read?.state == .drafting && read?.project == old.path && read?.appRunning == true, "a status round-trips, from a running app")
+  try? RecordingStatus.projectMoved(from: old, to: URL(fileURLWithPath: "/tmp/2026-11-04 Demo"), file: file)
+  expect((try? RecordingStatus.read(from: file))?.project == "/tmp/2026-11-04 Demo", "renaming the recording updates the status")
+  try? RecordingStatus.projectMoved(from: URL(fileURLWithPath: "/tmp/other"), to: URL(fileURLWithPath: "/tmp/x"), file: file)
+  expect((try? RecordingStatus.read(from: file))?.project == "/tmp/2026-11-04 Demo", "renaming another folder leaves it")
+  let gone = RecordingStatus(state: .recording, pid: 99_999_999)
+  expect(gone.abandoned && !RecordingStatus(state: .ready, pid: 99_999_999).abandoned, "a recording left by an app that quit is abandoned; a finished one isn't")
+}
+
+/// Every setting the app saves is either one `director settings` can change, or listed here as
+/// state an agent has no reason to set. A new key fails this until it's added to one or the other.
+private func settingsDriftCheck() {
+  let notForAgents: [String: String] = [
+    "captureWindowID": "the window being recorded, reset each launch",
+    "captureWindowLabel": "that window's name",
+    "lastOpened": "library order",
+    "librarySort": "library sort",
+    "hudCompact": "the recording widget's size",
+    "claudePath": "a test launch argument",
+    "panelsInScreenshots": "a test launch argument",
+    "originKey": "where the recording widget was dragged",
+  ]
+  let appSources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Sources/ScreencastDirector")
+  let files = (try? FileManager.default.contentsOfDirectory(at: appSources, includingPropertiesForKeys: nil)) ?? []
+  expect(files.count > 10, "the app's sources are found for the settings check (\(appSources.path))")
+  // UserDefaults calls (`UserDefaults.standard.x(...)`, or `d.x(...)` on a settings object's own),
+  // with a literal key ("fps") or one held in a constant (originKey).
+  guard
+    let pattern = try? NSRegularExpression(
+      pattern: #"(?:UserDefaults\.standard|\bd)\.\w+\([^\n]*?forKey: (?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))"#)
+  else { return expect(false, "the settings key pattern compiles") }
+  var keys = Set<String>()
+  for file in files where file.pathExtension == "swift" {
+    guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+    for m in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+      for g in 1...2 { if let r = Range(m.range(at: g), in: text) { keys.insert(String(text[r])) } }
+    }
+  }
+  let covered = Set(AppSetting.all.map(\.key))
+  let uncovered = keys.subtracting(covered).subtracting(notForAgents.keys)
+  expect(uncovered.isEmpty, "every app setting is in AppSetting.all (director settings) or settingsDriftCheck's list: add \(uncovered.sorted())")
+  let stale = Set(notForAgents.keys).subtracting(keys)
+  expect(stale.isEmpty, "settingsDriftCheck lists keys the app no longer uses: \(stale.sorted())")
+}
+
 /// What `director` and `screencastdirector://` links share with the app: links, settings, profiles.
 private func agentInterfaceChecks() {
   func link(_ s: String) -> AppURL? { AppURL.parse(URL(string: s)!) }
@@ -43,6 +137,9 @@ private func agentInterfaceChecks() {
     expect(AppSetting.named(key) != nil, "director settings covers \(key)")
   }
   expect(S3.Config.saved(d) == nil, "no Sharing settings, no saved bucket")
+  settingsDriftCheck()
+  planCheckChecks()
+  recordingStatusChecks()
 
   // Profiles: seeded, saved from a plan, loaded back by name.
   let root = FileManager.default.temporaryDirectory.appendingPathComponent("sd-profiles-\(UUID().uuidString)")

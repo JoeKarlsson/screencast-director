@@ -107,10 +107,15 @@ enum Claude {
     let p = Process()
     p.executableURL = claude
     p.currentDirectoryURL = project
-    // Read the project, edit only plan.json and run the three director commands. A recording
-    // folder isn't trusted: no settings files load at all (a project's .claude/ hooks, and also the
-    // user's own allow rules, which would let it run any command they allow), and Write and edits
-    // to .claude/ are denied outright.
+    // Read the project, edit only plan.json and run the director commands that check the edit or
+    // write only this project's plan (validate; profile and template freeze/update, which copy from
+    // the user's library). Not `add` (it would copy any file on disk into the project, where Read
+    // reaches it) or `template save` (it writes the library other videos use). A recording folder
+    // isn't trusted: no settings files load at all (a project's .claude/ hooks, and also the user's
+    // own allow rules, which would let it run any command they allow), and Write and edits to
+    // .claude/ are denied outright. SD_ONLY_PROJECT makes director refuse any other folder, since
+    // the allow rules match a prefix ("profile ." also matches "profile ../other").
+    p.environment = ProcessInfo.processInfo.environment.merging(["SD_ONLY_PROJECT": project.path]) { $1 }
     p.arguments = [
       "-p", instruction,
       "--append-system-prompt", system,
@@ -120,7 +125,8 @@ enum Claude {
       "--strict-mcp-config",
       "--tools", "Read,Edit,Bash",
       "--allowedTools", "Read(./**)", "Edit(./plan.json)",
-      "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)", "Bash(\(dir) review:*)",
+      "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)", "Bash(\(dir) review:*)", "Bash(\(dir) validate:*)",
+      "Bash(\(dir) profiles)", "Bash(\(dir) profile .:*)", "Bash(\(dir) template . freeze:*)", "Bash(\(dir) template . update:*)",
       "--disallowedTools", "Write", "Edit(./.claude/**)", "Read(./.claude/**)", "WebFetch", "WebSearch",
     ]
     let pipe = Pipe()
