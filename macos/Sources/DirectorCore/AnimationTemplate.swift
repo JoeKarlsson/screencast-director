@@ -2,8 +2,8 @@ import Foundation
 
 /// What an animation template offers for editing, from templates/<name>.json next to its .js:
 /// the fields the inspector shows, the beats it can be cued to, and the data a new one starts with.
-public struct AnimationTemplate: Codable, Equatable {
-  public struct Field: Codable, Equatable {
+public struct AnimationTemplate: Codable, Equatable, Sendable {
+  public struct Field: Codable, Equatable, Sendable {
     /// Dotted path into the data ("center.logo").
     public var key: String
     public var label: String
@@ -13,7 +13,7 @@ public struct AnimationTemplate: Codable, Equatable {
     public var max: Int?
     public var help: String?
   }
-  public struct Cue: Codable, Equatable {
+  public struct Cue: Codable, Equatable, Sendable {
     public var key: String
     public var label: String
     /// Seconds from the start in the template's own length, scaled to a new animation's length.

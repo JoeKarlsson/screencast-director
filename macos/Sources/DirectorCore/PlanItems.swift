@@ -2,7 +2,7 @@ import Foundation
 
 // The plan's timed items besides clips: zooms, camera punch-ins, layouts, titles, B-roll, markers and annotations.
 
-public struct Zoom: Codable, Equatable {
+public struct Zoom: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   /// Focus point, 0...1 across the recorded screen (y down).
@@ -33,7 +33,7 @@ public struct Zoom: Codable, Equatable {
 /// camera's framing zoom (2 is twice as tight, below 1 wider, never past the whole camera) around
 /// the framing point. `x`/`y` move the framing point for the punch (camera-file fractions, like
 /// `camera.x`/`y`), for a cut to something held up beside the face.
-public struct PunchIn: Codable, Equatable {
+public struct PunchIn: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   public var scale: Double
@@ -50,11 +50,11 @@ public struct PunchIn: Codable, Equatable {
   }
 }
 
-public enum LayoutMode: String, Codable, CaseIterable {
+public enum LayoutMode: String, Codable, CaseIterable, Sendable {
   case screen, pip, side, camera
 }
 
-public struct LayoutRange: Codable, Equatable {
+public struct LayoutRange: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   public var mode: LayoutMode
@@ -68,7 +68,7 @@ public struct LayoutRange: Codable, Equatable {
 }
 
 /// Text on screen: a title, lower third, full-screen slate or chapter card.
-public struct Callout: Codable, Equatable {
+public struct Callout: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   public var text: String
@@ -98,7 +98,7 @@ public struct Callout: Codable, Equatable {
 
 /// B-roll: a video clip or picture shown over part of the recording, inside the screen card or
 /// over the whole frame. Times are source seconds of the main recording, as everywhere.
-public struct Insert: Codable, Equatable {
+public struct Insert: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   /// A file in the project folder (the app copies picked files into broll/).
@@ -133,7 +133,7 @@ public struct Insert: Codable, Equatable {
 }
 
 /// A named point on the timeline (source seconds): a note to yourself or the AI ("intro ends").
-public struct Marker: Codable, Equatable {
+public struct Marker: Codable, Equatable, Sendable {
   public var t: Double
   public var label: String?
   public init(t: Double, label: String? = nil) {
@@ -144,7 +144,7 @@ public struct Marker: Codable, Equatable {
 
 /// A mark on the recorded screen that moves with zooms: a spotlight, box, arrow, highlight or
 /// privacy blur. The rectangle is in 0...1 fractions of the recording, top-left origin.
-public struct Annotation: Codable, Equatable {
+public struct Annotation: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   /// One of `Annotation.kinds`.

@@ -3,7 +3,7 @@ import Foundation
 // The edit plan (plan.json). All times are SOURCE seconds
 // (positions in the raw screen recording).
 
-public struct Segment: Codable, Equatable {
+public struct Segment: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   /// 1 = real time. Segments faster than 1 are muted.
@@ -30,14 +30,14 @@ public struct Segment: Codable, Equatable {
   ]
 }
 
-public struct Plan: Codable, Equatable {
-  public struct Source: Codable, Equatable {
+public struct Plan: Codable, Equatable, Sendable {
+  public struct Source: Codable, Equatable, Sendable {
     public var video: String
     public var width: Double
     public var height: Double
     public var duration: Double
   }
-  public struct Camera: Codable, Equatable {
+  public struct Camera: Codable, Equatable, Sendable {
     public var video: String
     /// Seconds to add to a screen time to get the same moment in the camera file.
     public var offset: Double
@@ -74,12 +74,12 @@ public struct Plan: Codable, Equatable {
       self.offset = offset
     }
   }
-  public struct Output: Codable, Equatable {
+  public struct Output: Codable, Equatable, Sendable {
     public var width: Int
     public var height: Int
     public var fps: Int
   }
-  public struct Style: Codable, Equatable {
+  public struct Style: Codable, Equatable, Sendable {
     public var background: [String]
     public var padding: Double
     public var radius: Double
@@ -101,7 +101,7 @@ public struct Plan: Codable, Equatable {
     /// The built-in look a new plan starts with.
     public static let standard = Style(background: ["#1d2b64", "#f8cdda"], padding: 0.06, radius: 14, transition: 0.8)
   }
-  public struct Captions: Codable, Equatable {
+  public struct Captions: Codable, Equatable, Sendable {
     @Defaulted<Fallback.False> public var enabled: Bool
     @Defaulted<Fallback.CaptionWords> public var maxWords: Int
     /// One of `Plan.Captions.styles` (nil is "pill").
@@ -204,7 +204,7 @@ public struct Plan: Codable, Equatable {
   }
 }
 
-public struct CursorSettings: Codable, Equatable {
+public struct CursorSettings: Codable, Equatable, Sendable {
   /// Arrow height in pixels at 1080p (it grows with zooms). Default 32.
   public var size: Double?
   /// Seconds of smoothing on the pointer path, 0 (raw) to 0.4. Default 0.12.

@@ -2,8 +2,8 @@ import Foundation
 
 /// Which of a camera's capture formats to record in, and at what bitrate. Kept apart from
 /// AVFoundation so test.sh can check the choice.
-public enum CameraFormat {
-  public struct Option: Equatable {
+public enum CameraFormat: Sendable {
+  public struct Option: Equatable, Sendable {
     public var width: Int
     public var height: Int
     public var maxFPS: Double

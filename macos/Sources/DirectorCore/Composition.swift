@@ -4,15 +4,18 @@ import Foundation
 
 /// An AVFoundation timeline for a plan. The same composition feeds the preview player and the
 /// exporter, so what you see is what you export.
-public struct BuiltComposition {
-  public let asset: AVMutableComposition
-  public let videoComposition: AVMutableVideoComposition
-  public let audioMix: AVMutableAudioMix
+/// Unchecked: AVComposition and AVAudioMix are immutable (these are copies of the mutable ones the
+/// build assembled) but aren't marked Sendable.
+public struct BuiltComposition: @unchecked Sendable {
+  public let asset: AVComposition
+  public let videoComposition: AVVideoComposition
+  public let audioMix: AVAudioMix
   public let scene: Scene
   /// Things that didn't come out as the plan asked but didn't stop the build (the app shows them in
   /// the banner; the CLI prints them).
   public let warnings: [String]
 
+  @MainActor
   public func playerItem() -> AVPlayerItem {
     let item = AVPlayerItem(asset: asset)
     item.videoComposition = videoComposition
@@ -21,7 +24,7 @@ public struct BuiltComposition {
   }
 }
 
-public enum CompositionError: LocalizedError {
+public enum CompositionError: LocalizedError, Sendable {
   case noVideo(String)
   case noAudio(String)
   case missingFile(String)
@@ -189,7 +192,11 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
 
   let mix = AVMutableAudioMix()
   mix.inputParameters = [audioParams, music.params, effects.params].compactMap { $0 }
-  return BuiltComposition(asset: comp, videoComposition: vc, audioMix: mix, scene: scene, warnings: warnings)
+  // swiftlint:disable force_cast
+  return BuiltComposition(
+    asset: comp.copy() as! AVComposition, videoComposition: vc.copy() as! AVVideoComposition, audioMix: mix.copy() as! AVAudioMix,
+    scene: scene, warnings: warnings)
+  // swiftlint:enable force_cast
 }
 
 /// Makes every track end exactly at `total`. Rounding can leave a track (usually the camera) a few
@@ -357,9 +364,11 @@ private func addSoundEffects(_ plan: Plan, project: Project, scene: Scene, total
 /// Renders the plan to an MP4. `progress` gets 0...1.
 public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws {
   try? FileManager.default.removeItem(at: url)
-  guard let session = AVAssetExportSession(asset: built.asset, presetName: AVAssetExportPresetHighestQuality) else {
+  // AVAssetExportSession isn't marked Sendable, but cancelExport is meant to be called from anywhere.
+  guard let made = AVAssetExportSession(asset: built.asset, presetName: AVAssetExportPresetHighestQuality) else {
     throw DirectorError("Can't create an export session.")
   }
+  nonisolated(unsafe) let session = made
   session.videoComposition = built.videoComposition
   session.audioMix = built.audioMix
   let watcher = Task {

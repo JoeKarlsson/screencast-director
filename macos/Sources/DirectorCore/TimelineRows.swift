@@ -1,7 +1,7 @@
 import Foundation
 
 /// The timeline's rows, top to bottom. Their look (label, icon, color) lives in the app.
-public enum TimelineTrack: CaseIterable {
+public enum TimelineTrack: CaseIterable, Sendable {
   case ruler, clips, audio, words, zooms, layouts, punchIns, titles, marks, broll, animations, effects, sounds
 
   public var height: Double {
@@ -35,7 +35,7 @@ public enum TimelineTrack: CaseIterable {
 /// Which rows the timeline shows and where each sits. The ruler, clips and audio always show, words
 /// when there's a transcript, and every other row only while it has something on it (new items are
 /// added from the toolbar, so an empty row has nothing to offer).
-public struct TimelineRows: Equatable {
+public struct TimelineRows: Equatable, Sendable {
   /// Space between rows.
   public static let gap = 4.0
   public let visible: [TimelineTrack]

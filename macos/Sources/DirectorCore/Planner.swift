@@ -8,7 +8,7 @@ import Foundation
 //   nothing happening -> cut
 // Zooms follow clusters of clicks and typing.
 
-public enum Rules {
+public enum Rules: Sendable {
   static let speechMergeGap = 0.7
   static let speechPadBefore = 0.2
   static let speechPadAfter = 0.35
@@ -34,7 +34,7 @@ public enum Rules {
   }
 }
 
-private struct Interval {
+private struct Interval: Sendable {
   var start: Double
   var end: Double
 }
@@ -52,7 +52,7 @@ private func merge(_ list: [Interval], gap: Double) -> [Interval] {
   return out
 }
 
-private enum Label: String { case speech, typing, mouse, screen, idle }
+private enum Label: String, Sendable { case speech, typing, mouse, screen, idle }
 
 private func roundTo(_ v: Double, _ places: Int) -> Double {
   let p = pow(10.0, Double(places))
@@ -150,7 +150,7 @@ public func buildSegments(_ p: Project) -> [Segment] {
 }
 
 public func buildZooms(_ p: Project) -> [Zoom] {
-  struct Focus { var e: InputEvent; var fx: Double; var fy: Double }
+  struct Focus: Sendable { var e: InputEvent; var fx: Double; var fy: Double }
   var lastClick: InputEvent?
   var focus: [Focus] = []
   for e in p.events {

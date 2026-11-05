@@ -3,7 +3,7 @@ import Foundation
 /// Whisper's word timings stretch across pauses: a word often "starts" in the silence before it
 /// and "ends" in the silence after it. These helpers pull each word's edges in to where the
 /// audio is actually loud, using the 50 ms loudness levels from `Analyzer.loudness`.
-public enum WordTiming {
+public enum WordTiming: Sendable {
   /// The level below which a 50 ms sample counts as silence (same rule as `Analyzer.silences`).
   public static func silenceThreshold(_ levels: [(Double, Double)]) -> Double? {
     guard !levels.isEmpty else { return nil }

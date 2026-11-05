@@ -3,7 +3,7 @@ import Foundation
 /// Keeps file paths inside a project folder. A plan names files it reads (the recording, music,
 /// logos, fonts) and an AI edit rewrites the whole plan, so a prompt-injected transcript could
 /// point those at any file on disk; `sanitize` undoes such changes.
-public enum PathSafety {
+public enum PathSafety: Sendable {
   /// The real path (symlinks resolved) of a file that may not exist yet: the nearest existing
   /// ancestor goes through realpath and the rest is appended. nil when the missing part has "..".
   public static func resolved(_ url: URL) -> String? {

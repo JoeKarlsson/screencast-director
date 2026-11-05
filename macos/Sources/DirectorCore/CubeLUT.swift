@@ -3,7 +3,7 @@ import Foundation
 
 /// A 3D color lookup table from a `.cube` file (the Adobe/Resolve text format), ready for
 /// `CIColorCubeWithColorSpace`.
-public struct CubeLUT {
+public struct CubeLUT: Sendable {
   public let size: Int
   /// RGBA floats, red changing fastest, as Core Image wants them.
   public let data: Data
@@ -44,7 +44,8 @@ public struct CubeLUT {
   }
 
   private static let lock = NSLock()
-  private static var cache: [String: (modified: Date, lut: CubeLUT)] = [:]
+  // Every access holds `lock`.
+  nonisolated(unsafe) private static var cache: [String: (modified: Date, lut: CubeLUT)] = [:]
 
   /// Loads a `.cube` file, reusing the parsed table until the file changes.
   public static func load(_ url: URL) throws -> CubeLUT {

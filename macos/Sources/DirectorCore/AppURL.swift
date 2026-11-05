@@ -3,7 +3,7 @@ import Foundation
 /// `screencastdirector://` links that drive the running app, for what only the app can do
 /// (recording needs its screen capture and input tap). An agent runs
 /// `open "screencastdirector://record/start"`. Everything else is a `director` command.
-public enum AppURL: Equatable {
+public enum AppURL: Equatable, Sendable {
   case startRecording, stopRecording, pauseRecording, resumeRecording, restartRecording, discardRecording, markRetake
   /// Opens a project folder in the editor.
   case open(URL)

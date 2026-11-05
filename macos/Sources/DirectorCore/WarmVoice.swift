@@ -8,7 +8,7 @@ import Foundation
 /// limiter. One instance per audio stream: filters and the compressor keep state per channel.
 public final class WarmVoice {
   /// A biquad in transposed direct form II (RBJ audio EQ cookbook coefficients).
-  struct Biquad {
+  struct Biquad: Sendable {
     var b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0
     var z1: [Double], z2: [Double]
 

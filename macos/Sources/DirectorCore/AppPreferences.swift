@@ -5,7 +5,7 @@ import Security
 /// changes the same things the app's Settings window does. The app keeps its settings in its own
 /// UserDefaults domain; the CLI reaches that domain by name. Tests point both at scratch copies with
 /// `SD_DEFAULTS_DOMAIN` and `SD_SUPPORT_DIR`.
-public enum AppPreferences {
+public enum AppPreferences: Sendable {
   public static let appDomain = "com.joekarlsson.screencastdirector"
 
   public static var domain: String { ProcessInfo.processInfo.environment["SD_DEFAULTS_DOMAIN"] ?? appDomain }
@@ -45,8 +45,8 @@ public enum AppPreferences {
 
 /// A setting `director settings` can read and change: the app's Settings window, minus API keys
 /// (Keychain only) and per-session state (the window being recorded, library sort).
-public struct AppSetting {
-  public enum Kind {
+public struct AppSetting: Sendable {
+  public enum Kind: Sendable {
     case bool, int(ClosedRange<Int>), number(ClosedRange<Double>), text, choice([String])
   }
   public let key: String

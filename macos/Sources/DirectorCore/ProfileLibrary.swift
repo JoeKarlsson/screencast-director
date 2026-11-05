@@ -3,7 +3,7 @@ import Foundation
 /// The saved profiles: <support folder>/Profiles/<name>/profile.json with their fonts and logos.
 /// New recordings get the default one (the `defaultProfile` setting); any video can switch.
 /// The app's Profiles menu and `director profiles`/`profile`/`profile-save` share this.
-public struct ProfileLibrary {
+public struct ProfileLibrary: Sendable {
   public let root: URL
 
   public init(root: URL = AppPreferences.supportFolder.appendingPathComponent("Profiles")) {
@@ -65,8 +65,8 @@ public struct ProfileLibrary {
 /// The first draft a new recording gets, as the app makes it after recording, importing or Start
 /// Over: the planner's draft, then the default profile, the pause setting, voice polish, the camera
 /// centered on the face and lined up with the voice. `director draft` runs the same steps.
-public enum FreshDraft {
-  public struct Result {
+public enum FreshDraft: Sendable {
+  public struct Result: Sendable {
     public var plan: Plan
     /// Set when the camera couldn't be checked against the voice (the offset stays the recorder's).
     public var lipSyncUnchecked: Bool

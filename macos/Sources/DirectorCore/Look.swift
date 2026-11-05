@@ -3,8 +3,8 @@ import Foundation
 
 /// The branded look of a video: fonts, colors, frame and logo. Comes from a profile; nil fields
 /// fall back to the built-in look.
-public struct Look: Codable, Equatable {
-  public struct Watermark: Codable, Equatable {
+public struct Look: Codable, Equatable, Sendable {
+  public struct Watermark: Codable, Equatable, Sendable {
     /// A PNG: absolute, or relative to the project (a profile's relative path resolves from its folder when applied).
     public var image: String
     /// topLeft | topRight | bottomLeft | bottomRight | top | bottom (centered; full bleed only)
@@ -79,7 +79,7 @@ public struct Look: Codable, Equatable {
 }
 
 /// A full-frame title card before or after the video, in the look's fonts and colors.
-public struct Card: Codable, Equatable {
+public struct Card: Codable, Equatable, Sendable {
   public var enabled: Bool?
   /// Seconds on screen. Default 2.5.
   public var duration: Double?
@@ -113,7 +113,7 @@ public struct Card: Codable, Equatable {
 
 /// A named profile: a look plus the style it pairs with. Lives in a folder with profile.json and
 /// its assets (fonts, logos); relative paths in profile.json resolve against that folder.
-public struct Profile: Codable, Equatable {
+public struct Profile: Codable, Equatable, Sendable {
   public var name: String
   public var style: Plan.Style
   public var look: Look
@@ -128,7 +128,7 @@ public struct Profile: Codable, Equatable {
   /// Effects every video with this profile uses (names from the personal Effects folder).
   public var effects: [EffectUse]?
 
-  public struct CameraDefaults: Codable, Equatable {
+  public struct CameraDefaults: Codable, Equatable, Sendable {
     /// The whole grade; a `lut` path is relative to the profile folder.
     public var grade: Grade?
     public var bubbleSize: Double?
@@ -159,7 +159,7 @@ public struct Profile: Codable, Equatable {
   }
 
   /// What Save as Profile can carry besides the look, style, captions, layout and effects.
-  public enum Extra: CaseIterable {
+  public enum Extra: CaseIterable, Sendable {
     case music, voice, camera
   }
 
@@ -243,7 +243,7 @@ public struct Profile: Codable, Equatable {
   }
 }
 
-public enum Fonts {
+public enum Fonts: Sendable {
   /// Each font file tried so far, and why it couldn't be registered (nil when it was). The preview and
   /// an export register fonts from different threads, so every access holds `lock`.
   nonisolated(unsafe) private static var tried: [String: String?] = [:]

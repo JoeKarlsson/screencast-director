@@ -4,7 +4,7 @@ import Foundation
 
 /// An easing curve: maps a transition's progress 0...1 to how far the value has moved. Springs
 /// overshoot past 1 before settling.
-public enum Ease: Equatable {
+public enum Ease: Equatable, Sendable {
   case linear
   case cubic(Double, Double, Double, Double)
   /// A damped spring that settles by t = 1. Damping below 1 overshoots (0.5 is bouncy).
@@ -91,7 +91,7 @@ public enum Ease: Equatable {
 
 /// A house style for every move in the video: how the camera eases and how titles and other
 /// overlays come and go. `plan.style.motion` names one; overlays and zooms can override it.
-public struct MotionStyle: Equatable {
+public struct MotionStyle: Equatable, Sendable {
   public var name: String
   public var label: String
   /// The camera's and layouts' easing.
@@ -125,7 +125,7 @@ public struct MotionStyle: Equatable {
 }
 
 /// How one overlay enters (or, reversed, leaves).
-public struct Motion: Codable, Equatable {
+public struct Motion: Codable, Equatable, Sendable {
   /// One of `Motion.presets`.
   public var preset: String
   /// Length of the move. Default from the motion style.
@@ -146,7 +146,7 @@ public struct Motion: Codable, Equatable {
 }
 
 /// What an entrance or exit does to an overlay at one moment. `amount` 0 is hidden, 1 is fully in.
-public struct OverlayPose: Equatable {
+public struct OverlayPose: Equatable, Sendable {
   public var opacity = 1.0
   /// Offset as a share of the overlay's own size (dx of 1 is one width to the right).
   public var dx = 0.0
@@ -250,8 +250,8 @@ extension Motion {
 
 /// A value that holds still, then eases to a new value at each change. A change that starts
 /// before the last one finished starts from wherever the value was, so nothing ever jumps.
-public struct EasedSteps {
-  public struct Change {
+public struct EasedSteps: Sendable {
+  public struct Change: Sendable {
     /// Output frame the move starts.
     public var at: Double
     public var to: [Double]
@@ -269,9 +269,9 @@ public struct EasedSteps {
   let initial: [Double]
   let changes: [Change]
   let from: [[Double]]
-  let interp: ([Double], [Double], Double) -> [Double]
+  let interp: @Sendable ([Double], [Double], Double) -> [Double]
 
-  public init(initial: [Double], changes: [Change], interp: @escaping ([Double], [Double], Double) -> [Double] = EasedSteps.lerp) {
+  public init(initial: [Double], changes: [Change], interp: @escaping @Sendable ([Double], [Double], Double) -> [Double] = EasedSteps.lerp) {
     self.initial = initial
     self.interp = interp
     let sorted = changes.sorted { $0.at < $1.at }

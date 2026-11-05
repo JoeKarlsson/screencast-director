@@ -4,14 +4,14 @@ import Vision
 
 /// Text on the recorded screen around each click, read with Vision, so the AI knows what was
 /// clicked ("Save", "Settings") and not just where. Kept in screentext.json.
-public enum ScreenText {
-  public struct Item: Codable, Equatable {
+public enum ScreenText: Sendable {
+  public struct Item: Codable, Equatable, Sendable {
     public var text: String
     /// Box in 0...1 fractions of the screen, top-left origin.
     public var x, y, w, h: Double
   }
 
-  public struct Sample: Codable, Equatable {
+  public struct Sample: Codable, Equatable, Sendable {
     /// Source seconds.
     public var t: Double
     /// Where the click was.

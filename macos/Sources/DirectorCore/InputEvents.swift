@@ -14,7 +14,7 @@ public func normalizedPoint(_ p: CGPoint, in rect: CGRect) -> (Double, Double) {
   return ((x * 10000).rounded() / 10000, (y * 10000).rounded() / 10000)
 }
 
-public enum InputEvents {
+public enum InputEvents: Sendable {
   /// The label a key press shows as a chip, or nil when it's typing (which stays anonymous).
   public static func keyLabel(_ event: CGEvent) -> String? {
     let flags = event.flags
@@ -67,7 +67,7 @@ public enum InputEvents {
   }
 }
 
-public struct Word: Codable, Equatable {
+public struct Word: Codable, Equatable, Sendable {
   public var text: String
   public var start: Double
   public var end: Double
@@ -78,11 +78,11 @@ public struct Word: Codable, Equatable {
   }
 }
 
-public enum InputKind: String, Codable {
+public enum InputKind: String, Codable, Sendable {
   case move, click, scroll, key, retake
 }
 
-public struct InputEvent: Equatable {
+public struct InputEvent: Equatable, Sendable {
   public var t: Double
   public var type: InputKind
   public var x: Double

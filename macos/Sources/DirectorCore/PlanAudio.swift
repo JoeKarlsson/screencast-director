@@ -2,7 +2,7 @@ import Foundation
 
 // The plan's sound: voice settings, background music, and sound effects (free-standing or attached to items).
 
-public struct AudioSettings: Codable, Equatable {
+public struct AudioSettings: Codable, Equatable, Sendable {
   /// Bring the voice to a standard level (about -20 dBFS RMS while speaking).
   public var normalize: Bool?
   /// Extra gain in dB, -12...12.
@@ -20,7 +20,7 @@ public struct AudioSettings: Codable, Equatable {
 }
 
 /// A background music track, looped to the video's length and ducked under the voice.
-public struct Music: Codable, Equatable {
+public struct Music: Codable, Equatable, Sendable {
   /// A file in the project folder, or an absolute path.
   public var file: String
   /// Music level when nobody's talking, in dB (0 = as recorded). Default -14.
@@ -46,7 +46,7 @@ extension AudioSettings {
 
 /// A sound attached to something on screen (a title, an annotation, an animation's beat). It plays
 /// when that thing appears, so it moves when the thing moves and is cut only when the thing is.
-public struct Sound: Codable, Equatable {
+public struct Sound: Codable, Equatable, Sendable {
   /// A file in the project folder, or an absolute path.
   public var file: String
   /// Level in dB (0 = as recorded).
@@ -80,7 +80,7 @@ extension Plan {
 
 /// A one-shot sound effect. `t` is source seconds; an effect whose time is cut is dropped, and one
 /// in a sped-up stretch still plays at normal speed from the mapped output time.
-public struct SoundEffect: Codable, Equatable {
+public struct SoundEffect: Codable, Equatable, Sendable {
   public var t: Double
   /// A file in the project folder, or an absolute path.
   public var file: String

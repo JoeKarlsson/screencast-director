@@ -8,7 +8,7 @@ import Vision
 
 /// Everything for posting a video: captions (SRT), chapters, an output-timed transcript for
 /// writing a description, and thumbnails.
-public enum Publish {
+public enum Publish: Sendable {
   /// Writes publish/captions.srt, publish/chapters.txt (when titles allow), publish/transcript.txt and
   /// publish/thumbnail-N.png. Returns the files written.
   /// `coverAt`: source seconds to make the covers from, instead of the best-scoring faces.

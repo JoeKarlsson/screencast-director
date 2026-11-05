@@ -3,10 +3,10 @@ import Foundation
 /// Earlier versions of a project's plan.json, kept in <project>/.history/plan-<timestamp>.json.
 /// `Plan.write(to:)` saves the version it replaces; the app also saves the version an outside
 /// edit (Claude Code, a text editor) replaced. The newest `keep` versions survive.
-public enum PlanHistory {
+public enum PlanHistory: Sendable {
   public static let keep = 30
 
-  public struct Entry: Equatable {
+  public struct Entry: Equatable, Sendable {
     public let url: URL
     public let date: Date
   }

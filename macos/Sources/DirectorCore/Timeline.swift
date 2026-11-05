@@ -2,7 +2,7 @@ import Foundation
 
 // Segment mapping and Hann-window smoothing.
 
-public struct MappedSegment: Equatable {
+public struct MappedSegment: Equatable, Sendable {
   public var start: Double
   public var end: Double
   public var speed: Double
@@ -115,7 +115,7 @@ public func outToSrc(_ mapped: [MappedSegment], _ f: Double, fps: Int) -> Double
 /// A crossfade at a cut: for `half` frames on each side of output frame `f`, the screen dissolves
 /// between the two clips. The other clip's frames there are "handles": the next clip's source just
 /// before it starts (before the cut), and the previous clip's source just after it ends (after).
-public struct Crossfade: Equatable {
+public struct Crossfade: Equatable, Sendable {
   public var f: Int
   public var half: Int
   public var prev: MappedSegment
@@ -156,7 +156,7 @@ public func smooth(_ f: Int, halfWidth: Int, _ sample: (Int) -> [Double]) -> [Do
   return acc.map { $0 / total }
 }
 
-public struct OutZoom: Equatable {
+public struct OutZoom: Equatable, Sendable {
   public var startF: Double
   public var endF: Double
   public var x: Double
@@ -176,7 +176,7 @@ public func zoomsToOut(_ zooms: [Zoom], _ mapped: [MappedSegment], fps: Int) -> 
     .sorted { $0.startF < $1.startF }
 }
 
-public struct CameraState: Equatable {
+public struct CameraState: Equatable, Sendable {
   public var scale: Double
   public var x: Double
   public var y: Double
@@ -223,7 +223,7 @@ public func cameraAt(
 // MARK: Layouts
 
 /// A box in output pixels, top-left origin (like CSS), with corner radius and opacity.
-public struct Box: Equatable {
+public struct Box: Equatable, Sendable {
   public var x, y, w, h, r, opacity: Double
   var vec: [Double] { [x, y, w, h, r, opacity] }
   init(_ v: ArraySlice<Double>) {
@@ -235,7 +235,7 @@ public struct Box: Equatable {
   }
 }
 
-public struct LayoutBoxes: Equatable {
+public struct LayoutBoxes: Equatable, Sendable {
   public var screen: Box
   public var cam: Box
 }
@@ -251,7 +251,7 @@ func fit(_ area: (x: Double, y: Double, w: Double, h: Double), aspect: Double) -
 }
 
 /// One margin for everything that sits near the frame's edge, so every corner matches.
-public struct Insets {
+public struct Insets: Sendable {
   /// Distance from the frame edge (4% of the short side).
   public let margin: Double
   /// Bracket stroke width.
@@ -406,7 +406,7 @@ public func layoutBoxes(_ mode: LayoutMode, plan: Plan) -> LayoutBoxes {
   }
 }
 
-public struct OutLayout: Equatable {
+public struct OutLayout: Equatable, Sendable {
   public var startF: Double
   public var endF: Double
   public var mode: LayoutMode

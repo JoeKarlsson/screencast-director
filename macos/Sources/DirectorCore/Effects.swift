@@ -3,7 +3,7 @@ import Foundation
 import Metal
 
 /// An effect a plan uses: a shader from an effect folder, applied to one layer of every frame.
-public struct EffectUse: Codable, Equatable {
+public struct EffectUse: Codable, Equatable, Sendable {
   /// The effect folder's name (letters, digits, `-` and `_`).
   public var name: String
   /// `screen`, `camera` or `frame` (everything under the titles and captions). nil is the effect's own.
@@ -19,7 +19,7 @@ public struct EffectUse: Codable, Equatable {
 }
 
 /// An effect drawn only between two source times, with its own settings.
-public struct EffectRange: Codable, Equatable {
+public struct EffectRange: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   /// The effect folder's name.
@@ -43,8 +43,8 @@ public struct EffectRange: Codable, Equatable {
 }
 
 /// `effect.json` in an effect folder, next to `effect.metal`.
-public struct EffectManifest: Codable, Equatable {
-  public struct Param: Codable, Equatable {
+public struct EffectManifest: Codable, Equatable, Sendable {
+  public struct Param: Codable, Equatable, Sendable {
     public var name: String
     public var `default`: Double
     public var min: Double?
@@ -68,7 +68,7 @@ public struct EffectManifest: Codable, Equatable {
 /// the personal library (~/Library/Application Support/Screencast Director/Effects). Each effect is a
 /// folder `<name>/` holding `effect.json` and `effect.metal`. None are built into the app: they're
 /// plugins, so a strong look like glitching stays out of the core.
-public struct EffectSources {
+public struct EffectSources: Sendable {
   public let project: URL?
   public let personal: URL
 
@@ -130,7 +130,7 @@ public struct EffectSources {
 /// What an effect knows about the moment it draws (output time). The layout matches `Signals` in
 /// `Effects.prelude` after its `size`: Metal aligns a float2 to 8 bytes, so `click` comes first,
 /// right after `size`, and the rest are single floats with no padding.
-public struct EffectSignals: Equatable {
+public struct EffectSignals: Equatable, Sendable {
   /// Where the last click was (screen fractions, y down).
   public var clickX: Float = 0.5
   public var clickY: Float = 0.5
@@ -154,7 +154,7 @@ public struct EffectSignals: Equatable {
   /// How many entries `blobs` holds for this layer (set per layer when the effect is drawn).
   public var blobs: Float = 0
 
-  public enum CutKind: Float {
+  public enum CutKind: Float, Sendable {
     case cut = 0, jumpBack = 1, broll = 2, layout = 3, punchIn = 4, section = 5
     /// Which name a frame gets when several changes land on it.
     var rank: Int {
@@ -222,7 +222,7 @@ public final class LoadedEffect: @unchecked Sendable {
 /// A thing an effect can outline: its box in the layer's pixels (top-left corner, y down), what it
 /// is (`Tracking.Kind`), Vision's confidence, and an id that's the same for the same thing from
 /// frame to frame.
-public struct EffectBlob: Equatable {
+public struct EffectBlob: Equatable, Sendable {
   public var x: Float
   public var y: Float
   public var w: Float
@@ -234,7 +234,7 @@ public struct EffectBlob: Equatable {
   public var atTop: Float = 0
 }
 
-public enum Effects {
+public enum Effects: Sendable {
   public static let layers = ["screen", "camera", "frame"]
   /// At most this many blobs reach a shader.
   public static let maxBlobs = 32

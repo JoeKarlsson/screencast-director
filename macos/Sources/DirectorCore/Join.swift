@@ -4,14 +4,14 @@ import Foundation
 /// Joins several takes into one new project: one screen.mp4 (and camera.mp4 when every take has a
 /// camera), with the transcript, input events, loudness and motion shifted onto the joined clock.
 /// The originals are only read.
-public enum Join {
-  public struct Result {
+public enum Join: Sendable {
+  public struct Result: Sendable {
     public let dir: URL
     /// Where each take starts in the joined recording (seconds).
     public let starts: [Double]
   }
 
-  public enum JoinError: LocalizedError {
+  public enum JoinError: LocalizedError, Sendable {
     case needTwo, exists(String), sizeMismatch(String), exportFailed(String)
     public var errorDescription: String? {
       switch self {

@@ -1,7 +1,7 @@
 import Foundation
 
 /// motion.json and loudness.json: `[[t, value], ...]` samples, `t` in source seconds.
-public enum SampleSeries {
+public enum SampleSeries: Sendable {
   /// The samples in `url`, or nil when there's no such file. An entry that isn't a [t, value] pair
   /// is skipped; a file that isn't JSON or isn't a list of lists throws rather than reading as no samples.
   public static func read(_ url: URL) throws -> [(Double, Double)]? {

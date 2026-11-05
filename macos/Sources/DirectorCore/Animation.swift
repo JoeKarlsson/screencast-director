@@ -4,7 +4,7 @@ import Foundation
 /// A motion-graphics explainer (a template filled with data) played full frame over the video.
 /// Times are source seconds, as everywhere. `director animate` renders each one to a cached clip
 /// in `.animations/`, named by `renderKey`, so changing the data or a cue re-renders it.
-public struct Animation: Codable, Equatable {
+public struct Animation: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
   /// One of the templates in Resources/animations/templates (e.g. "sprawl", "hub").
@@ -43,8 +43,8 @@ public struct Animation: Codable, Equatable {
   /// digest of the video's frozen copy of the template (see AnimationSources), so editing it re-renders.
   public func renderKey(width: Int, height: Int, fps: Int, script: String = "", look: Look? = nil, safeTop: Int = 0) -> String {
     // The parts of the look the page draws with (Animate.config): a new theme, accent or font re-renders.
-    struct Brand: Encodable { let theme: String?, accent: String?, titleFont: String?, bodyFont: String? }
-    struct Key: Encodable {
+    struct Brand: Encodable, Sendable { let theme: String?, accent: String?, titleFont: String?, bodyFont: String? }
+    struct Key: Encodable, Sendable {
       let v: Int, template: String, script: String, data: JSONValue, cues: [String: Double], duration: Double, w: Int, h: Int, fps: Int
       let brand: Brand?
       /// Pixels at the top kept clear of a vertical video's app UI (nil when none, so older clips keep their names).
@@ -71,7 +71,7 @@ public struct Animation: Codable, Equatable {
 }
 
 /// Any JSON value, for template data that differs from template to template.
-public enum JSONValue: Codable, Equatable {
+public enum JSONValue: Codable, Equatable, Sendable {
   case string(String), number(Double), bool(Bool), array([JSONValue]), object([String: JSONValue]), null
 
   public init(from decoder: Decoder) throws {

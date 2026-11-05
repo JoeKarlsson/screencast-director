@@ -16,7 +16,7 @@ public func describe(_ project: Project, _ plan: Plan) -> String {
 }
 
 /// Builds `describe`'s text one section at a time.
-private struct Describer {
+private struct Describer: Sendable {
   let project: Project
   let plan: Plan
   let fps: Int

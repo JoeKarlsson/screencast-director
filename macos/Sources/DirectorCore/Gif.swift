@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 
 /// Animated GIFs of the edited video, for docs and READMEs: frames come from the same
 /// compositor as preview and export, scaled down and encoded with ImageIO.
-public enum GIF {
-  public struct Options {
+public enum GIF: Sendable {
+  public struct Options: Sendable {
     /// Output seconds; nil means the start or end of the video.
     public var from: Double?
     public var to: Double?

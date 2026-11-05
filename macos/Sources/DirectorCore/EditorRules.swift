@@ -17,7 +17,7 @@ public func timelineZoomScroll(
 
 /// A word's mark on the Words row when it's zoomed out too far to read words: where it starts and
 /// how wide it is in points, and whether the word is kept (cut words show faintly on the source axis).
-public struct SpeechMark: Equatable {
+public struct SpeechMark: Equatable, Sendable {
   public var x: Double
   public var width: Double
   public var kept: Bool

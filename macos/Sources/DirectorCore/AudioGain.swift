@@ -5,7 +5,7 @@ import MediaToolbox
 /// Voice gain for preview and export: an MTAudioProcessingTap that multiplies samples by a gain (fixed,
 /// or a leveling curve over output time) and soft-limits peaks below -0.5 dBFS. (An audio mix's
 /// volume can't boost past 1.0, and a quiet mic usually needs a boost.)
-public enum AudioGain {
+public enum AudioGain: Sendable {
   /// Speech level the "Normalize voice" option aims for: RMS while talking.
   public static let targetDB = -20.0
 

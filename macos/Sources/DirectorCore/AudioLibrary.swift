@@ -3,7 +3,7 @@ import Foundation
 /// A sound effect or music track in a library: the built-in ones listed in the bundle's manifest
 /// (`Resources/sounds/sounds.json`, `Resources/music/music.json`), or an audio file in the personal
 /// folder (its file name is its name).
-public struct LibraryItem: Codable, Equatable {
+public struct LibraryItem: Codable, Equatable, Sendable {
   public var name: String
   /// File name inside its library folder (and inside the project once used).
   public var file: String
@@ -20,8 +20,8 @@ public struct LibraryItem: Codable, Equatable {
 /// (~/Library/Application Support/Screencast Director/Sounds or Music, any audio file) over the ones
 /// built into the app. A plan names one as `sfx/<file>` or `music/<file>`; building the video copies
 /// it into that project folder, so a file changed later in the library never changes a finished video.
-public struct AudioLibrary {
-  public enum Kind {
+public struct AudioLibrary: Sendable {
+  public enum Kind: Sendable {
     case sounds, music
 
     /// The bundle folder and its manifest's name.
@@ -60,7 +60,7 @@ public struct AudioLibrary {
     self.personal = personal ?? AudioLibrary.personalFolder(kind)
   }
 
-  public struct Entry: Equatable {
+  public struct Entry: Equatable, Sendable {
     public var item: LibraryItem
     public var url: URL
     public var isPersonal: Bool

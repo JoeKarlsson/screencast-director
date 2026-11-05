@@ -7,11 +7,11 @@ import Foundation
 /// caches it as voice-clean.m4a. The composition then takes its audio from that file with the same
 /// timing as screen.mp4. If the unit isn't available, a high-pass and a gentle downward expander
 /// (quiet room noise between words drops by up to 12 dB) stand in for it.
-public enum VoiceCleanup {
+public enum VoiceCleanup: Sendable {
   public static let fileName = "voice-clean.m4a"
   static let sampleRate = 48000.0
 
-  public enum Method: String { case isolation, filter }
+  public enum Method: String, Sendable { case isolation, filter }
 
   /// Whether this Mac has the voice isolation unit.
   public static var hasIsolation: Bool { isolationDescription.flatMap { AudioComponentFindNext(nil, [$0]) } != nil }

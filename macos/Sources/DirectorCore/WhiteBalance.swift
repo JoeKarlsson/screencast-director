@@ -3,8 +3,8 @@ import Foundation
 
 /// The pre-recording white balance check: how far a camera frame's neutrals lean warm/cool and
 /// green/magenta, and the camera `Grade.warmth` that would neutralize it in the edit.
-public enum WhiteBalance {
-  public struct Reading: Equatable {
+public enum WhiteBalance: Sendable {
+  public struct Reading: Equatable, Sendable {
     /// The `Grade.warmth` that makes the frame's neutrals neutral: negative when the picture runs
     /// warm (it needs cooling), positive when it runs cool.
     public let fixWarmth: Double

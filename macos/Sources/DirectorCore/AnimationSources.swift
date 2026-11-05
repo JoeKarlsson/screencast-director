@@ -9,8 +9,8 @@ import Foundation
 /// A video freezes each template it uses by copying it into its own folder, so a template changed
 /// later in the library never changes a finished video; the cached clip's name includes the frozen
 /// copy's contents, so editing that copy re-renders it.
-public struct AnimationSources {
-  public enum Origin: String { case video, personal, builtIn }
+public struct AnimationSources: Sendable {
+  public enum Origin: String, Sendable { case video, personal, builtIn }
 
   public let project: URL?
   public let personal: URL

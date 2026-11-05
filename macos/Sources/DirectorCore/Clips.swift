@@ -2,7 +2,7 @@ import Foundation
 
 /// A short piece of the edit exported on its own, like a vertical social clip: a source-time range
 /// of the main edit, in a format. It renders from the main edit, so fixes there show up in it.
-public struct Clip: Codable, Equatable {
+public struct Clip: Codable, Equatable, Sendable {
   public var name: String
   public var start: Double
   public var end: Double

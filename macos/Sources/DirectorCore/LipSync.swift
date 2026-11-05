@@ -6,8 +6,8 @@ import Vision
 /// against how loud the voice is in the recording's audio. The recorder's offset comes from the
 /// first timestamps of each stream, which is off by however long the camera (or mic) holds a
 /// frame before the Mac stamps it, a third of a second on some webcams.
-public enum LipSync {
-  public struct Result: Equatable {
+public enum LipSync: Sendable {
+  public struct Result: Equatable, Sendable {
     /// The measured `camera.offset` (camera time = screen time + offset).
     public var offset: Double
     /// Mean correlation at the best offset, about 0.1 to 0.3 when it's clear.

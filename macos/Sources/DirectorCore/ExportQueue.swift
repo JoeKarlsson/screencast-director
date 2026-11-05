@@ -7,10 +7,11 @@ import Foundation
 public final class ExportQueue: ObservableObject {
   public static let shared = ExportQueue()
 
-  public enum State: Equatable {
+  public enum State: Equatable, Sendable {
     case queued, running, done, failed(String), cancelled
   }
 
+  @MainActor
   public final class Job: ObservableObject, Identifiable {
     public let id = UUID()
     public let projectDir: URL

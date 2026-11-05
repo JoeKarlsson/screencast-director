@@ -3,7 +3,7 @@ import Foundation
 // Manual edit operations on a plan, used by the app's timeline. Pure functions over source times,
 // so they're checked in Tests/Checks.swift.
 
-public struct Gap: Equatable {
+public struct Gap: Equatable, Sendable {
   public var start: Double
   public var end: Double
 }

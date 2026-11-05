@@ -1,8 +1,8 @@
 import Foundation
 
 /// A recording folder: screen.mp4, source.json, events.jsonl, transcript.json, motion.json, plan.json.
-public struct Project {
-  public struct Source: Codable {
+public struct Project: Sendable {
+  public struct Source: Codable, Sendable {
     public var video: String
     public var width: Double
     public var height: Double

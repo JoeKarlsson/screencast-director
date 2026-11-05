@@ -1,7 +1,7 @@
 import Foundation
 
 /// Output shapes and sizes. Resolution names the short side (1080p vertical is 1080x1920).
-public enum Aspect: String, CaseIterable, Codable {
+public enum Aspect: String, CaseIterable, Codable, Sendable {
   case landscape = "16:9", vertical = "9:16", square = "1:1", feed = "4:5"
 
   public var ratio: (w: Int, h: Int) {
@@ -28,7 +28,7 @@ public enum Aspect: String, CaseIterable, Codable {
   }
 }
 
-public enum Resolution: Int, CaseIterable {
+public enum Resolution: Int, CaseIterable, Sendable {
   case p720 = 720, p1080 = 1080, p1440 = 1440, p2160 = 2160
 
   public var label: String { self == .p2160 ? "4K" : "\(rawValue)p" }
@@ -47,7 +47,7 @@ public func outputSize(_ aspect: Aspect, _ res: Resolution) -> (width: Int, heig
   return rw >= rh ? (even(short * Double(rw) / Double(rh)), Int(short)) : (Int(short), even(short * Double(rh) / Double(rw)))
 }
 
-public struct ExportPreset: Equatable {
+public struct ExportPreset: Equatable, Sendable {
   public let id: String
   public let name: String
   public let aspect: Aspect

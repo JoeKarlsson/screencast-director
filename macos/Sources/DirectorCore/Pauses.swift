@@ -3,7 +3,7 @@ import Foundation
 // Pause levels, and re-cutting a plan's silences at another level without bringing back cut words.
 
 /// How hard to cut silence. Gentle keeps natural pauses; tight leaves almost none.
-public enum PauseLevel: String, CaseIterable, Codable {
+public enum PauseLevel: String, CaseIterable, Codable, Sendable {
   case gentle, normal, tight
 
   /// Longest pause kept whole, and how much silence to leave on each side of a cut.

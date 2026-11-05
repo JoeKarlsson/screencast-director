@@ -2,8 +2,8 @@ import CryptoKit
 import Foundation
 
 /// Uploads to any S3-compatible store (AWS S3, MinIO, R2, B2) with a SigV4-signed PUT.
-public enum S3 {
-  public struct Config {
+public enum S3: Sendable {
+  public struct Config: Sendable {
     /// e.g. http://minio.local:9000 or https://s3.us-east-1.amazonaws.com. Path-style addressing.
     public var endpoint: URL
     public var region: String
@@ -22,7 +22,7 @@ public enum S3 {
     }
   }
 
-  public enum UploadError: LocalizedError {
+  public enum UploadError: LocalizedError, Sendable {
     case http(Int, String)
     public var errorDescription: String? {
       switch self {
@@ -106,8 +106,8 @@ public enum S3 {
 
 /// AWS Signature Version 4 (header-based), as in the S3 "Signature Calculations for the
 /// Authorization Header" docs.
-public enum SigV4 {
-  public struct Signed {
+public enum SigV4: Sendable {
+  public struct Signed: Sendable {
     /// Headers to send: the ones passed in plus host, x-amz-date and authorization.
     public var headers: [String: String]
     public var canonicalRequest: String

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Grade: Codable, Equatable {
+public struct Grade: Codable, Equatable, Sendable {
   /// Stops of exposure, -1...1.
   public var exposure: Double?
   /// 1 = unchanged.

@@ -2,7 +2,7 @@ import AVFoundation
 import CoreVideo
 import Foundation
 
-public enum AnalyzerError: LocalizedError {
+public enum AnalyzerError: LocalizedError, Sendable {
   case noVideoTrack
   case whisperMissing
   case whisperFailed(String)
@@ -16,7 +16,7 @@ public enum AnalyzerError: LocalizedError {
   }
 }
 
-public enum Analyzer {
+public enum Analyzer: Sendable {
   /// Mean frame-to-frame luma difference (0-255) at ~10 fps, comparable to the Node CLI's
   /// ffmpeg tblend + signalstats measurement. Samples every 4th pixel of each sampled frame.
   public static func measureMotion(_ url: URL, progress: ((Double) -> Void)? = nil) async throws -> [(Double, Double)] {

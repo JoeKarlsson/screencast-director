@@ -11,7 +11,7 @@ import Vision
 extension Publish {
   // MARK: Thumbnails
 
-  public struct Candidate {
+  public struct Candidate: Sendable {
     public var sourceTime: Double
     public var score: Double
     public var smiling: Bool

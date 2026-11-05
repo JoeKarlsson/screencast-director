@@ -90,7 +90,7 @@ extension Scene {
     return CIImage(cgImage: cg).composited(over: image).cropped(to: CGRect(x: 0, y: 0, width: W, height: H))
   }
 
-  enum Weight { case semibold, bold, heavy }
+  enum Weight: Sendable { case semibold, bold, heavy }
 
   static func text(
     _ str: String, size: Double, weight: Weight, alpha: Double = 1, kern: Double = 0, font name: String? = nil,

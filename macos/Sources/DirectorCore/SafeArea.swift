@@ -6,7 +6,7 @@ import Foundation
 /// comment and share buttons down the right. Fractions of the frame, the union of all three apps, so
 /// one export works everywhere. Every title, chip, caption and logo in a vertical video is kept inside
 /// it (`Scene.animated`, the watermark), and animations start their content below its top.
-public enum SafeArea {
+public enum SafeArea: Sendable {
   public static let top = 0.12
   public static let bottom = 0.22
   public static let left = 0.06

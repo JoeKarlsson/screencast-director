@@ -59,7 +59,7 @@ public final class Scene: @unchecked Sendable {
   /// Clicks in output frames, for cropped formats whose camera rests on the last click.
   let focusClicks: [(f: Double, x: Double, y: Double)]
 
-  struct Page {
+  struct Page: Sendable {
     var words: [(text: String, startF: Double)]
     var startF: Double
     var endF: Double

@@ -5,8 +5,8 @@ import Vision
 /// Things Vision finds on the camera (the face, each hand, the person, a salient object such as
 /// something held up), for effects that outline and label them. Found once per camera file at
 /// `step` seconds apart and kept in `tracking.json` next to it.
-public struct Tracking: Equatable {
-  public enum Kind: Int {
+public struct Tracking: Equatable, Sendable {
+  public enum Kind: Int, Sendable {
     case face = 1, hand = 2, person = 3, object = 4
     /// On the screen layer: the pointer and recent clicks.
     case pointer = 10, click = 11
@@ -14,7 +14,7 @@ public struct Tracking: Equatable {
 
   /// One found thing: `id` is the same for the same thing from sample to sample (kind × 10 + which
   /// one), the box is 0..1 of the camera frame with y down, `confidence` is Vision's 0..1.
-  public struct Box: Equatable {
+  public struct Box: Equatable, Sendable {
     public var id: Int
     public var x: Double
     public var y: Double
@@ -23,7 +23,7 @@ public struct Tracking: Equatable {
     public var confidence: Double
     public var kind: Int { id / 10 }
   }
-  public struct Sample: Equatable {
+  public struct Sample: Equatable, Sendable {
     public var t: Double
     public var boxes: [Box]
   }

@@ -5,7 +5,7 @@ import Foundation
 // macos/test.sh checks them without the app.
 
 /// What's selected on the timeline; the inspector edits it.
-public enum Selection: Equatable {
+public enum Selection: Equatable, Sendable {
   case segment(Int)
   case gap(Gap)
   case zoom(Int)
@@ -29,7 +29,7 @@ public enum Selection: Equatable {
 }
 
 /// The timeline's selection: the item the inspector shows, plus more picked with ⇧/⌘-click or a drag box.
-public struct TimelineSelection: Equatable {
+public struct TimelineSelection: Equatable, Sendable {
   public var primary: Selection?
   public var others: [Selection]
 
@@ -458,7 +458,7 @@ private func selectedLine(_ selection: Selection, _ plan: Plan) -> String? {
 
 /// B-roll recorded from inside the app (Record B-roll): the file it records into and the insert
 /// that shows it.
-public enum RecordedBroll {
+public enum RecordedBroll: Sendable {
   /// `broll/broll-<yyyyMMdd-HHmmss>.mov`, with -2, -3… when `taken` says a name is in use (two
   /// clips in the same second).
   public static func file(at date: Date, timeZone: TimeZone = .current, taken: (String) -> Bool) -> String {

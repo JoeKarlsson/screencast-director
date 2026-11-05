@@ -6,8 +6,8 @@ import Foundation
 // sliver, a frame of B-roll left over). Frames are decoded small, consecutive frames compared, and a
 // hard cut is a jump in difference that stands out from both neighbors.
 
-public enum ShotScan {
-  public struct ShortShot: Equatable {
+public enum ShotScan: Sendable {
+  public struct ShortShot: Equatable, Sendable {
     /// Output seconds.
     public var start: Double
     public var end: Double

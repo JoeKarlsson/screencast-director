@@ -4,7 +4,7 @@ import Foundation
 // second of the face between two B-roll clips, or a clip too short to register. They read as a
 // glitch, so describe, review and the app flag them.
 
-public struct Flash: Equatable {
+public struct Flash: Equatable, Sendable {
   /// Output frames.
   public var startF: Double
   public var endF: Double
