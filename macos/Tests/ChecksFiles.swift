@@ -125,6 +125,9 @@ private func agentInterfaceChecks() {
   defer { d.removePersistentDomain(forName: suite) }
   let countdown = AppSetting.named("countdown")!
   expect(countdown.value(in: d) == "3", "an unset setting shows the app's default")
+  expect(
+    AppSetting.named("ai.baseURL")?.value(in: d) == AppPreferences.defaultAIBaseURL,
+    "an unset AI endpoint shows the one the app uses, not empty")
   try? countdown.set("5", in: d)
   expect(d.object(forKey: "countdown") as? Int == 5 && countdown.value(in: d) == "5", "countdown is saved as a number the app reads")
   expect((try? countdown.set("99", in: d)) == nil, "a countdown out of range is refused")

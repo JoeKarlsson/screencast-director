@@ -23,7 +23,8 @@ let usage = """
     director template <dir> freeze|update|save <name>   copy an animation template into the video, refresh it from the library, or save the video's copy to My Templates
     director add      <dir> broll|lut|music|logo|font <file>   copy a file into the project; prints the path to use in plan.json
     director settings [get <key> | set <key> <value>]   the app's settings (no arguments lists them)
-    director status   [--wait <state>] [--timeout <s>]   what the app's recorder is doing, as JSON (idle, countdown, recording, paused, saving, drafting, ready, failed); --wait blocks until that state (default timeout 600 s)
+    director status   [--wait <state>] [--timeout <s>]   what the app's recorder is doing, as JSON; --wait blocks until that state (default 600 s)
+                      states: idle, countdown, recording, paused, saving, drafting, ready, failed
     director pauses   <dir> gentle|normal|tight     re-cut silences (keeps cuts that removed words)
     director frame-camera <dir>                      center the camera on the speaker's face
     director sync-camera <dir>                       line the camera up with the voice by watching the lips

@@ -27,6 +27,10 @@ public enum AppPreferences {
   /// The Keychain service the app keeps API and S3 keys under.
   public static let keychainService = "com.joekarlsson.screencastdirector.ai"
 
+  /// Defaults the app's AI settings and `director settings` share, so the two never disagree.
+  public static let defaultAIBaseURL = "https://openrouter.ai/api/v1"
+  public static let defaultAnthropicModel = "claude-opus-5-5"
+
   /// A key the app saved in the Keychain, or nil. (From the CLI, macOS asks once to allow it.)
   public static func keychainValue(_ account: String) -> String? {
     let q: [String: Any] = [
@@ -69,8 +73,9 @@ public struct AppSetting {
     AppSetting(key: "previewVolume", kind: .number(0...1), defaultValue: "1", help: "editor preview volume"),
     AppSetting(key: "previewMuted", kind: .bool, defaultValue: "false", help: "mute the editor preview"),
     AppSetting(key: "ai.provider", kind: .choice(["claudeCode", "anthropic", "openAICompatible"]), defaultValue: "claudeCode", help: "who makes AI edits"),
-    AppSetting(key: "ai.anthropicModel", kind: .text, defaultValue: "claude-opus-5-5", help: "model for the Anthropic API provider"),
-    AppSetting(key: "ai.baseURL", kind: .text, defaultValue: "", help: "OpenAI-compatible endpoint"),
+    AppSetting(
+      key: "ai.anthropicModel", kind: .text, defaultValue: AppPreferences.defaultAnthropicModel, help: "model for the Anthropic API provider"),
+    AppSetting(key: "ai.baseURL", kind: .text, defaultValue: AppPreferences.defaultAIBaseURL, help: "OpenAI-compatible endpoint"),
     AppSetting(key: "ai.model", kind: .text, defaultValue: "", help: "model for the OpenAI-compatible endpoint"),
     AppSetting(key: "ai.doubleCheck", kind: .bool, defaultValue: "true", help: "Claude checks its edit before finishing"),
     AppSetting(key: "s3Endpoint", kind: .text, defaultValue: "", help: "S3-compatible endpoint for Upload and Copy Link"),

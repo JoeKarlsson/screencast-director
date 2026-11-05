@@ -114,15 +114,20 @@ public enum PlanCheck {
       oneOf("clips[\(i)].format", c.format, presets)
     }
 
+    for (i, ins) in plan.insertList.enumerated() { span("inserts[\(i)]", ins.start, ins.end) }
+    report.problems = out + assetProblems(plan, project: project)
+    return report
+  }
+
+  /// Files that aren't there, and effects that don't exist or don't take the params given.
+  private static func assetProblems(_ plan: Plan, project: Project) -> [String] {
+    var out: [String] = []
     // Files: in the project, absolute, or (sounds and music) in a library.
     func exists(_ path: String) -> Bool { FileManager.default.fileExists(atPath: resolvePath(path, in: project.dir).path) }
     func file(_ what: String, _ path: String?) {
       if let path, !exists(path) { out.append("\(what): no file at \(path)") }
     }
-    for (i, ins) in plan.insertList.enumerated() {
-      span("inserts[\(i)]", ins.start, ins.end)
-      file("inserts[\(i)].file", ins.file)
-    }
+    for (i, ins) in plan.insertList.enumerated() { file("inserts[\(i)].file", ins.file) }
     let sounds = AudioLibrary(.sounds), music = AudioLibrary(.music)
     for s in plan.soundEffects where !exists(s.file) && (try? sounds.entry(forPlanPath: s.file)) == nil {
       out.append("sound \(s.file) at \(fmt(s.t)): no such file in the project or the sound library")
@@ -143,8 +148,7 @@ public enum PlanCheck {
     for (i, r) in plan.effectRangeList.enumerated() {
       do { _ = try Effects.load([r.use], sources: sources) } catch { out.append("effectRanges[\(i)]: \(error.localizedDescription)") }
     }
-    report.problems = out
-    return report
+    return out
   }
 
   private static func fmt(_ v: Double) -> String { v.formatted(.number.precision(.fractionLength(0...3))) }

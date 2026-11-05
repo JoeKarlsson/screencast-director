@@ -29,7 +29,7 @@ struct EndpointPreset: Identifiable {
   let baseURL: String
   let modelHint: String
   static let all = [
-    EndpointPreset(id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", modelHint: "provider/model, e.g. openai/gpt-5"),
+    EndpointPreset(id: "openrouter", name: "OpenRouter", baseURL: AppPreferences.defaultAIBaseURL, modelHint: "provider/model, e.g. openai/gpt-5"),
     EndpointPreset(id: "openai", name: "OpenAI", baseURL: "https://api.openai.com/v1", modelHint: "e.g. gpt-5"),
     EndpointPreset(id: "litellm", name: "LiteLLM gateway", baseURL: "http://localhost:4000/v1", modelHint: "a model name your gateway routes"),
     EndpointPreset(id: "ollama", name: "Ollama (this Mac)", baseURL: "http://localhost:11434/v1", modelHint: "a pulled model, e.g. qwen3"),
@@ -64,8 +64,8 @@ final class AISettings: ObservableObject {
     defer { loading = false }
     syncSetting(self, \.doubleCheck, d.object(forKey: "ai.doubleCheck") as? Bool ?? true)
     syncSetting(self, \.provider, AIProvider(rawValue: d.string(forKey: "ai.provider") ?? "") ?? .claudeCode)
-    syncSetting(self, \.anthropicModel, d.string(forKey: "ai.anthropicModel") ?? "claude-opus-5-5")
-    syncSetting(self, \.baseURL, d.string(forKey: "ai.baseURL") ?? EndpointPreset.all[0].baseURL)
+    syncSetting(self, \.anthropicModel, d.string(forKey: "ai.anthropicModel") ?? AppPreferences.defaultAnthropicModel)
+    syncSetting(self, \.baseURL, d.string(forKey: "ai.baseURL") ?? AppPreferences.defaultAIBaseURL)
     syncSetting(self, \.model, d.string(forKey: "ai.model") ?? "")
   }
 
