@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# director, rebuilt first when its sources changed, so an agent never runs a stale build.
+# The build is a no-op when nothing changed; its output shows only when it fails.
+#
+#   bin/director <command> <dir> ...   (bin/director with no arguments lists the commands)
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if ! log=$(swift build -c release --package-path "$ROOT/macos" --product director 2>&1); then
+  echo "$log" >&2
+  exit 1
+fi
+exec "$ROOT/macos/.build/release/director" "$@"

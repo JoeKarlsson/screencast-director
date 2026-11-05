@@ -12,7 +12,7 @@ let usage = """
     director plan     <dir> [--force]
     director draft    <dir> [--force]               the app's first draft: plan, then the default profile, pause and voice settings, camera centering and lip sync
     director describe <dir>
-    director validate <dir>                         check plan.json after an edit: each problem with its JSON path; exits 1 if there are any
+    director validate <dir>                         each problem in plan.json with its JSON path (typo'd keys, bad values, overlaps, flashes); exits 1 on any
     director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
@@ -253,10 +253,11 @@ do {
     print(describe(project, try Plan.load(project.planURL)))
   case "validate":
     let project = try Project.load(dir)
+    let raw = try Data(contentsOf: project.planURL)
     let plan: Plan
-    do { plan = try Plan.load(project.planURL) } catch { fail("plan.json doesn't load: \(PlanCheck.describe(error))") }
+    do { plan = try JSONDecoder().decode(Plan.self, from: raw) } catch { fail("plan.json doesn't load: \(PlanCheck.describe(error))") }
     let templates = Set(AnimationSources(project: dir, builtIn: Animate.resources).templates().map(\.template.name))
-    let report = PlanCheck.check(plan, project: project, templates: templates)
+    let report = PlanCheck.check(plan, project: project, templates: templates, raw: raw)
     for w in report.warnings { print("warning: \(w)") }
     if report.problems.isEmpty {
       print("plan.json is valid")

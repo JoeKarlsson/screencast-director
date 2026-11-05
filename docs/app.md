@@ -102,7 +102,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 
 ![The AI provider menu: Claude Code, the Anthropic API, or any OpenAI-compatible API](media/ui-ai-provider.gif)
 
-- **Claude Code** (default): uses your Claude login, so no API key. After an edit that changes zooms or cuts, it must run `director review`, render a still at the middle of every zoom and just after every cut it changed, look at them, and fix bad framing or mid-word cuts (one fix round) before replying.
+- **Claude Code** (default): uses your Claude login, so no API key. After an edit that changes zooms or cuts, it must run `director review`, render a still at the middle of every zoom and just after every cut it changed, look at them, and fix bad framing or mid-word cuts (one fix round) before replying. It also runs `director validate` and fixes what it lists. A follow-up ask continues the same conversation while the recording is open, so "a bit tighter" knows what the last ask did; a new conversation starts after a failed ask or when you reopen the recording.
+- With any provider, when an edit leaves a problem in the plan that wasn't there before (a key that isn't a plan field, an overlap, a flash, a missing file), the ask's reply lists it.
 - **Anthropic API:** your key, stored in the Keychain.
 - **Any OpenAI-compatible endpoint:** OpenRouter, OpenAI, a gateway such as LiteLLM, or Ollama. Fill in the base URL, model and an optional key.
 
@@ -134,7 +135,7 @@ They follow Screen Studio's defaults. ⌘/ lists them all.
 
 ## Headless
 
-`macos/.build/release/director` runs `analyze`, `plan`, `describe`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore`, `profile`, `join`, `gif` and `upload` without the UI:
+`bin/director` (rebuilt when its sources changed) runs `analyze`, `plan`, `describe`, `validate`, `review`, `render`, `still`, `publish`, `pauses`, `frame-camera`, `cut`, `restore`, `profile`, `join`, `gif` and `upload` without the UI:
 
 ```sh
 director render <project-dir> --preset vertical

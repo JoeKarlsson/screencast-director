@@ -1,0 +1,27 @@
+---
+paths:
+  - "macos/Sources/DirectorCore/Scene*.swift"
+  - "macos/Sources/DirectorCore/Composition.swift"
+  - "macos/Sources/DirectorCore/Compositor.swift"
+  - "macos/Sources/DirectorCore/Motion.swift"
+  - "macos/Sources/DirectorCore/Timeline*.swift"
+  - "macos/Sources/DirectorCore/Animation*.swift"
+  - "macos/Sources/DirectorCore/Effects.swift"
+  - "macos/Sources/DirectorCore/SafeArea.swift"
+  - "macos/Sources/director/Animate.swift"
+  - "macos/Resources/animations/**"
+  - "macos/Tests/Playback.swift"
+  - "macos/Tests/ChecksScene.swift"
+---
+
+# Renderer
+
+- `Scene` draws a frame with Core Image + CoreText, `Composition` builds the AVComposition (cuts and speed as edits, muting and fades in an audio mix) with a custom compositor. The same composition feeds the preview player and the export.
+- The camera eases asymmetrically (`cameraAt(lead:tail:)`: zooms start 0.3 s early with a 1.6x ease-out tail), with motion blur during moves; word timings snap to loudness at load (`WordTiming`).
+- Motion (`Motion.swift`): `style.motion` picks a `MotionStyle`; the camera and layouts move through `EasedSteps` (explicit eased moves; scale in log space about the zoom's fixed point) except in `classic`, which keeps the windowed `cameraAt`/`layoutAt`. Overlays get an `OverlayPose` from `Motion.pose`; `Scene.animated` draws a posed overlay, blurring it on its own layer when needed.
+- Crossfades (`segments[i].transition: "crossfade"`) keep the video's length: a second screen track (`handleTrack` in Composition.swift) carries the next clip's source just before the cut and the previous clip's just after, and `Scene.render` dissolves toward it (`crossfadeMix`). Like every track it's padded to the instruction's end.
+- Every composition track must end exactly at the instruction's end. A camera track a few milliseconds long (scaled-range rounding) makes AVPlayer render nothing, black and silent, while `AVAssetImageGenerator` and export still work, so `director still` can't catch it. `buildComposition` trims to the frame count. Test playback with an `AVPlayerItemVideoOutput`, not just stills.
+- An `AVAssetTrack` does not keep its `AVURLAsset` alive. Inserting from a track whose asset was freed fails with the unhelpful -11800/-12780; keep the asset in scope (see `camAsset` in Composition.swift).
+- `annotations` rectangles are screen fractions mapped through `screenMap`, so they follow zooms; `blur` ones are applied to the frame in `privacyBlurs` before overlays.
+- Animations (`Animation.swift`, `director/Animate.swift`, `Resources/animations/`): HTML/JS templates rendered by `director animate` with an offscreen WKWebView (init(config) once, seek(t) per frame at 12 fps, snapshots into an H.264 clip in `.animations/`, named by a hash of the data, cues, length and size). WebKit stays out of DirectorCore and the app process; the app runs the bundled `director animate` when a clip is missing (`renderAnimationsIfNeeded`) and won't export until it exists. Rendered clips join `inserts` as full-frame B-roll in `Scene`, after the plan's own, but get their own timeline row and `Selection.animation`. Each template has a `.json` manifest (`AnimationTemplate`: fields, cues, starting data) that the inspector's `AnimationEditor` and the ✦ Animate button are built from. `AnimationSources` finds templates and logos in the video's `animations/` folder, then the personal library, then the bundle; the renderer injects the template's script and passes logos as file URLs. Templates freeze into the video on first use, and `clipPath` hashes the frozen copy, so library changes never touch a finished video. The page code must await WebKit (callAsyncJavaScript, takeSnapshot), never spin the run loop: the CLI's top level is async, so spinning blocks the main queue WebKit calls back on. The `/animate` skill covers adding one.
+- Animation template scripts run in JavaScriptCore in `Checks.swift` (`animationScripts`: the real engine.js and templates against a stand-in page), so template logic like which logos fill the hub's field is checked without WebKit.

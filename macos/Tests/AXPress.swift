@@ -12,10 +12,13 @@ import Foundation
 //   axpress <pid> field-value <placeholder>  print that text field's text
 //   axpress <pid> click-title               a real mouse click on the middle of the first window's title bar
 //   axpress <pid> drag <x1> <y1> <x2> <y2>  a real mouse drag between two screen points, in small steps
+//   axpress <pid> window-id                 print the window number of its largest on-screen window
+//                                           (for `screencapture -l`), or exit 1 when it has none yet
 
 let args = CommandLine.arguments
 func usage() -> Never {
-  FileHandle.standardError.write(Data("usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2>\n".utf8))
+  FileHandle.standardError.write(
+    Data("usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2> | window-id\n".utf8))
   exit(2)
 }
 guard args.count >= 3, let pid = pid_t(args[1]) else { usage() }
@@ -112,6 +115,15 @@ case "drag":
   usleep(200_000)
   post(.leftMouseUp, x2, y2)
   print("dragged")
+case "window-id":
+  let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]) ?? []
+  let mine = windows.filter { ($0[kCGWindowOwnerPID as String] as? Int32) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+  func area(_ w: [String: Any]) -> Double {
+    let b = w[kCGWindowBounds as String] as? [String: Double] ?? [:]
+    return (b["Width"] ?? 0) * (b["Height"] ?? 0)
+  }
+  guard let window = mine.max(by: { area($0) < area($1) }), let number = window[kCGWindowNumber as String] as? Int else { exit(1) }
+  print(number)
 default:
   usage()
 }

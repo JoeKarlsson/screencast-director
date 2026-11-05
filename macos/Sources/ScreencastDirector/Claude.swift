@@ -65,6 +65,7 @@ enum Claude {
           let cmd = (input["command"] as? String ?? "").replacingOccurrences(of: director, with: "director")
           if cmd.contains("director describe") { return .step("Reading the timeline") }
           if cmd.contains("director review") { return .step("Reviewing zooms and cuts") }
+          if cmd.contains("director validate") { return .step("Checking the plan") }
           if cmd.contains("director still") {
             let frame = cmd.split(separator: " ").dropFirst(3).first.map(String.init) ?? ""
             return .step("Checking frame \(frame)")
@@ -79,11 +80,13 @@ enum Claude {
     }
   }
 
-  /// How an edit ended: Claude Code's exit status and the end of what it wrote to stderr (why it
-  /// stopped, when it fails before saying anything: not signed in, rate limited, a crash).
+  /// How an edit ended: Claude Code's exit status, the end of what it wrote to stderr (why it
+  /// stopped, when it fails before saying anything: not signed in, rate limited, a crash), and the
+  /// session it ran in, for the next ask to resume.
   struct Outcome {
     var status: Int32
     var errors: String
+    var session: String?
   }
 
   /// Claude processes still running, so quitting the app can stop them instead of leaving them
@@ -92,8 +95,9 @@ enum Claude {
 
   static func stopAll() { running.terminateAll() }
 
-  /// Runs the edit, reporting steps and text as it goes. Cancelling the calling task stops Claude.
-  static func edit(project: URL, instruction: String, onEvent: @escaping @Sendable (Event) -> Void) async throws -> Outcome {
+  /// Runs the edit, reporting steps and text as it goes, continuing session `resume` when given.
+  /// Cancelling the calling task stops Claude.
+  static func edit(project: URL, instruction: String, resume: String?, onEvent: @escaping @Sendable (Event) -> Void) async throws -> Outcome {
     guard let claude = executable else {
       throw NSError(
         domain: "Claude", code: 1, userInfo: [NSLocalizedDescriptionKey: "Claude Code isn't installed (no `claude` on your PATH)."])
@@ -107,38 +111,22 @@ enum Claude {
     let p = Process()
     p.executableURL = claude
     p.currentDirectoryURL = project
-    // Read the project, edit only plan.json and run the director commands that check the edit or
-    // write only this project's plan (validate; profile and template freeze/update, which copy from
-    // the user's library). Not `add` (it would copy any file on disk into the project, where Read
-    // reaches it) or `template save` (it writes the library other videos use). A recording folder
-    // isn't trusted: no settings files load at all (a project's .claude/ hooks, and also the user's
-    // own allow rules, which would let it run any command they allow), and Write and edits to
-    // .claude/ are denied outright. SD_ONLY_PROJECT makes director refuse any other folder, since
-    // the allow rules match a prefix ("profile ." also matches "profile ../other").
+    // SD_ONLY_PROJECT makes director refuse any other folder, since the allow rules match a prefix
+    // ("profile ." also matches "profile ../other"). ClaudeEdit.arguments says what else it may run.
     p.environment = ProcessInfo.processInfo.environment.merging(["SD_ONLY_PROJECT": project.path]) { $1 }
-    p.arguments = [
-      "-p", instruction,
-      "--append-system-prompt", system,
-      "--output-format", "stream-json", "--verbose",
-      "--permission-mode", "acceptEdits",
-      "--setting-sources", "",
-      "--strict-mcp-config",
-      "--tools", "Read,Edit,Bash",
-      "--allowedTools", "Read(./**)", "Edit(./plan.json)",
-      "Bash(\(dir) describe:*)", "Bash(\(dir) still:*)", "Bash(\(dir) review:*)", "Bash(\(dir) validate:*)",
-      "Bash(\(dir) profiles)", "Bash(\(dir) profile .:*)", "Bash(\(dir) template . freeze:*)", "Bash(\(dir) template . update:*)",
-      "--disallowedTools", "Write", "Edit(./.claude/**)", "Read(./.claude/**)", "WebFetch", "WebSearch",
-    ]
+    p.arguments = ClaudeEdit.arguments(instruction: instruction, systemPrompt: system, director: dir, resume: resume)
     let pipe = Pipe()
     p.standardOutput = pipe
     let errPipe = Pipe()
     p.standardError = errPipe
     // stream-json is one JSON object per line; a read can end mid-line, so keep the remainder.
     let buffer = LineBuffer()
+    let session = SessionID()
     pipe.fileHandleForReading.readabilityHandler = { h in
       let data = h.availableData
       guard !data.isEmpty else { return }
       for line in buffer.append(data) {
+        if let id = ClaudeEdit.sessionID(line) { session.set(id) }
         for e in events(line, director: dir) { onEvent(e) }
       }
     }
@@ -166,7 +154,25 @@ enum Claude {
         onEvent(.text("Kept the previous \(reverted.joined(separator: ", ")): the edit pointed outside the project folder."))
       }
     }
-    return Outcome(status: p.terminationStatus, errors: errors.text)
+    return Outcome(status: p.terminationStatus, errors: errors.text, session: session.id)
+  }
+}
+
+/// The session id a running edit reported, written from the output handler's thread.
+final class SessionID: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value: String?
+
+  func set(_ id: String) {
+    lock.lock()
+    value = id
+    lock.unlock()
+  }
+
+  var id: String? {
+    lock.lock()
+    defer { lock.unlock() }
+    return value
   }
 }
 

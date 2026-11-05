@@ -73,7 +73,7 @@ extension ProjectModel {
       defer { finishAsk(n, outcome) }
       do {
         try await readScreenTextIfNeeded()
-        let result = try await Claude.edit(project: dir, instruction: request) { event in
+        let result = try await Claude.edit(project: dir, instruction: request, resume: claudeSession) { event in
           Task { @MainActor in
             guard self.asks.indices.contains(n) else { return }
             switch event {
@@ -85,6 +85,8 @@ extension ProjectModel {
           }
         }
         instruction = ""
+        // A failed resume (the session expired) mustn't fail every ask after it.
+        claudeSession = result.status == 0 ? result.session : nil
         if Task.isCancelled {
           status = "Stopped. ⌘Z undoes anything it changed."
           outcome = "Stopped. What it already changed stays, and ⌘Z undoes it."
@@ -126,7 +128,21 @@ extension ProjectModel {
       let ranges = changedRanges(from: old, to: new)
       if !ranges.isEmpty { aiChange = (UUID(), ranges) }
       if asks.indices.contains(n) { asks[n].changes = planChanges(from: old, to: new) }
+      reportNewProblems(n, before: old, after: new)
     }
+  }
+
+  /// Adds what `director validate` finds in the edited plan that wasn't wrong before it (an ignored
+  /// key, an overlap, a flash), so a bad edit says so instead of quietly doing nothing.
+  private func reportNewProblems(_ n: Int, before: Plan, after: Plan) {
+    guard let project, before != after, asks.indices.contains(n) else { return }
+    let known = Set(PlanCheck.check(before, project: project, templates: nil).problems)
+    let raw = try? Data(contentsOf: planURL)
+    let new = PlanCheck.check(after, project: project, templates: nil, raw: raw).problems.filter { !known.contains($0) }
+    guard !new.isEmpty else { return }
+    let count = new.count == 1 ? "a problem" : "\(new.count) problems"
+    asks[n].reply += "\n\nThe edit left \(count) in the plan:\n" + new.map { "• \($0)" }.joined(separator: "\n")
+    saveAsks()
   }
 
   /// The app is quitting: stop any Claude still editing (or it carries on in the background,

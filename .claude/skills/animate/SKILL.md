@@ -18,7 +18,7 @@ A video freezes every template it uses: the first render (or adding one in the a
 
 ## 1. Find the stretch and its words
 
-Run `bin/sd describe <name>` (or `macos/.build/release/director describe <dir>`) and read `transcript.json` (`segments[].words[]` with `word`, `start`, `end` in source seconds). The animation's `start` is the first word's start and its `end` is where the speaker moves on. Check that the stretch is kept in the edit (inside `segments`). Don't cover a camera punch-in (`camera.punchIns`) or a moment where the screen matters.
+Run `bin/sd describe <name>` (or `bin/director describe <dir>`) and read `transcript.json` (`segments[].words[]` with `word`, `start`, `end` in source seconds). The animation's `start` is the first word's start and its `end` is where the speaker moves on. Check that the stretch is kept in the edit (inside `segments`). Don't cover a camera punch-in (`camera.punchIns`) or a moment where the screen matters.
 
 ## 2. Pick a template
 
@@ -48,7 +48,7 @@ Logos come from each folder's `logos/logos.json` (display name → file in that 
 }]
 ```
 
-Run `macos/.build/release/director animate <dir>` (about a minute per 20 s of animation) and look at stills at each beat: `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word.
+Run `bin/director animate <dir>` (about a minute per 20 s of animation) and look at stills at each beat: `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word.
 
 ## Writing a template for one video
 

@@ -52,6 +52,9 @@ final class ProjectModel: ObservableObject {
   /// id each time, so the same ranges flash again.
   @Published var aiChange: (id: UUID, ranges: [(Double, Double)])?
   var planBeforeAsk: Plan?
+  /// The Claude Code session the last ask ran in, resumed by the next one so a follow-up knows what
+  /// it did. Gone when the recording closes, or after an ask that failed.
+  var claudeSession: String?
   /// Claude Code is writing plan.json. Edits here would race its writes, so they wait.
   @Published var aiEditing = false
   @Published private(set) var canUndo = false

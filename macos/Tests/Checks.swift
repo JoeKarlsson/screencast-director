@@ -921,6 +921,8 @@ struct Checks {
     recordedBrollChecks()
     reorderChecks()
     planFileChecks()
+    planCheckExtraChecks()
+    claudeEditChecks()
     timelineRowChecks()
     punchInChecks()
     checkEditChecks()

@@ -159,6 +159,9 @@ expect_error "validate names a zoom off the screen by its path" "zooms[" "$DIREC
 plan_py "plan['segments'][0]['speed'] = 'fast'; json.dump(plan, open('$P/plan.json', 'w'))"
 expect_error "validate shows where plan.json stops loading" "segments[0].speed: expected a number" "$DIRECTOR" validate "$P"
 cp "$TMP/draft.json" "$P/plan.json"
+plan_py "plan['captionz'] = {'enabled': True}; json.dump(plan, open('$P/plan.json', 'w'))"
+expect_error "validate names a misspelled key" "captionz isn't a field here" "$DIRECTOR" validate "$P"
+cp "$TMP/draft.json" "$P/plan.json"
 
 # --- the recorder's status (the app writes it; here a stand-in file)
 check "status with no recording yet is idle" grep -q '"state" : "idle"' <<<"$("$DIRECTOR" status)"

@@ -12,10 +12,13 @@ Each release lists what changed for people using the app or the CLI. The version
   - `director add` copies B-roll, a LUT (checked first), music, a logo or a font into a project.
   - `director settings` reads and changes the app's settings.
   - `director upload` uses the bucket from Settings › Sharing when no `S3_*` variables are set.
-  - `director validate` checks `plan.json` after a hand edit and lists each problem with its JSON path. It catches positions off the screen, overlapping segments, unknown styles, templates and effects, and missing files.
+  - `director validate` checks `plan.json` after a hand edit and lists each problem with its JSON path. It catches keys that aren't plan fields (a typo like `"styl"` used to do nothing, silently), positions off the screen, overlapping segments, unknown styles, eases, templates and effects, missing files, titles, zooms and B-roll on screen under a second, and every warning `describe` prints. `bin/director` runs it (and every other command), rebuilding first when the sources changed.
   - `director status` shows what the recorder is doing, and `--wait ready` blocks until a new recording is saved, drafted and named.
 - The app picks up settings changed by `director settings set` when it comes to the front, so it no longer needs a restart.
 - The Claude box can apply a saved profile ("use my CData look"), freeze or update an animation template, and runs `validate` on its own edits. Every command it runs is held to the open project.
+- In this repo, Claude Code runs `director validate` after every plan.json edit and fixes what it finds.
+- When a Claude box ask leaves a new problem in the plan, its reply lists it. Follow-up asks continue the same conversation, so "a bit tighter" knows what the last ask did. It also knows about voice settings, effects, intro and outro cards, the look, the cursor and cover moments, which it couldn't edit before.
+- `macos/app-shot.sh` screenshots the editor on a copy of a recording, for checking a UI change without touching the real project.
 - `screencastdirector://` links drive recording in the running app (`record/start`, `stop`, `pause`, `resume`, `restart`, `discard`, `retake`) and open a recording (`open?project=<folder>`).
 - Rendering an animation from the CLI while the app has the same video open no longer breaks either render. Each one cleaned up the other's in-progress file, and the app could hang.
 

@@ -20,15 +20,7 @@ PROJECTS="${SD_PROJECTS:-$ROOT/projects}"
 DIRECTOR="${SD_DIRECTOR:-}"
 
 die() { echo "sd: $*" >&2; exit 1; }
-director() {
-  if [ -z "$DIRECTOR" ]; then
-    # A no-op when nothing changed, so sd never runs a stale build.
-    swift build -c release --package-path "$ROOT/macos" --product director >&2
-    "$ROOT/macos/.build/release/director" "$@"
-  else
-    "$DIRECTOR" "$@"
-  fi
-}
+director() { "${DIRECTOR:-$ROOT/bin/director}" "$@"; }
 project_dir() { [ -n "${1:-}" ] || die "missing project name"; echo "$PROJECTS/$1"; }
 need_project() { [ -f "$1/source.json" ] || die "no project at $1 (record it in the app, or sd import)"; }
 
