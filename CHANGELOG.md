@@ -18,6 +18,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - The Claude box can apply a saved profile ("use my CData look"), freeze or update an animation template, and runs `validate` on its own edits. Every command it runs is held to the open project.
 - In this repo, Claude Code runs `director validate` after every plan.json edit and fixes what it finds.
 - When a Claude box ask leaves a new problem in the plan, its reply lists it. Follow-up asks continue the same conversation, so "a bit tighter" knows what the last ask did. It also knows about voice settings, effects, intro and outro cards, the look, the cursor and cover moments, which it couldn't edit before.
+- The Claude box cuts, restores, moves and repeats stretches with the same commands as the CLI, and re-cuts the pauses ("tighten the pauses"), so a cold open keeps its zooms, titles and captions with it.
 - `macos/app-shot.sh` screenshots the editor on a copy of a recording, for checking a UI change without touching the real project.
 - `screencastdirector://` links drive recording in the running app (`record/start`, `stop`, `pause`, `resume`, `restart`, `discard`, `retake`) and open a recording (`open?project=<folder>`).
 - Rendering an animation from the CLI while the app has the same video open no longer breaks either render. Each one cleaned up the other's in-progress file, and the app could hang.

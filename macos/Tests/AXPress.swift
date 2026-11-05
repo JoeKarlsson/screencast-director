@@ -14,11 +14,15 @@ import Foundation
 //   axpress <pid> drag <x1> <y1> <x2> <y2>  a real mouse drag between two screen points, in small steps
 //   axpress <pid> window-id                 print the window number of its largest on-screen window
 //                                           (for `screencapture -l`), or exit 1 when it has none yet
+//   axpress <pid> focused                   print the focused element: role, placeholder, help and value
+//   axpress <pid> key <code>                press and release a key (virtual key code) in this process only
 
 let args = CommandLine.arguments
 func usage() -> Never {
   FileHandle.standardError.write(
-    Data("usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2> | window-id\n".utf8))
+    Data(
+      "usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2> | window-id | focused | key <code>\n"
+        .utf8))
   exit(2)
 }
 guard args.count >= 3, let pid = pid_t(args[1]) else { usage() }
@@ -115,6 +119,23 @@ case "drag":
   usleep(200_000)
   post(.leftMouseUp, x2, y2)
   print("dragged")
+case "key":
+  // Straight to this process, not to whatever app is in front (System Events' `key code` goes to
+  // the frontmost app, and with the installed copy open that's a race).
+  guard args.count == 4, let code = CGKeyCode(args[3]) else { usage() }
+  CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey: code, keyDown: true)?.postToPid(pid)
+  usleep(30_000)
+  print("sent")
+case "focused":
+  guard let element: AXUIElement = attribute(app, kAXFocusedUIElementAttribute) else {
+    print("nothing")
+    exit(0)
+  }
+  let parts = [kAXRoleAttribute, kAXPlaceholderValueAttribute, kAXHelpAttribute, kAXValueAttribute].map { name -> String in
+    let value: String? = attribute(element, name)
+    return value ?? "-"
+  }
+  print(parts.joined(separator: " | "))
 case "window-id":
   let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]) ?? []
   let mine = windows.filter { ($0[kCGWindowOwnerPID as String] as? Int32) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }

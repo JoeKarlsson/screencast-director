@@ -9,6 +9,9 @@ func claudeEditChecks() {
   expect(!fresh.contains("--resume"), "a first ask starts a new session")
   expect(fresh.contains("Bash('/A/director' validate:*)"), "the edit may run director validate")
   expect(!fresh.contains { $0.contains(" add") || $0.contains("template . save") }, "the edit may not run add or template save")
+  for command in ["cut", "restore", "move", "repeat", "pauses"] {
+    expect(fresh.contains("Bash('/A/director' \(command) .:*)"), "the edit may run director \(command) on its own project")
+  }
   expect(fresh.contains("Edit(./plan.json)") && !fresh.contains("Edit(./**)"), "the edit may change only plan.json")
   expect(fresh.firstIndex(of: "--setting-sources").map { fresh[$0 + 1] } == "", "no settings files load")
   expect(fresh.firstIndex(of: "--disallowedTools").map { fresh[($0 + 1)...].contains("Write") } == true, "Write is denied")

@@ -178,6 +178,12 @@ rm "$SD_SUPPORT_DIR/recording.json"
 # --- SD_ONLY_PROJECT (the app's Claude box): commands stay in the project being edited
 expect_error "a locked run refuses another folder" "may only work on" env SD_ONLY_PROJECT="$P" "$DIRECTOR" profile "$P/.." Personal
 check "a locked run works on its own project" env SD_ONLY_PROJECT="$P" "$DIRECTOR" validate "$P"
+# The Claude box runs segment edits as `cut . <start> <end>` from inside the project.
+cp "$P/plan.json" "$TMP/locked.json"
+locked_cut() { (cd "$P" && SD_ONLY_PROJECT="$P" "$DIRECTOR" cut . 1 1.5 >/dev/null); }
+check "a locked run cuts its own project as ." locked_cut
+check "the cut from inside the project landed" plan_py "sys.exit(0 if not any(s['start'] <= 1.2 < s['end'] for s in plan['segments']) else 1)"
+cp "$TMP/locked.json" "$P/plan.json"
 
 # --- animation templates and project files
 out=$("$DIRECTOR" template "$P" freeze storyboard)
@@ -203,8 +209,9 @@ expect_error "add of an unknown kind prints usage" "usage:" "$DIRECTOR" add "$P"
 want=$(output_seconds)
 check "render writes the video at the plan's size ($(dims "$TMP/out.mp4"))" test "$(dims "$TMP/out.mp4")" = "480x270"
 check "the video is as long as the plan ($(stream_duration "$TMP/out.mp4" v) vs $want s)" near "$(stream_duration "$TMP/out.mp4" v)" "$want" 0.02
-# AAC pads its last packets, by a varying amount, so the sound can run a little past the picture.
-check "the sound runs the length of the video ($(stream_duration "$TMP/out.mp4" a) s)" near "$(stream_duration "$TMP/out.mp4" a)" "$want" 0.2
+# AAC pads its last packets, by a varying amount (0.26 s seen on 2026-11-04), so the sound can run a
+# little past the picture.
+check "the sound runs the length of the video ($(stream_duration "$TMP/out.mp4" a) s)" near "$(stream_duration "$TMP/out.mp4" a)" "$want" 0.35
 scan=$("$DIRECTOR" scan "$TMP/out.mp4")
 check "scan finds no short shots in the render ($scan)" test "$scan" = "No shots under a second."
 dbg=$("$DIRECTOR" debug "$P")

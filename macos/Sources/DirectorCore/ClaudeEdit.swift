@@ -4,12 +4,14 @@ import Foundation
 // here so test.sh checks them (the app runs the process, in ScreencastDirector/Claude.swift).
 public enum ClaudeEdit {
   /// The director commands the edit may run (allow-rule patterns after the director's path): the ones
-  /// that check the edit, and the ones that write only this project's plan (profile, and template
-  /// freeze/update, which copy from the user's library). Not `add` (it would copy any file on disk
-  /// into the project, where Read reaches it) or `template save` (it writes the library other
-  /// videos use).
+  /// that check the edit, and the ones that write only this project's plan (profile, template
+  /// freeze/update, which copy from the user's library, and the segment edits, which keep every
+  /// timed item with its clip, where a hand edit of `segments` easily leaves them behind). Not `add`
+  /// (it would copy any file on disk into the project, where Read reaches it) or `template save` (it
+  /// writes the library other videos use).
   public static let directorCommands = [
     "describe:*", "still:*", "review:*", "validate:*", "profiles", "profile .:*", "template . freeze:*", "template . update:*",
+    "cut .:*", "restore .:*", "move .:*", "repeat .:*", "pauses .:*",
   ]
 
   /// Arguments for an edit in the project folder. `director` is the quoted path Claude is told to

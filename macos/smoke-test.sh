@@ -130,11 +130,20 @@ echo "ok: inspector shows: $inspector"
 [[ "$(segments)" == "$original" ]] || fail "selecting a clip changed plan.json"
 
 # 3. S changes the selected clip's speed, and it's saved.
-front
-ax 'key code 1' >/dev/null # S
-for _ in $(seq 1 20); do [[ "$(last_speed)" != 1 ]] && break; sleep 0.2; done
+press_s() {
+  front
+  "$AXPRESS" "$PID" key 1 >/dev/null # S
+  for _ in $(seq 1 20); do [[ "$(last_speed)" != 1 ]] && return 0; sleep 0.2; done
+  return 1
+}
+if ! press_s; then
+  # The key went somewhere else (a text field had focus, or another app took the front). Say where,
+  # then try once more, so a lost key press shows up in the log instead of failing the run unexplained.
+  echo "S was lost (front: $(osascript -e 'tell application "System Events" to name of first process whose frontmost is true'), focused: $("$AXPRESS" "$PID" focused), Claude box: \"$("$AXPRESS" "$PID" field-value "Ask *")\"); pressing again"
+  press_s || true
+fi
 speed="$(last_speed)"
-[[ "$speed" != 1 ]] || fail "S didn't change the clip's speed in plan.json"
+[[ "$speed" != 1 ]] || fail "S didn't change the clip's speed in plan.json (twice)"
 echo "ok: S set the clip to ${speed}x in plan.json"
 
 # 4. ⌘Z undoes it.
@@ -154,7 +163,7 @@ sleep 0.5
 ax "perform action \"AXPress\" of button $clip_bar of $TIMELINE" >/dev/null
 sleep 0.6
 front
-ax 'key code 1' >/dev/null # S
+"$AXPRESS" "$PID" key 1 >/dev/null # S
 for _ in $(seq 1 20); do [[ "$(last_speed)" != 1 ]] && break; sleep 0.2; done
 [[ "$(last_speed)" != 1 ]] || fail "after clicking outside the Claude box, S still went to the box (it holds \"$("$AXPRESS" "$PID" field-value "Ask *")\")"
 [[ -z "$("$AXPRESS" "$PID" field-value "Ask *")" ]] || fail "S typed into the Claude box after clicking outside it (it holds \"$("$AXPRESS" "$PID" field-value "Ask *")\")"
@@ -204,8 +213,15 @@ press_help() { "$AXPRESS" "$PID" help "$1"; }
 [[ "$(press_help "Audio")" == pressed ]] || fail "no Audio tab in the inspector"
 sleep 1
 [[ "$(press_help "Pick a sound effect to add at the playhead")" == pressed ]] || fail "no Add Sound Effect button in the Audio tab"
-sleep 1
-[[ "$(press_help "Add pop at the playhead")" == pressed ]] || fail "the sound picker didn't list pop"
+# The picker lists the personal library too (it's the real one: the test instance shares the app's
+# support folder), which can take a few seconds to fill in, so wait for the button.
+picked=""
+for _ in $(seq 1 20); do
+  picked="$(press_help "Add pop at the playhead")"
+  [[ "$picked" == pressed ]] && break
+  sleep 0.5
+done
+[[ "$picked" == pressed ]] || fail "the sound picker didn't list pop within 10 s"
 sounds() { python3 -c 'import json,sys; print(" ".join(e["file"] for e in json.load(open(sys.argv[1])).get("sfx") or []))' "$PROJECT/plan.json"; }
 for _ in $(seq 1 20); do [[ "$(sounds)" == *sfx/pop.m4a* ]] && break; sleep 0.2; done
 [[ "$(sounds)" == *sfx/pop.m4a* ]] || fail "adding pop didn't reach plan.json (sfx: $(sounds))"
