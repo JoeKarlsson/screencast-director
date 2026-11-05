@@ -209,9 +209,13 @@ expect_error "add of an unknown kind prints usage" "usage:" "$DIRECTOR" add "$P"
 want=$(output_seconds)
 check "render writes the video at the plan's size ($(dims "$TMP/out.mp4"))" test "$(dims "$TMP/out.mp4")" = "480x270"
 check "the video is as long as the plan ($(stream_duration "$TMP/out.mp4" v) vs $want s)" near "$(stream_duration "$TMP/out.mp4" v)" "$want" 0.02
-# AAC pads its last packets, by a varying amount (0.26 s seen on 2026-11-04), so the sound can run a
-# little past the picture.
-check "the sound runs the length of the video ($(stream_duration "$TMP/out.mp4" a) s)" near "$(stream_duration "$TMP/out.mp4" a)" "$want" 0.35
+# What this guards against: sound cut short of the picture, or a mix left running past it. AAC pads
+# its last packets by a varying amount (0.02-0.26 s seen), which only ever adds time, so the sound
+# must reach the end and stop within a second of it; the exact padding isn't checked.
+sound_spans_video() {
+  python3 -c "import sys; a, v = map(float, sys.argv[1:]); sys.exit(0 if v - 0.02 <= a <= v + 1 else 1)" "$(stream_duration "$TMP/out.mp4" a)" "$want"
+}
+check "the sound runs the length of the video ($(stream_duration "$TMP/out.mp4" a) s for $want s)" sound_spans_video
 scan=$("$DIRECTOR" scan "$TMP/out.mp4")
 check "scan finds no short shots in the render ($scan)" test "$scan" = "No shots under a second."
 dbg=$("$DIRECTOR" debug "$P")
