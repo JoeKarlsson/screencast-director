@@ -55,7 +55,7 @@ extension Scene {
         ? (seam.map { $0 - size.height / 2 } ?? H * 0.64)
         : H - (ins.fullBleed ? ins.safe : H * 0.07) - size.height - (bold ? 40 : 24) * u)
     // A big chapter's block covers the bottom of the frame: the words move up above it and its chip.
-    if let blockTop = bigChapterTop(at: f) { top = min(top, blockTop - boxH - 110 * u) }
+    if let blockTop = bigChapterTop(at: f, camBox: camBox) { top = min(top, blockTop - boxH - 110 * u) }
     let rect = CGRect(x: centerX - boxW / 2, y: top, width: boxW, height: boxH)
     let pose =
       motion.name == "classic"

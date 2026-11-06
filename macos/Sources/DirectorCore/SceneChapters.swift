@@ -7,9 +7,6 @@ import Foundation
 // in a chip, and crayon rays and a coil draw in. The block drops away at the end.
 
 extension Scene {
-  /// The block's share of the frame's height.
-  static let bigChapterBlock = 0.38
-
   /// The visible big chapter at an output frame, if any.
   func bigChapter(at f: Double) -> (s: Double, e: Double, c: Callout)? {
     guard look.chapterStyle == "big" else { return nil }
@@ -25,10 +22,23 @@ extension Scene {
     return up * (1 - down * down)
   }
 
+  /// Where the block sits: as tall as its words, standing on the bottom of the frame, or, when the
+  /// camera is a band across the bottom (the portrait split), on the camera's top edge so the face
+  /// stays clear. Also returns the words, sized to fit.
+  func bigChapterLayout(_ ch: (s: Double, e: Double, c: Callout), camBox: Box?) -> (block: CGRect, words: NSAttributedString, size: CGSize) {
+    let side = min(W, H)
+    let (words, measured) = bigChapterWords(ch.c.text, maxWidth: W * 0.9, maxHeight: side * 0.26, size: side * 0.11)
+    // Room above for the label chip's lower half and the rays, below for the coil under the words.
+    let blockH = measured.height + side * 0.07 + measured.height * 0.3
+    let bottom = camBox.flatMap { $0.y > 1 && $0.opacity > 0.5 && $0.w > W * 0.6 ? $0.y : nil } ?? H
+    return (CGRect(x: 0, y: bottom - blockH, width: W, height: blockH), words, measured)
+  }
+
   /// The top of the block at `f` (top-left coordinates), for captions to stay above; nil without one.
-  func bigChapterTop(at f: Double) -> Double? {
+  func bigChapterTop(at f: Double, camBox: Box?) -> Double? {
     guard let ch = bigChapter(at: f) else { return nil }
-    return H - H * Scene.bigChapterBlock * bigChapterRise(ch, at: f)
+    let block = bigChapterLayout(ch, camBox: camBox).block
+    return block.maxY - block.height * bigChapterRise(ch, at: f)
   }
 
   /// The chapter's words, as big as `size` or shrunk so they fit the block: no taller than
@@ -52,20 +62,27 @@ extension Scene {
     return (s, m)
   }
 
-  func drawBigChapter(_ ctx: CGContext, _ ch: (s: Double, e: Double, c: Callout), frame f: Double) {
+  func drawBigChapter(_ ctx: CGContext, _ ch: (s: Double, e: Double, c: Callout), frame f: Double, camBox: Box?) {
     let fps = Double(plan.output.fps)
     let t = (f - ch.s) / fps
     let rise = bigChapterRise(ch, at: f)
     guard rise > 0.001 else { return }
-    let blockH = H * Scene.bigChapterBlock
-    let top = H - blockH * rise
+    let (block, words, measured) = bigChapterLayout(ch, camBox: camBox)
+    let blockH = block.height
+    // It rises from its bottom edge, drawn only inside its own band.
+    let top = block.maxY - blockH * rise
     let accent = Scene.color(look.accent ?? "#FF4FD8")
+    ctx.saveGState()
+    ctx.clip(to: CGRect(x: 0, y: top, width: W, height: block.maxY - top))
     ctx.setFillColor(Scene.color(look.chipBackground ?? "#000000"))
-    ctx.fill(CGRect(x: 0, y: top, width: W, height: H - top + 1))
-
-    let left = W * 0.05, maxW = W * 0.9
-    let (words, measured) = bigChapterWords(ch.c.text, maxWidth: maxW, maxHeight: blockH * 0.78, size: blockH * 0.4)
-    let textTop = top + blockH * 0.1
+    ctx.fill(CGRect(x: 0, y: top, width: W, height: block.maxY - top))
+    ctx.restoreGState()
+    // Nothing spills below the block onto the camera while it rises.
+    ctx.saveGState()
+    defer { ctx.restoreGState() }
+    ctx.clip(to: CGRect(x: 0, y: 0, width: W, height: block.maxY))
+    let left = W * 0.05
+    let textTop = top + min(W, H) * 0.07
     let shown = min(1, max(0, (t - 0.15) / 0.25))
     if shown > 0 {
       ctx.saveGState()
@@ -76,13 +93,16 @@ extension Scene {
 
     let boil = Int(t * 6)
     // Rays over the end of the first line, a coil under the words.
-    let raysW = W * 0.2, raysRect = CGRect(x: min(left + measured.width - raysW * 0.2, W - raysW * 1.05), y: textTop - raysW * 0.55, width: raysW, height: raysW * 0.75)
+    let raysW = min(W * 0.2, measured.height * 1.1)
+    let raysRect = CGRect(x: min(left + measured.width - raysW * 0.2, W - raysW * 1.05), y: textTop - raysW * 0.55, width: raysW, height: raysW * 0.75)
     let rays = Scribble.rays
     rays.draw(ctx, in: raysRect, color: accent, lineWidth: max(4 * u, 9 * raysW / rays.size.width),
       shares: rays.shares(min(1, max(0, (t - 0.4) / 0.35))), boil: boil)
-    let coilW = min(W * 0.8, measured.width * 1.05), coilRect = CGRect(x: left - W * 0.01, y: textTop + measured.height - coilW * 0.12, width: coilW, height: coilW / 3)
+    // The coil, flattened under the words' baseline, in the block's bottom margin.
+    let coilW = measured.width * 1.02
+    let coilRect = CGRect(x: left - W * 0.01, y: textTop + measured.height * 0.82, width: coilW, height: measured.height * 0.4)
     let coil = Scribble.coil
-    coil.draw(ctx, in: coilRect, color: accent, lineWidth: max(4 * u, 8 * coilW / coil.size.width),
+    coil.draw(ctx, in: coilRect, color: accent, lineWidth: min(measured.height * 0.06, max(4 * u, 8 * coilW / coil.size.width)),
       shares: coil.shares(min(1, max(0, (t - 0.5) / 0.7))), boil: boil)
 
     // The label ("Step 1") in a chip on the block's top edge, popping in.

@@ -91,7 +91,7 @@ extension Scene {
 
     for c in shownCallouts {
       if c.c.style == "chapter", look.chapterStyle == "big" {
-        drawBigChapter(ctx, c, frame: f)
+        drawBigChapter(ctx, c, frame: f, camBox: camBox)
         continue
       }
       let pose = Motion.pose(frame: f, start: c.s, end: c.e, fps: Int(fps), enter: c.c.enter, exit: c.c.exit, style: motion)

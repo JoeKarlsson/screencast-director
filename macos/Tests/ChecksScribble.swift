@@ -63,16 +63,22 @@ func scribbleChecks() {
   // Bottom-right corner, low in the block: clear of the words and marks (pixel() counts y from the bottom).
   expect(pixel(during, x: W * 0.97, y: H * 0.03).allSatisfy { $0 < 0.03 }, "the block is black over the bottom of the frame (\(pixel(during, x: W * 0.97, y: H * 0.03)))")
   expect(pixel(before, x: W * 0.97, y: H * 0.03).reduce(0, +) > 0.3, "before the chapter the frame shows there, not the block")
-  let top = scene.bigChapterTop(at: 75) ?? 0
-  expect(abs(top - H * (1 - Scene.bigChapterBlock)) < 1, "the block has risen to its height mid-chapter (\(top))")
-  expect(scene.bigChapterTop(at: 15) == nil, "no block outside the chapter")
-  let rising = scene.bigChapterTop(at: 33) ?? 0
+  let top = scene.bigChapterTop(at: 75, camBox: nil) ?? 0
+  expect(top > H * 0.65 && top < H * 0.85, "the block is only as tall as its words, not a third of the frame (\(top))")
+  expect(scene.bigChapterTop(at: 15, camBox: nil) == nil, "no block outside the chapter")
+  let rising = scene.bigChapterTop(at: 33, camBox: nil) ?? 0
   expect(rising > top && rising < H, "it rises at the start (\(rising))")
-  let blockH = H * Scene.bigChapterBlock
-  let (long, longSize) = scene.bigChapterWords("LanguageBreak", maxWidth: W * 0.9, maxHeight: blockH * 0.78, size: blockH * 0.4)
+  // Portrait split: the camera is a band across the bottom, and the block stands on its top edge,
+  // off the face.
+  let band = Box(x: 0, y: H * 0.56, w: W, h: H * 0.44, r: 0, opacity: 1)
+  let ch = scene.bigChapter(at: 75)!
+  expect(scene.bigChapterLayout(ch, camBox: band).block.maxY == H * 0.56, "over a camera band, the block stands on the camera's top edge")
+  let side = Box(x: W * 0.6, y: H * 0.05, w: W * 0.35, h: H * 0.9, r: 0, opacity: 1)
+  expect(scene.bigChapterLayout(ch, camBox: side).block.maxY == H, "beside a side camera, it stands on the frame's bottom")
+  let (long, longSize) = scene.bigChapterWords("LanguageBreak", maxWidth: W * 0.9, maxHeight: H * 0.26, size: H * 0.4)
   let oneLine = Scene.measure(long, maxWidth: .greatestFiniteMagnitude)
   expect(oneLine.width <= W * 0.9 && abs(longSize.height - oneLine.height) < 1, "a long word shrinks to fit on one line instead of wrapping mid-word (\(oneLine), \(longSize))")
   var chip = plan
   chip.look?.chapterStyle = nil
-  expect(Scene(plan: chip, words: [], clicks: [], shortcuts: []).bigChapterTop(at: 75) == nil, "the usual chapter style has no block")
+  expect(Scene(plan: chip, words: [], clicks: [], shortcuts: []).bigChapterTop(at: 75, camBox: nil) == nil, "the usual chapter style has no block")
 }
