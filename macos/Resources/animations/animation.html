@@ -78,13 +78,19 @@ html.theme-terminal #grain { display: none; }
 html.theme-terminal #vignette { background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 2px, rgba(0,0,0,0) 2px 4px),
   radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); }
 /* Zine theme (look.animationTheme "zine"): joekarlsson.com. A black stage, Anton headings in capitals,
-   hot pink cards and dots with black type, paper-white stickers and tags like the site's nav, and
-   everything drawn (lines, rings, the coil under a highlighted word) in the site's crayon (#crayon). */
+   hot pink cards and dots with black type, paper-white stickers and tags like the site's nav, highlighted
+   words in pink, squiggly lines and rings drawn in the site's crayon (#crayon), and the site's scribbles
+   drifting dimly behind everything (#marks, drawn by zineTick). */
 html.theme-zine { --paper: #000000; --ink: #EDEDED; }
 html.theme-zine #grain, html.theme-zine #vignette { display: none; }
 html.theme-zine .head { font-size: 84px; text-transform: uppercase; letter-spacing: .01em; line-height: 1; }
-/* The coil runs over the bottom of the letters, in front, like the one under the name on the site. */
-html.theme-zine .hl { background: none; mix-blend-mode: normal; transform: none; border-radius: 0; left: -4px; right: -4px; top: 48%; height: 70px; z-index: 1; }
+html.theme-zine .hl { display: none; }
+/* Only a heading's highlighted words turn pink; node labels stay paper white. */
+html.theme-zine .head .wrapt.on { color: var(--accent); }
+#marks { position: absolute; inset: 0; display: none; }
+html.theme-zine #marks { display: block; opacity: .16; }
+#marks .mark { position: absolute; overflow: visible; transform-origin: 50% 50%; }
+#marks g { fill: none; stroke-linecap: round; stroke-linejoin: round; filter: url(#crayon); }
 html.theme-zine .sticker, html.theme-zine .ghost { background: #EDEDED; border-radius: 22px; box-shadow: none; }
 html.theme-zine .sticker .word, html.theme-zine .ghost .word { color: #000; font-family: var(--title); font-weight: 400; text-transform: uppercase; }
 html.theme-zine .dot, html.theme-zine .icon { background: var(--accent); box-shadow: none; }
@@ -103,6 +109,7 @@ html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-ra
 </head>
 <body>
 <div id="stage">
+  <div id="marks"></div>
   <div id="cam"><svg id="lines" width="1920" height="1080"></svg></div>
   <svg id="grain" width="2020" height="1180"><filter id="n"><feTurbulence id="turb" type="fractalNoise" baseFrequency=".85" numOctaves="3" seed="1"/>
     <feColorMatrix values="0 0 0 0 .55  0 0 0 0 .5  0 0 0 0 .42  0 0 0 -1.6 1.25"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
@@ -113,8 +120,13 @@ html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-ra
     <feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" result="d"/>
     <feTurbulence type="fractalNoise" baseFrequency="2.2" seed="8" result="g"/>
     <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 1.5" result="holes"/>
-    <feComposite in="d" in2="holes" operator="in"/></filter></svg>
+    <feComposite in="d" in2="holes" operator="in"/></filter>
+    <!-- Three wobble frames the zine background's marks boil through, like the site's (#boil-N there). -->
+    <filter id="boil-1" x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="turbulence" baseFrequency="0.02" seed="11" result="w"/><feDisplacementMap in="SourceGraphic" in2="w" scale="5"/></filter>
+    <filter id="boil-2" x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="turbulence" baseFrequency="0.02" seed="22" result="w"/><feDisplacementMap in="SourceGraphic" in2="w" scale="5"/></filter>
+    <filter id="boil-3" x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="turbulence" baseFrequency="0.02" seed="33" result="w"/><feDisplacementMap in="SourceGraphic" in2="w" scale="5"/></filter></svg>
 </div>
+<script src="scribbles.js"></script>
 <script src="engine.js"></script>
 </body>
 </html>

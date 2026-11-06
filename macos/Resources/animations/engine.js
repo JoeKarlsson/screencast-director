@@ -6,10 +6,8 @@ const NS = "http://www.w3.org/2000/svg";
 const TEMPLATES = {};
 let cam, lines, LOGOS = {};
 // The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion;
-// "zine" is joekarlsson.com: black, hot pink, crayon lines and coils.
+// "zine" is joekarlsson.com: black, hot pink, squiggly crayon lines and the site's scribbles drifting behind.
 let THEME = "";
-// The time seek() is drawing, for marks that boil (redraw a little differently six times a second).
-let NOW = 0;
 
 // --- motion -----------------------------------------------------------------
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -57,6 +55,7 @@ function bez(p0, p1, p2, p3, u) { const v = 1 - u; return [0, 1].map(i => v*v*v*
 // A hand-drawn curve from a to b, "boiling" six times a second; `tangle` throws the middle around.
 function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
   if (THEME === "terminal") return elbow(a, b, t, seed);
+  if (THEME === "zine") return squiggle(a, b, t, seed);
   const r = rand(seed * 31 + Math.floor(t * 6));
   const j = () => (r() - .5) * 3.2;
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
@@ -64,6 +63,24 @@ function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
   const c1 = [a[0] + dx * .33 + nx * bend + (r2() - .5) * k + j(), a[1] + dy * .33 + ny * bend + (r2() - .5) * k + j()];
   const c2 = [a[0] + dx * .66 + nx * bend + (r2() - .5) * k + j(), a[1] + dy * .66 + ny * bend + (r2() - .5) * k + j()];
   return { d: `M${a[0] + j()},${a[1] + j()} C${c1} ${c2} ${b[0] + j()},${b[1] + j()}`, at: u => bez(a, c1, c2, b, u) };
+}
+// A squiggly crayon line from a to b for the zine theme: a hand-wobbled wave (about 9 px high, a wave
+// every 55 px, flat at the ends) along a gentle bow, boiling six times a second like the site's marks.
+function squiggle(a, b, t = 0, seed = 1) {
+  const r = rand(seed * 31 + Math.floor(t * 6));
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
+  const n = Math.max(8, Math.round(L / 14)), waves = L / 55, bow = seed % 2 ? 30 : -30;
+  const off = (u, j) => Math.sin(u * waves * 2 * Math.PI + seed) * 9 * Math.sin(Math.PI * u) + j + Math.sin(Math.PI * u) * bow;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n, w = off(u, i === 0 || i === n ? 0 : (r() - .5) * 3);
+    pts.push([a[0] + dx * u + nx * w, a[1] + dy * u + ny * w]);
+  }
+  const f = p => p.map(v => v.toFixed(1)).join(",");
+  let d = `M${f(pts[0])}`;
+  for (let i = 1; i < pts.length - 1; i++) d += ` Q${f(pts[i])} ${f([(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2])}`;
+  d += ` L${f(pts[pts.length - 1])}`;
+  return { d, at: u => { const w = off(clamp(u), 0); return [a[0] + dx * u + nx * w, a[1] + dy * u + ny * w]; } };
 }
 // A right-angle route from a to b (across, down or up, across), for the terminal theme. Its bend
 // jitters a couple of pixels twelve times a second, like a signal on a CRT.
@@ -103,35 +120,10 @@ function heading(text, highlight) {
   const h = el("head", html + (THEME === "terminal" ? '<span class="cursor">█</span>' : ""));
   return { node: h, hl: h.querySelector(".hl") };
 }
-// A crayon coil: loops along a line `width` long, like the one under the name on joekarlsson.com.
-// It boils: each point shifts a little, six times a second.
-function coilPath(width, height, t) {
-  const loops = Math.max(2, Math.round(width / 70));
-  const r = rand(Math.floor(t * 6) * 13 + 5), a = width / (2 * Math.PI * loops), b = height * .42, n = loops * 24;
-  const pts = [];
-  for (let i = 0; i <= n; i++) {
-    const th = i / n * 2 * Math.PI * loops;
-    const x = a * th - b * .8 * Math.sin(th), y = height / 2 - b * Math.cos(th);
-    pts.push(`${(x + (r() - .5) * 2).toFixed(1)},${(y + (r() - .5) * 2).toFixed(1)}`);
-  }
-  return `M${pts.join(" L")}`;
-}
 function setHL(hl, p) {
   if (!hl) return;
-  // Zine: a pink crayon coil draws itself in under the word.
-  if (THEME === "zine") {
-    if (!hl.coil) {
-      hl.coilWidth = hl.offsetWidth || 300;
-      hl.innerHTML = `<svg width="${hl.coilWidth}" height="70" viewBox="0 0 ${hl.coilWidth} 70" style="overflow:visible">` +
-        `<path pathLength="1" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#crayon)"/></svg>`;
-      hl.coil = hl.querySelector("path");
-    }
-    hl.coil.setAttribute("d", coilPath(hl.coilWidth, 70, NOW));
-    hl.coil.style.strokeDasharray = 1;
-    hl.coil.style.strokeDashoffset = 1 - easeOut(p);
-    hl.coil.style.opacity = p <= 0 ? 0 : 1;
-    return;
-  }
+  // Zine: a heading's highlighted words turn pink (animation.html); nothing is drawn over them.
+  if (THEME === "zine") { hl.parentElement.classList.toggle("on", p > 0); return; }
   // Terminal: inverse video that switches on, instead of a highlighter swipe.
   if (THEME === "terminal") { hl.parentElement.classList.toggle("on", p > 0); return; }
   hl.style.transform = `skewX(-8deg) scaleX(${easeOut(p)})`;
@@ -204,6 +196,57 @@ function terminalTick(t) {
     });
   });
 }
+// The zine theme's background: the site's scribbles (scribbles.js), dim, drifting behind the board. Each
+// draws in, holds and erases on its own slow loop (a mark of several strokes draws them one after
+// another, the site's redraw timing), bobs and turns a little, and boils between three wobble frames.
+const ZINE_MARKS = [
+  // name, x and y (fractions of the stage, below the heading), width (fraction of the short side), pink?
+  ["coil", .6, .24, .5, false], ["burstDense", .83, .66, .24, true], ["asterisk", .05, .8, .11, true],
+  ["tally", .02, .36, .21, false], ["oval", .5, .76, .38, false], ["cross", .86, .3, .17, true], ["hatch", .3, .9, .22, false],
+];
+let zineMarks = [];
+function buildZineMarks() {
+  const layer = document.getElementById("marks");
+  if (!layer || typeof SCRIBBLES === "undefined") return [];
+  const short = Math.min(STAGE.w, STAGE.h);
+  return ZINE_MARKS.map(([name, x, y, w, pink], k) => {
+    const m = SCRIBBLES[name], vb = m.viewBox.split(" ").map(Number);
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", vb.join(" ")); svg.setAttribute("class", "mark");
+    const width = w * short;
+    svg.style.left = `${x * STAGE.w}px`; svg.style.top = `${y * STAGE.h}px`;
+    svg.style.width = `${width}px`; svg.style.height = `${width * vb[3] / vb[2]}px`;
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("stroke", pink ? "var(--accent)" : "#ECE6DA");
+    // About 9 px on the stage, whatever the mark's viewBox.
+    g.setAttribute("stroke-width", 9 * vb[2] / width);
+    svg.appendChild(g);
+    const strokes = m.path.split(/(?=M)/).map(d => d.trim()).filter(Boolean).map(d => {
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", d); p.setAttribute("pathLength", "1"); p.style.strokeDasharray = 1;
+      g.appendChild(p); return p;
+    });
+    layer.appendChild(svg);
+    return { svg, strokes, dur: 7 + k * 1.3, delay: k * .6 - 3, k };
+  });
+}
+// How much of a stroke is hidden at loop position u (0..1): 1 before it draws, 0 while it holds, and
+// negative as it erases from its start. One stroke draws over the first 35% and erases after 85%; a
+// mark of several strokes draws each in 4.5% of the loop, one after another, and erases them in turn.
+function redrawOffset(u, i, count) {
+  if (count === 1) return u < .35 ? 1 - easeOut(u / .35) : u < .85 ? 0 : -easeInOut((u - .85) / .15);
+  const s = i * .045;
+  return u < s ? 1 : u < s + .045 ? 1 - easeOut((u - s) / .045) : u < .8 + s * .3 ? 0 : -clamp((u - .8 - s * .3) / .04);
+}
+function zineTick(t) {
+  zineMarks.forEach(({ svg, strokes, dur, delay, k }) => {
+    const u = (((t - delay) / dur) % 1 + 1) % 1;
+    strokes.forEach((p, i) => { p.style.strokeDashoffset = redrawOffset(u, i, strokes.length); });
+    const dx = 14 * Math.sin(t * .5 + k * 1.7), dy = 14 * Math.cos(t * .37 + k), rot = (k % 2 ? 2 : -2) * t;
+    svg.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+    svg.style.filter = `url(#boil-${1 + Math.floor(t * 6 + k) % 3})`;
+  });
+}
 // A cue's time (seconds from the animation's start), or a fallback when the plan leaves it out.
 function cue(cues, name, fallback) { return typeof cues[name] === "number" ? cues[name] : fallback; }
 
@@ -250,12 +293,13 @@ window.init = async function (config) {
   stage.style.width = `${STAGE.w}px`;
   stage.style.height = `${STAGE.h}px`;
   stage.style.transform = `translate(0px, ${top}px) ` + stageTransform(config.width, config.height - top, STAGE);
+  if (THEME === "zine") zineMarks = buildZineMarks();
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
-    NOW = t;
     seekTemplate(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
     if (THEME === "terminal") terminalTick(t);
+    if (THEME === "zine") zineTick(t);
   };
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);

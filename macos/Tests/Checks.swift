@@ -34,7 +34,7 @@ func animationScripts(_ animations: URL) -> JSContext {
     """)
   let templateFiles = ((try? FileManager.default.contentsOfDirectory(atPath: animations.appendingPathComponent("templates").path)) ?? [])
     .filter { $0.hasSuffix(".js") }.sorted().map { "templates/" + $0 }
-  for file in ["engine.js"] + templateFiles {
+  for file in ["scribbles.js", "engine.js"] + templateFiles {
     let source = (try? String(contentsOf: animations.appendingPathComponent(file), encoding: .utf8)) ?? ""
     expect(!source.isEmpty, "\(file) loads")
     js.evaluateScript(source, withSourceURL: URL(string: file))

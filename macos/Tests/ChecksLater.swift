@@ -109,16 +109,20 @@ func laterChecks() {
   expect(templateScripts.evaluateScript("[popScale(1.04, 1), popScale(1.06, 1), popScale(1.5, 1)].join()").toString() == "1,0,1",
     "terminal entrances flicker, then hold at full size")
   templateScripts.evaluateScript(#"THEME = """#)
-  // The zine theme's coil under a highlighted word makes a loop per ~70 px of word (counted by its
-  // bottoms), stays the height it's given, and boils: six new shapes a second.
-  let coilShape = templateScripts.evaluateScript("""
-    (() => { const p = coilPath(280, 70, 0).slice(1).split(" L").map(s => s.split(",").map(Number));
-      let back = 0; for (let i = 1; i < p.length; i++) if (p[i][1] > 55 && p[i - 1][1] <= 55) back++;
-      const ys = p.map(q => q[1]); return [back, Math.min(...ys) > -3 && Math.max(...ys) < 73].join(); })()
+  // The zine theme's lines squiggle: they wave across the straight line between their ends many times,
+  // yet start and end on them, and a label at the middle sits on the bowed line.
+  let squiggly = templateScripts.evaluateScript("""
+    (() => { THEME = "zine"; const c = handCurve([0, 0], [600, 0], .3, 2), p = c.d.slice(1).split(/ [QL]/).map(s => s.split(" ").pop().split(",").map(Number));
+      const sides = p.slice(1, -1).map(q => q[1] - Math.sin(Math.PI * q[0] / 600) * -30 > 0);
+      let crossings = 0; for (let i = 1; i < sides.length; i++) if (sides[i] !== sides[i - 1]) crossings++;
+      const end = p[p.length - 1], mid = c.at(.5);
+      return [crossings >= 8, p[0].join() === "0,0", end.join() === "600,0", Math.abs(mid[1] + 30) < 10].join(); })()
     """).toString()
-  expect(coilShape == "4,true", "a 280 px coil makes four loops inside its 70 px (\(coilShape ?? "?"))")
-  expect(templateScripts.evaluateScript("coilPath(280, 70, 0) === coilPath(280, 70, .1) && coilPath(280, 70, 0) !== coilPath(280, 70, .2)").toBool(),
-    "the coil holds a shape for a sixth of a second, then redraws")
+  expect(squiggly == "true,true,true,true", "zine lines wave about their bow, start and end on their ends, and put the midpoint on the bow (\(squiggly ?? "?"))")
+  // The background's site scribbles build and draw without a page to put them on.
+  expect(templateScripts.evaluateScript("buildZineMarks(); zineTick(2.5); redrawOffset(.5, 0, 1) === 0 && redrawOffset(0, 0, 1) === 1 && redrawOffset(.2, 2, 5) === 0").toBool(),
+    "a mark is hidden at its loop's start and drawn while it holds, one stroke after another")
+  templateScripts.evaluateScript(#"THEME = """#)
   for t in templates {
     let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)
     let cues = "{" + t.cues.map { "\"\($0.key)\": \($0.at)" }.joined(separator: ", ") + "}"
