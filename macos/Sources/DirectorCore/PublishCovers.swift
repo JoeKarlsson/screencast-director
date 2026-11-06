@@ -119,7 +119,8 @@ extension Publish {
     let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
     // The title fills the dark area above, down to where the photo shows through its fade.
-    drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: photoH - 60, width: W, height: H - photoH + 60), margin: 80)
+    let titled = drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: photoH - 60, width: W, height: H - photoH + 60), margin: 80)
+    drawCoverMarks(ctx, look: look, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top, photo: CGRect(x: 0, y: 0, width: W, height: photoH))
     return ctx.makeImage()
   }
 
@@ -133,8 +134,36 @@ extension Publish {
     drawFramed(ctx, plan: plan, person: person, faceX: faceX, in: CGRect(x: photoX, y: 0, width: W - photoX, height: H))
     let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(fade, start: CGPoint(x: photoX, y: 0), end: CGPoint(x: photoX + 160, y: 0), options: [])
-    drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: 0, width: photoX + 40, height: H), margin: 48)
+    let titled = drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: 0, width: photoX + 40, height: H), margin: 48)
+    drawCoverMarks(ctx, look: look, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top, photo: CGRect(x: photoX, y: 0, width: W - photoX, height: H))
     return ctx.makeImage()
+  }
+
+  /// joekarlsson.com's crayon marks on a zine-look cover: rays bursting off the chip, an asterisk and
+  /// a burst in the black by the title, and a chalk coil along the photo's top edge.
+  /// Rects are y up, like the cover; nothing for other looks.
+  static func drawCoverMarks(_ ctx: CGContext, look: Look, size: CGSize, chip: CGRect, titleTop: Double, photo: CGRect) {
+    guard look.animationTheme == "zine", chip.width > 0 else { return }
+    let W = size.width, H = size.height, side = min(W, H)
+    let pink = Scene.color(look.accent ?? "#FF4FD8"), chalk = Scene.color("#ECE6DA")
+    // Scribble draws in top-left coordinates: flip the cover for it, and each rect with it.
+    ctx.saveGState()
+    defer { ctx.restoreGState() }
+    ctx.translateBy(x: 0, y: H)
+    ctx.scaleBy(x: 1, y: -1)
+    func down(_ r: CGRect) -> CGRect { CGRect(x: r.minX, y: H - r.maxY, width: r.width, height: r.height) }
+    func mark(_ s: Scribble, _ r: CGRect, _ color: CGColor, width: Double) {
+      s.draw(ctx, in: down(r), color: color, lineWidth: width, shares: s.shares(1), boil: 0)
+    }
+    let raysW = chip.height * 1.2
+    mark(.rays, CGRect(x: chip.maxX - raysW * 0.05, y: chip.maxY - raysW * 0.4, width: raysW, height: raysW * 0.75), pink, width: side * 0.009)
+    let star = side * 0.08
+    mark(.asterisk, CGRect(x: W * 0.05, y: min(H - star * 1.1, titleTop - star * 0.6), width: star, height: star), pink, width: side * 0.007)
+    let burst = side * 0.12
+    mark(.burst, CGRect(x: W - burst * 1.2, y: min(H - burst * 1.05, titleTop - burst * 0.15), width: burst, height: burst), pink, width: side * 0.005)
+    // A chalk coil along the photo's top edge, on the side away from the face.
+    let coilW = photo.width * 0.32
+    mark(.coil, CGRect(x: photo.minX + photo.width * 0.03, y: photo.maxY - coilW * 0.42, width: coilW, height: coilW / 3), chalk, width: side * 0.006)
   }
 
   /// A cover's canvas filled with the look's dark color, and that color.
@@ -186,7 +215,8 @@ extension Publish {
 
   /// The title in white lines with the last on the accent chip, each centered, the block centered in
   /// `area` (y up) at the largest size that fits with `margin` all round.
-  static func drawCoverTitle(_ ctx: CGContext, look: Look, title: String, in area: CGRect, margin: Double) {
+  @discardableResult
+  static func drawCoverTitle(_ ctx: CGContext, look: Look, title: String, in area: CGRect, margin: Double) -> (chip: CGRect, top: Double) {
     let chipPadX = area.width * 0.028, chipPadY = area.width * 0.013
     var start = min(132, area.width * 0.13)
     var lines: [String] = [], texts: [NSAttributedString] = [], sizes: [CGSize] = []
@@ -205,11 +235,14 @@ extension Publish {
       start = fit.size - 4
     } while blockH > area.height - 2 * margin && start > 30
     var y = area.midY + blockH / 2  // the block's top, y up
+    let top = y
+    var chip = CGRect.zero
     for (k, s) in texts.enumerated() {
       let m = sizes[k]
       if k == lines.count - 1 {
         y -= gap + chipPadY
         let r = CGRect(x: area.midX - m.width / 2 - chipPadX, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
+        chip = r
         ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
         ctx.addPath(CGPath(roundedRect: r, cornerWidth: chipPadY * 1.4, cornerHeight: chipPadY * 1.4, transform: nil))
         ctx.fillPath()
@@ -220,6 +253,7 @@ extension Publish {
       CTFrameDraw(frame, ctx)
       y -= m.height + gap
     }
+    return (chip, top)
   }
 
   /// The image cropped to its non-transparent pixels.

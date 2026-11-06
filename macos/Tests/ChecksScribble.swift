@@ -84,6 +84,28 @@ func scribbleChecks() {
   let pickedRooms = picked.inserts.sorted { $0.index < $1.index }.map { picked.brollRoom($0) ?? "-" }
   expect(pickedRooms == ["-", "halftone", "-"], "an image asked for halftone gets it, with or without the camera's (\(pickedRooms))")
 
+  // A zine-look cover gets the site's crayon marks; another look's doesn't.
+  let photoCtx = CGContext(data: nil, width: 640, height: 480, bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
+    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+  photoCtx.setFillColor(gray: 0.3, alpha: 1)
+  photoCtx.fill(CGRect(x: 0, y: 0, width: 640, height: 480))
+  var coverPlan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
+  coverPlan.output = Plan.Output(width: 1080, height: 1920, fps: 30)
+  var zine = Look()
+  zine.animationTheme = "zine"
+  coverPlan.look = zine
+  let marked = Publish.verticalThumbnail(plan: coverPlan, person: photoCtx.makeImage()!, faceX: 0.5, title: "My Kindle is a home dashboard")!
+  coverPlan.look = Look()
+  let plainCover = Publish.verticalThumbnail(plan: coverPlan, person: photoCtx.makeImage()!, faceX: 0.5, title: "My Kindle is a home dashboard")!
+  func brightTopCorner(_ img: CGImage) -> Int {
+    // Pink in the top-right corner beside the title (white title letters reach in, so pink only).
+    let c = CIImage(cgImage: img).cropped(to: CGRect(x: 1080 * 0.8, y: 1920 * 0.8, width: 1080 * 0.2, height: 1920 * 0.2))
+    var n = 0
+    for x in stride(from: 1080 * 0.8, to: 1080.0, by: 6) { for y in stride(from: 1920 * 0.8, to: 1920.0, by: 6) where { let p = pixel(c, x: x, y: y); return p[0] > 0.6 && p[1] < 0.45 }() { n += 1 } }
+    return n
+  }
+  expect(brightTopCorner(marked) > 10 && brightTopCorner(plainCover) == 0, "a zine cover has a pink burst by the title, others none (\(brightTopCorner(marked)), \(brightTopCorner(plainCover)))")
+
   // A profile carries the room and the outline to the video's camera.
   var withCamera = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
   var profile = Profile(name: "Scribble", style: withCamera.style, look: Look())
