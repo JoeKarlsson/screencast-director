@@ -31,6 +31,27 @@ extension Scene {
     return H - H * Scene.bigChapterBlock * bigChapterRise(ch, at: f)
   }
 
+  /// The chapter's words, as big as `size` or shrunk so they fit the block: no taller than
+  /// `maxHeight`, and the longest word on one line (a long word like "LANGUAGEBREAK" never wraps
+  /// mid-word).
+  func bigChapterWords(_ text: String, maxWidth: Double, maxHeight: Double, size start: Double) -> (NSAttributedString, CGSize) {
+    let upper = text.uppercased()
+    func words(_ text: String, _ size: Double) -> NSAttributedString {
+      Scene.text(text, size: size, weight: .bold, font: look.titleFont, color: look.captionText ?? "#EDEDED", align: .left)
+    }
+    var size = start
+    let longest = upper.split(whereSeparator: \.isWhitespace)
+      .map { Scene.measure(words(String($0), size), maxWidth: .greatestFiniteMagnitude).width }.max() ?? 0
+    if longest > maxWidth { size *= maxWidth / longest * 0.98 }
+    var s = words(upper, size), m = Scene.measure(s, maxWidth: maxWidth)
+    for _ in 0..<12 where m.height > maxHeight {
+      size *= 0.9
+      s = words(upper, size)
+      m = Scene.measure(s, maxWidth: maxWidth)
+    }
+    return (s, m)
+  }
+
   func drawBigChapter(_ ctx: CGContext, _ ch: (s: Double, e: Double, c: Callout), frame f: Double) {
     let fps = Double(plan.output.fps)
     let t = (f - ch.s) / fps
@@ -42,16 +63,8 @@ extension Scene {
     ctx.setFillColor(Scene.color(look.chipBackground ?? "#000000"))
     ctx.fill(CGRect(x: 0, y: top, width: W, height: H - top + 1))
 
-    // The words: as big as two lines across the frame allow.
     let left = W * 0.05, maxW = W * 0.9
-    var size = blockH * 0.4
-    var words = Scene.text(ch.c.text.uppercased(), size: size, weight: .bold, font: look.titleFont, color: look.captionText ?? "#EDEDED", align: .left)
-    var measured = Scene.measure(words, maxWidth: maxW)
-    for _ in 0..<12 where measured.height > blockH * 0.78 || measured.width > maxW {
-      size *= 0.9
-      words = Scene.text(ch.c.text.uppercased(), size: size, weight: .bold, font: look.titleFont, color: look.captionText ?? "#EDEDED", align: .left)
-      measured = Scene.measure(words, maxWidth: maxW)
-    }
+    let (words, measured) = bigChapterWords(ch.c.text, maxWidth: maxW, maxHeight: blockH * 0.78, size: blockH * 0.4)
     let textTop = top + blockH * 0.1
     let shown = min(1, max(0, (t - 0.15) / 0.25))
     if shown > 0 {

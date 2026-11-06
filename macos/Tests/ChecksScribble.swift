@@ -68,6 +68,10 @@ func scribbleChecks() {
   expect(scene.bigChapterTop(at: 15) == nil, "no block outside the chapter")
   let rising = scene.bigChapterTop(at: 33) ?? 0
   expect(rising > top && rising < H, "it rises at the start (\(rising))")
+  let blockH = H * Scene.bigChapterBlock
+  let (long, longSize) = scene.bigChapterWords("LanguageBreak", maxWidth: W * 0.9, maxHeight: blockH * 0.78, size: blockH * 0.4)
+  let oneLine = Scene.measure(long, maxWidth: .greatestFiniteMagnitude)
+  expect(oneLine.width <= W * 0.9 && abs(longSize.height - oneLine.height) < 1, "a long word shrinks to fit on one line instead of wrapping mid-word (\(oneLine), \(longSize))")
   var chip = plan
   chip.look?.chapterStyle = nil
   expect(Scene(plan: chip, words: [], clicks: [], shortcuts: []).bigChapterTop(at: 75) == nil, "the usual chapter style has no block")
