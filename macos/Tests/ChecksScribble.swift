@@ -75,6 +75,12 @@ func scribbleChecks() {
   expect(scene.bigChapterLayout(ch, camBox: band).block.maxY == H * 0.56, "over a camera band, the block stands on the camera's top edge")
   let side = Box(x: W * 0.6, y: H * 0.05, w: W * 0.35, h: H * 0.9, r: 0, opacity: 1)
   expect(scene.bigChapterLayout(ch, camBox: side).block.maxY == H, "beside a side camera, it stands on the frame's bottom")
+  // In a vertical video the chip, words and marks keep out of the apps' buttons and margins.
+  var tall = plan
+  tall.output = Plan.Output(width: 1080, height: 1920, fps: 30)
+  let tallScene = Scene(plan: tall, words: [], clicks: [], shortcuts: [])
+  let safe = SafeArea.rect(tall)!
+  expect(tallScene.bigChapterArea.minX == safe.minX && tallScene.bigChapterArea.width == safe.width, "a vertical video's big chapter keeps inside the safe area")
   let (long, longSize) = scene.bigChapterWords("LanguageBreak", maxWidth: W * 0.9, maxHeight: H * 0.26, size: H * 0.4)
   let oneLine = Scene.measure(long, maxWidth: .greatestFiniteMagnitude)
   expect(oneLine.width <= W * 0.9 && abs(longSize.height - oneLine.height) < 1, "a long word shrinks to fit on one line instead of wrapping mid-word (\(oneLine), \(longSize))")

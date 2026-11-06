@@ -7,6 +7,8 @@ import Foundation
 
 extension Scene {
   func drawCaptions(_ ctx: CGContext, _ page: Page, frame f: Double, insets ins: Insets, camBox: Box?, blurred: inout [CIImage]) {
+    // A big type chapter says what's being said in its own words: captions step aside for it.
+    guard bigChapter(at: f) == nil else { return }
     let fps = Double(plan.output.fps)
     let style = plan.captions.style ?? "pill"
     // Social is bold made for vertical: bigger, and it sits on the seam over the split camera.
@@ -49,13 +51,11 @@ extension Scene {
     let boxW = size.width + 2 * padX, boxH = size.height + 2 * padY
     // Dragged somewhere: centered on that point, kept inside the frame.
     let centerX = plan.captions.x.map { min(W - boxW / 2, max(boxW / 2, $0 * W)) } ?? W / 2
-    var top =
+    let top =
       plan.captions.y.map { min(H - boxH, max(0, $0 * H - boxH / 2)) }
       ?? (social
         ? (seam.map { $0 - size.height / 2 } ?? H * 0.64)
         : H - (ins.fullBleed ? ins.safe : H * 0.07) - size.height - (bold ? 40 : 24) * u)
-    // A big chapter's block covers the bottom of the frame: the words move up above it and its chip.
-    if let blockTop = bigChapterTop(at: f, camBox: camBox) { top = min(top, blockTop - boxH - 110 * u) }
     let rect = CGRect(x: centerX - boxW / 2, y: top, width: boxW, height: boxH)
     let pose =
       motion.name == "classic"

@@ -27,11 +27,18 @@ extension Scene {
   /// stays clear. Also returns the words, sized to fit.
   func bigChapterLayout(_ ch: (s: Double, e: Double, c: Callout), camBox: Box?) -> (block: CGRect, words: NSAttributedString, size: CGSize) {
     let side = min(W, H)
-    let (words, measured) = bigChapterWords(ch.c.text, maxWidth: W * 0.9, maxHeight: side * 0.26, size: side * 0.11)
+    let (words, measured) = bigChapterWords(ch.c.text, maxWidth: bigChapterArea.width, maxHeight: side * 0.26, size: side * 0.11)
     // Room above for the label chip's lower half and the rays, below for the coil under the words.
     let blockH = measured.height + side * 0.07 + measured.height * 0.3
     let bottom = camBox.flatMap { $0.y > 1 && $0.opacity > 0.5 && $0.w > W * 0.6 ? $0.y : nil } ?? H
     return (CGRect(x: 0, y: bottom - blockH, width: W, height: blockH), words, measured)
+  }
+
+  /// Where the chip, words and marks may go across the frame: inside the area TikTok, Reels and
+  /// Shorts leave uncovered in a vertical video, otherwise with a margin each side.
+  var bigChapterArea: (minX: Double, width: Double) {
+    if let safe = SafeArea.rect(plan) { return (safe.minX, safe.width) }
+    return (W * 0.05, W * 0.9)
   }
 
   /// The top of the block at `f` (top-left coordinates), for captions to stay above; nil without one.
@@ -47,7 +54,7 @@ extension Scene {
   func bigChapterWords(_ text: String, maxWidth: Double, maxHeight: Double, size start: Double) -> (NSAttributedString, CGSize) {
     let upper = text.uppercased()
     func words(_ text: String, _ size: Double) -> NSAttributedString {
-      Scene.text(text, size: size, weight: .bold, font: look.titleFont, color: look.captionText ?? "#EDEDED", align: .left)
+      Scene.text(text, size: size, weight: .bold, font: look.titleFont, color: look.captionText ?? "#EDEDED", align: .center)
     }
     var size = start
     let longest = upper.split(whereSeparator: \.isWhitespace)
@@ -81,7 +88,9 @@ extension Scene {
     ctx.saveGState()
     defer { ctx.restoreGState() }
     ctx.clip(to: CGRect(x: 0, y: 0, width: W, height: block.maxY))
-    let left = W * 0.05
+    // Centered in the uncovered area.
+    let area = bigChapterArea, midX = area.minX + area.width / 2
+    let left = midX - measured.width / 2
     let textTop = top + min(W, H) * 0.07
     let shown = min(1, max(0, (t - 0.15) / 0.25))
     if shown > 0 {
@@ -94,13 +103,13 @@ extension Scene {
     let boil = Int(t * 6)
     // Rays over the end of the first line, a coil under the words.
     let raysW = min(W * 0.2, measured.height * 1.1)
-    let raysRect = CGRect(x: min(left + measured.width - raysW * 0.2, W - raysW * 1.05), y: textTop - raysW * 0.55, width: raysW, height: raysW * 0.75)
+    let raysRect = CGRect(x: min(left + measured.width - raysW * 0.2, area.minX + area.width - raysW), y: textTop - raysW * 0.55, width: raysW, height: raysW * 0.75)
     let rays = Scribble.rays
     rays.draw(ctx, in: raysRect, color: accent, lineWidth: max(4 * u, 9 * raysW / rays.size.width),
       shares: rays.shares(min(1, max(0, (t - 0.4) / 0.35))), boil: boil)
     // The coil, flattened under the words' baseline, in the block's bottom margin.
     let coilW = measured.width * 1.02
-    let coilRect = CGRect(x: left - W * 0.01, y: textTop + measured.height * 0.82, width: coilW, height: measured.height * 0.4)
+    let coilRect = CGRect(x: midX - coilW / 2, y: textTop + measured.height * 0.82, width: coilW, height: measured.height * 0.4)
     let coil = Scribble.coil
     coil.draw(ctx, in: coilRect, color: accent, lineWidth: min(measured.height * 0.06, max(4 * u, 8 * coilW / coil.size.width)),
       shares: coil.shares(min(1, max(0, (t - 0.5) / 0.7))), boil: boil)
@@ -112,7 +121,7 @@ extension Scene {
       let s = Scene.text(label.uppercased(), size: 52 * u, weight: .bold, font: look.titleFont, color: look.titleText ?? "#000000")
       let ls = Scene.measure(s, maxWidth: W)
       let padX = 26 * u, padY = 12 * u
-      let rect = CGRect(x: left, y: top - (ls.height + 2 * padY) * 0.6, width: ls.width + 2 * padX, height: ls.height + 2 * padY)
+      let rect = CGRect(x: midX - (ls.width + 2 * padX) / 2, y: top - (ls.height + 2 * padY) * 0.6, width: ls.width + 2 * padX, height: ls.height + 2 * padY)
       ctx.saveGState()
       ctx.translateBy(x: rect.midX, y: rect.midY)
       let k = pop < 1 ? 0.6 + 0.5 * pop - 0.1 * pop * pop : 1
