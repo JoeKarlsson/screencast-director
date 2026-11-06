@@ -167,7 +167,16 @@ extension Scene {
   /// chalk crayon line around the person (`outline`, its width in pixels). The line boils: `boil`
   /// changes six times a second. When Vision fails the picture is left as recorded.
   static func styledRoom(_ src: CIImage, halftoneCell: Double?, outline: Double?, ink: String, boil: Int) -> CIImage {
-    guard let mask = personMask(src) else { return src }
+    guard let soft = personMask(src) else { return src }
+    // Vision's mask is soft and half-gray around hair, and those patches change every frame:
+    // the room and the line follow a hard edge at the mask's middle instead, so they hold still.
+    let feather = max(1, min(src.extent.width, src.extent.height) / 400)
+    let mask = soft.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: feather])
+      .applyingFilter("CIColorMatrix", parameters: [
+        "inputRVector": CIVector(x: 6, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: 0, y: 6, z: 0, w: 0),
+        "inputBVector": CIVector(x: 0, y: 0, z: 6, w: 0), "inputBiasVector": CIVector(x: -3, y: -3, z: -3, w: 0),
+      ])
+      .applyingFilter("CIColorClamp").cropped(to: src.extent)
     var out = src
     if let cell = halftoneCell {
       out = src.applyingFilter("CIBlendWithMask", parameters: [
@@ -178,13 +187,7 @@ extension Scene {
       // The ring: the person grown by the line's width, minus the person.
       let grown = mask.clampedToExtent().applyingFilter("CIMorphologyMaximum", parameters: [kCIInputRadiusKey: width]).cropped(to: src.extent)
       let outside = mask.applyingFilter("CIColorInvert")
-      // Vision's soft edge would make a soft, gray band: tripled and clamped, it's a solid line.
       var ring = grown.applyingFilter("CIMultiplyCompositing", parameters: [kCIInputBackgroundImageKey: outside])
-        .applyingFilter("CIColorMatrix", parameters: [
-          "inputRVector": CIVector(x: 3, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: 0, y: 3, z: 0, w: 0),
-          "inputBVector": CIVector(x: 0, y: 0, z: 3, w: 0), "inputBiasVector": CIVector(x: -0.4, y: -0.4, z: -0.4, w: 0),
-        ])
-        .applyingFilter("CIColorClamp")
       // Wobble: pushed about by soft noise that changes with `boil`.
       let noise = CIFilter(name: "CIRandomGenerator")!.outputImage!
         .transformed(by: CGAffineTransform(translationX: Double(boil % 3) * 517, y: Double(boil % 3) * 311))
