@@ -1,4 +1,5 @@
 import CoreImage
+import CoreVideo
 import Foundation
 
 // The Pink Scribble look: crayon marks from joekarlsson.com drawn natively, the halftone room and
@@ -34,8 +35,56 @@ func scribbleChecks() {
   let dark = Scene.halftone(CIImage(color: CIColor(red: 0, green: 0, blue: 0)).cropped(to: CGRect(x: 0, y: 0, width: 64, height: 64)), cell: 8, ink: ink)
   expect(pixel(dark, x: 30, y: 30).allSatisfy { $0 < 0.02 }, "black stays black")
 
-  // A profile carries the room and the outline to the video's camera.
+  // The room's mask is averaged over the frames before it in the same clip, never across a cut or
+  // in a sped-up stretch.
   let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 12, captureStart: nil, camera: nil)
+  var cutPlan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
+  cutPlan.segments = [Segment(start: 0, end: 2, speed: 1), Segment(start: 4, end: 6, speed: 1), Segment(start: 6, end: 10, speed: 4)]
+  let cutScene = Scene(plan: cutPlan, words: [], clicks: [], shortcuts: [])
+  let second: Int = cutScene.mapped[1].outStart, fast: Int = cutScene.mapped[2].outStart
+  let midClip: [Int] = [second + 4, second + 3], afterCut: [Int] = [second]
+  expect(cutScene.maskFramesToAverage(second + 5) == midClip, "mid-clip, the two frames before")
+  expect(cutScene.maskFramesToAverage(second).isEmpty && cutScene.maskFramesToAverage(second + 1) == afterCut, "not across a cut")
+  expect(cutScene.maskFramesToAverage(fast + 5).isEmpty, "not in a sped-up stretch")
+
+  // Averaging keeps a mask whole: Vision's one-channel masks, white where the person is, stay white
+  // when they agree, and a frame that disagrees moves the edge by its share.
+  var buffer: CVPixelBuffer?
+  CVPixelBufferCreate(nil, 16, 16, kCVPixelFormatType_OneComponent8, nil, &buffer)
+  CVPixelBufferLockBaseAddress(buffer!, [])
+  memset(CVPixelBufferGetBaseAddress(buffer!)!, 255, CVPixelBufferGetBytesPerRow(buffer!) * 16)
+  CVPixelBufferUnlockBaseAddress(buffer!, [])
+  let white = CIImage(cvPixelBuffer: buffer!), black = white.applyingFilter("CIColorInvert")
+  _ = cutScene.averaged(white, frame: 1, lane: 7, earlier: [])
+  let agreed = pixel(cutScene.averaged(white, frame: 2, lane: 7, earlier: [1]), x: 8, y: 8)[0]
+  expect(agreed > 0.99, "two masks that agree average to the same mask (\(agreed))")
+  _ = cutScene.averaged(black, frame: 10, lane: 8, earlier: [])
+  _ = cutScene.averaged(white, frame: 11, lane: 8, earlier: [10])
+  let third = pixel(cutScene.averaged(white, frame: 12, lane: 8, earlier: [11, 10]), x: 8, y: 8)[0]
+  expect(third > 0.55 && third < 0.95, "one frame in three without the person pulls it part way (\(third))")
+
+  // B-roll follows the camera's halftone room: video clips by default, images only when asked,
+  // and "none" opts out.
+  var brollPlan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
+  brollPlan.segments = [Segment(start: 0, end: 12, speed: 1)]
+  brollPlan.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  brollPlan.camera?.room = "halftone"
+  var still = Insert(start: 1, end: 2, file: "broll/shot.png")
+  var optedOut = Insert(start: 3, end: 4, file: "broll/b.mov")
+  optedOut.room = "none"
+  still.room = nil
+  brollPlan.inserts = [Insert(start: 0, end: 1, file: "broll/a.mov"), still, optedOut]
+  let brollScene = Scene(plan: brollPlan, words: [], clicks: [], shortcuts: [])
+  let rooms = brollScene.inserts.sorted { $0.index < $1.index }.map { brollScene.brollRoom($0) ?? "-" }
+  expect(rooms == ["halftone", "-", "-"], "a video clip follows the camera's room, an image and a clip set to none don't (\(rooms))")
+  var pickedStill = brollPlan
+  pickedStill.inserts?[1].room = "halftone"
+  pickedStill.camera?.room = nil
+  let picked = Scene(plan: pickedStill, words: [], clicks: [], shortcuts: [])
+  let pickedRooms = picked.inserts.sorted { $0.index < $1.index }.map { picked.brollRoom($0) ?? "-" }
+  expect(pickedRooms == ["-", "halftone", "-"], "an image asked for halftone gets it, with or without the camera's (\(pickedRooms))")
+
+  // A profile carries the room and the outline to the video's camera.
   var withCamera = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
   var profile = Profile(name: "Scribble", style: withCamera.style, look: Look())
   profile.camera = Profile.CameraDefaults()
@@ -44,6 +93,8 @@ func scribbleChecks() {
   withCamera.camera = Plan.Camera(video: "camera.mp4", offset: 0)
   profile.apply(to: &withCamera)
   expect(withCamera.camera?.room == "halftone" && withCamera.camera?.outline == true, "a profile sets the halftone room and the outline")
+  let saved = Profile.saved(from: withCamera, name: "Saved", extras: [.camera])
+  expect(saved.camera?.room == "halftone" && saved.camera?.outline == true, "saving a video's camera as a profile keeps the room and the outline")
 
   // Big type chapters: the black block rises over the bottom of the frame for the chapter, and
   // captions move above it.

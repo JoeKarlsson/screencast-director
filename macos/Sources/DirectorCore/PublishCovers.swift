@@ -159,7 +159,29 @@ extension Publish {
     let cropW = min(iw, ih * rect.width / rect.height), cropH = cropW * rect.height / rect.width
     let fx = plan.camera?.mirror == true ? 1 - faceX : faceX
     let cx = min(max(fx * iw - cropW / 2, 0), iw - cropW)
-    if let crop = photo.cropping(to: CGRect(x: cx, y: (ih - cropH) / 2, width: cropW, height: cropH)) { ctx.draw(crop, in: rect) }
+    if let crop = photo.cropping(to: CGRect(x: cx, y: (ih - cropH) / 2, width: cropW, height: cropH)) {
+      ctx.draw(styledLikeVideo(crop, plan: plan), in: rect)
+    }
+  }
+
+  /// A camera frame through the video's camera grade and LUT; unchanged without a grade.
+  static func gradedLikeVideo(_ photo: CGImage, scene: Scene) -> CGImage {
+    guard scene.plan.camera?.grade != nil else { return photo }
+    let img = CIImage(cgImage: photo)
+    return CIContext().createCGImage(Scene.graded(img, scene.plan.camera?.grade, lut: scene.cameraLUT), from: img.extent) ?? photo
+  }
+
+  /// The camera photo (as cropped for the cover) with the video's halftone room and crayon outline, when the plan has them.
+  static func styledLikeVideo(_ photo: CGImage, plan: Plan) -> CGImage {
+    let cam = plan.camera
+    guard cam?.room == "halftone" || cam?.outline == true else { return photo }
+    let img = CIImage(cgImage: photo)
+    guard let mask = Scene.personMask(img) else { return photo }
+    let w = img.extent.width, side = min(img.extent.width, img.extent.height)
+    let styled = Scene.styledRoom(
+      img, mask: mask, halftoneCell: cam?.room == "halftone" ? w / 70 : nil, outline: cam?.outline == true ? side / 150 : nil,
+      ink: plan.look?.accent ?? "#FF4FD8", boil: 0)
+    return CIContext().createCGImage(styled, from: img.extent) ?? photo
   }
 
   /// The title in white lines with the last on the accent chip, each centered, the block centered in

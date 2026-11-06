@@ -24,13 +24,37 @@ extension Scene {
     inserts.contains { $0.a.isFull && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
   }
 
+  /// The room a B-roll clip is shown with: its own `room`, else the camera's for a video clip (the
+  /// plan's own B-roll only: animations are never restyled). nil for as shot.
+  func brollRoom(_ ins: (s: Double, e: Double, a: Insert, index: Int)) -> String? {
+    guard ins.index < plan.insertList.count else { return nil }
+    let room = ins.a.room ?? (ins.a.isImage ? nil : plan.camera?.room)
+    return room == "none" ? nil : room
+  }
+
+  /// A B-roll frame with its background in halftone, the subject in color and, when the camera has
+  /// one, the crayon outline, sized to how wide it's shown. Its mask is averaged over the clip's last
+  /// frames like the camera's. Left as shot when Vision finds no subject.
+  func styledBroll(_ src: CIImage, _ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Int, shownWidth: Double) -> CIImage {
+    guard let raw = Scene.subjectMask(src) else { return src }
+    let earlier = ins.a.isImage ? [] : [f - 1, f - 2].filter { Double($0) >= ins.s }
+    let mask = averaged(raw, frame: f, lane: ins.index, earlier: earlier)
+    let k = shownWidth / src.extent.width
+    return Scene.styledRoom(
+      src, mask: mask, halftoneCell: src.extent.width / 70, outline: plan.camera?.outline == true ? min(W, H) / 150 / k : nil,
+      ink: look.accent ?? "#FF4FD8", boil: Int(Double(f) / Double(plan.output.fps) * 6))
+  }
+
   /// B-roll showing at this frame: in the screen card (`full` false) or over the whole frame.
   func broll(_ image: CIImage, frame f: Double, full: Bool, box b: Box, frames: [Int: CIImage]) -> CIImage {
     var out = image
     for ins in inserts where ins.a.isFull == full && f >= ins.s && f < ins.e {
-      guard let src = insertImages[ins.index] ?? frames[ins.index] else { continue }
+      guard var src = insertImages[ins.index] ?? frames[ins.index] else { continue }
       let pose = insertPose(ins, frame: f)
       guard pose.visible else { continue }
+      if brollRoom(ins) == "halftone" {
+        src = styledBroll(src, ins, frame: Int(f), shownWidth: full ? W : b.w)
+      }
       let rect = full ? CGRect(x: 0, y: 0, width: W, height: H) : ciRect(b)
       let radius = full ? 0 : b.r
       let fill = ins.a.fit != "fit"

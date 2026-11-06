@@ -111,6 +111,10 @@ public struct Insert: Codable, Equatable, Sendable {
   public var fit: String?
   public var enter: Motion?
   public var exit: Motion?
+  /// "halftone": the background in the accent's halftone dots with the subject (Vision's foreground)
+  /// in color, and the camera's crayon outline around it when that's on. "none": as shot. Unset,
+  /// video B-roll follows the camera's room and images stay as they are.
+  public var room: String?
   public var note: String?
   public init(
     start: Double, end: Double, file: String, from: Double? = nil, placement: String? = nil, fit: String? = nil, enter: Motion? = nil,

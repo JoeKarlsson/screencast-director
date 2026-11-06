@@ -186,6 +186,8 @@ public struct Profile: Codable, Equatable, Sendable {
     if extras.contains(.voice) { p.audio = plan.audio }
     if extras.contains(.camera), let cam = plan.camera {
       p.camera = CameraDefaults(grade: cam.grade, bubbleSize: cam.bubbleSize, bubbleShape: cam.bubbleShape, bubbleBorder: cam.bubbleBorder, bubbleShadow: cam.bubbleShadow)
+      p.camera?.room = cam.room
+      p.camera?.outline = cam.outline
     }
     return p
   }

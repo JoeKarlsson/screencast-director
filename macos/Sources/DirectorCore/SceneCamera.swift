@@ -60,10 +60,10 @@ extension Scene {
     src = withEffects(src, layer: "camera", frame: Int(f), shown: shown)
     // The room as halftone and the outline: sized to the picture as shown, so the dots and the line
     // look the same in a bubble and a full-frame camera.
-    if cam?.room == "halftone" || cam?.outline == true {
+    if cam?.room == "halftone" || cam?.outline == true, let mask = steadyMask(src, frame: Int(f)) {
       let fps = Double(plan.output.fps)
       src = Scene.styledRoom(
-        src, halftoneCell: cam?.room == "halftone" ? shown.width / 70 : nil, outline: cam?.outline == true ? min(W, H) / 150 / k : nil,
+        src, mask: mask, halftoneCell: cam?.room == "halftone" ? shown.width / 70 : nil, outline: cam?.outline == true ? min(W, H) / 150 / k : nil,
         ink: look.accent ?? "#FF4FD8", boil: Int(f / fps * 6))
     }
     let cut = cutoutWeight(b)
@@ -139,6 +139,52 @@ extension Scene {
       .transformed(by: CGAffineTransform(translationX: src.extent.minX, y: src.extent.minY))
   }
 
+  /// The earlier output frames whose masks frame `f`'s is averaged with: up to two, from the same
+  /// clip, and none when that clip is sped up past 1.5x (the person moves too far between them).
+  func maskFramesToAverage(_ f: Int) -> [Int] {
+    guard let seg = mapped.first(where: { f >= $0.outStart && f < $0.outStart + $0.frames }), seg.speed <= 1.5 else { return [] }
+    return [f - 1, f - 2].filter { $0 >= seg.outStart }
+  }
+
+  /// The person mask at output frame `f`, averaged with the two frames before it when they're from
+  /// the same clip played at about real speed, so the edge doesn't jitter frame to frame. Never across
+  /// a cut, so nothing ghosts. nil when Vision fails (the picture is then left as recorded).
+  func steadyMask(_ src: CIImage, frame f: Int) -> CIImage? {
+    guard let mask = Scene.personMask(src) else { return nil }
+    return averaged(mask, frame: f, lane: -1, earlier: maskFramesToAverage(f))
+  }
+
+  /// `mask` stored for frame `f`, averaged equally with the stored masks of `earlier` frames.
+  func averaged(_ mask: CIImage, frame f: Int, lane: Int, earlier frames: [Int]) -> CIImage {
+    recentMasks.store(f, mask, lane: lane)
+    let earlier = frames.compactMap { recentMasks.mask($0, lane: lane) }.filter { $0.extent == mask.extent }
+    guard !earlier.isEmpty else { return mask }
+    // A running mean: each earlier mask blended in at 1/2, then 1/3. (Scaling and adding them goes
+    // wrong: Core Image premultiplies and unpremultiplies along the way and halves the mask.)
+    return earlier.enumerated().reduce(mask) { acc, e in
+      acc.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: e.element, kCIInputTimeKey: 1 / Double(e.offset + 2)])
+    }.cropped(to: mask.extent)
+  }
+
+  /// Where the subject is in a B-roll frame (white): Vision's foreground instances, all of them, the
+  /// way Photos lifts a subject. nil when Vision fails or finds nothing.
+  static func subjectMask(_ src: CIImage) -> CIImage? {
+    let req = VNGenerateForegroundInstanceMaskRequest()
+    let origin = src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY))
+    let handler = VNImageRequestHandler(ciImage: origin)
+    do {
+      try handler.perform([req])
+      guard let result = req.results?.first else { return nil }
+      let buffer = try result.generateScaledMaskForImage(forInstances: result.allInstances, from: handler)
+      let mask = CIImage(cvPixelBuffer: buffer)
+      return mask.transformed(by: CGAffineTransform(
+        scaleX: origin.extent.width / mask.extent.width, y: origin.extent.height / mask.extent.height))
+        .transformed(by: CGAffineTransform(translationX: src.extent.minX, y: src.extent.minY))
+    } catch {
+      return nil
+    }
+  }
+
   /// joekarlsson.com's halftone: dots on a 45-degree grid sized by brightness, in `ink`, over a
   /// half-strength duotone of the same ink, on black. `cell` is the dot spacing in pixels.
   static func halftone(_ img: CIImage, cell: Double, ink: String) -> CIImage {
@@ -165,9 +211,8 @@ extension Scene {
 
   /// The camera picture with its room in halftone (`halftoneCell`, dot spacing in pixels) and/or a
   /// chalk crayon line around the person (`outline`, its width in pixels). The line boils: `boil`
-  /// changes six times a second. When Vision fails the picture is left as recorded.
-  static func styledRoom(_ src: CIImage, halftoneCell: Double?, outline: Double?, ink: String, boil: Int) -> CIImage {
-    guard let soft = personMask(src) else { return src }
+  /// changes six times a second. `mask` is where the person is (personMask, or steadyMask).
+  static func styledRoom(_ src: CIImage, mask soft: CIImage, halftoneCell: Double?, outline: Double?, ink: String, boil: Int) -> CIImage {
     // Vision's mask is soft and half-gray around hair, and those patches change every frame:
     // the room and the line follow a hard edge at the mask's middle instead, so they hold still.
     let feather = max(1, min(src.extent.width, src.extent.height) / 400)
@@ -203,5 +248,27 @@ extension Scene {
       out = chalk.applyingFilter("CIBlendWithMask", parameters: [kCIInputBackgroundImageKey: out, kCIInputMaskImageKey: ring])
     }
     return out.cropped(to: src.extent)
+  }
+}
+
+/// The last few person masks by output frame, shared by a scene's render threads.
+/// `lane` keeps the camera's (-1) apart from each B-roll clip's (its index).
+final class RecentMasks: @unchecked Sendable {
+  private var masks: [Int: [Int: CIImage]] = [:]
+  private let lock = NSLock()
+
+  func store(_ f: Int, _ mask: CIImage, lane: Int = -1) {
+    lock.lock()
+    defer { lock.unlock() }
+    // Keep only frames near this one: scrubbing or a second render starts over.
+    var near = (masks[lane] ?? [:]).filter { abs($0.key - f) <= 4 }
+    near[f] = mask
+    masks[lane] = near
+  }
+
+  func mask(_ f: Int, lane: Int = -1) -> CIImage? {
+    lock.lock()
+    defer { lock.unlock() }
+    return masks[lane]?[f]
   }
 }

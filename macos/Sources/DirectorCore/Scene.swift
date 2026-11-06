@@ -29,6 +29,9 @@ public final class Scene: @unchecked Sendable {
   /// The camera grade's LUT, read once here rather than on every frame. A LUT that can't be read
   /// is skipped (`describe` warns about it, and the app checks it when it's chosen).
   let cameraLUT: CubeLUT?
+  /// The person masks of the last few camera frames, so the halftone room and outline can average
+  /// over them instead of flickering with each frame's mask.
+  let recentMasks = RecentMasks()
   /// Styled cuts: the output frame of each cut and how it looks.
   let cuts: [(f: Double, kind: String)]
   /// Cuts that dissolve between clips (a second screen track carries the other clip's frames).
