@@ -94,6 +94,18 @@ extension InspectorView {
           toggle("Border", bind(nil, { $0.camera?.bubbleBorder != false }, { $0.camera?.bubbleBorder = $1 ? nil : false }))
           toggle("Shadow", bind(nil, { $0.camera?.bubbleShadow != false }, { $0.camera?.bubbleShadow = $1 ? nil : false }))
         }
+        LabeledContent("Room") {
+          Picker("Room", selection: bind(nil, { $0.camera?.room ?? "" }, { $0.camera?.room = $1.isEmpty ? nil : $1 })) {
+            Text("As recorded").tag("")
+            ForEach(Plan.Camera.rooms, id: \.name) { Text($0.label).tag($0.name) }
+          }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+        }
+        .help("Halftone redraws the room behind you in the accent's dots on black; you stay in color.")
+        toggle(
+          "Crayon outline", "A chalk crayon line around you that wobbles.",
+          bind(nil, { $0.camera?.outline == true }, { $0.camera?.outline = $1 ? true : nil }))
         toggle(
           "Mirror", "Flip left to right, for a camera that records mirrored.",
           bind(nil, { $0.camera?.mirror == true }, { $0.camera?.mirror = $1 ? true : nil }))

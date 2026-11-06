@@ -61,6 +61,11 @@ public struct Plan: Codable, Equatable, Sendable {
     public var bubbleShadow: Bool?
     /// Cut the person out of the camera's background instead of showing the camera in a shape.
     public var cutout: Bool?
+    /// The room behind the person: nil as recorded, "halftone" redrawn in the accent's halftone dots
+    /// on black (joekarlsson.com's photo treatment), the person kept in full color.
+    public var room: String?
+    /// A chalk crayon line traced around the person, wobbling like a hand-drawn line.
+    public var outline: Bool?
     /// Flip the camera left to right, for a camera that records mirrored (text it shows reads
     /// backwards). `x`/`y` stay in the file's own coordinates.
     public var mirror: Bool?
@@ -69,6 +74,7 @@ public struct Plan: Codable, Equatable, Sendable {
 
     public static let defaultBubbleSize = 0.24
     public static let shapes: [(name: String, label: String)] = [("circle", "Circle"), ("rounded", "Rounded"), ("square", "Square")]
+    public static let rooms: [(name: String, label: String)] = [("halftone", "Halftone")]
     public init(video: String, offset: Double) {
       self.video = video
       self.offset = offset

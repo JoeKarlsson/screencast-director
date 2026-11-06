@@ -58,6 +58,14 @@ extension Scene {
     // told which part of it the box shows (camera pixels, y down), so tracked boxes stay in view.
     let shown = CGRect(x: (r.minX - tx) / k, y: ch - (r.maxY - ty) / k, width: r.width / k, height: r.height / k)
     src = withEffects(src, layer: "camera", frame: Int(f), shown: shown)
+    // The room as halftone and the outline: sized to the picture as shown, so the dots and the line
+    // look the same in a bubble and a full-frame camera.
+    if cam?.room == "halftone" || cam?.outline == true {
+      let fps = Double(plan.output.fps)
+      src = Scene.styledRoom(
+        src, halftoneCell: cam?.room == "halftone" ? shown.width / 70 : nil, outline: cam?.outline == true ? min(W, H) / 150 / k : nil,
+        ink: look.accent ?? "#FF4FD8", boil: Int(f / fps * 6))
+    }
     let cut = cutoutWeight(b)
     if cut > 0 {
       let person = Scene.personCutout(src)
@@ -109,6 +117,12 @@ extension Scene {
   /// When Vision fails or finds no one, the result is empty: the camera disappears for that frame
   /// rather than showing the background it was asked to remove.
   static func personCutout(_ src: CIImage) -> CIImage {
+    guard let mask = personMask(src) else { return CIImage.empty() }
+    return src.applyingFilter("CIBlendWithMask", parameters: ["inputBackgroundImage": CIImage.empty(), "inputMaskImage": mask])
+  }
+
+  /// Where the person is in a camera frame (white), over the frame's extent; nil when Vision fails.
+  static func personMask(_ src: CIImage) -> CIImage? {
     let req = VNGeneratePersonSegmentationRequest()
     req.qualityLevel = .balanced
     req.outputPixelFormat = kCVPixelFormatType_OneComponent8
@@ -116,13 +130,75 @@ extension Scene {
     do {
       try VNImageRequestHandler(ciImage: origin).perform([req])
     } catch {
-      return CIImage.empty()
+      return nil
     }
-    guard let buffer = req.results?.first?.pixelBuffer else { return CIImage.empty() }
-    var mask = CIImage(cvPixelBuffer: buffer)
-    mask = mask.transformed(by: CGAffineTransform(
+    guard let buffer = req.results?.first?.pixelBuffer else { return nil }
+    let mask = CIImage(cvPixelBuffer: buffer)
+    return mask.transformed(by: CGAffineTransform(
       scaleX: origin.extent.width / mask.extent.width, y: origin.extent.height / mask.extent.height))
       .transformed(by: CGAffineTransform(translationX: src.extent.minX, y: src.extent.minY))
-    return src.applyingFilter("CIBlendWithMask", parameters: ["inputBackgroundImage": CIImage.empty(), "inputMaskImage": mask])
+  }
+
+  /// joekarlsson.com's halftone: dots on a 45-degree grid sized by brightness, in `ink`, over a
+  /// half-strength duotone of the same ink, on black. `cell` is the dot spacing in pixels.
+  static func halftone(_ img: CIImage, cell: Double, ink: String) -> CIImage {
+    // Core Image works in linear light: the ink's sRGB values as multipliers would come out paler.
+    let c = CIColor(cgColor: color(ink).converted(to: CGColorSpace(name: CGColorSpace.linearSRGB)!, intent: .defaultIntent, options: nil) ?? color(ink))
+    let gray = img.applyingFilter("CIColorControls", parameters: ["inputSaturation": 0, "inputContrast": 1.15, "inputBrightness": 0])
+    // CIDotScreen draws dark tones as big black dots; on the inverted picture that's bright tones
+    // as big dots, which inverting again makes white.
+    let dots = gray.applyingFilter("CIColorInvert")
+      .applyingFilter("CIDotScreen", parameters: [
+        "inputCenter": CIVector(x: img.extent.midX, y: img.extent.midY), "inputAngle": Double.pi / 4,
+        "inputWidth": max(3, cell), "inputSharpness": 0.7,
+      ])
+      .applyingFilter("CIColorInvert")
+    func tinted(_ i: CIImage, _ k: Double) -> CIImage {
+      i.applyingFilter("CIColorMatrix", parameters: [
+        "inputRVector": CIVector(x: c.red * k, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: c.green * k, y: 0, z: 0, w: 0),
+        "inputBVector": CIVector(x: c.blue * k, y: 0, z: 0, w: 0), "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+      ])
+    }
+    return tinted(dots, 1).applyingFilter("CIMaximumCompositing", parameters: [kCIInputBackgroundImageKey: tinted(gray, 0.5)])
+      .cropped(to: img.extent)
+  }
+
+  /// The camera picture with its room in halftone (`halftoneCell`, dot spacing in pixels) and/or a
+  /// chalk crayon line around the person (`outline`, its width in pixels). The line boils: `boil`
+  /// changes six times a second. When Vision fails the picture is left as recorded.
+  static func styledRoom(_ src: CIImage, halftoneCell: Double?, outline: Double?, ink: String, boil: Int) -> CIImage {
+    guard let mask = personMask(src) else { return src }
+    var out = src
+    if let cell = halftoneCell {
+      out = src.applyingFilter("CIBlendWithMask", parameters: [
+        kCIInputBackgroundImageKey: halftone(src, cell: cell, ink: ink), kCIInputMaskImageKey: mask,
+      ])
+    }
+    if let width = outline, width > 0 {
+      // The ring: the person grown by the line's width, minus the person.
+      let grown = mask.clampedToExtent().applyingFilter("CIMorphologyMaximum", parameters: [kCIInputRadiusKey: width]).cropped(to: src.extent)
+      let outside = mask.applyingFilter("CIColorInvert")
+      // Vision's soft edge would make a soft, gray band: tripled and clamped, it's a solid line.
+      var ring = grown.applyingFilter("CIMultiplyCompositing", parameters: [kCIInputBackgroundImageKey: outside])
+        .applyingFilter("CIColorMatrix", parameters: [
+          "inputRVector": CIVector(x: 3, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: 0, y: 3, z: 0, w: 0),
+          "inputBVector": CIVector(x: 0, y: 0, z: 3, w: 0), "inputBiasVector": CIVector(x: -0.4, y: -0.4, z: -0.4, w: 0),
+        ])
+        .applyingFilter("CIColorClamp")
+      // Wobble: pushed about by soft noise that changes with `boil`.
+      let noise = CIFilter(name: "CIRandomGenerator")!.outputImage!
+        .transformed(by: CGAffineTransform(translationX: Double(boil % 3) * 517, y: Double(boil % 3) * 311))
+        .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: width * 2.5])
+      ring = ring.clampedToExtent().applyingFilter("CIDisplacementDistortion", parameters: [
+        "inputDisplacementImage": noise, kCIInputScaleKey: width * 2,
+      ]).cropped(to: src.extent)
+      // Crayon grain: specks of the line missing.
+      let specks = CIFilter(name: "CIRandomGenerator")!.outputImage!
+        .applyingFilter("CIColorControls", parameters: ["inputSaturation": 0, "inputContrast": 4, "inputBrightness": 0.5])
+      ring = ring.applyingFilter("CIMultiplyCompositing", parameters: [kCIInputBackgroundImageKey: specks]).cropped(to: src.extent)
+      let chalk = CIImage(color: CIColor(cgColor: color("#ECE6DA"))).cropped(to: src.extent)
+      out = chalk.applyingFilter("CIBlendWithMask", parameters: [kCIInputBackgroundImageKey: out, kCIInputMaskImageKey: ring])
+    }
+    return out.cropped(to: src.extent)
   }
 }

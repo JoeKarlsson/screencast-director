@@ -943,6 +943,7 @@ struct Checks {
 
     fileAndFormatChecks()
     sceneDrawingChecks()
+    scribbleChecks()
     audioChecks()
     editorActionChecks()
     recordedBrollChecks()

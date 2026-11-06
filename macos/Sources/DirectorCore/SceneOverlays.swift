@@ -90,6 +90,10 @@ extension Scene {
     }
 
     for c in shownCallouts {
+      if c.c.style == "chapter", look.chapterStyle == "big" {
+        drawBigChapter(ctx, c, frame: f)
+        continue
+      }
       let pose = Motion.pose(frame: f, start: c.s, end: c.e, fps: Int(fps), enter: c.c.enter, exit: c.c.exit, style: motion)
       drawCallout(ctx, c.c, pose: pose, insets: ins, screen: b, blurred: &blurred)
     }

@@ -324,19 +324,34 @@ extension InspectorView {
         captionLook(plan)
       }
     }
-    // The checklist lists earlier chapter chips, so it needs at least two.
-    if plan.callouts.filter({ $0.style == "chapter" }).count >= 2 {
+    if plan.callouts.contains(where: { $0.style == "chapter" }) {
       chaptersSection(plan)
     }
   }
 
   func chaptersSection(_ plan: Plan) -> some View {
     InspectorSection("Chapters") {
-      toggle("Checklist", "Vertical step chips list the earlier steps under them, ticked.", bind("checklist", { $0.look?.chapterChecklist == true }, { p, on in
+      LabeledContent("Style") {
+        Picker("Chapter style", selection: bind("chapterStyle", { $0.look?.chapterStyle ?? "" }, { p, v in
+          var look = p.look ?? Look()
+          look.chapterStyle = v.isEmpty ? nil : v
+          p.look = look
+        })) {
+          Text("Chip").tag("")
+          Text("Big type").tag("big")
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+      }
+      .help("Big type: a black block rises under the picture with the chapter in huge letters and crayon marks.")
+      // The checklist lists earlier chapter chips, so it needs at least two.
+      if plan.callouts.filter({ $0.style == "chapter" }).count >= 2, plan.look?.chapterStyle != "big" {
+        toggle("Checklist", "Vertical step chips list the earlier steps under them, ticked.", bind("checklist", { $0.look?.chapterChecklist == true }, { p, on in
         var look = p.look ?? Look()
         look.chapterChecklist = on ? true : nil
         p.look = look
       }))
+      }
     }
   }
 

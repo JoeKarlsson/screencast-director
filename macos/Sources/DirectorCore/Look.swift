@@ -37,6 +37,9 @@ public struct Look: Codable, Equatable, Sendable {
   public var captionEmphasis: String?
   /// Vertical chapter chips list the earlier chapters under them, ticked, like a checklist.
   public var chapterChecklist: Bool?
+  /// How chapters show: nil is the chip (vertical) or the card; "big" is joekarlsson.com's hero, a
+  /// black block rising under the picture with the chapter in huge type and crayon marks drawing in.
+  public var chapterStyle: String?
   public var titleText: String?
   public var titleBackground: String?
   public var chipText: String?
@@ -138,6 +141,8 @@ public struct Profile: Codable, Equatable, Sendable {
     public var bubbleShape: String?
     public var bubbleBorder: Bool?
     public var bubbleShadow: Bool?
+    public var room: String?
+    public var outline: Bool?
     public init(grade: Grade? = nil, bubbleSize: Double? = nil, bubbleShape: String? = nil, bubbleBorder: Bool? = nil, bubbleShadow: Bool? = nil) {
       self.grade = grade
       self.bubbleSize = bubbleSize
@@ -231,6 +236,8 @@ public struct Profile: Codable, Equatable, Sendable {
       if let v = camera.bubbleShape { plan.camera?.bubbleShape = v }
       if let v = camera.bubbleBorder { plan.camera?.bubbleBorder = v }
       if let v = camera.bubbleShadow { plan.camera?.bubbleShadow = v }
+      if let v = camera.room { plan.camera?.room = v }
+      if let v = camera.outline { plan.camera?.outline = v }
     }
     if let defaultLayout { plan.defaultLayout = defaultLayout }
     if let effects { plan.effects = effects }
