@@ -81,7 +81,10 @@ struct HomeView: View {
       }
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 340), spacing: 18, alignment: .top)], alignment: .leading, spacing: 22) {
         ForEach(library.filtered, id: \.self) { url in
-          RecordingCard(url: url, info: library.info(url), poster: posters.images[url], hovered: ui.hovered == url)
+          RecordingCard(
+            url: url, info: library.info(url),
+            poster: ui.hovered == url ? ui.montageFrame(posters.montages[url]) ?? posters.images[url] : posters.images[url],
+            hovered: ui.hovered == url)
             .onAppear { posters.load(url) }
             .onHover { ui.hovered = $0 ? url : (ui.hovered == url ? nil : ui.hovered) }
             .onTapGesture { library.selection = url }
@@ -180,8 +183,28 @@ struct HomeView: View {
 }
 
 final class HomeUI: ObservableObject {
-  @Published var hovered: URL?
+  /// The card under the pointer, which plays its montage.
+  @Published var hovered: URL? {
+    didSet { if hovered != oldValue { startMontage() } }
+  }
   @Published var showSetup = false
+  /// Which montage frame the hovered card shows.
+  @Published private(set) var montageStep = 0
+  private var montageTimer: Timer?
+
+  func montageFrame(_ frames: [NSImage]?) -> NSImage? {
+    guard let frames, !frames.isEmpty else { return nil }
+    return frames[montageStep % frames.count]
+  }
+
+  /// Restarts the montage from its first frame, stepping every 0.7 s while a card is hovered.
+  private func startMontage() {
+    montageTimer?.invalidate()
+    montageTimer = nil
+    montageStep = 0
+    guard hovered != nil else { return }
+    montageTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in self?.montageStep += 1 }
+  }
 }
 
 /// A recording in the gallery: poster, name, length, date and stage.
@@ -200,6 +223,8 @@ struct RecordingCard: View {
           .overlay {
             if let poster {
               Image(nsImage: poster).resizable().scaledToFill()
+                .id(poster)
+                .transition(.opacity)
             } else {
               Image(systemName: "film").font(.largeTitle).foregroundStyle(.tertiary)
             }
@@ -225,6 +250,7 @@ struct RecordingCard: View {
       }
       .padding(.horizontal, 2)
     }
+    .animation(.easeInOut(duration: 0.25), value: poster)
     .scaleEffect(hovered ? 1.02 : 1)
     .animation(.snappy(duration: 0.2), value: hovered)
     .contentShape(Rectangle())

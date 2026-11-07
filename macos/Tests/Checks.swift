@@ -720,7 +720,17 @@ struct Checks {
     for d in [inside, outside] { FileManager.default.createFile(atPath: d.appendingPathComponent("source.json").path, contents: Data("{}".utf8)) }
     let listed = Set(libraryProjects(folder: libRoot.appendingPathComponent("folder"), opened: [outside.path: 1, gone.path: 2, inside.path: 3]).map(\.standardizedFileURL.path))
     expect(listed == [inside.standardizedFileURL.path, outside.standardizedFileURL.path], "the library lists opened projects from other folders, not missing ones or non-projects")
+    // Thumbnails show the newest export once there is one, else the recording.
+    expect(thumbnailVideo(project: inside, source: "screen.mp4").lastPathComponent == "screen.mp4", "a thumbnail shows the recording before any export")
+    FileManager.default.createFile(atPath: inside.appendingPathComponent("rec 1920x1080.mp4").path, contents: Data())
+    FileManager.default.createFile(atPath: inside.appendingPathComponent("notes.mp4").path, contents: Data())
+    expect(thumbnailVideo(project: inside, source: "screen.mp4").lastPathComponent == "rec 1920x1080.mp4", "a thumbnail shows the export, not other videos")
     try? FileManager.default.removeItem(at: libRoot)
+
+    // A thumbnail montage spreads its frames across the video, clear of the ends.
+    let montage = montageTimes(duration: 100, count: 4)
+    expect(montage.count == 4 && montage.first! > 5 && montage.last! < 95 && zip(montage, montage.dropFirst()).allSatisfy { $0 < $1 }, "montage frames spread across the video")
+    expect(montageTimes(duration: 0, count: 4) == [0], "a video without a length gets one frame")
 
     // Clips: a range of the edit in its own format, named after the project.
     var clipped = buildPlan(p)

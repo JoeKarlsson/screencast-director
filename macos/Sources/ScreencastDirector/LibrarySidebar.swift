@@ -116,26 +116,40 @@ struct LibrarySidebar: View {
 
 }
 
-/// Poster frames for the sidebar, made once per recording per launch.
+/// Thumbnails, made once per project per launch from its newest export (the recording before one
+/// exists): a poster frame, plus a few frames from across the video that the home screen's cards
+/// cycle through on hover.
 final class PosterCache: ObservableObject {
   static let shared = PosterCache()
   @Published private(set) var images: [URL: NSImage] = [:]
+  @Published private(set) var montages: [URL: [NSImage]] = [:]
   private var loading: Set<URL> = []
+  static let montageFrames = 6
 
   func load(_ url: URL) {
     guard images[url] == nil, !loading.contains(url) else { return }
     loading.insert(url)
     let source = (try? Data(contentsOf: url.appendingPathComponent("source.json"))).flatMap { try? JSONDecoder().decode(Project.Source.self, from: $0) }
-    let video = url.appendingPathComponent(source?.video ?? "screen.mp4")
-    let at = min(2, (source?.duration ?? 0) / 3)
+    let video = thumbnailVideo(project: url, source: source?.video ?? "screen.mp4")
     Task { @MainActor in
-      let gen = AVAssetImageGenerator(asset: AVURLAsset(url: video))
+      defer { loading.remove(url) }
+      let asset = AVURLAsset(url: video)
+      guard let duration = try? await asset.load(.duration).seconds else { return }
+      let gen = AVAssetImageGenerator(asset: asset)
       gen.appliesPreferredTrackTransform = true
-      gen.maximumSize = CGSize(width: 640, height: 400)
-      if let (cg, _) = try? await gen.image(at: CMTime(seconds: at, preferredTimescale: 600)) {
-        images[url] = NSImage(cgImage: cg, size: .zero)
+      // Square bounds, so a vertical export is as sharp in a card as a landscape one.
+      gen.maximumSize = CGSize(width: 640, height: 640)
+      // Nearby frames are fine for a thumbnail and far faster than exact ones.
+      let slack = CMTime(seconds: 0.5, preferredTimescale: 600)
+      gen.requestedTimeToleranceBefore = slack
+      gen.requestedTimeToleranceAfter = slack
+      var frames: [NSImage] = []
+      for t in montageTimes(duration: duration, count: Self.montageFrames) {
+        guard let (cg, _) = try? await gen.image(at: CMTime(seconds: t, preferredTimescale: 600)) else { continue }
+        frames.append(NSImage(cgImage: cg, size: .zero))
+        if frames.count == 1 { images[url] = frames[0] }
       }
-      loading.remove(url)
+      montages[url] = frames
     }
   }
 }
