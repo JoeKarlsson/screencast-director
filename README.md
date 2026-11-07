@@ -13,6 +13,12 @@ A macOS app that records your screen and does the boring part of the edit. Talk 
 
 ![The editor: preview with camera bubble and captions, a timeline of speech, sped-up and cut clips with zooms, layouts and titles, and the Camera inspector](docs/media/editor.png)
 
+## Recording (November 2026)
+
+[![The Screencast Director editor with my face filling the preview under a Joe Karlsson lower third, the camera framing and color inspector, and a timeline of clips, layouts and titles](.github/readme/2026-11-recording.webp)](.github/readme/2026-11-recording.mp4)
+
+What Screencast Director looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/screencast-director/). Click the picture to play the video.
+
 ## Install
 
 Apple silicon, macOS 15+, the Xcode Command Line Tools, and `brew install whisper-cpp`.
