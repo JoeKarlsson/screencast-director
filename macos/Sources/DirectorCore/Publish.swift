@@ -38,12 +38,16 @@ public enum Publish: Sendable {
     // otherwise); without a camera, one per title moment (or the middle) over the screen.
     if !faces.isEmpty {
       let vertical = plan.output.height > plan.output.width
+      // A vertical cover puts the video's B-roll on top when it has some.
+      let subjects = vertical ? await subjectFrames(project: project, plan: plan, count: faces.count) : []
       for (i, f) in faces.enumerated() {
         log("Composing \(vertical ? "cover" : "thumbnail") \(i + 1) of \(faces.count)…")
         // Graded like the video's camera, so a halftone room has the same light behind it.
         let person = gradedLikeVideo(f.image, scene: built.scene)
         let made = vertical
-          ? verticalThumbnail(plan: plan, person: person, faceX: f.faceX, title: title)
+          ? verticalThumbnail(
+            plan: plan, person: person, faceX: f.faceX, faceY: f.faceY, faceWidth: f.faceWidth,
+            subject: subjects.isEmpty ? nil : subjects[i % subjects.count], title: title)
           : landscapeThumbnail(plan: plan, person: person, faceX: f.faceX, title: title)
         guard let thumb = made else { continue }
         let u = out.appendingPathComponent("thumbnail-\(i + 1).png")

@@ -89,9 +89,9 @@ extension Publish {
   }
 
   /// The title's lines for a vertical cover: uppercase, broken greedily to fit `maxWidth` at the
-  /// largest size (down from `start`) where every word fits and it takes at most four lines. The last
-  /// line goes on the accent chip.
-  static func coverTitle(_ title: String, font: String?, maxWidth: Double, start: Double = 140) -> (lines: [String], size: Double) {
+  /// largest size (down from `start`) where every word fits and it takes at most `maxLines` lines.
+  /// The last line goes on the accent chip.
+  static func coverTitle(_ title: String, font: String?, maxWidth: Double, start: Double = 140, maxLines: Int = 4) -> (lines: [String], size: Double) {
     let words = title.uppercased().split(separator: " ").map(String.init)
     var size = start
     while size > 48 {
@@ -101,27 +101,105 @@ extension Publish {
         for w in words {
           if let last = lines.last, width(last + " " + w) <= maxWidth { lines[lines.count - 1] = last + " " + w } else { lines.append(w) }
         }
-        if lines.count <= 4 { return (lines, size) }
+        if lines.count <= maxLines { return (lines, size) }
       }
       size -= 6
     }
     return ([title.uppercased()], size)
   }
 
-  /// A 1080x1920 cover for a vertical video: the title big on the look's dark color at the top, the
-  /// last line on the accent chip, and the camera frame filling the bottom, framed on the face.
-  public static func verticalThumbnail(plan: Plan, person: CGImage, faceX: Double, title: String) -> CGImage? {
+  /// A 1080x1920 cover for a vertical video. With a `subject` (a frame of the video's B-roll): the
+  /// subject on the top half, the camera frame on the bottom framed on the face, and the title on an
+  /// accent bar across the seam. Without one: the title big on the look's dark color at the top, the
+  /// last line on the accent chip, and the camera frame filling the bottom.
+  /// `faceX`/`faceY` are the face's center and `faceWidth` its width, fractions of the camera frame.
+  public static func verticalThumbnail(
+    plan: Plan, person: CGImage, faceX: Double, faceY: Double = 0.4, faceWidth: Double? = nil, subject: CGImage? = nil, title: String
+  ) -> CGImage? {
     let W = 1080.0, H = 1920.0
     guard let (ctx, look, bg) = coverCanvas(plan, width: W, height: H) else { return nil }
+    if let subject {
+      // Split: the camera on the bottom half, the subject on the top (y-up drawing).
+      let seam = H * 0.5
+      let face = drawFramed(ctx, plan: plan, person: person, faceX: faceX, faceY: faceY, faceWidth: faceWidth, in: CGRect(x: 0, y: 0, width: W, height: seam))
+      drawFilled(ctx, subject, in: CGRect(x: 0, y: seam, width: W, height: H - seam))
+      let bar = drawTitleBar(ctx, look: look, title: title, centerY: seam, width: W)
+      drawSplitMarks(ctx, look: look, size: CGSize(width: W, height: H), bar: bar, face: face)
+      return ctx.makeImage()
+    }
     // The photo fills the bottom 52% (y-up drawing), its top edge fading into the background.
     let photoH = H * 0.52
-    drawFramed(ctx, plan: plan, person: person, faceX: faceX, in: CGRect(x: 0, y: 0, width: W, height: photoH))
+    drawFramed(ctx, plan: plan, person: person, faceX: faceX, faceY: faceY, faceWidth: faceWidth, in: CGRect(x: 0, y: 0, width: W, height: photoH))
     let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
     // The title fills the dark area above, down to where the photo shows through its fade.
     let titled = drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: photoH - 60, width: W, height: H - photoH + 60), margin: 80)
     drawCoverMarks(ctx, look: look, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top, photo: CGRect(x: 0, y: 0, width: W, height: photoH))
     return ctx.makeImage()
+  }
+
+  /// An image cropped to the rect's shape around its center and drawn there.
+  static func drawFilled(_ ctx: CGContext, _ image: CGImage, in rect: CGRect) {
+    let iw = Double(image.width), ih = Double(image.height), aspect = rect.width / rect.height
+    let cropW = min(iw, ih * aspect), cropH = cropW / aspect
+    if let crop = image.cropping(to: CGRect(x: (iw - cropW) / 2, y: (ih - cropH) / 2, width: cropW, height: cropH)) {
+      ctx.draw(crop, in: rect)
+    }
+  }
+
+  /// The title on one accent bar, centered on `centerY` (y up) across the cover with a thin stripe
+  /// of the same color running to both edges: one line when it fits big, else two. Returns the bar.
+  static func drawTitleBar(_ ctx: CGContext, look: Look, title: String, centerY: Double, width W: Double) -> CGRect {
+    let inset = W * 0.03, padX = W * 0.035
+    let room = W - 2 * inset - 2 * padX
+    let one = coverTitle(title, font: look.titleFont, maxWidth: room, start: 170, maxLines: 1)
+    let fit = one.size >= 100 ? one : coverTitle(title, font: look.titleFont, maxWidth: room, start: 150, maxLines: 2)
+    let texts = fit.lines.map { Scene.text($0, size: fit.size, weight: .heavy, font: look.titleFont, color: look.titleText ?? "#111318", align: .left) }
+    let sizes = texts.map { Scene.measure($0, maxWidth: .greatestFiniteMagnitude) }
+    let gap = fit.size * 0.04, padY = fit.size * 0.12
+    let textH = sizes.reduce(0) { $0 + $1.height } + gap * Double(texts.count - 1)
+    let bar = CGRect(x: inset, y: centerY - (textH + 2 * padY) / 2, width: W - 2 * inset, height: textH + 2 * padY)
+    ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
+    ctx.fill(CGRect(x: 0, y: bar.minY + bar.height * 0.1, width: W, height: max(6, W * 0.009)))
+    ctx.fill(bar)
+    var y = bar.maxY - padY
+    for (s, m) in zip(texts, sizes) {
+      let frame = CTFramesetterCreateFrame(
+        CTFramesetterCreateWithAttributedString(s), CFRange(location: 0, length: 0),
+        CGPath(rect: CGRect(x: bar.midX - m.width / 2, y: y - m.height, width: m.width + 2, height: m.height), transform: nil), nil)
+      CTFrameDraw(frame, ctx)
+      y -= m.height + gap
+    }
+    return bar
+  }
+
+  /// joekarlsson.com's crayon marks on a split zine cover, all in the accent: an asterisk and a burst
+  /// in the subject's top corners, rays off the bar's top-right corner, a double underline and a coil
+  /// under it, and a small asterisk by the head. Rects are y up; nothing for other looks.
+  static func drawSplitMarks(_ ctx: CGContext, look: Look, size: CGSize, bar: CGRect, face: CGRect?) {
+    guard look.animationTheme == "zine" else { return }
+    let W = size.width, H = size.height, side = min(W, H)
+    let pink = Scene.color(look.accent ?? "#FF4FD8"), line = side * 0.009
+    ctx.saveGState()
+    defer { ctx.restoreGState() }
+    ctx.translateBy(x: 0, y: H)
+    ctx.scaleBy(x: 1, y: -1)
+    func down(_ r: CGRect) -> CGRect { CGRect(x: r.minX, y: H - r.maxY, width: r.width, height: r.height) }
+    func mark(_ s: Scribble, _ r: CGRect, width: Double = line) { s.draw(ctx, in: r, color: pink, lineWidth: width, shares: s.shares(1), boil: 0) }
+    let b = down(bar)
+    mark(.asterisk, CGRect(x: W * 0.05, y: H * 0.085, width: side * 0.1, height: side * 0.1))
+    mark(.burst, CGRect(x: W - side * 0.26, y: H * 0.07, width: side * 0.2, height: side * 0.2), width: line * 0.85)
+    mark(.rays, CGRect(x: b.maxX - side * 0.12, y: b.minY - side * 0.12, width: side * 0.15, height: side * 0.11))
+    mark(.underline, CGRect(x: b.minX + W * 0.06, y: b.maxY + side * 0.015, width: W * 0.42, height: side * 0.02))
+    mark(.underline, CGRect(x: b.minX + W * 0.03, y: b.maxY + side * 0.045, width: W * 0.42, height: side * 0.02))
+    mark(.coil, CGRect(x: b.minX, y: b.maxY + side * 0.07, width: W * 0.24, height: W * 0.08), width: line * 0.85)
+    // By the top of the head, on the side with room, clear of the marks under the bar.
+    if let face {
+      let f = down(face), star = side * 0.07
+      let x = f.maxX + star < W - side * 0.03 ? f.maxX : f.minX - star
+      let y = f.minY - f.height * 0.6
+      if y > b.maxY + side * 0.17 { mark(.asterisk, CGRect(x: x, y: y, width: star, height: star), width: line * 0.8) }
+    }
   }
 
   /// A 1280x720 thumbnail for a landscape video: the title big on the look's dark color on the left,
@@ -181,16 +259,28 @@ extension Publish {
     return (ctx, look, bg)
   }
 
-  /// The camera frame as the video shows it, cropped to the rect's shape around the face and drawn there.
-  static func drawFramed(_ ctx: CGContext, plan: Plan, person: CGImage, faceX: Double, in rect: CGRect) {
+  /// The camera frame as the video shows it, cropped to the rect's shape around the face and drawn
+  /// there: the face just above the middle, with headroom, and with `faceWidth` known, zoomed in
+  /// (up to 2x) until the face is about 30% of the width. Returns the face's square in the
+  /// cover (y up) when its width is known.
+  @discardableResult
+  static func drawFramed(
+    _ ctx: CGContext, plan: Plan, person: CGImage, faceX: Double, faceY: Double = 0.4, faceWidth: Double? = nil, in rect: CGRect
+  ) -> CGRect? {
     let photo = asShown(person, plan: plan)
-    let iw = Double(photo.width), ih = Double(photo.height)
-    let cropW = min(iw, ih * rect.width / rect.height), cropH = cropW * rect.height / rect.width
+    let iw = Double(photo.width), ih = Double(photo.height), aspect = rect.width / rect.height
+    var cropW = min(iw, ih * aspect)
+    if let fw = faceWidth, fw > 0 { cropW = min(cropW, max(cropW / 2, fw * iw / 0.3)) }
+    let cropH = cropW / aspect
     let fx = plan.camera?.mirror == true ? 1 - faceX : faceX
     let cx = min(max(fx * iw - cropW / 2, 0), iw - cropW)
-    if let crop = photo.cropping(to: CGRect(x: cx, y: (ih - cropH) / 2, width: cropW, height: cropH)) {
-      ctx.draw(styledLikeVideo(crop, plan: plan), in: rect)
-    }
+    let cy = min(max(faceY * ih - cropH * 0.47, 0), ih - cropH)  // y down, like the image
+    guard let crop = photo.cropping(to: CGRect(x: cx, y: cy, width: cropW, height: cropH)) else { return nil }
+    ctx.draw(styledLikeVideo(crop, plan: plan), in: rect)
+    guard let fw = faceWidth else { return nil }
+    let scale = rect.width / cropW, side = fw * iw * scale
+    let centerX = rect.minX + (fx * iw - cx) * scale, centerY = rect.maxY - (faceY * ih - cy) * scale
+    return CGRect(x: centerX - side / 2, y: centerY - side / 2, width: side, height: side)
   }
 
   /// A camera frame through the video's camera grade and LUT; unchanged without a grade.

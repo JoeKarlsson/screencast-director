@@ -52,6 +52,45 @@ func coverChecks() {
     expect(false, "the landscape thumbnail renders")
   }
 
+  // Split: B-roll (green) on the top half, the camera framed on the face below, the title on an
+  // accent bar across the seam.
+  let greenCtx = CGContext(
+    data: nil, width: 1920, height: 1080, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+  greenCtx.setFillColor(CGColor(red: 0.1, green: 0.8, blue: 0.1, alpha: 1))
+  greenCtx.fill(CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  var barLook = Look()
+  barLook.titleBackground = "#FF4FD8"
+  plan.look = barLook
+  if let split = Publish.verticalThumbnail(plan: plan, person: frame, faceX: 0.8, faceY: 0.4, faceWidth: 0.1, subject: greenCtx.makeImage()!, title: "3D printed plant rack") {
+    let up = px(split, 540, 300), seam = px(split, 45, 960), low = px(split, 540, 1700)
+    expect(up[1] > 0.7 && up[0] < 0.3, "the B-roll fills the top half (\(up))")
+    expect(seam[0] > 0.9 && seam[2] > 0.7 && seam[1] < 0.5, "the title bar crosses the seam in the accent (\(seam))")
+    expect(low[2] > 0.7 && low[0] < 0.3, "the camera fills the bottom half framed on the face (\(low))")
+  } else {
+    expect(false, "the split cover renders")
+  }
+  plan.look = nil
+
+  // Cover faces: a face cut off by the edge, turned away or crowding the top scores below a clear one.
+  let clear = CGRect(x: 0.35, y: 0.3, width: 0.3, height: 0.3)
+  let base = Publish.faceScore(quality: 0.6, box: clear, smiling: false, blinking: false, yaw: 0)
+  func score(_ box: CGRect, yaw: Double = 0) -> Double { Publish.faceScore(quality: 0.6, box: box, smiling: false, blinking: false, yaw: yaw) }
+  expect(score(CGRect(x: 0.8, y: 0.3, width: 0.3, height: 0.3)) < base - 0.5, "a face cut off by the edge scores low")
+  expect(score(clear, yaw: 0.6) < base, "a turned face scores lower")
+  expect(score(CGRect(x: 0.35, y: 0.6, width: 0.3, height: 0.3)) < base, "a face crowding the top scores lower")
+  // Under full-frame B-roll the camera isn't seen, so its frames aren't cover candidates.
+  var hidden = plan
+  hidden.inserts = [Insert(start: 2, end: 4, file: "broll/a.mov", placement: "full")]
+  expect(Publish.cameraHidden(hidden, at: 3) && !Publish.cameraHidden(hidden, at: 5), "the camera is hidden only under full-frame B-roll")
+  // Sharpness: a striped frame is sharper than a flat one.
+  let striped = CGContext(data: nil, width: 400, height: 200, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: 0)!
+  striped.setFillColor(gray: 0, alpha: 1)
+  striped.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
+  striped.setFillColor(gray: 1, alpha: 1)
+  for x in stride(from: 0, to: 400, by: 8) { striped.fill(CGRect(x: x, y: 0, width: 4, height: 200)) }
+  expect(Publish.sharpness(striped.makeImage()!) > Publish.sharpness(greenCtx.makeImage()!) + 100, "detail scores sharper than a flat frame")
+
   // Picked cover moments: a second apart or replaced, the three most recent kept.
   var picks = plan
   for t in [4.8, 5.2, 30, 62, 85] { picks.addCover(at: t) }
