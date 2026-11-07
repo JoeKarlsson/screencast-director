@@ -15,9 +15,9 @@ A macOS app that records your screen and does the boring part of the edit. Talk 
 
 ## Recording (November 2026)
 
-[![The Screencast Director editor with my face filling the preview under a Joe Karlsson lower third, the camera framing and color inspector, and a timeline of clips, layouts and titles](.github/readme/2026-11-recording.webp)](.github/readme/2026-11-recording.mp4)
+![The Screencast Director editor with my face filling the preview under a Joe Karlsson lower third, the camera framing and color inspector, and a timeline of clips, layouts and titles](.github/readme/2026-11-recording.gif)
 
-What Screencast Director looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/screencast-director/). Click the picture to play the video.
+What Screencast Director looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/screencast-director/). The full-quality video is [2026-11-recording.mp4](.github/readme/2026-11-recording.mp4).
 
 ## Install
 
