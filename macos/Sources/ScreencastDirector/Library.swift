@@ -217,15 +217,7 @@ final class Library: ObservableObject {
     infos = [:]
     let root = settings.projectsURL
     try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    let dirs = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.creationDateKey])) ?? []
-    projects =
-      dirs
-      .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("source.json").path) }
-      .sorted {
-        let a = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
-        let b = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
-        return a > b
-      }
+    projects = libraryProjects(folder: root, opened: lastOpened)
   }
 
   /// Projects left while still analyzing or exporting; their work keeps running after `close()`.
@@ -251,7 +243,11 @@ final class Library: ObservableObject {
     if let old = current, old.busy { leftWorking.append(old) }
     current?.close()
     current = url.map { ProjectModel(dir: $0) }
-    if let url { lastOpened[url.standardizedFileURL.path] = Date().timeIntervalSince1970 }
+    if let url {
+      lastOpened[url.standardizedFileURL.path] = Date().timeIntervalSince1970
+      // A project from another folder joins the list once it's opened.
+      if !projects.contains(url) { refresh() }
+    }
     current?.onFinishedWork = { [weak self] dir in self?.applyPendingRename(dir) }
   }
 

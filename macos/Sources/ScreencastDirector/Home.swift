@@ -2,8 +2,8 @@ import AppKit
 import DirectorCore
 import SwiftUI
 
-/// What the main window shows with no project open: a big Record button, your recordings as a
-/// gallery, and the setup checklist (up front until it's all green, folded away after).
+/// What the main window shows with no project open: a big Record button, your projects as a
+/// gallery (including ones opened from other folders), and the setup checklist (up front until it's all green, folded away after).
 struct HomeView: View {
   @ObservedObject var library: Library
   @ObservedObject var setup: SetupModel
@@ -71,7 +71,7 @@ struct HomeView: View {
   private var gallery: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack(alignment: .firstTextBaseline) {
-        Text("Recordings").font(.title2.bold())
+        Text("Recent Projects").font(.title2.bold())
         Text("\(library.filtered.count)").font(.title3).foregroundStyle(.secondary)
         Spacer()
         Picker("Sort By", selection: $library.sort) {

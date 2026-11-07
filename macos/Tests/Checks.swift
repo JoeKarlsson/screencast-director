@@ -712,6 +712,16 @@ struct Checks {
     let recents = ["a", "b", "c", "d"].map { URL(fileURLWithPath: "/p/" + $0) }
     expect(byLastOpened(recents, opened: ["/p/c": 200, "/p/a": 100]) == [recents[2], recents[0], recents[1], recents[3]], "recordings order by when they were last opened")
 
+    // The library: the projects folder's projects plus ones opened from elsewhere that still exist.
+    let libRoot = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+    let inside = libRoot.appendingPathComponent("folder/rec"), outside = libRoot.appendingPathComponent("other/plant-rack")
+    let notProject = libRoot.appendingPathComponent("folder/notes"), gone = libRoot.appendingPathComponent("other/deleted")
+    for d in [inside, outside, notProject] { try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true) }
+    for d in [inside, outside] { FileManager.default.createFile(atPath: d.appendingPathComponent("source.json").path, contents: Data("{}".utf8)) }
+    let listed = Set(libraryProjects(folder: libRoot.appendingPathComponent("folder"), opened: [outside.path: 1, gone.path: 2, inside.path: 3]).map(\.standardizedFileURL.path))
+    expect(listed == [inside.standardizedFileURL.path, outside.standardizedFileURL.path], "the library lists opened projects from other folders, not missing ones or non-projects")
+    try? FileManager.default.removeItem(at: libRoot)
+
     // Clips: a range of the edit in its own format, named after the project.
     var clipped = buildPlan(p)
     clipped.segments = [Segment(start: 0, end: 4, speed: 1), Segment(start: 6, end: 10, speed: 1, transition: "dip")]

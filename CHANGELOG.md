@@ -43,6 +43,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd record`, `sd devices` and the standalone input logger are gone: the app records. `sd` rebuilds `director` when its sources change instead of running a stale build, and passes every argument through to it.
 
 ### App
+- The home screen lists Recent Projects: your recordings plus any project you opened from another folder (one made with `sd import` or `director join`), so a project made outside the app no longer disappears after you close it. The sidebar and search list them too.
 - The camera's room can be redrawn as halftone (Camera › Room, `camera.room: "halftone"`): the room behind you in the accent's halftone dots on black, like the photos on joekarlsson.com, while you stay in full color. **Crayon outline** (`camera.outline`) traces a chalk crayon line around you that wobbles. Both use the person segmentation the cutout uses.
 - B-roll matches the halftone room: a video clip's background goes to halftone dots with its subject (your hand and the device, found by Vision the way Photos lifts a subject) in color and the crayon outline around it. Video B-roll follows the camera's room; set `room` on an insert to "halftone" for a picture or "none" to keep a clip as shot. Covers made by Publish get the halftone room and outline too, graded like the video's camera.
 - Covers in the zine look (Pink Scribble) get joekarlsson.com's crayon marks: rays bursting off the title's chip, an asterisk and a starburst by the title, and a chalk coil along the photo's top edge.

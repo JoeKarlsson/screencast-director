@@ -15,3 +15,18 @@ public func byLastOpened(_ projects: [URL], opened: [String: Double]) -> [URL] {
     }
     .map(\.url)
 }
+
+/// The projects the app lists: every project in the projects folder, plus projects elsewhere that
+/// were opened in the app (made with `sd import` or `director join` in another folder), so they stay
+/// findable. A project is a folder with a `source.json`; opened folders that are gone are left out.
+/// Newest first by creation date.
+public func libraryProjects(folder: URL, opened: [String: Double]) -> [URL] {
+  let fm = FileManager.default
+  let inFolder = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])) ?? []
+  let known = Set(inFolder.map(\.standardizedFileURL.path))
+  let elsewhere = opened.keys.filter { !known.contains($0) }.map { URL(fileURLWithPath: $0, isDirectory: true) }
+  func created(_ url: URL) -> Date { (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast }
+  return (inFolder + elsewhere)
+    .filter { fm.fileExists(atPath: $0.appendingPathComponent("source.json").path) }
+    .sorted { created($0) > created($1) }
+}
