@@ -5,61 +5,60 @@
 ![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black?logo=apple)
 ![Apple silicon](https://img.shields.io/badge/Apple%20silicon-required-black)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-A macOS app that records your screen and does the boring part of the edit. Talk through your demo once: it cuts the dead air, speeds up typing, zooms to your clicks and captions what you said. Then adjust it by hand, or tell Claude what to change.
+A macOS app that records your screen and does the boring part of the edit. Talk
+through your demo once: it cuts the dead air, speeds up typing, zooms to your
+clicks and captions what you said. Then adjust it by hand, or tell Claude what
+to change. This repo has the app and a scriptable CLI (`bin/director`) that
+runs the same Swift engine.
 
 ![A demo edited by Screencast Director from a real recording: a title, karaoke captions, a camera bubble and a zoom on the timeline](docs/media/hero.gif)
 
 ![The editor: preview with camera bubble and captions, a timeline of speech, sped-up and cut clips with zooms, layouts and titles, and the Camera inspector](docs/media/editor.png)
 
-## Recording (November 2026)
+## Quick start
 
-![The Screencast Director editor with my face filling the preview under a Joe Karlsson lower third, the camera framing and color inspector, and a timeline of clips, layouts and titles](.github/readme/2026-11-recording.gif)
-
-What Screencast Director looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/screencast-director/). The full-quality video is [2026-11-recording.mp4](.github/readme/2026-11-recording.mp4).
-
-## Install
-
-Apple silicon, macOS 15+, the Xcode Command Line Tools, and `brew install whisper-cpp`.
+Apple silicon, macOS 15+, the Xcode Command Line Tools, and whisper.cpp.
 
 ```sh
-macos/build.sh --install      # builds /Applications/Screencast Director.app
+brew install whisper-cpp        # or bundle your own: macos/build-whisper.sh (needs cmake)
+git clone https://github.com/JoeKarlsson/screencast-director.git
+cd screencast-director
+macos/build.sh --install        # builds /Applications/Screencast Director.app
 ```
 
-On first launch, **Getting Started** shows which permissions are missing, gives you the command to download a Whisper model, and plays a short demo.
+On first launch, **Getting Started** shows which permissions are missing
+(Screen & System Audio Recording, Microphone, Input Monitoring, optionally
+Camera) and gives you the command to download a Whisper model.
 
-## Use it
+## Usage
 
 1. **Record:** press ⌃⌥⌘R in any app, talk through your demo, then press it again.
 2. **Draft:** it transcribes on your Mac and drafts the edit. Talking plays in real time, typing without talking plays fast, and silence disappears.
-3. **Adjust:** use the timeline and inspector. The shortcuts match Screen Studio's, and ⌘/ lists them.
-4. **Or ask:** "cut my retakes and zoom in when I mention the config." ⌘Z undoes it.
-5. **Export or publish:** 16:9, 9:16, square or 4:5, up to 4K, plus captions, chapters, a description draft and thumbnails.
+3. **Adjust** on the timeline and inspector (⌘/ lists the shortcuts), or **ask** Claude: "cut my retakes and zoom in when I mention the config." ⌘Z undoes it.
+4. **Export:** 16:9, 9:16, square or 4:5, up to 4K, plus captions, chapters, a description draft and thumbnails.
 
-| The editor | Ask Claude to change the edit |
-|---|---|
-| ![Playing a recording, then clicking a clip, a layout and a title on the timeline, with the inspector switching to each one](docs/media/ui-editor.gif) | ![Typing a request into the Ask Claude box, Claude editing, then the edit landing on the timeline (the wait is sped up)](docs/media/ui-ask.gif) |
-| **Restore a cut, change a speed** | **Export any shape** |
-| ![Clicking a dashed cut and pressing Restore, then setting a clip to 2x so it turns striped](docs/media/ui-timeline.gif) | ![Opening the Export menu, hovering every format, then rendering Shorts in the background](docs/media/ui-export.gif) |
+For AI edits it uses Claude Code (your Claude login, no key), the Anthropic API,
+or any OpenAI-compatible endpoint. Projects live in `~/Movies/Screencast Director`.
 
+| Doc | What's in it |
+| --- | --- |
+| [docs/app.md](docs/app.md) | The app in detail: recording, editing, camera, sound, profiles, sharing, AI settings |
+| [docs/cli.md](docs/cli.md) | The `director` CLI |
+| [docs/plan-format.md](docs/plan-format.md) | The project format both use |
+| [docs/privacy.md](docs/privacy.md) | What's recorded and what can leave your Mac |
 
-## Features
+## Development
 
-- **Timeline:** clips, an audio waveform, words, zooms, layouts and titles.
-- **Pauses:** pick Gentle, Normal or Tight, measured from the audio. Changing the level never brings back words you cut.
-- **Camera:** bubble, side by side or full frame, auto-centered on your face, with reframing and color grading.
-- **Sound:** voice normalizing, volume and a limiter.
-- **Profiles:** your look (background, fonts, colors, logo, frame), full bleed or padded.
-- **Intro and outro cards** in your profile's fonts, colors and logo.
-- **Sharing:** GIFs for docs, and upload to any S3-compatible bucket with the link copied.
-- **AI:** Claude Code (your Claude login, no key), the Anthropic API, or any OpenAI-compatible endpoint.
-- **Library:** search by name or by what you said, let Claude name recordings, and join takes into one.
+```sh
+macos/test-all.sh               # lint, unit, playback, media, CLI, animation and GUI smoke tests
+macos/test-all.sh --no-smoke    # what CI runs (the smoke test needs a GUI session)
+```
 
-Details: [docs/app.md](docs/app.md). The scriptable CLI, which runs the same Swift engine, is in [docs/cli.md](docs/cli.md). Both use the project format in [docs/plan-format.md](docs/plan-format.md).
+Linting needs `brew install swiftlint shellcheck`, and the media tests need
+ffmpeg, whisper-cli and a model. Releases: `macos/release.sh` (see
+[CONTRIBUTING.md](CONTRIBUTING.md)).
 
-Privacy: recordings, transcripts and input logs stay on your Mac; see [docs/privacy.md](docs/privacy.md) for what's recorded and what can leave it.
+## License
 
-## Contributing and license
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). [MIT](LICENSE).
+MIT. See [LICENSE](LICENSE).
