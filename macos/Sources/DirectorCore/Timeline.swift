@@ -95,7 +95,11 @@ public func srcRangeToOut(_ mapped: [MappedSegment], _ a: Double, _ b: Double, f
     let lo = max(a, s.start), hi = min(b, s.end)
     guard hi > lo else { continue }
     let k = Double(fps) / s.speed
-    pieces.append((Double(s.outStart) + (lo - s.start) * k, Double(s.outStart) + (hi - s.start) * k))
+    // A range reaching a segment's edge ends on its (rounded) frame, so one running to the end of
+    // the video covers the last frame instead of stopping a fraction short of it.
+    let startF = lo == s.start ? Double(s.outStart) : Double(s.outStart) + (lo - s.start) * k
+    let endF = hi == s.end ? Double(s.outStart + s.frames) : Double(s.outStart) + (hi - s.start) * k
+    pieces.append((startF, endF))
   }
   pieces.sort { $0.startF < $1.startF }
   var out: [(startF: Double, endF: Double)] = []

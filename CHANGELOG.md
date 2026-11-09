@@ -6,6 +6,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### Fixes
 - B-roll shot on a phone held sideways or upside down plays upright, instead of turned 90° and cropped.
+- A layout that runs to the end of the video holds through the last frame, instead of easing back to the default layout (and showing the screen) in the last half second.
 
 ### CLI and agents
 - Everything the app does can now be done from the terminal or by an agent ([docs/cli.md](docs/cli.md) maps each app action to its command).

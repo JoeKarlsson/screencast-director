@@ -14,6 +14,9 @@ func fileAndFormatChecks() {
   expect(videoOrientation(CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 2160, ty: 0)) == .right, "a portrait phone clip turns right")
   expect(videoOrientation(CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 3840)) == .left, "a clip turned the other way turns left")
   expect(videoOrientation(.identity) == nil, "an upright clip isn't turned")
+  // 21.29 s is 638.7 frames, rounded to 639: a range past the end covers that last frame.
+  let lastClip = mapSegments([Segment(start: 50.33, end: 71.62, speed: 1)], fps: 30)
+  expect(srcRangeToOut(lastClip, 0, 74, fps: 30).first?.endF == 639, "a range to the end covers the last frame")
 }
 
 /// `director validate`: precise problems with JSON paths, harmless overruns as warnings.
