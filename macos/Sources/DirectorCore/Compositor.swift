@@ -16,10 +16,14 @@ final class DirectorInstruction: NSObject, AVVideoCompositionInstructionProtocol
   let handleTrack: CMPersistentTrackID?
   /// B-roll clip tracks by their index in plan.inserts (then rendered animations, after them).
   let insertTracks: [Int: CMPersistentTrackID]
+  /// How to turn each B-roll clip's frames upright (a phone clip stores its rotation as metadata,
+  /// which a custom compositor's raw frames don't apply), by the same index. Upright clips are absent.
+  let insertOrientations: [Int: CGImagePropertyOrientation]
 
   init(
     timeRange: CMTimeRange, scene: Scene, screenTrack: CMPersistentTrackID, cameraTrack: CMPersistentTrackID?,
-    handleTrack: CMPersistentTrackID? = nil, insertTracks: [Int: CMPersistentTrackID] = [:]
+    handleTrack: CMPersistentTrackID? = nil, insertTracks: [Int: CMPersistentTrackID] = [:],
+    insertOrientations: [Int: CGImagePropertyOrientation] = [:]
   ) {
     self.timeRange = timeRange
     self.scene = scene
@@ -27,6 +31,7 @@ final class DirectorInstruction: NSObject, AVVideoCompositionInstructionProtocol
     self.cameraTrack = cameraTrack
     self.handleTrack = handleTrack
     self.insertTracks = insertTracks
+    self.insertOrientations = insertOrientations
     requiredSourceTrackIDs = ([screenTrack] + [cameraTrack, handleTrack].compactMap { $0 } + insertTracks.values.sorted()).map {
       NSNumber(value: $0)
     }
@@ -59,7 +64,9 @@ final class DirectorCompositor: NSObject, AVVideoCompositing, @unchecked Sendabl
     let handle = instruction.handleTrack.flatMap { request.sourceFrame(byTrackID: $0) }.map { CIImage(cvPixelBuffer: $0) }
     var inserts: [Int: CIImage] = [:]
     for (index, track) in instruction.insertTracks {
-      if let px = request.sourceFrame(byTrackID: track) { inserts[index] = CIImage(cvPixelBuffer: px) }
+      guard let px = request.sourceFrame(byTrackID: track) else { continue }
+      let image = CIImage(cvPixelBuffer: px)
+      inserts[index] = instruction.insertOrientations[index].map { image.oriented($0) } ?? image
     }
     let image = scene.render(frame: frame, screen: screen, camera: camera, handle: handle, insertFrames: inserts)
     context.render(image, to: out, bounds: CGRect(origin: .zero, size: request.renderContext.size), colorSpace: Scene.srgb)

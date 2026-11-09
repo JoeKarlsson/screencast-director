@@ -184,7 +184,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   }
   let instruction = DirectorInstruction(
     timeRange: CMTimeRange(start: .zero, duration: total), scene: scene, screenTrack: vTrack.trackID, cameraTrack: camTrack?.trackID,
-    handleTrack: handleTrack?.trackID, insertTracks: broll.tracks)
+    handleTrack: handleTrack?.trackID, insertTracks: broll.tracks,
+    insertOrientations: broll.orientations)
   let vc = AVMutableVideoComposition()
   vc.customVideoCompositorClass = DirectorCompositor.self
   vc.frameDuration = CMTime(value: 1, timescale: fps)
@@ -263,12 +264,15 @@ private func levelingCurve(_ levels: [(Double, Double)], _ scene: Scene) -> [Dou
 
 /// B-roll clips: one track each, playing at real time from `from`, muted. Pictures are drawn by the
 /// scene and need no track. Returns each clip's track by its index (the compositor's key), the tracks
-/// and sources to pad to the end, and the assets, which must outlive the composition's inserts.
+/// and sources to pad to the end, the orientation that turns each rotated clip upright, and the assets,
+/// which must outlive the composition's inserts.
 private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableComposition) async throws -> (
-  tracks: [Int: CMPersistentTrackID], fills: [(AVMutableCompositionTrack, AVAssetTrack)], assets: [AVURLAsset]
+  tracks: [Int: CMPersistentTrackID], orientations: [Int: CGImagePropertyOrientation],
+  fills: [(AVMutableCompositionTrack, AVAssetTrack)], assets: [AVURLAsset]
 ) {
   let fps = Int32(scene.fps)
   var tracks: [Int: CMPersistentTrackID] = [:]
+  var orientations: [Int: CGImagePropertyOrientation] = [:]
   var fills: [(AVMutableCompositionTrack, AVAssetTrack)] = []
   var assets: [AVURLAsset] = []
   for ins in scene.inserts where !ins.a.isImage {
@@ -294,9 +298,21 @@ private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableCompos
       track.scaleTimeRange(CMTimeRange(start: holdAt, duration: held.duration), toDuration: CMTimeSubtract(slotEnd, holdAt))
     }
     tracks[ins.index] = track.trackID
+    if let orientation = videoOrientation(try await src.load(.preferredTransform)) { orientations[ins.index] = orientation }
     fills.append((track, src))
   }
-  return (tracks, fills, assets)
+  return (tracks, orientations, fills, assets)
+}
+
+/// The orientation that turns a clip's stored frames upright, from its track's preferred transform
+/// (a phone held sideways or upside down); nil when it's already upright.
+func videoOrientation(_ t: CGAffineTransform) -> CGImagePropertyOrientation? {
+  switch (t.a.rounded(), t.b.rounded(), t.c.rounded(), t.d.rounded()) {
+  case (0, 1, -1, 0): return .right
+  case (0, -1, 1, 0): return .left
+  case (-1, 0, 0, -1): return .down
+  default: return nil
+  }
 }
 
 /// The plan's music, looped to `total` and ducked under the voice. Returns its mix parameters and

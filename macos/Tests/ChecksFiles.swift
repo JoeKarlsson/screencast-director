@@ -10,6 +10,10 @@ func fileAndFormatChecks() {
   exportQueueChecks()
   publishHelperChecks()
   agentInterfaceChecks()
+  // A phone clip shot sideways stores its frames rotated, with the turn in its preferred transform.
+  expect(videoOrientation(CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 2160, ty: 0)) == .right, "a portrait phone clip turns right")
+  expect(videoOrientation(CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 3840)) == .left, "a clip turned the other way turns left")
+  expect(videoOrientation(.identity) == nil, "an upright clip isn't turned")
 }
 
 /// `director validate`: precise problems with JSON paths, harmless overruns as warnings.

@@ -4,6 +4,9 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Fixes
+- B-roll shot on a phone held sideways or upside down plays upright, instead of turned 90° and cropped.
+
 ### CLI and agents
 - Everything the app does can now be done from the terminal or by an agent ([docs/cli.md](docs/cli.md) maps each app action to its command).
   - `director draft` (and `sd draft`) makes the same first draft as the app: the plan, then your default profile, pause level and voice polish, face centering and lip sync. `sd auto` now uses it.
