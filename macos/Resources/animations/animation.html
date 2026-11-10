@@ -47,6 +47,20 @@ svg#lines { position: absolute; inset: 0; overflow: visible; }
 .ringmark { border-radius: 50%; border: 7px solid var(--accent); box-sizing: border-box; mix-blend-mode: multiply; }
 #grain { position: absolute; inset: -50px; pointer-events: none; mix-blend-mode: multiply; opacity: .32; }
 #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(60,50,30,.16) 100%); }
+/* Flourishes (engine.js): heading words in masks, self-drawing icons, the landing burst, packets. */
+.rw { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: .08em; margin-bottom: -.08em; }
+.rw > span { display: inline-block; }
+svg.drawn { width: 96px; height: 96px; overflow: visible; }
+.hub svg.drawn { width: 64px; height: 64px; }
+.sticker svg.drawn { width: 78px; height: 78px; }
+.dot svg.drawn path { stroke: #fff; }
+svg.drawn path { fill: none; stroke: var(--ink); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.burstmark { width: 330px; height: 330px; margin: -165px 0 0 -165px; overflow: visible; pointer-events: none; }
+.burstmark g { fill: none; stroke: var(--accent); stroke-linecap: round; }
+svg.packets { overflow: visible; pointer-events: none; }
+html.theme-zine svg.drawn path, html.theme-zine .burstmark g { filter: url(#crayon); }
+html.theme-zine .sticker svg.drawn path, html.theme-zine .hub svg.drawn path, html.theme-zine .dot svg.drawn path { stroke: #000; }
+html.theme-terminal svg.drawn path { stroke: var(--accent); stroke-width: 4; stroke-linecap: square; stroke-linejoin: miter; }
 /* Terminal theme (look.animationTheme "terminal"): a 90s screen. DOS-style boxes with square corners
    and hard offset shadows, mono type with a faint phosphor glow, [ bracketed ] labels, inverse-video
    highlights, two-tone green logos, a faint grid and scanlines. engine.js swaps the motion too:

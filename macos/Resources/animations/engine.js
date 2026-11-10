@@ -120,6 +120,7 @@ function place(node, x, y, s = 1, rot = 0, opacity = 1, blur = 0) {
 function drawPath(p, curve, progress, opacity = 1) {
   p.setAttribute("d", curve.d); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1 - clamp(progress);
   p.style.opacity = progress <= 0 ? 0 : opacity;
+  if (packetLayer && curve.at && progress >= 1 && opacity > .05) packetLines.push({ p, curve, opacity });
   // Zine: p5.brush draws it instead (the path stays, hidden, for layout).
   if (brushLines && curve.at) {
     p.style.visibility = "hidden";
@@ -191,11 +192,128 @@ function drawBrushLines(t) {
   L.queue = [];
 }
 // A heading with the `highlight` part swiped in highlighter.
+// --- flourishes ----------------------------------------------------------------
+// Moves from the explainers made with Claude (the "Claude Motion Tips" collection): headings revealed
+// a word at a time out of a mask line, stickers slammed down with squash and stretch, a scribble burst
+// flaring behind each landing, icons that draw themselves, and packets running along finished lines.
+
+// Hand-drawn line icons in a 100-unit box, drawn on with drawIcons.
+const ICON_PATHS = {
+  laptop: "M20 26 H80 V64 H20 Z M10 72 H90 L84 82 H16 Z",
+  prompter: "M18 18 H82 V54 H18 Z M28 30 H66 M28 41 H56 M34 54 L22 84 M66 54 L78 84",
+  camera: "M12 34 H62 V74 H12 Z M62 46 L88 32 V76 L62 62 M22 26 H38",
+  mic: "M38 16 A12 12 0 0 1 62 16 V44 A12 12 0 0 1 38 44 Z M26 40 A24 24 0 0 0 74 40 M50 64 V82 M34 84 H66",
+  phone: "M32 10 H68 V90 H32 Z M44 80 H56",
+  server: "M16 14 H84 V40 H16 Z M16 48 H84 V74 H16 Z M26 27 H40 M26 61 H40 M50 86 V74",
+  database: "M18 22 A32 10 0 0 0 82 22 A32 10 0 0 0 18 22 V78 A32 10 0 0 0 82 78 V22 M18 50 A32 10 0 0 0 82 50",
+  cloud: "M28 72 A16 16 0 0 1 26 40 A22 22 0 0 1 68 32 A18 18 0 0 1 76 72 Z",
+  user: "M50 14 A16 16 0 1 1 49.9 14 Z M18 88 A32 30 0 0 1 82 88",
+  doc: "M24 10 H62 L78 26 V90 H24 Z M62 10 V26 H78 M34 46 H68 M34 60 H68 M34 74 H56",
+  chart: "M14 86 H88 M24 76 V52 M44 76 V34 M64 76 V44 M84 76 V20",
+  bolt: "M56 8 L22 54 H48 L42 92 L78 42 H52 Z",
+};
+function iconHTML(name) {
+  const d = ICON_PATHS[name];
+  return d ? `<svg class="drawn" viewBox="0 0 100 100">${d.split(/(?=M)/).map(x => `<path pathLength="1" d="${x.trim()}"/>`).join("")}</svg>` : "";
+}
+// Draws a node's icon strokes one after another from `start`.
+function drawIcons(node, t, start) {
+  node.querySelectorAll("svg.drawn path").forEach((p, i) => {
+    p.style.strokeDasharray = 1;
+    p.style.strokeDashoffset = THEME === "terminal" ? (t >= start ? 0 : 1) : 1 - easeOut((t - start - i * .07) / .3);
+  });
+}
+// A sticker slammed down: springs in, squashed on impact and stretched on the rebound. Terminal
+// flickers on instead.
+function land(node, x, y, t, start, size = 1, rot = 0, opacity = 1) {
+  const s = popScale(t, start, .38);
+  if (THEME === "terminal") return place(node, x, y, s * size, 0, opacity);
+  const u = t - start, wob = u > 0 ? Math.exp(-u * 9) * Math.sin(u * 30) * .16 : 0;
+  node.style.transform = `translate(${x}px, ${y}px) rotate(${rot * (1 - .4 * clamp(u / .4))}deg) scale(${s * size * (1 + wob)}, ${s * size * (1 - wob)})`;
+  node.style.opacity = s <= .001 ? 0 : opacity;
+  node.style.filter = "";
+}
+// The site's burst scribble, in the accent, flaring behind a node as it lands and erasing.
+function burstMark(behind) {
+  if (THEME === "terminal" || typeof SCRIBBLES === "undefined") return null;
+  const m = SCRIBBLES.burstDense, svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", m.viewBox); svg.setAttribute("class", "abs burstmark");
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("stroke-width", 10 * m.viewBox.split(" ").map(Number)[2] / 330);
+  const strokes = m.path.split(/(?=M)/).map(d => d.trim()).filter(Boolean).map(d => {
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", d); p.setAttribute("pathLength", "1"); p.style.strokeDasharray = 1; g.appendChild(p); return p;
+  });
+  svg.appendChild(g);
+  (behind || cam.lastChild).before(svg);
+  return { svg, strokes };
+}
+function drawBurst(b, x, y, t, start, size = 1, rot = 0) {
+  if (!b) return;
+  const u = t - start - .05;
+  b.svg.style.opacity = u < 0 || u > .8 ? 0 : 1;
+  b.svg.style.transform = `translate(${x}px, ${y}px) rotate(${rot * 3}deg) scale(${size * (.8 + .4 * easeOut(u / .5))})`;
+  b.strokes.forEach((p, i) => { p.style.strokeDashoffset = u < 0 ? 1 : u < .55 ? 1 - easeOut((u - i * .012) / .2) : -easeOut((u - .55) / .25); });
+}
+// Heading words rise out of a mask line, 60 ms apart (heading() wraps each word).
+function revealHeading(h, t, start) {
+  h.node.querySelectorAll(".rw > span").forEach((w, i) => {
+    const p = THEME === "terminal" ? (t >= start + i * .06 ? 1 : 0) : spring((t - start - i * .06) / .5, .75);
+    w.style.transform = `translateY(${(1 - p) * 110}%)`;
+  });
+}
+// Packets: dots of the accent running along every finished line, two per line, toward its end.
+// drawPath queues the lines; seek draws them (the terminal theme runs its own square packets).
+let packetLayer = null, packetLines = [];
+function setupPackets() {
+  packetLayer = document.createElementNS(NS, "svg");
+  packetLayer.setAttribute("class", "abs packets");
+  packetLayer.setAttribute("width", STAGE.w); packetLayer.setAttribute("height", STAGE.h);
+  // Above the lines (and the zine's brush canvas), under every node made after it.
+  (brushLines ? lines.nextSibling : lines).after(packetLayer);
+}
+function drawPackets(t) {
+  const want = packetLines.length * 2;
+  while (packetLayer.childNodes.length < want) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", 11); c.setAttribute("fill", "var(--accent)");
+    packetLayer.appendChild(c);
+  }
+  [...packetLayer.childNodes].forEach((c, k) => {
+    const line = packetLines[k >> 1];
+    if (!line) { c.style.visibility = "hidden"; return; }
+    if (!packetIndex.has(line.p)) packetIndex.set(line.p, packetIndex.size);
+    const i = packetIndex.get(line.p), u = (t * .85 + i * .37 + (k & 1) * .5) % 1;
+    const [x, y] = line.curve.at(u);
+    c.style.visibility = "visible";
+    c.setAttribute("cx", x); c.setAttribute("cy", y);
+    c.style.opacity = Math.sin(Math.PI * u) * line.opacity;
+  });
+  packetLines = [];
+}
+const packetIndex = new Map();
+
 function heading(text, highlight) {
   const i = highlight ? text.indexOf(highlight) : -1;
   const html = i < 0 ? `<span class="wrapt"><span class="hl"></span>${esc(text)}</span>`
     : `${esc(text.slice(0, i))}<span class="wrapt"><span class="hl"></span>${esc(highlight)}</span>${esc(text.slice(i + highlight.length))}`;
   const h = el("head", html + (THEME === "terminal" ? '<span class="cursor">█</span>' : ""));
+  // Each word in its own mask, for revealHeading.
+  const walker = document.createTreeWalker ? document.createTreeWalker(h, 4) : null;
+  const texts = [];
+  while (walker && walker.nextNode()) if (!walker.currentNode.parentElement.closest(".cursor")) texts.push(walker.currentNode);
+  texts.forEach(n => {
+    const parts = n.textContent.split(/(\s+)/);
+    const frag = document.createDocumentFragment();
+    parts.forEach(w => {
+      if (!w) return;
+      if (/^\s+$/.test(w)) { frag.appendChild(document.createTextNode(w)); return; }
+      const outer = document.createElement("span"); outer.className = "rw";
+      const inner = document.createElement("span"); inner.textContent = w;
+      outer.appendChild(inner); frag.appendChild(outer);
+    });
+    n.replaceWith(frag);
+  });
   return { node: h, hl: h.querySelector(".hl") };
 }
 function setHL(hl, p) {
@@ -375,10 +493,12 @@ window.init = async function (config) {
     zineMarks = buildZineMarks();
     setupBrushLines(Math.min(config.width / STAGE.w, (config.height - top) / STAGE.h));
   }
+  if (THEME !== "terminal") setupPackets();
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
     seekTemplate(t);
     if (brushLines) drawBrushLines(t);
+    if (packetLayer) drawPackets(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
     if (THEME === "terminal") terminalTick(t);
     if (THEME === "zine") zineTick(t);

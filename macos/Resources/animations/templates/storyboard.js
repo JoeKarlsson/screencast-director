@@ -2,8 +2,10 @@
 // say what appears, what connects, what gets counted, dimmed or circled, and when to clear to a new board.
 //
 // data: title, highlight, steps: [{ cue, do, ... }] where do is one of
-//   show      { id, kind: dot|sticker|card|label, logo?, label?, x?, y? }  (x, y in % of the frame;
-//             nodes without them are laid out around the board's first node)
+//   show      { id, kind: dot|sticker|card|label, logo?, icon?, label?, x?, y? }  (x, y in % of the frame;
+//             nodes without them are laid out around the board's first node; icon is a hand-drawn
+//             line icon used when there's no logo: laptop, prompter, camera, mic, phone, server,
+//             database, cloud, user, doc, chart, bolt)
 //   connect   { from, to, label?, dashed? }
 //   note      { text, x?, y? }
 //   count     { label, value }       a big number and label in the tally on the left
@@ -14,6 +16,10 @@
 //   circle    {}                     a marker circle around everything on the board
 //   clear     {}                     everything leaves; later steps start a new board
 // cues: one per step, named by the step's `cue` (seconds from the start)
+//
+// Every node slams in with a burst behind it, icons draw themselves, the heading rises a word at a
+// time, packets run along finished lines, and the camera keeps what's on the board filling the frame:
+// close on the first node, pulling back on a spring as each new one appears.
 "use strict";
 TEMPLATES.storyboard = function (data, cues, duration) {
   const steps = (data.steps || []).map((s, k) => ({ ...s, t: cue(cues, s.cue, 0.6 + k * 1.2) }));
@@ -27,6 +33,8 @@ TEMPLATES.storyboard = function (data, cues, duration) {
 
   // On a board of another shape the heading wraps, and positions in % fill the space under it.
   const head = heading(data.title || "", data.highlight);
+  // The heading stays put while the camera frames the board.
+  document.getElementById("stage").appendChild(head.node);
   let top = 0, span = STAGE.h;
   if (STAGE.reflow) {
     head.node.style.whiteSpace = "normal";
@@ -57,7 +65,7 @@ TEMPLATES.storyboard = function (data, cues, duration) {
   steps.forEach(s => {
     if (s.do === "show") {
       const kind = s.kind || "sticker";
-      const logo = s.logo && LOGOS[s.logo] ? `<img src="${LOGOS[s.logo]}">` : "";
+      const logo = s.logo && LOGOS[s.logo] ? `<img src="${LOGOS[s.logo]}">` : s.icon ? iconHTML(s.icon) : "";
       let node, label = null;
       if (kind === "dot") {
         node = el("dot", logo || `<div class="word">${esc(s.label || "")}</div>`);
@@ -71,7 +79,9 @@ TEMPLATES.storyboard = function (data, cues, duration) {
         if (logo && s.label) label = el("label", esc(s.label));
       }
       const ring = el("ringmark", "");
-      nodes[s.id] = { s, node, label, ring, kind, t: s.t, board: s.board, dimT: Infinity, hideT: Infinity, hlT: Infinity, rot: (rand(seed++)() - .5) * 10 };
+      // Labels are text placed by their corner: no burst behind them.
+      const burst = kind === "label" ? null : burstMark(node);
+      nodes[s.id] = { s, node, label, ring, burst, kind, t: s.t, board: s.board, dimT: Infinity, hideT: Infinity, hlT: Infinity, rot: (rand(seed++)() - .5) * 10 };
     }
   });
   steps.forEach(s => {
@@ -99,6 +109,43 @@ TEMPLATES.storyboard = function (data, cues, duration) {
   const tangleOf = (board, t) => Math.max(0, ...tangles.filter(s => s.board === board).map(s => easeInOut((t - s.t) / 1.6)));
   const at = n => n.s.px;
 
+  // Framing: each time something appears, the camera eases (on a spring, summed per change so it stays
+  // a pure function of time) to fit everything shown on that board so far, below the heading.
+  const headroom = STAGE.reflow ? top : 200;
+  const shownPoints = (board, time) => [
+    ...Object.values(nodes).filter(n => n.board === board && n.t <= time).map(at),
+    ...steps.filter(o => o.board === board && o.t <= time && o.do === "note").flatMap(o => {
+      const p = o.x != null && o.y != null ? px(o.x, o.y) : [130, 380];
+      return [p, [p[0] + 320, p[1]]];
+    }),
+    ...rows.filter(r => r.board === board && r.t <= time).flatMap(() => [[110, 380], [620, 380 + 130 * rows.filter(o => o.board === board).length]]),
+  ];
+  const frames = steps.filter(o => ["show", "note", "count", "clear"].includes(o.do)).map(o => {
+    const board = o.do === "clear" ? o.board + 1 : o.board;
+    const pts = shownPoints(board, o.t);
+    if (!pts.length) return { t: o.t, k: 1, c: [STAGE.w / 2, headroom + (STAGE.h - headroom) / 2] };
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    // Room for the nodes themselves and their labels (bigger on a vertical video's square card).
+    const big = STAGE.reflow ? 1.7 : 1;
+    const bw = Math.max(...xs) - Math.min(...xs) + 560 * big, bh = Math.max(...ys) - Math.min(...ys) + 520 * big;
+    const k = clamp(Math.min(STAGE.w / bw, (STAGE.h - headroom) / bh), 1, 1.45);
+    return { t: o.t, k, c: [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2] };
+  });
+  function framing(t) {
+    if (!frames.length) return null;
+    let k = frames[0].k, cx = frames[0].c[0], cy = frames[0].c[1];
+    frames.forEach((f, i) => {
+      if (!i) return;
+      // The move starts before the node lands, so it arrives inside the frame.
+      const p = spring((t - f.t + .35) / .9, .9), prev = frames[i - 1];
+      k += (f.k - prev.k) * p; cx += (f.c[0] - prev.c[0]) * p; cy += (f.c[1] - prev.c[1]) * p;
+    });
+    // Where the framed center lands: the middle of the space under the heading.
+    const target = [STAGE.w / 2, headroom + (STAGE.h - headroom) / 2];
+    const dx = target[0] - STAGE.w / 2 - k * (cx - STAGE.w / 2), dy = target[1] - STAGE.h / 2 - k * (cy - STAGE.h / 2);
+    return ` translate(${dx}px, ${dy}px) scale(${k})`;
+  }
+
   return t => {
     grain(t);
     const lastClear = clears.filter(s => s.t <= t).pop();
@@ -106,8 +153,11 @@ TEMPLATES.storyboard = function (data, cues, duration) {
     const board = boards.findIndex(b => t >= b.start && t < b.end);
     const tangle = tangleOf(board, t);
     camera(t, 1.03 - .03 * pull + .025 * clamp(t / Math.max(duration, 1)) + .03 * tangle, 2.2 + 7 * tangle);
+    const frame = framing(t);
+    if (frame) cam.style.transform += frame;
     document.getElementById("stage").style.filter = lastClear && t - lastClear.t < .7 ? `blur(${(1 - pull) * 8}px)` : "";
-    place(head.node, 110, 92, 1, 0, easeOut((t - .1) / .4));
+    place(head.node, 110, 92, 1, 0, 1);
+    revealHeading(head, t, .05);
     setHL(head.hl, (t - .6) / .5);
 
     lines.forEach(l => {
@@ -129,10 +179,11 @@ TEMPLATES.storyboard = function (data, cues, duration) {
     Object.values(nodes).forEach(n => {
       const out = gone(n.board, t);
       const hide = easeOut((t - n.hideT) / .3);
-      const s = popScale(t, n.t) * (1 - out) * (1 - hide) * big;
       const dim = easeOut((t - n.dimT) / .5);
       const [x, y] = at(n);
-      place(n.node, x, y, s, n.kind === "sticker" ? n.rot * (1 - .3 * s) : 0, 1 - .78 * dim);
+      land(n.node, x, y, t, n.t, (1 - out) * (1 - hide) * big, n.kind === "sticker" ? n.rot : n.rot * .4, 1 - .78 * dim);
+      drawIcons(n.node, t, n.t + .12);
+      drawBurst(n.burst, x, y, t, n.t, (n.kind === "card" ? 1.05 : .8) * Math.sqrt(big), n.rot);
       if (dim > .01) n.node.style.filter += ` grayscale(${dim})`;
       if (n.label) {
         const below = (n.kind === "dot" ? 118 : 86) * big;

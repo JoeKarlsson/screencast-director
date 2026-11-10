@@ -90,6 +90,20 @@ func laterChecks() {
   // Animation scripts run in JavaScriptCore: every template's frames draw without throwing, and the
   // hub's background field shows its own apps, each once before any repeats, never the grid's.
   let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
+  // Flourishes: icons are hand-drawn strokes, a landing squashes on impact and settles round, and an
+  // unknown icon draws nothing.
+  expect(templateScripts.evaluateScript("(iconHTML('laptop').match(/<path/g) || []).length").toInt32() == 2, "the laptop icon is two strokes")
+  expect(templateScripts.evaluateScript("iconHTML('nope')").toString() == "", "an unknown icon draws nothing")
+  let squash = templateScripts.evaluateScript("const n1 = { style: {} }; land(n1, 10, 20, .45, .4); n1.style.transform").toString() ?? ""
+  let settled = templateScripts.evaluateScript("const n2 = { style: {} }; land(n2, 10, 20, 3, .4); n2.style.transform").toString() ?? ""
+  let scales = { (s: String) -> [Double] in
+    guard let r = s.range(of: #"scale\(([-\d.e]+), ([-\d.e]+)\)"#, options: .regularExpression) else { return [] }
+    return s[r].dropFirst(6).dropLast().split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+  }
+  let a = scales(squash), b = scales(settled)
+  expect(a.count == 2 && abs(a[0] - a[1]) > 0.02, "a landing squashes: wider than tall, or taller than wide (\(squash))")
+  expect(b.count == 2 && abs(b[0] - 1) < 0.01 && abs(b[1] - 1) < 0.01, "and settles round at full size (\(settled))")
+
   // Springs: a pop-in overshoots a little (not the old 20%) and settles on full size; easeOut starts
   // from rest and lands exactly on 1.
   let peak = templateScripts.evaluateScript("Math.max(...Array.from({length: 200}, (_, i) => popScale(i / 100, 0)))").toDouble()
