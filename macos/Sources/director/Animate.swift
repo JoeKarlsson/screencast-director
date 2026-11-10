@@ -63,6 +63,37 @@ enum Animate {
     }
     """
 
+  /// Defines textProbe(): each run of text fully on screen and not mid-fade, as [name, x, y, w, h,
+  /// r, g, b, large] in clip pixels, its color 0-1 and large 1 for 24 px text (19 px bold) at 1080p.
+  /// It's named by the piece it belongs to (a heading's words are one heading).
+  static let textProbe = """
+    function textProbe() {
+      const out = [], k = innerHeight / 1080;
+      for (const e of document.querySelectorAll("#stage *")) {
+        if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+        let o = 1;
+        for (let n = e; n && n !== document.body; n = n.parentElement) {
+          const cs = getComputedStyle(n);
+          if (cs.display === "none" || cs.visibility === "hidden") { o = 0; break; }
+          o *= parseFloat(cs.opacity);
+        }
+        if (o < .99) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4 || r.left < 0 || r.top < 0 || r.right > innerWidth || r.bottom > innerHeight) continue;
+        const cs = getComputedStyle(e), c = cs.color.match(/[\\d.]+/g).map(Number);
+        if (c.length > 3 && c[3] < .99) continue;
+        const px = parseFloat(cs.fontSize) * (e.offsetHeight ? r.height / e.offsetHeight : 1) / k;
+        const large = px >= 24 || (px >= 19 && parseInt(cs.fontWeight) >= 700);
+        const name = (e.closest(".abs") || e).textContent.trim().replace(/\\s+/g, " ").slice(0, 32);
+        out.push([name, r.left, r.top, r.width, r.height, c[0] / 255, c[1] / 255, c[2] / 255, large ? 1 : 0]);
+      }
+      return out;
+    }
+    """
+
+  /// How often the text probe runs, in frames: contrast only matters for text that stays a while.
+  static let textProbeEvery = 6
+
   /// The caption band an animation keeps clear when captions are on: the bottom 150 of 1080 pixels
   /// in a landscape video (vertical captions sit outside a full-frame animation's card).
   static func captionBand(_ plan: Plan, _ a: Animation) -> Double {
@@ -70,11 +101,26 @@ enum Animate {
     return plan.captions.enabled && size.width > size.height ? 150.0 / 1080 : 0
   }
 
-  /// One line per pair of pieces that overlapped (or piece in the caption band), from the rows
-  /// each frame's overlapProbe returned, with when it started (source seconds) and for how long.
-  static func overlapWarnings(_ a: Animation, index: Int, frames: [(t: Double, rows: [[Any]])]) -> [String] {
+  /// The textProbe rows of one frame as overlapWarnings rows: ["contrast", text, needed ratio, how
+  /// many times short of it] for text too faint against what's behind it, ["bare", text, "", 0] for
+  /// text with nothing behind it (an overlay's, straight on the video).
+  static func contrastRows(_ rows: [[Any]], bgra pixels: [UInt8], width: Int, height: Int) -> [[Any]] {
+    rows.compactMap { row -> [Any]? in
+      guard row.count == 9, let name = row[0] as? String else { return nil }
+      let n = row.dropFirst().map { ($0 as? Double) ?? 0 }
+      guard let back = TextContrast.backdrop(bgra: pixels, width: width, height: height, x: Int(n[0]), y: Int(n[1]), w: Int(n[2]), h: Int(n[3]))
+      else { return nil }
+      if back[3] < 0.5 { return ["bare", name, "", 0.0] }
+      let needed = TextContrast.needed(large: n[7] > 0), ratio = TextContrast.ratio(Array(n[4...6]), back)
+      return ratio < needed ? ["contrast", name, String(format: "%g", needed), needed / ratio] : nil
+    }
+  }
+
+  /// One line per pair of pieces that overlapped (or piece in the caption band, or text hard to read),
+  /// from the rows each probed frame returned (`step` seconds apart), with when it started (source
+  /// seconds) and for how long. Text counts only once it stays hard to read for two probes running.
+  static func overlapWarnings(_ a: Animation, index: Int, frames: [(t: Double, rows: [[Any]])], step: Double = 1 / Double(fps)) -> [String] {
     var found: [(kind: String, p: String, q: String, start: Double, end: Double, share: Double)] = []
-    let step = 1 / Double(fps)
     for (t, rows) in frames {
       for row in rows {
         guard row.count == 4, let kind = row[0] as? String, let p = row[1] as? String, let q = row[2] as? String else { continue }
@@ -87,11 +133,19 @@ enum Animate {
         }
       }
     }
-    return found.map { f in
+    return found.compactMap { f in
       let when = String(format: "from src %.2f for %.2f s", a.start + f.start, f.end - f.start)
-      return f.kind == "overlap"
-        ? "WARNING: animation #\(index) (\(a.template)): \(f.p) and \(f.q) overlap \(Int((f.share * 100).rounded()))% \(when); move one (x/y) or space their cues"
-        : "WARNING: animation #\(index) (\(a.template)): \(f.p) reaches into the caption band at the bottom \(when); move it up"
+      let head = "WARNING: animation #\(index) (\(a.template)):"
+      switch f.kind {
+      case "overlap": return "\(head) \(f.p) and \(f.q) overlap \(Int((f.share * 100).rounded()))% \(when); move one (x/y) or space their cues"
+      case "captions": return "\(head) \(f.p) reaches into the caption band at the bottom \(when); move it up"
+      case _ where f.end - f.start < 2 * step: return nil
+      case "bare": return "\(head) text \"\(f.p)\" sits straight on the video with nothing behind it \(when); put it on a card, chip or tag"
+      default:
+        let needed = Double(f.q) ?? 4.5
+        return String(format: "%@ text \"%@\" is hard to read: contrast %.1f:1 against what's behind it, needs %@:1, %@; change its color or what's behind it",
+          head, f.p, needed / f.share, f.q, when)
+      }
     }
   }
 
@@ -258,7 +312,8 @@ enum Animate {
         throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
       do {
-        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + Animate.motionProbe + "\n;" + Animate.overlapProbe + "\n;0")
+        let probes = [Animate.motionProbe, Animate.overlapProbe, Animate.textProbe].joined(separator: "\n;")
+        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + probes + "\n;0")
       } catch {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
@@ -309,7 +364,7 @@ enum Animate {
       var pixels = [UInt8](repeating: 0, count: bytes)
       var tiles: [[Double]] = []
       let band = Animate.captionBand(plan, a)
-      var overlaps: [(t: Double, rows: [[Any]])] = []
+      var overlaps: [(t: Double, rows: [[Any]])] = [], faint: [(t: Double, rows: [[Any]])] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
         let result: Any?
         do {
@@ -341,6 +396,10 @@ enum Animate {
         if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band))") as? [[Any]], !rows.isEmpty {
           overlaps.append((Double(f) / Double(Animate.fps), rows))
         }
+        if f % Animate.textProbeEvery == 0, let rows = try await web.evaluateJavaScript("textProbe()") as? [[Any]] {
+          let found = Animate.contrastRows(rows, bgra: pixels, width: width, height: height)
+          if !found.isEmpty { faint.append((Double(f) / Double(Animate.fps), found)) }
+        }
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
         guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
         var buffer: CVPixelBuffer?
@@ -355,7 +414,11 @@ enum Animate {
       guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
-      return (Animation.pops(tiles).map { $0 + first }, Animate.overlapWarnings(a, index: index, frames: overlaps))
+      return (
+        Animation.pops(tiles).map { $0 + first },
+        Animate.overlapWarnings(a, index: index, frames: overlaps)
+          + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(Animate.fps))
+      )
     }
 
     func snapshot() async throws -> CGImage {

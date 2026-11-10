@@ -40,6 +40,8 @@ PY
 "$DIRECTOR" animate "$PROJECT" | tee "$TMP/animate.log"
 # Nothing in a bundled template shows for a single frame (Animation.pops).
 if grep -q "pops for one frame" "$TMP/animate.log"; then echo "FAIL: a template pops for one frame (above)" >&2; exit 1; fi
+# Their text reads against what's behind it (the text probe's contrast check).
+if grep -q "hard to read\|nothing behind it" "$TMP/animate.log"; then echo "FAIL: a template's text is hard to read (above)" >&2; exit 1; fi
 templates=$(find Resources/animations/templates -name '*.json' | wc -l | tr -d ' ')
 clips=$(find "$PROJECT/.animations" -name '*.mp4' | wc -l | tr -d ' ')
 [[ "$clips" == "$templates" ]] || { echo "FAIL: $templates templates but $clips clips" >&2; exit 1; }
@@ -142,7 +144,10 @@ json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
 "$DIRECTOR" validate "$PROJECT" >/dev/null || { echo "FAIL: a plan with an overlay doesn't validate" >&2; exit 1; }
 frame=$((3 * $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['output']['fps'])" "$PROJECT/plan.json") / 2 + 30))
-"$DIRECTOR" still "$PROJECT" "$frame" "$TMP/over.png" >/dev/null 2>&1
+"$DIRECTOR" still "$PROJECT" "$frame" "$TMP/over.png" >/dev/null 2>"$TMP/over.log"
+# The hub's heading is bare ink on paper: as an overlay it sits on the video with nothing behind it.
+grep -q 'text "One plugin for all of them" sits straight on the video' "$TMP/over.log" \
+  || { echo "FAIL: no warning about the overlay's bare heading: $(cat "$TMP/over.log")" >&2; exit 1; }
 ls "$PROJECT"/.animations/hub-*.mov >/dev/null || { echo "FAIL: the overlay didn't render to a .mov" >&2; exit 1; }
 python3 - "$PROJECT/plan.json" <<'PY'
 import json, sys

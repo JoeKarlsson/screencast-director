@@ -629,6 +629,14 @@ struct Checks {
     expect(anim.clipPath(out1080, dir: nil, look: terminal) != anim.clipPath(out1080, dir: nil), "a theme renders a new clip")
     expect(anim.clipPath(out1080, dir: nil, look: mint) != anim.clipPath(out1080, dir: nil, look: terminal), "a new accent renders a new clip")
     expect(anim.clipPath(out1080, dir: nil, look: mint) == anim.clipPath(out1080, dir: nil, look: mint), "the same look reuses its clip")
+    // Text contrast: WCAG ratios, and the backdrop is what most of a text box shows, glyphs aside.
+    expect(abs(TextContrast.ratio([0, 0, 0], [1, 1, 1]) - 21) < 0.01 && abs(TextContrast.ratio([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]) - 1) < 0.01, "contrast runs 1:1 to 21:1")
+    // A 10x10 box: white card (premultiplied BGRA), a third of it black glyphs; then the same box see-through.
+    var textCard = [UInt8](repeating: 255, count: 10 * 10 * 4)
+    for i in stride(from: 0, to: 30 * 4, by: 4) { textCard[i] = 0; textCard[i + 1] = 0; textCard[i + 2] = 0 }
+    expect(TextContrast.backdrop(bgra: textCard, width: 10, height: 10, x: 0, y: 0, w: 10, h: 10) == [1, 1, 1, 1], "a text box's backdrop is its textCard, not its glyphs")
+    expect(TextContrast.backdrop(bgra: [UInt8](repeating: 0, count: 400), width: 10, height: 10, x: 0, y: 0, w: 10, h: 10)?[3] == 0, "text on nothing has a see-through backdrop")
+    expect(TextContrast.backdrop(bgra: textCard, width: 10, height: 10, x: 20, y: 0, w: 5, h: 5) == nil, "a box off the frame has no backdrop")
     // An overlay floats over the whole video: its own clip, with alpha (.mov), and it covers nothing.
     var floating = anim
     floating.overlay = true
