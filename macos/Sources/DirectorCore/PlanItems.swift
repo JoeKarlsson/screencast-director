@@ -123,6 +123,8 @@ public struct Insert: Codable, Equatable, Sendable {
   /// Meme text on a sticker, in white capitals with a black outline, along its top and bottom.
   public var topText: String?
   public var bottomText: String?
+  /// A sticker's tilt in degrees, clockwise (default `stickerTilt`, counterclockwise); 0 sits square.
+  public var rotation: Double?
   public var note: String?
   public init(
     start: Double, end: Double, file: String, from: Double? = nil, placement: String? = nil, fit: String? = nil, enter: Motion? = nil,
@@ -147,6 +149,7 @@ public struct Insert: Codable, Equatable, Sendable {
   public var isOverlay: Bool { placement == "overlay" || isSticker }
   /// A small clip or picture (a reaction GIF) in a white sticker border over the video, at `x`, `y`.
   public var isSticker: Bool { placement == "sticker" }
+  public static let stickerTilt = -4.0
 }
 
 /// A named point on the timeline (source seconds): a note to yourself or the AI ("intro ends").

@@ -876,6 +876,19 @@ struct Checks {
     expect(tallSticker.height <= st.H * 0.8 + 0.5 && abs(tallSticker.width / tallSticker.height - 0.1) < 0.01, "a tall clip is capped at 80% of the frame's height, keeping its shape")
     let text = st.memeText(meme, size: CGSize(width: 400, height: 400))
     expect(text != nil && st.memeText(Insert(start: 0, end: 1, file: "a.mp4"), size: CGSize(width: 400, height: 400)) == nil, "meme text draws only when there is some")
+    // A sticker springs on from nothing (past full size) and shrinks back to nothing, even when B-roll cuts by default.
+    let stuckIn = st.inserts[0]
+    let entering = (0..<14).map { st.insertPose(stuckIn, frame: stuckIn.s + Double($0)).scale }
+    expect(entering[0] < 0.1 && entering.max()! > 1.02 && abs(entering[13] - 1) < 0.01, "a sticker grows from nothing and overshoots on its way in (\(entering))")
+    expect(st.insertPose(stuckIn, frame: stuckIn.e - 1).scale < 0.2, "a sticker shrinks away on its last frames")
+    // Tilted by default: a turned sticker's bounding box is wider than a square one's.
+    let square = CIImage(color: .red).cropped(to: CGRect(x: 0, y: 0, width: 200, height: 200))
+    let tilted = st.sticker(square, meme, pose: .full).extent, flat = { () -> CGRect in
+      var level = meme
+      level.rotation = 0
+      return st.sticker(square, level, pose: .full).extent
+    }()
+    expect(tilted.width > flat.width + 10, "a sticker is tilted by default and sits square with rotation 0 (\(tilted.width) vs \(flat.width))")
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam

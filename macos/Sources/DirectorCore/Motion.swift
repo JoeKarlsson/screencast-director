@@ -140,7 +140,7 @@ public struct Motion: Codable, Equatable, Sendable {
 
   public static let presets: [(name: String, label: String)] = [
     ("fade", "Fade"), ("fade-up", "Fade Up"), ("slide-up", "Slide Up"), ("slide-down", "Slide Down"),
-    ("slide-left", "Slide Left"), ("slide-right", "Slide Right"), ("pop", "Pop"), ("zoom", "Zoom"), ("blur", "Blur"),
+    ("slide-left", "Slide Left"), ("slide-right", "Slide Right"), ("pop", "Pop"), ("stick", "Stick On"), ("zoom", "Zoom"), ("blur", "Blur"),
     ("wipe", "Wipe"), ("interlace", "Interlace"), ("words", "Word by Word"), ("typewriter", "Typewriter"), ("none", "None"),
   ]
 }
@@ -191,6 +191,10 @@ public struct OverlayPose: Equatable, Sendable {
     case "pop":
       p.opacity = min(1, clamped * 2.5)
       p.scale = max(0.05, 0.6 + 0.4 * a)
+    case "stick":
+      // Grows from nothing (a spring overshoots past full size) and shrinks back to nothing.
+      p.opacity = min(1, clamped * 4)
+      p.scale = max(0.01, a)
     case "zoom":
       p.opacity = clamped
       p.scale = 1.18 - 0.18 * a

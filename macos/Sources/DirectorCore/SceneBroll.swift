@@ -10,8 +10,10 @@ extension Scene {
   /// half-dissolved B-roll over the face at every edge, which read as glitches.
   func insertPose(_ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Double) -> OverlayPose {
     let fallback = plan.brollDefaultMotion
-    return Motion.pose(
-      frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: ins.a.enter ?? fallback, exit: ins.a.exit ?? fallback, style: motion)
+    // A sticker springs on from nothing and shrinks away, whatever the B-roll default.
+    let enter = ins.a.enter ?? (ins.a.isSticker ? Motion(preset: "stick", seconds: 0.45, ease: "bouncy") : fallback)
+    let exit = ins.a.exit ?? (ins.a.isSticker ? Motion(preset: "stick", seconds: 0.3, ease: "ease-in") : fallback)
+    return Motion.pose(frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: enter, exit: exit, style: motion)
   }
 
   /// Whether a full-frame insert fully covers the screen at this frame (so screen marks stay hidden).
@@ -113,7 +115,10 @@ extension Scene {
       parameters: ["inputExtent": CIVector(cgRect: paper.offsetBy(dx: 0, dy: -8 * u)), "inputRadius": 6 * u, "inputColor": CIColor(red: 0, green: 0, blue: 0, alpha: 0.35)]
     )!.outputImage!.applyingGaussianBlur(sigma: 10 * u)
     piece = piece.composited(over: roundedMask(paper, radius: 6 * u)).composited(over: shade)
-    let t = CGAffineTransform(translationX: -rect.midX, y: -rect.midY).concatenating(CGAffineTransform(scaleX: pose.scale, y: pose.scale))
+    // Tilted like a sticker slapped on by hand (Core Image's y runs up, so the angle flips to turn clockwise on screen).
+    let tilt = -(a.rotation ?? Insert.stickerTilt) * .pi / 180
+    let t = CGAffineTransform(translationX: -rect.midX, y: -rect.midY).concatenating(CGAffineTransform(rotationAngle: tilt))
+      .concatenating(CGAffineTransform(scaleX: pose.scale, y: pose.scale))
       .concatenating(CGAffineTransform(translationX: rect.midX + pose.dx * rect.width, y: rect.midY - pose.dy * rect.height))
     piece = piece.transformed(by: t)
     if pose.opacity < 0.999 {
