@@ -7,6 +7,8 @@ const TEMPLATES = {};
 let cam, lines, LOGOS = {};
 // The Lottie animation the data names (config.lottie, its parsed JSON), for the lottie template.
 let LOTTIE = null;
+// Floating over the video (config.overlay): templates place things where asked instead of framing them.
+let OVERLAY = false;
 // The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion;
 // "zine" is joekarlsson.com: black, hot pink, squiggly crayon lines and the site's scribbles drifting behind.
 let THEME = "";
@@ -52,7 +54,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 // A logo by name (config.logos maps names to file URLs), or the name itself in the sticker when there's no file.
 function logoHTML(name) {
   const file = LOGOS[name];
-  return file ? `<img src="${file}">` : `<div class="word">${esc(name)}</div>`;
+  return file ? `<img src="${file}" alt="${esc(name)}">` : `<div class="word">${esc(name)}</div>`;
 }
 function path(width, color) {
   const p = document.createElementNS(NS, "path");
@@ -504,7 +506,8 @@ window.init = async function (config) {
   const root = document.documentElement.style;
   THEME = config.theme || "";
   if (THEME) document.documentElement.classList.add(`theme-${THEME}`);
-  if (config.overlay) document.documentElement.classList.add("overlay");
+  OVERLAY = config.overlay === true;
+  if (OVERLAY) document.documentElement.classList.add("overlay");
   if (config.accent) root.setProperty("--accent", config.accent);
   if (config.paper) root.setProperty("--paper", config.paper);
   if (config.ink) root.setProperty("--ink", config.ink);

@@ -65,7 +65,7 @@ TEMPLATES.storyboard = function (data, cues, duration) {
   steps.forEach(s => {
     if (s.do === "show") {
       const kind = s.kind || "sticker";
-      const logo = s.logo && LOGOS[s.logo] ? `<img src="${LOGOS[s.logo]}">` : s.icon ? iconHTML(s.icon) : "";
+      const logo = s.logo && LOGOS[s.logo] ? `<img src="${LOGOS[s.logo]}" alt="${esc(s.logo)}">` : s.icon ? iconHTML(s.icon) : "";
       let node, label = null;
       if (kind === "dot") {
         node = el("dot", logo || `<div class="word">${esc(s.label || "")}</div>`);
@@ -158,7 +158,8 @@ TEMPLATES.storyboard = function (data, cues, duration) {
     const board = boards.findIndex(b => t >= b.start && t < b.end);
     const tangle = tangleOf(board, t);
     camera(t, 1.03 - .03 * pull + .025 * clamp(t / Math.max(duration, 1)) + .03 * tangle, 2.2 + 7 * tangle);
-    const frame = framing(t);
+    // Over the video, nodes sit where their x and y put them: no camera reframing the board.
+    const frame = OVERLAY ? null : framing(t);
     if (frame) cam.style.transform += frame;
     document.getElementById("stage").style.filter = lastClear && t - lastClear.t < .7 ? `blur(${(1 - pull) * 8}px)` : "";
     place(head.node, 110, 92, 1, 0, 1);

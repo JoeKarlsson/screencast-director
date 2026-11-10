@@ -26,13 +26,14 @@ enum Animate {
     }
     """
 
-  /// Defines overlapProbe(band): the pieces on screen (stickers, dots, hubs, chips, labels, tags,
-  /// rows, the heading) that overlap each other by more than `overlapShare` of the smaller one, and,
-  /// when `band` (a share of the height) is over 0, any that reach into the caption band at the bottom.
+  /// Defines overlapProbe(top, bottom): the pieces on screen (stickers, dots, hubs, chips, labels, tags,
+  /// rows, the heading) that overlap each other by more than `overlapShare` of the smaller one, and
+  /// any that reach into the captions' band, `top` to `bottom` (shares of the height; none when equal),
+  /// and with `edges` (an overlay, which no camera frames) any cut off by the frame's edge.
   /// Returns [kind, first piece, second piece, share] rows ("overlap" or "captions").
   static let overlapShare = 0.15
   static let overlapProbe = """
-    function overlapProbe(band) {
+    function overlapProbe(top, bottom, edges) {
       const kinds = ["sticker", "dot", "hub", "chip", "label", "tag", "row", "head"];
       const pieces = [];
       for (const e of document.querySelectorAll("#cam > .abs")) {
@@ -58,7 +59,11 @@ enum Animate {
         const share = ix * iy / Math.min(a.width * a.height, b.width * b.height);
         if (share > \(overlapShare)) out.push(["overlap", pieces[i].name, pieces[j].name, share]);
       }
-      if (band > 0) for (const p of pieces) if (p.r.bottom > H * (1 - band) && p.r.top < H) out.push(["captions", p.name, "", 0]);
+      if (bottom > top) for (const p of pieces) if (p.r.bottom > H * top && p.r.top < H * bottom) out.push(["captions", p.name, "", 0]);
+      if (edges) for (const p of pieces) {
+        const r = p.r, inside = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0));
+        if (inside < r.width * r.height * .95) out.push(["edge", p.name, "", 0]);
+      }
       return out;
     }
     """
@@ -94,12 +99,6 @@ enum Animate {
   /// How often the text probe runs, in frames: contrast only matters for text that stays a while.
   static let textProbeEvery = 6
 
-  /// The caption band an animation keeps clear when captions are on: the bottom 150 of 1080 pixels
-  /// in a landscape video (vertical captions sit outside a full-frame animation's card).
-  static func captionBand(_ plan: Plan, _ a: Animation) -> Double {
-    let size = plan.animationOutput(a)
-    return plan.captions.enabled && size.width > size.height ? 150.0 / 1080 : 0
-  }
 
   /// One line per pair of pieces that overlapped (or piece in the caption band, or text hard to read),
   /// from the rows each probed frame returned (`step` seconds apart), with when it started (source
@@ -123,7 +122,8 @@ enum Animate {
       let head = "WARNING: animation #\(index) (\(a.template)):"
       switch f.kind {
       case "overlap": return "\(head) \(f.p) and \(f.q) overlap \(Int((f.share * 100).rounded()))% \(when); move one (x/y) or space their cues"
-      case "captions": return "\(head) \(f.p) reaches into the caption band at the bottom \(when); move it up"
+      case "captions": return "\(head) \(f.p) reaches into where the captions sit \(when); move it out of their way"
+      case "edge": return "\(head) \(f.p) runs off the edge of the frame \(when); move it in"
       case _ where f.end - f.start < 2 * step: return nil
       case "bare": return "\(head) text \"\(f.p)\" sits straight on the video with nothing behind it \(when); put it on a card, chip or tag"
       default:
@@ -348,7 +348,7 @@ enum Animate {
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
       var tiles: [[Double]] = []
-      let band = Animate.captionBand(plan, a)
+      let band = plan.captionBand(a) ?? (0, 0)
       var overlaps: [(t: Double, rows: [[Any]])] = [], faint: [(t: Double, rows: [[Any]])] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
         let result: Any?
@@ -378,7 +378,7 @@ enum Animate {
         if let onFrame { try onFrame(f, try image(pixels)) }
         // Overlaps on every frame, mid-move included: a piece flying through a label is as wrong as one parked on it.
         let at = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 1)[0]
-        if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band))") as? [[Any]], !rows.isEmpty {
+        if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band.top), \(band.bottom), \(a.isOverlay))") as? [[Any]], !rows.isEmpty {
           overlaps.append((Double(f) / Double(Animate.fps), rows))
         }
         if f % Animate.textProbeEvery == 0, let rows = try await web.evaluateJavaScript("textProbe()") as? [[Any]] {

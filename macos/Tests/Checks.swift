@@ -803,6 +803,13 @@ struct Checks {
     expect(floatingHook.animationOutput(floatingAnim) == floatingHook.output, "a portrait overlay renders at the frame's size")
     expect(floatingHook.animationSafeTop(floatingAnim) == Int(SafeArea.rect(floatingHook)!.minY.rounded()), "a portrait overlay keeps clear of the app UI at the top")
     expect(layoutsToOut(floatingHook, mapSegments(floatingHook.segments, fps: 30)).last?.mode != .pip, "a portrait overlay doesn't split the frame")
+    // Where captions sit, for an animation to keep clear of: none in a portrait card, around 64% down over a portrait frame.
+    var captioned = floatingHook
+    captioned.captions.enabled = true
+    let cardBand = captioned.captionBand(hookPlan.animationList[0]), overBand = captioned.captionBand(floatingAnim)
+    expect(cardBand == nil && overBand.map { $0.top < 0.64 && $0.bottom > 0.7 } == true, "a portrait overlay keeps clear of the captions, a card animation needn't (\(String(describing: overBand)))")
+    captioned.captions.y = 0.3
+    expect(captioned.captionBand(floatingAnim).map { $0.top < 0.3 && $0.bottom > 0.3 } == true, "captions dragged up move the band with them")
     expect(hookOut.last?.mode == .pip && hookOut.last?.startF == 60, "the split shows while a portrait animation plays")
     expect(clipped.trimmed(to: clipped.clipList[1]).segments.isEmpty, "a clip inside a cut has nothing to export")
     // A clip that opens partway into an animation picks it up there; a clip's pace re-cuts its pauses.

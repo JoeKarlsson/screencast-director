@@ -146,7 +146,9 @@ plan["segments"] = [{"start": 0, "end": 6, "speed": 1}]
 plan["animations"] = [{"start": 1, "end": 4, "template": "hub", "data": t["data"], "overlay": True,
                        "cues": {c["key"]: round(1 + c["at"] * 3 / t["length"], 3) for c in t["cues"]}},
                       {"start": 1, "end": 4, "template": "chart", "overlay": True, "cues": {"chart": 1.2, "callout": 3.5},
-                       "data": {"title": "Bars", "values": [5, 9], "labels": ["Bare", "Words"]}}]
+                       "data": {"title": "Bars", "values": [5, 9], "labels": ["Bare", "Words"]}},
+                      {"start": 1, "end": 4, "template": "storyboard", "overlay": True, "cues": {"s1": 1.2},
+                       "data": {"title": "", "steps": [{"cue": "s1", "do": "show", "id": "e", "kind": "sticker", "label": "Edge", "x": 99, "y": 50}]}}]
 plan.pop("look", None)
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
@@ -156,6 +158,9 @@ frame=$((3 * $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['
 # Overlay headings get the paper behind them; a chart's labels are bare text, straight on the video.
 grep -q 'text "Bare" sits straight on the video' "$TMP/over.log" \
   || { echo "FAIL: no warning about the overlay's bare label: $(cat "$TMP/over.log")" >&2; exit 1; }
+# Overlays aren't framed by a camera: a sticker at the edge is cut off; the hub's pieces all fit.
+grep -q 'sticker "Edge" runs off the edge' "$TMP/over.log" || { echo "FAIL: no warning about a sticker off the edge: $(cat "$TMP/over.log")" >&2; exit 1; }
+if grep -q '(hub).*runs off the edge' "$TMP/over.log"; then echo "FAIL: the hub overlay's pieces called off the edge: $(cat "$TMP/over.log")" >&2; exit 1; fi
 if grep -q 'text "One plugin for all of them"' "$TMP/over.log"; then echo "FAIL: the overlay's heading has no backing: $(cat "$TMP/over.log")" >&2; exit 1; fi
 ls "$PROJECT"/.animations/hub-*.mov >/dev/null || { echo "FAIL: the overlay didn't render to a .mov" >&2; exit 1; }
 python3 - "$PROJECT/plan.json" <<'PY'

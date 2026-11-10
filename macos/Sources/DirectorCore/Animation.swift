@@ -288,6 +288,16 @@ extension Plan {
     return SafeArea.rect(self).map { max(0, Int($0.minY.rounded())) } ?? 0
   }
 
+  /// Where the captions sit in animation `a`'s clip, as shares of its height, for it to keep clear;
+  /// nil with captions off, or for a vertical video's card animation (its captions sit below the card).
+  /// Landscape: the bottom 150 of 1080 pixels. A vertical overlay: around 64% down, the social
+  /// captions' place without a split (Scene.drawCaptions). Captions dragged to `y`: around there.
+  public func captionBand(_ a: Animation) -> (top: Double, bottom: Double)? {
+    guard captions.enabled, a.isOverlay || socialTop(self) == nil else { return nil }
+    if let y = captions.y { return (y - 0.08, y + 0.08) }
+    return socialTop(self) == nil ? (1 - 150.0 / 1080, 1) : (0.62, 0.78)
+  }
+
   /// The size full-frame animation clips render at: the frame, or in portrait the screen card they play in.
   public var animationOutput: Output {
     guard socialTop(self) != nil else { return output }
