@@ -63,10 +63,15 @@ private struct Describer: Sendable {
     // Up top, so they can't be missed: they read as glitches.
     for f in flashes(plan, dir: project.dir) { out.append("WARNING: \(describeFlash(f, plan)); make it last a second or more, or cover it") }
     do {
-      for (i, f) in Secrets.uncovered(try Secrets.load(project.dir) ?? [], plan: plan) {
-        out.append(
-          "WARNING: secret #\(i) (\(f.kind) \(f.masked)) is on screen unblurred at src \(fmtTime(f.start))-\(fmtTime(f.end)); `director secrets <dir> --blur` covers it, `--allow \(i)` keeps it"
-        )
+      if let scan = try Secrets.load(project.dir) {
+        for (i, f) in Secrets.uncovered(scan.findings, plan: plan, allowedKinds: scan.allowedKinds) {
+          out.append(
+            "WARNING: secret #\(i) (\(f.kind) \(f.masked)) is on screen unblurred at src \(fmtTime(f.start))-\(fmtTime(f.end)); `director secrets <dir> --blur` covers it, `--allow \(i)` keeps it"
+          )
+        }
+        for s in Secrets.unscanned(scan, plan: plan) {
+          out.append("WARNING: src \(fmtTime(s.start))-\(fmtTime(s.end)) is in the edit but wasn't read for secrets; run `director secrets <dir>` again")
+        }
       }
     } catch {
       out.append("WARNING: secrets.json can't be read (\(error.localizedDescription)); run `director secrets <dir>` again")

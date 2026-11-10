@@ -272,6 +272,8 @@ struct Media {
       "the password's box covers it but not the line's start, all the way through, as one finding (\(String(describing: password)))")
     expect(found.count == 2, "the commit hash and the masked field are left alone (\(found.map(\.masked)))")
     expect(!found.contains { $0.masked.contains("Hunter2Secret") }, "findings never hold the secret")
+    let early = try await Secrets.scan(try Project.load(dir), spans: [.init(start: 0, end: 1.5)]).findings
+    expect(early.map(\.kind) == ["secret"], "a scan of the first 1.5 s finds the password but not the key that comes later (\(early))")
   }
 
   /// Joining two takes: one video, a camera on the joined clock, and every timed file shifted.

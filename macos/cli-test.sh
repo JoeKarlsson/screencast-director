@@ -88,11 +88,16 @@ check "review reports on the zoom" grep -qi "zoom" <<<"$review"
 # --- secrets on screen: a scan, then a finding the edit shows until --blur covers it
 check "secrets finds none on the fixture" grep -q "no secrets on screen" <<<"$("$DIRECTOR" secrets "$P")"
 cp "$P/plan.json" "$TMP/before-secrets.json"
-echo '[{"kind":"api key","masked":"sk-p…d34","start":3,"end":5,"x":0.1,"y":0.1,"w":0.3,"h":0.05}]' >"$P/secrets.json"
-check "describe warns about an unblurred secret" grep -q "WARNING: secret #0" <<<"$("$DIRECTOR" describe "$P")"
-check "secrets --blur adds a blur" grep -q "added 1 blur" <<<"$("$DIRECTOR" secrets "$P" --blur)"
+echo '{"scanned":[{"start":0,"end":1000}],"findings":[{"kind":"api key","masked":"sk-p… (32)","start":3,"end":5,"x":0.1,"y":0.1,"w":0.3,"h":0.05},
+  {"kind":"email","masked":"jo… (15)","start":3,"end":5,"x":0.1,"y":0.5,"w":0.2,"h":0.03}]}' >"$P/secrets.json"
+check "describe warns about each unblurred secret" grep -q "WARNING: secret #1 (email" <<<"$("$DIRECTOR" describe "$P")"
+check "--allow email allows every email" grep -q "every email may show" <<<"$("$DIRECTOR" secrets "$P" --allow email)"
+check "secrets --blur adds a blur for the key only" grep -q "added 1 blur$" <<<"$("$DIRECTOR" secrets "$P" --blur)"
 check "then describe doesn't warn" bash -c "! '$DIRECTOR' describe '$P' | grep -q 'WARNING: secret'"
 expect_error "--allow a secret that isn't there fails" "no secret #3" "$DIRECTOR" secrets "$P" --allow 3
+expect_error "--allow an unknown kind lists the kinds" "a kind: api key" "$DIRECTOR" secrets "$P" --allow emails
+python3 -c "import json,sys; s=json.load(open(sys.argv[1])); s['scanned']=[{'start':0,'end':2}]; json.dump(s,open(sys.argv[1],'w'))" "$P/secrets.json"
+check "describe warns about a kept stretch the scan didn't read" grep -q "wasn't read for secrets" <<<"$("$DIRECTOR" describe "$P")"
 echo 'not json' >"$P/secrets.json"
 check "an unreadable secrets.json is a warning, not silence" grep -q "secrets.json can't be read" <<<"$("$DIRECTOR" describe "$P")"
 cp "$TMP/before-secrets.json" "$P/plan.json"

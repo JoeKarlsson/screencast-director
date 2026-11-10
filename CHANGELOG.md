@@ -19,7 +19,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - An animation can keep other versions (`alternates`). `director animate-variants <dir> <index>` renders each one in full with a sheet comparing them row by row, and `director animate-choose <dir> <index> <k>` plays the one you pick while keeping the one it replaced.
 
 ### Privacy
-- `director secrets <dir>` reads the whole recording for API keys, tokens, passwords in connection strings and config, private keys and email addresses, and `--blur` covers each one the edit shows with a blur that cuts in and out with no fade. Until they're covered, `director describe` and `validate` warn about them; `--allow <n>` marks one as fine to show. It reads only where the screen changed, so a 10-minute recording takes about a minute.
+- `director secrets <dir>` reads what the edit keeps for API keys, tokens, passwords in connection strings and config, private keys and email addresses, and `--blur` covers each one the edit shows with a blur that cuts in and out with no fade. Until they're covered, `director describe` and `validate` warn about them, and about any stretch put back into the edit since the scan; `--allow <n>` marks one as fine to show, `--allow email` every email. It reads only the parts the edit keeps, and only where the screen changed, so 10 minutes of edit take about a minute however much footage was imported.
 
 ### Exports
 - Every export carries what made it: the app version, the date and the exact plan it rendered, inside the MP4. `director provenance <video>` prints them and what `plan.json` has changed since, and `--plan` prints the plan, so you can tell which edit an upload was.

@@ -53,7 +53,7 @@ func secretChecks() {
   expect(Secrets.uncovered([f, cut], plan: plan).map(\.index) == [0], "a secret in a cut is fine, a shown one isn't")
   plan.annotations = [Annotation(start: 4, end: 5, kind: "blur", x: 0.05, y: 0.15, w: 0.4, h: 0.1)]
   expect(Secrets.uncovered([f], plan: plan).count == 1, "a blur over part of the time doesn't cover it")
-  let blurs = Secrets.blurs(for: [f, cut], plan: plan)
+  let blurs = Secrets.blurs(for: Secrets.Scan(scanned: [], findings: [f, cut]), plan: plan)
   expect(
     blurs.count == 1 && blurs[0].enter?.preset == "none" && blurs[0].exit?.preset == "none" && blurs[0].note?.contains("sk-p…d34") == true,
     "--blur adds one hard-edged blur per shown secret (\(blurs))")
@@ -64,4 +64,16 @@ func secretChecks() {
   plan.annotations = nil
   expect(Secrets.uncovered([allowed], plan: plan).isEmpty, "an allowed one is never flagged")
   expect(Secrets.keepingAllowed([f], from: [allowed]).first?.allowed == true, "a rescan keeps the allowed mark")
+  expect(Secrets.uncovered([f, cut], plan: plan, allowedKinds: ["api key"]).isEmpty, "an allowed kind is never flagged")
+
+  // The scan reads what the edit keeps, a second wider; a stretch put back since is flagged.
+  plan.segments = [Segment(start: 0, end: 5, speed: 1), Segment(start: 5.5, end: 8, speed: 3), Segment(start: 12, end: 19.6, speed: 1)]
+  let spans = Secrets.kept(plan, pad: 1)
+  expect(spans == [.init(start: 0, end: 9), .init(start: 11, end: 20)], "kept stretches merge, widen and stay inside the recording (\(spans))")
+  var scan = Secrets.Scan(scanned: spans, findings: [])
+  expect(Secrets.unscanned(scan, plan: plan).isEmpty, "everything kept was read")
+  plan.restore(range: 8..<12)
+  expect(Secrets.unscanned(scan, plan: plan) == [.init(start: 9, end: 11)], "a cut put back is unread (\(Secrets.unscanned(scan, plan: plan)))")
+  scan.scanned = Secrets.kept(plan, pad: 1)
+  expect(Secrets.unscanned(scan, plan: plan).isEmpty, "until it's scanned again")
 }

@@ -33,7 +33,7 @@ let usage = """
     director frame-camera <dir>                      center the camera on the speaker's face
     director sync-camera <dir>                       line the camera up with the voice by watching the lips
     director screentext <dir>                        read the text around each click (screentext.json)
-    director secrets  <dir> [--blur] [--allow n]    find API keys, passwords, tokens and emails on screen (secrets.json); --blur covers each one the edit shows, --allow marks one as fine to show
+    director secrets  <dir> [--blur] [--allow n|kind]   find keys, passwords and emails in what the edit keeps; --blur covers them, --allow n (or email) may show
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director move     <dir> <start> <end> [--before <t>]   play a source-time range first (a cold open), or just before source time t
@@ -147,34 +147,49 @@ do {
     print("Read \(samples.count) clicks: " + samples.prefix(8).map { ScreenText.clicked(samples, at: $0.t) ?? "?" }.joined(separator: ", "))
   case "secrets":
     let project = try Project.load(dir)
-    if let n = number("--allow").map(Int.init) {
-      guard var found = try Secrets.load(dir), found.indices.contains(n) else { fail("no secret #\(n); run `director secrets \(dir.path)` first") }
-      found[n].allowed = true
-      try Secrets.save(found, to: dir)
-      print("secret #\(n) (\(found[n].kind) \(found[n].masked)) may show")
+    var plan = try Plan.load(project.planURL)
+    if let i = args.firstIndex(of: "--allow") {
+      guard i + 1 < args.count else { fail(usage) }
+      let what = args[i + 1]
+      guard var saved = try Secrets.load(dir) else { fail("no scan yet; run `director secrets \(dir.path)` first") }
+      if let n = Int(what) {
+        guard saved.findings.indices.contains(n) else { fail("no secret #\(n) (the scan found \(saved.findings.count))") }
+        saved.findings[n].allowed = true
+        print("secret #\(n) (\(saved.findings[n].kind) \(saved.findings[n].masked)) may show")
+      } else {
+        guard Secrets.kinds.contains(what) else { fail("--allow takes a secret's number or a kind: \(Secrets.kinds.joined(separator: ", "))") }
+        saved.allowedKinds = Array(Set((saved.allowedKinds ?? []) + [what])).sorted()
+        print("every \(what) may show")
+      }
+      try Secrets.save(saved, to: dir)
       break
     }
-    // --blur reuses the last scan when there is one.
-    var found = args.contains("--blur") ? try Secrets.load(dir) : nil
-    if found == nil {
-      print("Reading the screen for secrets...")
+    // --blur reuses the last scan when it read everything the edit keeps.
+    var scan = try Secrets.load(dir)
+    if !args.contains("--blur") || scan.map({ !Secrets.unscanned($0, plan: plan).isEmpty }) ?? true {
+      // The edit's stretches only: a long import is mostly cut. A second each side for blurs that start early.
+      let spans = Secrets.kept(plan, pad: 1)
+      let seconds = Int(spans.reduce(0) { $0 + $1.end - $1.start })
+      print("Reading the screen for secrets in the \(fmtTime(Double(seconds))) the edit keeps...")
+      let read = try await Secrets.scan(project, spans: spans)
+      if read.unread > 0 { print("WARNING: couldn't read the screen at \(read.unread) of the sampled seconds; secrets there aren't found") }
       // An unreadable old scan only costs its allowed marks: this one replaces it.
-      let scan = try await Secrets.scan(project)
-      if scan.unread > 0 { print("WARNING: couldn't read the screen at \(scan.unread) of the sampled seconds; secrets there aren't found") }
-      found = Secrets.keepingAllowed(scan.findings, from: ((try? Secrets.load(dir)) ?? nil) ?? [])
-      try Secrets.save(found!, to: dir)
+      let old = (try? Secrets.load(dir)) ?? nil
+      scan = Secrets.Scan(
+        scanned: spans, allowedKinds: old?.allowedKinds, findings: Secrets.keepingAllowed(read.findings, from: old?.findings ?? []))
+      try Secrets.save(scan!, to: dir)
     }
-    let findings = found!
-    var plan = try Plan.load(project.planURL)
+    let findings = scan!.findings
     if args.contains("--blur") {
-      let blurs = Secrets.blurs(for: findings, plan: plan)
+      let blurs = Secrets.blurs(for: scan!, plan: plan)
       plan.annotations = (plan.annotations ?? []) + blurs
       if !blurs.isEmpty { try plan.write(to: project.planURL) }
       print("added \(blurs.count) blur\(blurs.count == 1 ? "" : "s")")
     }
-    let open = Set(Secrets.uncovered(findings, plan: plan).map(\.index))
+    let open = Set(Secrets.uncovered(findings, plan: plan, allowedKinds: scan!.allowedKinds).map(\.index))
     for (i, f) in findings.enumerated() {
-      let state = f.allowed == true ? "allowed" : open.contains(i) ? "UNBLURRED" : "blurred or cut"
+      let allowed = f.allowed == true || scan!.allowedKinds?.contains(f.kind) == true
+      let state = allowed ? "allowed" : open.contains(i) ? "UNBLURRED" : "blurred or cut"
       print("#\(i) \(f.kind) \(f.masked) src \(fmtTime(f.start))-\(fmtTime(f.end)) at (\(f.x.formatted(.number.precision(.fractionLength(3)))), \(f.y.formatted(.number.precision(.fractionLength(3))))): \(state)")
     }
     if findings.isEmpty { print("no secrets on screen") }

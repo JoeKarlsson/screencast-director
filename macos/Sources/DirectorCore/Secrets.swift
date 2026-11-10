@@ -4,8 +4,9 @@ import Vision
 
 /// Secrets visible on the recorded screen: API keys and tokens, passwords in connection strings and
 /// config, private keys and email addresses, found by reading the whole screen with Vision about once
-/// a second. Kept in secrets.json (masked, so the file never holds a secret). `director secrets
-/// --blur` covers each with a blur annotation, and describe WARNs about any the edit shows unblurred.
+/// a second, in the stretches the edit keeps. Kept in secrets.json (masked, so the file never holds a
+/// secret). `director secrets --blur` covers each with a blur annotation, and describe WARNs about any
+/// the edit shows unblurred, and about kept stretches the scan never read (a cut put back since).
 public enum Secrets: Sendable {
   public struct Finding: Codable, Equatable, Sendable {
     /// What it looks like: "api key", "token", "secret" (a value after password=, api_key: ...), "password" (in a URL), "private key", "email".
@@ -21,18 +22,69 @@ public enum Secrets: Sendable {
     public var allowed: Bool?
   }
 
+  /// A stretch of the recording, in source seconds.
+  public struct Span: Codable, Equatable, Sendable {
+    public var start: Double
+    public var end: Double
+  }
+
+  /// secrets.json: what a scan read and found.
+  public struct Scan: Codable, Equatable, Sendable {
+    /// The stretches it read: what the edit kept then, a second wider each side.
+    public var scanned: [Span]
+    /// Kinds shown on purpose wherever they are (`--allow email`).
+    public var allowedKinds: [String]?
+    public var findings: [Finding]
+
+    public init(scanned: [Span], allowedKinds: [String]? = nil, findings: [Finding]) {
+      self.scanned = scanned
+      self.allowedKinds = allowedKinds
+      self.findings = findings
+    }
+  }
+
+  public static let kinds = ["api key", "token", "secret", "password", "private key", "email"]
+
   public static func url(_ dir: URL) -> URL { dir.appendingPathComponent("secrets.json") }
 
   /// nil when the screen was never scanned; throws when secrets.json can't be read, so its warnings never vanish quietly.
-  public static func load(_ dir: URL) throws -> [Finding]? {
+  public static func load(_ dir: URL) throws -> Scan? {
     guard FileManager.default.fileExists(atPath: url(dir).path) else { return nil }
-    return try JSONDecoder().decode([Finding].self, from: Data(contentsOf: url(dir)))
+    return try JSONDecoder().decode(Scan.self, from: Data(contentsOf: url(dir)))
   }
 
-  public static func save(_ findings: [Finding], to dir: URL) throws {
+  public static func save(_ scan: Scan, to dir: URL) throws {
     let enc = JSONEncoder()
     enc.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes, .sortedKeys]
-    try enc.encode(findings).write(to: url(dir), options: .atomic)
+    try enc.encode(scan).write(to: url(dir), options: .atomic)
+  }
+
+  /// The stretches the edit keeps, merged, each widened by `pad` (clamped to the recording).
+  public static func kept(_ plan: Plan, pad: Double = 0) -> [Span] {
+    var out: [Span] = []
+    for s in plan.segments.sorted(by: { $0.start < $1.start }) {
+      let span = Span(start: max(0, s.start - pad), end: min(plan.source.duration, s.end + pad))
+      if let last = out.last, span.start <= last.end {
+        out[out.count - 1].end = max(last.end, span.end)
+      } else {
+        out.append(span)
+      }
+    }
+    return out
+  }
+
+  /// Kept stretches longer than a fifth of a second that the scan didn't read.
+  public static func unscanned(_ scan: Scan, plan: Plan) -> [Span] {
+    var out: [Span] = []
+    for k in kept(plan) {
+      var t = k.start
+      for s in scan.scanned.sorted(by: { $0.start < $1.start }) where s.end > t && s.start < k.end {
+        if s.start > t { out.append(Span(start: t, end: s.start)) }
+        t = max(t, s.end)
+      }
+      if t < k.end { out.append(Span(start: t, end: k.end)) }
+    }
+    return out.filter { $0.end - $0.start > 0.2 }
   }
 
   // MARK: Matching
@@ -111,10 +163,11 @@ public enum Secrets: Sendable {
     var x, y, w, h: Double
   }
 
-  /// Reads the screen every `step` seconds, but only where it changed since the last read
-  /// (motion.json; a pasted key is enough), and returns what it found, merged across samples, and how
-  /// many samples couldn't be decoded (a truncated recording), so a stretch never read isn't called clean.
-  public static func scan(_ project: Project, step: Double = 1, progress: ((Double) -> Void)? = nil) async throws -> (
+  /// Reads the screen in `spans` (the whole recording when nil) every `step` seconds, but only where it
+  /// changed since the last read (motion.json; a pasted key is enough), and returns what it found,
+  /// merged across samples, and how many samples couldn't be decoded (a truncated recording), so a
+  /// stretch never read isn't called clean.
+  public static func scan(_ project: Project, spans: [Span]? = nil, step: Double = 1, progress: ((Double) -> Void)? = nil) async throws -> (
     findings: [Finding], unread: Int
   ) {
     let asset = AVURLAsset(url: project.dir.appendingPathComponent(project.source.video))
@@ -122,17 +175,18 @@ public enum Secrets: Sendable {
     gen.appliesPreferredTrackTransform = true
     gen.requestedTimeToleranceBefore = CMTime(seconds: step / 4, preferredTimescale: 600)
     gen.requestedTimeToleranceAfter = CMTime(seconds: step / 4, preferredTimescale: 600)
-    let duration = project.source.duration
+    let spans = spans ?? [Span(start: 0, end: project.source.duration)]
+    let total = max(spans.reduce(0) { $0 + $1.end - $1.start }, 0.001)
+    var times: [Double] = []
+    for s in spans { times += stride(from: s.start, to: s.end, by: step) }
     var samples: [(t: Double, hits: [Hit])] = []
-    var t = 0.0
     var lastRead = -Double.infinity
     var unread = 0
-    while t < duration {
-      progress?(t / max(duration, 0.001))
+    for (i, t) in times.enumerated() {
+      progress?(Double(i) * step / total)
       if changed(project.motion, from: lastRead, to: t) {
         guard let (frame, actual) = try? await gen.image(at: CMTime(seconds: t, preferredTimescale: 600)) else {
           unread += 1
-          t += step
           continue
         }
         samples.append((actual.seconds, read(frame)))
@@ -140,7 +194,6 @@ public enum Secrets: Sendable {
       } else if let previous = samples.last {
         samples.append((t, previous.hits))
       }
-      t += step
     }
     progress?(1)
     return (merge(samples, step: step), unread)
@@ -251,15 +304,18 @@ public enum Secrets: Sendable {
     return true
   }
 
-  /// Findings the edit shows without a blur over them (allowed ones aside).
-  public static func uncovered(_ findings: [Finding], plan: Plan) -> [(index: Int, finding: Finding)] {
+  /// Findings the edit shows without a blur over them (allowed ones, and allowed kinds, aside).
+  public static func uncovered(_ findings: [Finding], plan: Plan, allowedKinds: [String]? = nil) -> [(index: Int, finding: Finding)] {
     let blurs = (plan.annotations ?? []).filter { $0.kind == "blur" }
-    return findings.enumerated().filter { $0.element.allowed != true && !covered($0.element, by: blurs, plan: plan) }.map { ($0.offset, $0.element) }
+    let allowedKinds = Set(allowedKinds ?? [])
+    return findings.enumerated().filter {
+      $0.element.allowed != true && !allowedKinds.contains($0.element.kind) && !covered($0.element, by: blurs, plan: plan)
+    }.map { ($0.offset, $0.element) }
   }
 
   /// A blur annotation for each uncovered finding. They cut in and out (no fade), so not a frame shows.
-  public static func blurs(for findings: [Finding], plan: Plan) -> [Annotation] {
-    uncovered(findings, plan: plan).map { _, f in
+  public static func blurs(for scan: Scan, plan: Plan) -> [Annotation] {
+    uncovered(scan.findings, plan: plan, allowedKinds: scan.allowedKinds).map { _, f in
       Annotation(
         start: f.start, end: f.end, kind: "blur", x: f.x, y: f.y, w: f.w, h: f.h, enter: Motion(preset: "none"), exit: Motion(preset: "none"),
         note: "secret: \(f.kind) \(f.masked)")
