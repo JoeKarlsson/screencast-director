@@ -823,6 +823,14 @@ struct Checks {
     let os = Scene(plan: floatingOver, words: [], clicks: [], shortcuts: [])
     expect(!os.fullFrameCovers(os.inserts[0].s) && !os.cardCovers(os.inserts[0].s), "an overlay hides neither the screen's marks nor the card")
     expect(!os.cutFrames.contains(os.inserts[0].s), "an overlay appearing isn't a cut")
+    // A fitted overlay leaves the frame around it see-through instead of letterboxing it on black.
+    var fitted = floatingOver
+    fitted.inserts?[0].fit = "fit"
+    let fs2 = Scene(plan: fitted, words: [], clicks: [], shortcuts: [])
+    let tallPicture = CIImage(color: .red).cropped(to: CGRect(x: 0, y: 0, width: 100, height: 400))
+    let fittedFrame = fs2.broll(CIImage(color: .blue).cropped(to: CGRect(x: 0, y: 0, width: fs2.W, height: fs2.H)), frame: fs2.inserts[0].s,
+      full: true, overlay: true, box: Box(x: 0, y: 0, w: 1, h: 1, r: 0, opacity: 1), frames: [0: tallPicture])
+    expect(pixel(fittedFrame, x: 2, y: 2)[2] > 0.9, "a fitted overlay doesn't letterbox the video on black")
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam

@@ -64,8 +64,8 @@ extension Scene {
       let k = fill ? max(rect.width / iw, rect.height / ih) : min(rect.width / iw, rect.height / ih)
       var placed = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
       placed = placed.transformed(by: CGAffineTransform(translationX: rect.midX - iw * k / 2, y: rect.midY - ih * k / 2))
-      if !fill {
-        // Letterbox on black so the screen doesn't show around a fitted picture.
+      if !fill && !overlay {
+        // Letterbox on black so the screen doesn't show around a fitted picture (an overlay is meant to show it).
         placed = placed.composited(over: CIImage(color: CIColor(red: 0.04, green: 0.04, blue: 0.05)).cropped(to: rect))
       }
       if abs(pose.scale - 1) > 0.001 || abs(pose.dx) + abs(pose.dy) > 0.001 {

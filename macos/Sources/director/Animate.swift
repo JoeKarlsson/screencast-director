@@ -118,8 +118,12 @@ enum Animate {
     }
     let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(in: plan, dir: dir)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }
+    var page: Page?
     for (i, a, path) in todo {
-      let page = Page(plan, a)
+      // One page while the size and transparency stay the same: each holds a window and a WebKit process.
+      let size = plan.animationOutput(a)
+      if page == nil || page!.width != size.width || page!.height != size.height || page!.transparent != a.isOverlay { page = Page(plan, a) }
+      let page = page!
       let started = Date()
       let (pops, overlaps) = try await page.render(a, index: i, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
       log(String(format: "animation #%d (%@): %@ in %.1fs", i, a.template, path, Date().timeIntervalSince(started)))
