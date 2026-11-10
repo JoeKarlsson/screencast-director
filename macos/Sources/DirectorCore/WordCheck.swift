@@ -23,11 +23,12 @@ public enum WordCheck {
   static func token(_ s: String) -> String { String(s.lowercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains)) }
 
   /// The words the plan keeps, in play order, with their output seconds. Sped-up clips play muted.
+  /// A word a clip edge cuts into counts: it's the one that may not be heard.
   public static func expected(_ plan: Plan, words: [Word]) -> [(text: String, out: Double, src: Double)] {
     let fps = Double(plan.output.fps)
     return mapPlan(plan).filter { $0.speed == 1 }.flatMap { s in
-      words.filter { $0.start >= s.start - 0.02 && $0.start < s.end }.map { w in
-        (w.text, Double(s.outStart) / fps + (w.start - s.start), w.start)
+      words.filter { $0.end > s.start + 0.05 && $0.start < s.end - 0.05 }.map { w in
+        (w.text, Double(s.outStart) / fps + max(0, w.start - s.start), w.start)
       }
     }.filter { !token($0.text).isEmpty }
   }

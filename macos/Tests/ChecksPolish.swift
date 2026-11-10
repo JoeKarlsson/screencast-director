@@ -161,4 +161,7 @@ func wordCheckChecks() {
   plan.segments = [Segment(start: 0, end: 5, speed: 1), Segment(start: 5, end: 10, speed: 4)]
   let words = [Word(text: "hello", start: 1, end: 1.5), Word(text: "typing", start: 6, end: 6.5)]
   expect(WordCheck.expected(plan, words: words).map(\.text) == ["hello"], "words in a sped-up clip aren't expected")
+  // A clip that starts inside a word still expects it: that's the clipped word.
+  plan.segments = [Segment(start: 1.2, end: 5, speed: 1)]
+  expect(WordCheck.expected(plan, words: words).map(\.text) == ["hello"], "a word the clip's start cuts into is expected")
 }
