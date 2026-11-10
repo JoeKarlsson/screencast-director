@@ -120,6 +120,75 @@ function place(node, x, y, s = 1, rot = 0, opacity = 1, blur = 0) {
 function drawPath(p, curve, progress, opacity = 1) {
   p.setAttribute("d", curve.d); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1 - clamp(progress);
   p.style.opacity = progress <= 0 ? 0 : opacity;
+  // Zine: p5.brush draws it instead (the path stays, hidden, for layout).
+  if (brushLines && curve.at) {
+    p.style.visibility = "hidden";
+    if (progress > 0 && opacity > 0) brushLines.queue.push({ p, curve, progress: clamp(progress), opacity });
+  }
+}
+
+// --- zine lines in p5.brush ------------------------------------------------------
+// The zine theme draws its lines with p5.brush's colored pencil (vendor/brush.js) for the grainy,
+// broken edge of real crayon: drawPath queues each line and seek draws them all on a canvas just
+// above the SVG lines, boiling six times a second like the SVG crayon did.
+const ZINE_BRUSH = { name: "cpencil", scale: 1.5 };
+let brushLines = null;
+function setupBrushLines(k) {
+  if (typeof brush === "undefined") throw new Error("the zine theme's lines need p5.brush (vendor/brush.js)");
+  // Drawn at twice the clip's resolution: p5.brush's stroke masks have no antialiasing, so at 1x its
+  // grain shows as pixel blocks.
+  const W = Math.round(STAGE.w * k), H = Math.round(STAGE.h * k), density = 2;
+  const gl = document.createElement("canvas");
+  gl.width = W * density; gl.height = H * density;
+  const glc = gl.getContext("webgl2", { alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: true });
+  if (!glc) throw new Error("the zine theme's lines need WebGL2");
+  brush.load(gl);
+  brush.scaleBrushes(ZINE_BRUSH.scale);
+  // Shown through a 2D canvas, which composites the transparent strokes over the stage.
+  const shown = document.createElement("canvas");
+  shown.width = W; shown.height = H;
+  shown.style.cssText = `position: absolute; left: 0; top: 0; width: ${STAGE.w}px; height: ${STAGE.h}px; pointer-events: none`;
+  lines.after(shown);
+  brushLines = { gl, glc, ctx: shown.getContext("2d"), k: k * density, W, H, queue: [], seeds: new Map() };
+}
+// A path's stroke color with its opacity, resolving var(--ink) and friends.
+function brushColor(p, opacity) {
+  const raw = p.getAttribute("stroke") || "var(--ink)";
+  const name = raw.match(/^var\((--[\w-]+)\)$/);
+  const css = name ? getComputedStyle(document.documentElement).getPropertyValue(name[1]).trim() : raw;
+  const probe = document.createElement("canvas").getContext("2d");
+  probe.fillStyle = css;
+  const hex = probe.fillStyle; // #rrggbb, or rgba() when it already has alpha
+  const [r, g, b] = hex.startsWith("#") ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : hex.match(/[\d.]+/g).slice(0, 3).map(Number);
+  return [r, g, b, clamp(opacity)];
+}
+function drawBrushLines(t) {
+  const L = brushLines;
+  brush.clear();
+  // brush.clear() leaves transparent white (1,1,1,0), which a premultiplied canvas shows as white.
+  L.glc.bindFramebuffer(L.glc.FRAMEBUFFER, null);
+  L.glc.clearColor(0, 0, 0, 0);
+  L.glc.clear(L.glc.COLOR_BUFFER_BIT);
+  brush.push();
+  // Points go in canvas pixels rather than through brush.scale, which would blow up the grain too.
+  brush.translate(-L.gl.width / 2, -L.gl.height / 2);
+  for (const line of L.queue) {
+    // Each path keeps its own texture, changing only on the boil.
+    if (!L.seeds.has(line.p)) L.seeds.set(line.p, L.seeds.size + 1);
+    const seed = L.seeds.get(line.p);
+    brush.seed(seed * 31 + Math.floor(t * 6));
+    brush.noiseSeed(seed);
+    const n = Math.max(2, Math.ceil(80 * line.progress));
+    const pts = Array.from({ length: n + 1 }, (_, j) => line.curve.at(j / n * line.progress).map(v => v * L.k));
+    brush.set(ZINE_BRUSH.name, brushColor(line.p, line.opacity), +line.p.getAttribute("stroke-width") * L.k / ZINE_BRUSH.scale / 1.1);
+    brush.spline(pts, 0);
+  }
+  brush.pop();
+  brush.render();
+  L.ctx.clearRect(0, 0, L.W, L.H);
+  L.ctx.imageSmoothingQuality = "high";
+  L.ctx.drawImage(L.gl, 0, 0, L.W, L.H);
+  L.queue = [];
 }
 // A heading with the `highlight` part swiped in highlighter.
 function heading(text, highlight) {
@@ -302,10 +371,14 @@ window.init = async function (config) {
   stage.style.width = `${STAGE.w}px`;
   stage.style.height = `${STAGE.h}px`;
   stage.style.transform = `translate(0px, ${top}px) ` + stageTransform(config.width, config.height - top, STAGE);
-  if (THEME === "zine") zineMarks = buildZineMarks();
+  if (THEME === "zine") {
+    zineMarks = buildZineMarks();
+    setupBrushLines(Math.min(config.width / STAGE.w, (config.height - top) / STAGE.h));
+  }
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
     seekTemplate(t);
+    if (brushLines) drawBrushLines(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
     if (THEME === "terminal") terminalTick(t);
     if (THEME === "zine") zineTick(t);

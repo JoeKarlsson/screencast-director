@@ -59,6 +59,26 @@ if spread < 10:
 print(f"ok: {sys.argv[2]} 3s, last frame drawn (spread {spread:.1f})")
 PY
 done
+# The zine theme draws its lines with p5.brush on a WebGL canvas: they must show, and the stage must
+# stay black (p5.brush clears to transparent white, which once turned the whole stage white).
+python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan.setdefault("look", {})["animationTheme"] = "zine"
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" animate-test "$PROJECT" 2 11.8 "$TMP/zine.mp4" >/dev/null
+ffmpeg -v error -sseof -0.1 -i "$TMP/zine.mp4" -frames:v 1 -f rawvideo -pix_fmt gray -y "$TMP/zine.gray"
+python3 - "$TMP/zine.gray" <<'PY'
+import sys
+px = open(sys.argv[1], "rb").read()
+mean = sum(px) / len(px)
+lit = sum(1 for p in px if p > 120) / len(px)
+if mean > 60: sys.exit(f"FAIL: the zine stage isn't black (mean {mean:.0f})")
+if lit < 0.002: sys.exit(f"FAIL: the zine frame has no lines or cards drawn ({lit:.4f} lit)")
+print(f"ok: zine lines drawn in p5.brush on a black stage (mean {mean:.0f}, {lit:.3f} lit)")
+PY
+
 # A one-second test of the first animation: a 1 s clip and a sheet of its 12 frames.
 "$DIRECTOR" animate-test "$PROJECT" 0 1.5 "$TMP/test.mp4" >/dev/null
 length=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$TMP/test.mp4")
