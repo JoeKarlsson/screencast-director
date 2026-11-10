@@ -93,7 +93,15 @@ extension Scene {
     var w = W * (a.w ?? 0.32), h = w * s.height / s.width
     if h > H * 0.8 { (w, h) = (H * 0.8 * s.width / s.height, H * 0.8) }
     let cx = min(max(W * (a.x ?? 0.74), w / 2 + edge), W - w / 2 - edge)
-    let cy = min(max(H * (a.y ?? 0.3), h / 2 + edge), H - h / 2 - edge)
+    var cy = min(max(H * (a.y ?? 0.3), h / 2 + edge), H - h / 2 - edge)
+    // Clear of the captions too: moved above them, or below when there's no room above.
+    if let band = plan.captionShares, cy + h / 2 + stickerBorder > H * band.top, cy - h / 2 - stickerBorder < H * band.bottom {
+      if H * band.top - edge - h / 2 >= h / 2 + edge {
+        cy = H * band.top - edge - h / 2
+      } else if H * band.bottom + edge + h / 2 <= H - h / 2 - edge {
+        cy = H * band.bottom + edge + h / 2
+      }
+    }
     return CGRect(x: cx - w / 2, y: H - cy - h / 2, width: w, height: h)
   }
 

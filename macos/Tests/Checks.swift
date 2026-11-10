@@ -905,6 +905,13 @@ struct Checks {
     let stickerBox = st.stickerRect(meme, imageSize: CGSize(width: 400, height: 400))
     expect(abs(stickerBox.width - st.W * 0.32) < 0.5 && abs(stickerBox.height - stickerBox.width) < 0.5, "a sticker is a third of the frame wide, at the clip's shape")
     expect(st.W - stickerBox.maxX >= st.stickerBorder + st.H * 0.04 - 0.5, "a sticker pushed past the edge stays inside the frame (\(stickerBox))")
+    // Over the captions, a sticker moves up out of their way.
+    var captionedStuck = stuck
+    captionedStuck.captions.enabled = true
+    var low = meme
+    low.y = 0.9
+    let lowBox = Scene(plan: captionedStuck, words: [], clicks: [], shortcuts: []).stickerRect(low, imageSize: CGSize(width: 400, height: 300))
+    expect(st.H - lowBox.minY <= st.H * (1 - 150.0 / 1080), "a sticker over the captions moves up clear of them (\(lowBox))")
     let tallSticker = st.stickerRect(meme, imageSize: CGSize(width: 100, height: 1000))
     expect(tallSticker.height <= st.H * 0.8 + 0.5 && abs(tallSticker.width / tallSticker.height - 0.1) < 0.01, "a tall clip is capped at 80% of the frame's height, keeping its shape")
     let text = st.memeText(meme, size: CGSize(width: 400, height: 400))

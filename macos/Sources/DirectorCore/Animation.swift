@@ -328,7 +328,15 @@ extension Plan {
   /// Landscape: the bottom 150 of 1080 pixels. A vertical overlay: around 64% down, the social
   /// captions' place without a split (Scene.drawCaptions). Captions dragged to `y`: around there.
   public func captionBand(_ a: Animation) -> (top: Double, bottom: Double)? {
-    guard captions.enabled, a.sticker == nil, a.isOverlay || socialTop(self) == nil else { return nil }
+    guard a.sticker == nil, a.isOverlay || socialTop(self) == nil else { return nil }
+    return captionShares
+  }
+
+  /// Where the captions sit on the frame, as shares of its height (nil with captions off): the bottom
+  /// 150 of 1080 pixels in landscape, around 64% down a vertical video (the social captions' place
+  /// without a split, Scene.drawCaptions), or around wherever they were dragged (`captions.y`).
+  public var captionShares: (top: Double, bottom: Double)? {
+    guard captions.enabled else { return nil }
     if let y = captions.y { return (y - 0.08, y + 0.08) }
     return socialTop(self) == nil ? (1 - 150.0 / 1080, 1) : (0.62, 0.78)
   }
