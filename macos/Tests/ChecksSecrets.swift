@@ -15,7 +15,9 @@ func secretChecks() {
   expect(found("token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N") .count == 1, "a JWT once")
   expect(found("XyZ9aB8cD7eF6gH5iJ4kL3mN2oP1qR0s") == ["token: XyZ9aB8cD7eF6gH5iJ4kL3mN2oP1qR0s"], "a bare random key")
   for harmless in [
-    "commit 3f9a2b7c1d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a", "id 123e4567-e89b-12d3-a456-426614174000", "Password: ••••••••", "password=****",
+    "commit 3f9a2b7c1d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a",
+    "3f9a2b7c1d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7aPassword",  // OCR glued a word onto the hash
+    "id 123e4567-e89b-12d3-a456-426614174000", "Password: ••••••••", "password=****",
     "Enter your password", "the_quick_brown_fox_jumps_over_lazy_dogs", "Password: <password>",
   ] {
     expect(found(harmless).isEmpty, "leaves alone: \(harmless) (\(found(harmless)))")

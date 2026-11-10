@@ -88,10 +88,11 @@ public enum Secrets: Sendable {
 
   /// Mixed case and digits, not a UUID or a hex hash (commit SHAs and IDs fill screens and aren't secret),
   /// and no run of 8 digits: a random key almost never has one, a numeric ID in a URL always does.
+  /// Three of each case, since OCR glues words onto a hash ("…6f7aPassword"), while a 32-character key has a dozen.
   static func looksRandom(_ s: String) -> Bool {
     let hex = s.allSatisfy { $0.isHexDigit || $0 == "-" }
     let longNumber = s.range(of: #"\d{8}"#, options: .regularExpression) != nil
-    return !hex && !longNumber && s.contains(where: \.isUppercase) && s.contains(where: \.isLowercase) && s.filter(\.isNumber).count >= 3
+    return !hex && !longNumber && s.filter(\.isUppercase).count >= 3 && s.filter(\.isLowercase).count >= 3 && s.filter(\.isNumber).count >= 3
   }
 
   /// A few leading characters and the length, enough to recognize a finding: four only for long keys,
