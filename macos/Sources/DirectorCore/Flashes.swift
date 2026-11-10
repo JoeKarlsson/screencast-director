@@ -36,7 +36,8 @@ func frameContents(_ scene: Scene) -> [String] {
   var out: [String] = []
   for f in start..<max(start, end) {
     let fd = Double(f)
-    let covering = scene.inserts.filter { fd >= $0.s && fd < $0.e }
+    // Overlays float over the shot without changing it.
+    let covering = scene.inserts.filter { fd >= $0.s && fd < $0.e && !$0.a.isOverlay }
     if let full = covering.last(where: { $0.a.isFull }) {
       out.append(insertName(full.a))
       continue

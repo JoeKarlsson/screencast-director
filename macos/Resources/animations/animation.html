@@ -119,6 +119,10 @@ html.theme-zine .tag { background: #EDEDED; color: #000; font: 400 32px var(--ti
 html.theme-zine .tag::before { display: none; }
 html.theme-zine .num { color: var(--accent); }
 html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-radius: 47% 53% 44% 56% / 55% 45% 53% 47%; filter: url(#crayon); }
+/* Overlay (config.overlay): the graphics float over the video, so nothing is painted behind them,
+   whatever the theme. Highlighters multiply onto the video instead of the paper. */
+html.overlay, html.overlay body, html.overlay #stage { background: transparent !important; }
+html.overlay #grain, html.overlay #vignette, html.overlay #marks { display: none !important; }
 </style>
 </head>
 <body>

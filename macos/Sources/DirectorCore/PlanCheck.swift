@@ -207,7 +207,7 @@ public enum PlanCheck {
       short("annotations[\(i)]", a.start, a.end)
     }
     for (i, b) in plan.insertList.enumerated() {
-      oneOf("inserts[\(i)].placement", b.placement, ["screen", "full"])
+      oneOf("inserts[\(i)].placement", b.placement, ["screen", "full", "overlay"])
       oneOf("inserts[\(i)].fit", b.fit, ["fill", "fit"])
       motion("inserts[\(i)].enter", b.enter)
       motion("inserts[\(i)].exit", b.exit)

@@ -134,6 +134,9 @@ public struct Insert: Codable, Equatable, Sendable {
   public static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "gif", "webp", "tiff", "tif", "bmp"]
   public var isImage: Bool { Insert.imageExtensions.contains((file as NSString).pathExtension.lowercased()) }
   public var isFull: Bool { placement == "full" }
+  /// Floats over the whole finished frame (screen, camera and all) and covers nothing: a clip or
+  /// picture with alpha, like an overlay animation's.
+  public var isOverlay: Bool { placement == "overlay" }
 }
 
 /// A named point on the timeline (source seconds): a note to yourself or the AI ("intro ends").

@@ -224,7 +224,7 @@ private struct Describer: Sendable {
       for (i, a) in list.enumerated() {
         out.append(
           line(
-            "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : "in the screen")",
+            "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : a.isOverlay ? "overlay" : "in the screen")",
             a.fit == "fit" ? "fit" : "", a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
       }
     }
@@ -233,7 +233,7 @@ private struct Describer: Sendable {
       out.append("## Animations (template, cues in source time)")
       for (i, a) in plan.animationList.enumerated() {
         let cues = (a.cues ?? [:]).sorted { $0.value < $1.value }.map { "\($0.key) \(fmtTime($0.value))" }.joined(separator: ", ")
-        out.append(line("  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.template)", cues.isEmpty ? "" : "cues: \(cues)", a.note ?? ""))
+        out.append(line("  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.template)\(a.isOverlay ? " (overlay)" : "")", cues.isEmpty ? "" : "cues: \(cues)", a.note ?? ""))
       }
     }
     if let marks = plan.markers, !marks.isEmpty {
@@ -347,7 +347,7 @@ private struct Describer: Sendable {
 public func cameraHidesScreen(_ project: Project, _ plan: Plan) -> [(start: Double, end: Double, count: Int)] {
   guard plan.camera != nil else { return [] }
   let kept = mapPlan(plan)
-  let animations = plan.animationList
+  let animations = plan.animationList.filter { !$0.isOverlay }
   let hidden = project.events.filter { e in
     // The last second and a half is the click that stops the recording.
     guard e.type == .click || e.type == .key, e.t < project.source.duration - 1.5, kept.contains(where: { e.t >= $0.start && e.t < $0.end }),

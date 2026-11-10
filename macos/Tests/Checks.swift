@@ -629,6 +629,13 @@ struct Checks {
     expect(anim.clipPath(out1080, dir: nil, look: terminal) != anim.clipPath(out1080, dir: nil), "a theme renders a new clip")
     expect(anim.clipPath(out1080, dir: nil, look: mint) != anim.clipPath(out1080, dir: nil, look: terminal), "a new accent renders a new clip")
     expect(anim.clipPath(out1080, dir: nil, look: mint) == anim.clipPath(out1080, dir: nil, look: mint), "the same look reuses its clip")
+    // An overlay floats over the whole video: its own clip, with alpha (.mov), and it covers nothing.
+    var floating = anim
+    floating.overlay = true
+    expect(floating.clipPath(out1080, dir: nil).hasSuffix(".mov") && anim.clipPath(out1080, dir: nil).hasSuffix(".mp4"), "an overlay renders to a .mov with alpha")
+    expect(floating.clipPath(out1080, dir: nil) != anim.clipPath(out1080, dir: nil), "making an animation an overlay renders a new clip")
+    floating.alternates = [Animation.Alternate(template: "sprawl", data: .object([:]), cues: nil, note: nil)]
+    expect(floating.versions.count == 2 && floating.versions.allSatisfy(\.isOverlay), "an overlay's alternates render as overlays too")
     let roundTrip = try? JSONDecoder().decode(Animation.self, from: JSONEncoder().encode(anim))
     expect(roundTrip == anim, "animations round-trip through JSON")
     var animPlan = buildPlan(p)
@@ -759,6 +766,13 @@ struct Checks {
     expect(socialTop(clipped) == nil, "landscape has no split")
     expect(hookPlan.animationOutput.width == Int(split.screen.w) && hookPlan.animationOutput.height == Int(split.screen.h), "portrait animations render at the card's size")
     let hookOut = layoutsToOut(hookPlan, mapSegments(hookPlan.segments, fps: 30))
+    // A portrait overlay floats over the whole frame below the app UI, and doesn't split the frame.
+    var floatingHook = hookPlan
+    floatingHook.animationList[0].overlay = true
+    let floatingAnim = floatingHook.animationList[0]
+    expect(floatingHook.animationOutput(floatingAnim) == floatingHook.output, "a portrait overlay renders at the frame's size")
+    expect(floatingHook.animationSafeTop(floatingAnim) == Int(SafeArea.rect(floatingHook)!.minY.rounded()), "a portrait overlay keeps clear of the app UI at the top")
+    expect(layoutsToOut(floatingHook, mapSegments(floatingHook.segments, fps: 30)).last?.mode != .pip, "a portrait overlay doesn't split the frame")
     expect(hookOut.last?.mode == .pip && hookOut.last?.startF == 60, "the split shows while a portrait animation plays")
     expect(clipped.trimmed(to: clipped.clipList[1]).segments.isEmpty, "a clip inside a cut has nothing to export")
     // A clip that opens partway into an animation picks it up there; a clip's pace re-cuts its pauses.
@@ -804,6 +818,11 @@ struct Checks {
     faded.inserts?[0].enter = Motion(preset: "fade", seconds: 0.3)
     let fs = Scene(plan: faded, words: [], clicks: [], shortcuts: [])
     expect(fs.insertPose(fs.inserts[0], frame: fs.inserts[0].s).opacity < 0.5 && !fs.fullFrameCovers(fs.inserts[0].s), "an insert that asks for a fade still fades")
+    var floatingOver = seam
+    floatingOver.inserts = [Insert(start: 2, end: 4, file: "a.mov", placement: "overlay")]
+    let os = Scene(plan: floatingOver, words: [], clicks: [], shortcuts: [])
+    expect(!os.fullFrameCovers(os.inserts[0].s) && !os.cardCovers(os.inserts[0].s), "an overlay hides neither the screen's marks nor the card")
+    expect(!os.cutFrames.contains(os.inserts[0].s), "an overlay appearing isn't a cut")
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam

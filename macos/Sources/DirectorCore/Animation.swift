@@ -1,7 +1,8 @@
 import CryptoKit
 import Foundation
 
-/// A motion-graphics explainer (a template filled with data) played full frame over the video.
+/// A motion-graphics explainer (a template filled with data) played full frame over the video, or,
+/// with `overlay`, graphics floating over the whole video on a transparent background.
 /// Times are source seconds, as everywhere. `director animate` renders each one to a cached clip
 /// in `.animations/`, named by `renderKey`, so changing the data or a cue re-renders it.
 public struct Animation: Codable, Equatable, Sendable {
@@ -19,6 +20,11 @@ public struct Animation: Codable, Equatable, Sendable {
   /// Other versions of this animation, kept but not played. `director animate-variants` renders
   /// them side by side and `animate-choose` swaps one in, so the one replaced is kept too.
   public var alternates: [Alternate]?
+  /// Floats over the whole video (screen, camera and all) on a transparent background, instead of
+  /// filling the frame with the template's paper. Rendered with alpha (HEVC, .mov), at the frame's size.
+  public var overlay: Bool?
+
+  public var isOverlay: Bool { overlay == true }
 
   public struct Alternate: Codable, Equatable, Sendable {
     public var template: String
@@ -39,7 +45,11 @@ public struct Animation: Codable, Equatable, Sendable {
 
   /// This version, then each alternate as the animation it would be.
   public var versions: [Animation] {
-    [self] + (alternates ?? []).map { Animation(start: start, end: end, template: $0.template, data: $0.data, cues: $0.cues, note: $0.note) }
+    [self] + (alternates ?? []).map {
+      var a = Animation(start: start, end: end, template: $0.template, data: $0.data, cues: $0.cues, note: $0.note)
+      a.overlay = overlay
+      return a
+    }
   }
 
   public init(start: Double, end: Double, template: String, data: JSONValue, cues: [String: Double]? = nil, note: String? = nil) {
@@ -142,6 +152,8 @@ public struct Animation: Codable, Equatable, Sendable {
       let brand: Brand?
       /// Pixels at the top kept clear of a vertical video's app UI (nil when none, so older clips keep their names).
       let top: Int?
+      /// True for a transparent overlay (nil otherwise, so older clips keep their names).
+      let overlay: Bool?
     }
     let enc = JSONEncoder()
     enc.outputFormatting = .sortedKeys
@@ -149,17 +161,23 @@ public struct Animation: Codable, Equatable, Sendable {
       v: Animation.engineVersion, template: template, script: script, data: data, cues: localCues.mapValues { ($0 * 1000).rounded() / 1000 },
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps,
       brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) },
-      top: safeTop > 0 ? safeTop : nil)
+      top: safeTop > 0 ? safeTop : nil, overlay: isOverlay ? true : nil)
     // Encoding plain values can only fail on a non-finite number; hash the key's description then,
     // so two different animations never share the empty-data name.
     let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data(String(reflecting: key).utf8))
     return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
   }
 
-  /// The rendered clip, relative to the project folder `dir`.
+  /// The rendered clip, relative to the project folder `dir`: an .mp4, or a .mov with alpha for an overlay.
   public func clipPath(_ output: Plan.Output, dir: URL?, look: Look? = nil, safeTop: Int = 0) -> String {
     let script = dir.map { AnimationSources.digest(template, in: AnimationSources.videoFolder($0)) } ?? ""
-    return ".animations/\(template)-\(renderKey(width: output.width, height: output.height, fps: output.fps, script: script, look: look, safeTop: safeTop)).mp4"
+    let key = renderKey(width: output.width, height: output.height, fps: output.fps, script: script, look: look, safeTop: safeTop)
+    return ".animations/\(template)-\(key).\(isOverlay ? "mov" : "mp4")"
+  }
+
+  /// The rendered clip for this plan (its size and safe area for this animation), relative to `dir`.
+  public func clipPath(in plan: Plan, dir: URL?) -> String {
+    clipPath(plan.animationOutput(self), dir: dir, look: plan.look, safeTop: plan.animationSafeTop(self))
   }
 }
 
@@ -201,12 +219,14 @@ extension Plan {
   /// Rendered animations as full-frame B-roll, for the renderer and the composition. An animation
   /// that hasn't been rendered yet is left out (the app and `director render` render it first).
   public func animationInserts(dir: URL?) -> [Insert] {
-    // In portrait an animation plays in the screen card, above the camera; elsewhere over the whole frame.
+    // In portrait an animation plays in the screen card, above the camera; elsewhere over the whole
+    // frame. An overlay floats over everything, in any format.
     let placement = socialTop(self) == nil ? "full" : "screen"
     return animationList.compactMap { a in
-      let path = a.clipPath(animationOutput, dir: dir, look: look, safeTop: animationSafeTop)
+      let path = a.clipPath(in: self, dir: dir)
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
-      return Insert(start: a.start, end: a.end, file: path, from: animationSeek(a), placement: placement, fit: "fill", note: a.note)
+      return Insert(
+        start: a.start, end: a.end, file: path, from: animationSeek(a), placement: a.isOverlay ? "overlay" : placement, fit: "fill", note: a.note)
     }
   }
 
@@ -216,7 +236,7 @@ extension Plan {
   public func animationClipNames(dir: URL) -> Set<String> {
     let plans = [self] + ExportPreset.all.map { $0.applied(to: self) }
     return Set(plans.flatMap { p in
-      animationList.map { ($0.clipPath(p.animationOutput, dir: dir, look: look, safeTop: p.animationSafeTop) as NSString).lastPathComponent }
+      animationList.map { ($0.clipPath(in: p, dir: dir) as NSString).lastPathComponent }
     })
   }
 
@@ -251,7 +271,17 @@ extension Plan {
     return firstKept > a.start + 0.01 ? firstKept - a.start : nil
   }
 
-  /// The size animation clips render at: the frame, or in portrait the screen card they play in.
+  /// The size an animation's clip renders at: the frame for an overlay, else `animationOutput`.
+  public func animationOutput(_ a: Animation) -> Output { a.isOverlay ? output : animationOutput }
+
+  /// Pixels at the top of an animation's clip a vertical video's app UI covers: for an overlay, the
+  /// frame's top above the safe area; else `animationSafeTop`.
+  public func animationSafeTop(_ a: Animation) -> Int {
+    guard a.isOverlay else { return animationSafeTop }
+    return SafeArea.rect(self).map { max(0, Int($0.minY.rounded())) } ?? 0
+  }
+
+  /// The size full-frame animation clips render at: the frame, or in portrait the screen card they play in.
   public var animationOutput: Output {
     guard socialTop(self) != nil else { return output }
     let card = layoutBoxes(.pip, plan: self).screen
@@ -272,7 +302,7 @@ extension Plan {
   /// Animations whose clip is missing, with the clip path each should be rendered to.
   public func animationsToRender(dir: URL) -> [(index: Int, animation: Animation, path: String)] {
     animationList.enumerated().compactMap { i, a in
-      let path = a.clipPath(animationOutput, dir: dir, look: look, safeTop: animationSafeTop)
+      let path = a.clipPath(in: self, dir: dir)
       return FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) ? nil : (i, a, path)
     }
   }

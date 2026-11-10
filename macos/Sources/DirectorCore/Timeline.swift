@@ -418,7 +418,7 @@ public struct OutLayout: Equatable, Sendable {
 public func layoutsToOut(_ plan: Plan, _ mapped: [MappedSegment]) -> [OutLayout] {
   let fps = plan.output.fps
   // In portrait an animation plays in the screen card, so the split shows while it does (last range wins).
-  let animated = socialTop(plan) == nil ? [] : plan.animationList.map { LayoutRange(start: $0.start, end: $0.end, mode: .pip) }
+  let animated = socialTop(plan) == nil ? [] : plan.animationList.filter { !$0.isOverlay }.map { LayoutRange(start: $0.start, end: $0.end, mode: .pip) }
   return (plan.layouts + animated)
     .flatMap { l in srcRangeToOut(mapped, l.start, l.end, fps: fps).map { OutLayout(startF: $0.startF, endF: $0.endF, mode: l.mode) } }
 }

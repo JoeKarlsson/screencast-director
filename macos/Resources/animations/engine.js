@@ -483,7 +483,7 @@ function stageTransform(width, height, stage = { w: 1920, h: 1080 }) {
 
 // --- entry points --------------------------------------------------------------
 // config: { template, data, cues, duration, width, height, fonts: [{family, url}], titleFont, bodyFont,
-//           accent, paper, ink, theme, safeTop, logos }
+//           accent, paper, ink, theme, safeTop, logos, overlay (true: a transparent page over the video) }
 window.init = async function (config) {
   cam = document.getElementById("cam");
   lines = document.getElementById("lines");
@@ -491,6 +491,7 @@ window.init = async function (config) {
   const root = document.documentElement.style;
   THEME = config.theme || "";
   if (THEME) document.documentElement.classList.add(`theme-${THEME}`);
+  if (config.overlay) document.documentElement.classList.add("overlay");
   if (config.accent) root.setProperty("--accent", config.accent);
   if (config.paper) root.setProperty("--paper", config.paper);
   if (config.ink) root.setProperty("--ink", config.ink);

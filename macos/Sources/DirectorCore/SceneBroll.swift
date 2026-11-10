@@ -17,7 +17,7 @@ extension Scene {
   /// Whether a full-frame insert fully covers the screen at this frame (so screen marks stay hidden).
   /// Whether B-roll in the screen card (a portrait animation, say) fully covers it at this frame.
   func cardCovers(_ f: Double) -> Bool {
-    inserts.contains { !$0.a.isFull && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
+    inserts.contains { !$0.a.isFull && !$0.a.isOverlay && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
   }
 
   func fullFrameCovers(_ f: Double) -> Bool {
@@ -45,10 +45,11 @@ extension Scene {
       ink: look.accent ?? "#FF4FD8", boil: Int(Double(f) / Double(plan.output.fps) * 6))
   }
 
-  /// B-roll showing at this frame: in the screen card (`full` false) or over the whole frame.
-  func broll(_ image: CIImage, frame f: Double, full: Bool, box b: Box, frames: [Int: CIImage]) -> CIImage {
+  /// B-roll showing at this frame: in the screen card (`full` false) or over the whole frame, or
+  /// with `overlay` the see-through clips floating over everything.
+  func broll(_ image: CIImage, frame f: Double, full: Bool, overlay: Bool = false, box b: Box, frames: [Int: CIImage]) -> CIImage {
     var out = image
-    for ins in inserts where ins.a.isFull == full && f >= ins.s && f < ins.e {
+    for ins in inserts where ins.a.isOverlay == overlay && (overlay || ins.a.isFull == full) && f >= ins.s && f < ins.e {
       guard var src = insertImages[ins.index] ?? frames[ins.index] else { continue }
       let pose = insertPose(ins, frame: f)
       guard pose.visible else { continue }

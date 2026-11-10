@@ -7,6 +7,8 @@ description: Add a Vox-style motion-graphics explainer (real logos, sticker pop-
 
 An animation is a template filled with data and cued to spoken words. It lives in the plan's `animations` list and plays full frame over the video (captions stay on top). `director animate` renders each one with the macOS web view to `.animations/<template>-<hash>.mp4`; the app renders new or changed ones on its own.
 
+With `"overlay": true` it floats over the whole video instead (screen recording, face camera and all, captions still on top): the page paints nothing behind the template (no paper, grain or vignette, in any theme) and the clip is HEVC with alpha, `.animations/<template>-<hash>.mov`, at the frame's size even in a vertical video, which it doesn't split. Use it for lower thirds, callouts and titles over the demo. Text needs a card, chip or tag behind it: dark ink straight on a screen recording disappears.
+
 ## Where templates live
 
 First match wins:

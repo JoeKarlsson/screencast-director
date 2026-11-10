@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
+- Animations can float over the whole video instead of filling the frame: `"overlay": true` renders one on a transparent background (HEVC with alpha), and it plays over the screen recording and the face camera, under captions. In a vertical video it covers the whole frame without splitting it. B-roll can do the same with `"placement": "overlay"` for a picture or clip with alpha.
 - The camera in paper and zine animations drifts smoothly like a handheld shot, instead of jittering 12 times a second. Existing animations re-render with it the next time their video builds.
 - A storyboard card or sticker casts its shadow from the air as it slams in, wider and softer, and the shadow tucks in under it as it lands, so pieces read as paper dropped on the page. Paper collage look only; existing animations re-render with it the next time their video builds.
 - `director animate` and `animate-test` warn when two pieces (stickers, cards, labels, tags, rows, the heading) overlap on any frame, mid-move included, or when one reaches into the caption band, with when and for how long.

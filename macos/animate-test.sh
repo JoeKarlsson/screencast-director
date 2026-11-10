@@ -129,4 +129,41 @@ if a.get("note") != "second" or a["alternates"][0]["template"] != sys.argv[2]:
     sys.exit(f"FAIL: animate-choose didn't swap in the alternate and keep the first: {a.get('note')}, {a['alternates']}")
 PY
 echo "ok: animate-variants renders each version and a sheet; animate-choose swaps one in and keeps the other"
+# An overlay floats over the video: where it draws the frame changes, and elsewhere (the corners) the
+# video shows through untouched. One kept stretch, hub over 1-4 s, compared at 2.5 s with and without it.
+python3 - "$PROJECT/plan.json" Resources/animations/templates/hub.json <<'PY'
+import json, sys
+plan, t = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+plan["segments"] = [{"start": 0, "end": 6, "speed": 1}]
+plan["animations"] = [{"start": 1, "end": 4, "template": "hub", "data": t["data"], "overlay": True,
+                       "cues": {c["key"]: round(1 + c["at"] * 3 / t["length"], 3) for c in t["cues"]}}]
+plan.pop("look", None)
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" validate "$PROJECT" >/dev/null || { echo "FAIL: a plan with an overlay doesn't validate" >&2; exit 1; }
+frame=$((3 * $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['output']['fps'])" "$PROJECT/plan.json") / 2 + 30))
+"$DIRECTOR" still "$PROJECT" "$frame" "$TMP/over.png" >/dev/null 2>&1
+ls "$PROJECT"/.animations/hub-*.mov >/dev/null || { echo "FAIL: the overlay didn't render to a .mov" >&2; exit 1; }
+python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["animations"] = []
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" still "$PROJECT" "$frame" "$TMP/under.png" >/dev/null 2>&1
+for f in over under; do ffmpeg -v error -i "$TMP/$f.png" -f rawvideo -pix_fmt rgb24 -y "$TMP/$f.rgb"; done
+size=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=p=0 "$TMP/over.png")
+python3 - "$TMP/over.rgb" "$TMP/under.rgb" "$size" <<'PY'
+import sys
+over, under = open(sys.argv[1], "rb").read(), open(sys.argv[2], "rb").read()
+w, h = map(int, sys.argv[3].split(","))
+def px(buf, x, y): i = (y * w + x) * 3; return buf[i:i + 3]
+corners = [(2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3)]
+for x, y in corners:
+    d = max(abs(a - b) for a, b in zip(px(over, x, y), px(under, x, y)))
+    if d > 6: sys.exit(f"FAIL: the overlay covers the video at ({x},{y}): {tuple(px(over, x, y))} vs {tuple(px(under, x, y))}")
+changed = sum(1 for i in range(0, len(over), 3) if max(abs(over[i + k] - under[i + k]) for k in range(3)) > 30) / (w * h)
+if changed < 0.02: sys.exit(f"FAIL: the overlay drew almost nothing ({changed:.1%} of the frame changed)")
+print(f"ok: the overlay draws over {changed:.0%} of the frame and the video shows through at the corners")
+PY
 echo "animation checks passed"

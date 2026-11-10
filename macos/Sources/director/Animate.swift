@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import VideoToolbox
 import DirectorCore
 import WebKit
 
@@ -63,9 +64,10 @@ enum Animate {
     """
 
   /// The caption band an animation keeps clear when captions are on: the bottom 150 of 1080 pixels
-  /// in a landscape video (vertical captions sit outside the animation's card).
-  static func captionBand(_ plan: Plan) -> Double {
-    plan.captions.enabled && plan.animationOutput.width > plan.animationOutput.height ? 150.0 / 1080 : 0
+  /// in a landscape video (vertical captions sit outside a full-frame animation's card).
+  static func captionBand(_ plan: Plan, _ a: Animation) -> Double {
+    let size = plan.animationOutput(a)
+    return plan.captions.enabled && size.width > size.height ? 150.0 / 1080 : 0
   }
 
   /// One line per pair of pieces that overlapped (or piece in the caption band), from the rows
@@ -114,11 +116,10 @@ enum Animate {
     if try plan.removeUnusedAnimationClips(dir: dir) == nil {
       log("plan.json doesn't load right now, so unused animation clips are kept")
     }
-    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(plan.animationOutput, dir: dir, look: plan.look,
-      safeTop: plan.animationSafeTop)) } : plan.animationsToRender(dir: dir)
+    let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(in: plan, dir: dir)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }
-    let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     for (i, a, path) in todo {
+      let page = Page(plan, a)
       let started = Date()
       let (pops, overlaps) = try await page.render(a, index: i, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
       log(String(format: "animation #%d (%@): %@ in %.1fs", i, a.template, path, Date().timeIntervalSince(started)))
@@ -139,7 +140,7 @@ enum Animate {
     guard at >= a.start, at < a.end else {
       throw DirectorError("animation #\(index) plays from \(fmtTime(a.start)) to \(fmtTime(a.end)) (source), so \(fmtTime(at)) isn't in it")
     }
-    let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
+    let page = Page(plan, a)
     var frames: [(image: CGImage, label: String)] = []
     let (pops, overlaps) = try await page.render(
       a, index: index, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length
@@ -168,7 +169,7 @@ enum Animate {
     let versions = list[index].versions
     guard versions.count > 1 else { throw DirectorError("animation #\(index) has no alternates to compare") }
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let size = plan.animationOutput
+    let size = plan.animationOutput(list[index])
     let columns = ContactSheet.layout(frameWidth: size.width, frameHeight: size.height).columns
     let frameCount = Int((list[index].end - list[index].start) * Double(fps))
     // The same frames for every version: spread over the animation, the last one near its end.
@@ -178,7 +179,7 @@ enum Animate {
     for (k, a) in versions.enumerated() {
       let out = folder.appendingPathComponent("animation-\(index)-v\(k).mp4")
       var row: [(image: CGImage, label: String)] = []
-      let (pops, overlaps) = try await Page(width: size.width, height: size.height).render(
+      let (pops, overlaps) = try await Page(plan, a).render(
         a, index: index, plan: plan, sources: sources, to: out
       ) { f, image in
         if picks.contains(f) {
@@ -199,14 +200,25 @@ enum Animate {
     let web: WKWebView
     let window: NSWindow
     let width: Int, height: Int
+    /// An overlay's page: nothing painted behind the template, and a clip with alpha.
+    let transparent: Bool
     var loading: CheckedContinuation<Void, Error>?
 
-    init(width: Int, height: Int) {
+    /// The page for animation `a` in `plan`: its clip's size, transparent for an overlay.
+    convenience init(_ plan: Plan, _ a: Animation) {
+      let size = plan.animationOutput(a)
+      self.init(width: size.width, height: size.height, transparent: a.isOverlay)
+    }
+
+    init(width: Int, height: Int, transparent: Bool = false) {
       self.width = width
       self.height = height
+      self.transparent = transparent
       _ = NSApplication.shared
       let rect = NSRect(x: 0, y: 0, width: width, height: height)
       web = WKWebView(frame: rect, configuration: WKWebViewConfiguration())
+      // Without this WebKit fills the view white before the page paints, so a snapshot has no alpha.
+      if transparent { web.setValue(false, forKey: "drawsBackground") }
       // Off screen but in a window, so WebKit lays out and paints.
       window = NSWindow(contentRect: rect.offsetBy(dx: -20000, dy: -20000), styleMask: .borderless, backing: .buffered, defer: false)
       super.init()
@@ -257,13 +269,22 @@ enum Animate {
       // contents, since the name is a hash of them), and each moves its own into place.
       let tmp = out.deletingLastPathComponent().appendingPathComponent(".rendering-\(getpid())-\(out.lastPathComponent)")
       try? FileManager.default.removeItem(at: tmp)
-      let writer = try AVAssetWriter(outputURL: tmp, fileType: .mp4)
+      // An overlay keeps its alpha: HEVC with alpha in a .mov (the frames are premultiplied, as drawn).
+      let writer = try AVAssetWriter(outputURL: tmp, fileType: transparent ? .mov : .mp4)
       let input = AVAssetWriterInput(
         mediaType: .video,
-        outputSettings: [
-          AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
-          AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 16_000_000],
-        ])
+        outputSettings: transparent
+          ? [
+            AVVideoCodecKey: AVVideoCodecType.hevcWithAlpha, AVVideoWidthKey: width, AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: [
+              AVVideoQualityKey: 0.9, kVTCompressionPropertyKey_TargetQualityForAlpha as String: 0.9,
+              kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_PremultipliedAlpha,
+            ],
+          ]
+          : [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 16_000_000],
+          ])
       input.expectsMediaDataInRealTime = false
       let adaptor = AVAssetWriterInputPixelBufferAdaptor(
         assetWriterInput: input,
@@ -283,7 +304,7 @@ enum Animate {
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
       var tiles: [[Double]] = []
-      let band = Animate.captionBand(plan)
+      let band = Animate.captionBand(plan, a)
       var overlaps: [(t: Double, rows: [[Any]])] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
         let result: Any?
@@ -353,6 +374,8 @@ enum Animate {
           bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
         else { throw DirectorError("can't draw the snapshot") }
         ctx.interpolationQuality = .high
+        // Cleared first: an overlay's snapshot is see-through, and drawing composites over the last one.
+        ctx.clear(CGRect(x: 0, y: 0, width: width, height: height))
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
       }
     }
@@ -391,13 +414,14 @@ enum Animate {
     }
     var config: [String: Any] = [
       "template": a.template, "data": data, "cues": a.localCues, "duration": a.end - a.start,
-      "width": plan.animationOutput.width, "height": plan.animationOutput.height, "fonts": fonts, "logos": logos,
+      "width": plan.animationOutput(a).width, "height": plan.animationOutput(a).height, "fonts": fonts, "logos": logos,
       "accent": look?.accent ?? "#FFE500",
     ]
     if let f = look?.titleFont { config["titleFont"] = f }
     if let f = look?.captionFont { config["bodyFont"] = f }
     if let t = look?.animationTheme { config["theme"] = t }
-    if plan.animationSafeTop > 0 { config["safeTop"] = plan.animationSafeTop }
+    if plan.animationSafeTop(a) > 0 { config["safeTop"] = plan.animationSafeTop(a) }
+    if a.isOverlay { config["overlay"] = true }
     return config
   }
 

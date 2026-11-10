@@ -179,7 +179,8 @@ public final class Scene: @unchecked Sendable {
       // Playing an earlier moment than the clip before (back from a cold open) is a jump back.
       note(Double(next.outStart), next.repeats != true && next.start < prev.start - 0.05 ? .jumpBack : .cut)
     }
-    for ins in inserts { [ins.s, ins.e].forEach { note($0, .broll) } }
+    // Graphics floating over the video don't change the shot.
+    for ins in inserts where !ins.a.isOverlay { [ins.s, ins.e].forEach { note($0, .broll) } }
     for l in layouts { [l.startF, l.endF].forEach { note($0, .layout) } }
     for p in punchIns { [p.s, p.e].forEach { note($0, .punchIn) } }
     for c in callouts where ["chapter", "slate"].contains(c.c.style ?? "") { note(c.s, .section) }
@@ -224,7 +225,7 @@ public final class Scene: @unchecked Sendable {
     // In portrait an animation's split eases in from the frame the animation starts and out to the
     // frame it ends, slower and in-out: centered on the cut, the card showed the screen recording for
     // a moment first, and the snappy ease dropped the face to the bottom half in a tenth of a second.
-    let animated = socialTop(plan) == nil ? [] : plan.animationList.flatMap { srcRangeToOut(mapPlan(plan), $0.start, $0.end, fps: plan.output.fps) }
+    let animated = socialTop(plan) == nil ? [] : plan.animationList.filter { !$0.isOverlay }.flatMap { srcRangeToOut(mapPlan(plan), $0.start, $0.end, fps: plan.output.fps) }
     let animDur = max(dur, Scene.animationSplitSeconds * Double(plan.output.fps))
     let animEase = Ease.named("cinematic")!
     // The video opens in whatever layout covers its first frame, and a range running to the last
@@ -361,6 +362,7 @@ public final class Scene: @unchecked Sendable {
       }
     }
     image = broll(image, frame: Double(f), full: true, box: b, frames: insertFrames)
+    image = broll(image, frame: Double(f), full: true, overlay: true, box: b, frames: insertFrames)
     image = withEffects(image.cropped(to: CGRect(x: 0, y: 0, width: W, height: H)), layer: "frame", frame: f)
     if let overlay = overlays(frame: Double(f), screen: b, cam: cam, camBox: camera != nil && plan.camera != nil ? cb : nil) {
       image = overlay.composited(over: image)
