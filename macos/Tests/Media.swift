@@ -259,12 +259,13 @@ struct Media {
       line("commit 3f9a2b7c1d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a   Password: ••••••••", 0.8)
     }
     try writeSource(dir, width: Double(w), height: Double(h), duration: 6)
-    let found = try await Secrets.scan(try Project.load(dir))
+    let (found, unread) = try await Secrets.scan(try Project.load(dir))
+    expect(unread == 0, "every sample decodes (\(unread) didn't)")
     let key = found.first { $0.kind == "api key" }
     expect(key.map { $0.start < 2.2 && $0.start > 1 && $0.end > 3.8 && $0.end < 5 } == true, "the key is found while it's up (\(found))")
     expect(key.map { $0.y < 0.2 && $0.y + $0.h > 0.18 } == true, "the key's box is where it was drawn (\(String(describing: key)))")
     let password = found.first { $0.kind == "secret" }
-    expect(password?.masked.hasPrefix("Hunt") == true, "the password is found, masked (\(found.map(\.masked)))")
+    expect(password?.masked == "Hu… (14)", "the password is found, masked to two characters and its length (\(found.map(\.masked)))")
     // Vision's box for part of a line is loose: it starts a word or two early, never late.
     expect(
       password.map { $0.x > 0.2 && $0.x < 0.43 && $0.x + $0.w > 0.57 && $0.start < 0.6 && $0.end > 5.4 } == true,

@@ -94,11 +94,12 @@ public enum Secrets: Sendable {
     return !hex && !longNumber && s.contains(where: \.isUppercase) && s.contains(where: \.isLowercase) && s.filter(\.isNumber).count >= 3
   }
 
-  /// The first and last few characters, so a finding can be recognized without being repeated.
+  /// A few leading characters and the length, enough to recognize a finding: four only for long keys,
+  /// whose start is a public prefix (sk-, AKIA), and never the end. describe's output, which carries
+  /// it, can go to an AI provider.
   public static func mask(_ s: String) -> String {
-    let keep = s.count >= 12 ? 4 : s.count >= 6 ? 2 : 0
-    guard keep > 0 else { return String(repeating: "•", count: max(1, s.count)) }
-    return String(s.prefix(keep)) + "…" + String(s.suffix(keep - 1))
+    let keep = s.count >= 24 ? 4 : s.count >= 8 ? 2 : 0
+    return String(s.prefix(keep)) + "… (\(s.count))"
   }
 
   // MARK: Scanning
@@ -110,8 +111,11 @@ public enum Secrets: Sendable {
   }
 
   /// Reads the screen every `step` seconds, but only where it changed since the last read
-  /// (motion.json; a pasted key is enough), and returns what it found, merged across samples.
-  public static func scan(_ project: Project, step: Double = 1, progress: ((Double) -> Void)? = nil) async throws -> [Finding] {
+  /// (motion.json; a pasted key is enough), and returns what it found, merged across samples, and how
+  /// many samples couldn't be decoded (a truncated recording), so a stretch never read isn't called clean.
+  public static func scan(_ project: Project, step: Double = 1, progress: ((Double) -> Void)? = nil) async throws -> (
+    findings: [Finding], unread: Int
+  ) {
     let asset = AVURLAsset(url: project.dir.appendingPathComponent(project.source.video))
     let gen = AVAssetImageGenerator(asset: asset)
     gen.appliesPreferredTrackTransform = true
@@ -121,10 +125,12 @@ public enum Secrets: Sendable {
     var samples: [(t: Double, hits: [Hit])] = []
     var t = 0.0
     var lastRead = -Double.infinity
+    var unread = 0
     while t < duration {
       progress?(t / max(duration, 0.001))
       if changed(project.motion, from: lastRead, to: t) {
         guard let (frame, actual) = try? await gen.image(at: CMTime(seconds: t, preferredTimescale: 600)) else {
+          unread += 1
           t += step
           continue
         }
@@ -136,7 +142,7 @@ public enum Secrets: Sendable {
       t += step
     }
     progress?(1)
-    return merge(samples, step: step)
+    return (merge(samples, step: step), unread)
   }
 
   /// Whether the screen changed between two times. Mean pixel change of 0.02 catches a few typed

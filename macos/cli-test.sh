@@ -231,6 +231,13 @@ sound_spans_video() {
 check "the sound runs the length of the video ($(stream_duration "$TMP/out.mp4" a) s for $want s)" sound_spans_video
 scan=$("$DIRECTOR" scan "$TMP/out.mp4")
 check "scan finds no short shots in the render ($scan)" test "$scan" = "No shots under a second."
+made=$("$DIRECTOR" provenance "$TMP/out.mp4")
+check "provenance names what made the render ($made)" grep -q "made by Screencast Director" <<<"$made"
+cp "$TMP/out.mp4" "$P/stamped.mp4"
+check "beside its plan.json, it says what changed since: nothing" grep -q "changed since: same" <<<"$("$DIRECTOR" provenance "$P/stamped.mp4")"
+rm "$P/stamped.mp4"
+check "provenance --plan prints the plan it rendered" bash -c "'$DIRECTOR' provenance '$TMP/out.mp4' --plan | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)[\"output\"][\"width\"] == 480 else 1)'"
+expect_error "a video without a stamp says so" "no Screencast Director stamp" "$DIRECTOR" provenance "$P/screen.mp4"
 dbg=$("$DIRECTOR" debug "$P")
 check "debug prints the composition's tracks" grep -q "asset duration" <<<"$dbg"
 

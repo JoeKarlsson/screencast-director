@@ -24,7 +24,9 @@ func secretChecks() {
   expect(found(statusBar).isEmpty, "long IDs in a URL aren't keys (\(found(statusBar)))")
   expect(found("02934077468hiabliahtedUndateTvpe-REACTED").isEmpty, "a broken-up URL's numeric ID isn't a key")
   expect(found("https://api.example.com/v1?access_token=Zq81Lm0p") == ["secret: Zq81Lm0p"], "a labeled token in a URL still is")
-  expect(Secrets.mask("sk-proj-Ab12Cd34") == "sk-p…d34" && Secrets.mask("abc") == "•••", "masks keep only the ends")
+  expect(
+    Secrets.mask("sk-proj-Ab12Cd34Ef56Gh78Ij90") == "sk-p… (28)" && Secrets.mask("Hunter2Secret!") == "Hu… (14)" && Secrets.mask("abc") == "… (3)",
+    "masks keep a long key's prefix, two characters of anything shorter, and never the end")
 
   // The same secret in the same place, read slightly differently, is one finding; a gap ends it.
   let hit = Secrets.Hit(kind: "secret", masked: "Hunt…et!", x: 0.3, y: 0.5, w: 0.2, h: 0.03)

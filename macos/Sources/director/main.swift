@@ -159,7 +159,9 @@ do {
     if found == nil {
       print("Reading the screen for secrets...")
       // An unreadable old scan only costs its allowed marks: this one replaces it.
-      found = Secrets.keepingAllowed(try await Secrets.scan(project), from: ((try? Secrets.load(dir)) ?? nil) ?? [])
+      let scan = try await Secrets.scan(project)
+      if scan.unread > 0 { print("WARNING: couldn't read the screen at \(scan.unread) of the sampled seconds; secrets there aren't found") }
+      found = Secrets.keepingAllowed(scan.findings, from: ((try? Secrets.load(dir)) ?? nil) ?? [])
       try Secrets.save(found!, to: dir)
     }
     let findings = found!
