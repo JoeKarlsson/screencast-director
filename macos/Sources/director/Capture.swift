@@ -58,6 +58,24 @@ enum Capture {
     return first.prefix(1).uppercased() + first.dropFirst()
   }
 
+  /// How light a logo is: the mean brightness (0-1) of its opaque pixels, nil if it doesn't draw.
+  /// A logo made for a dark header is near 1, and vanishes on a white sticker.
+  static func lightness(_ data: Data) -> Double? {
+    guard let image = NSImage(data: data), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+    let w = 64, h = 64
+    var px = [UInt8](repeating: 0, count: w * h * 4)
+    guard let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    var sum = 0.0, weight = 0.0
+    for i in stride(from: 0, to: px.count, by: 4) where px[i + 3] > 128 {
+      let a = Double(px[i + 3])
+      sum += (Double(px[i]) + Double(px[i + 1]) + Double(px[i + 2])) / 3 / a
+      weight += 1
+    }
+    return weight > 0 ? sum / weight : nil
+  }
+
   @MainActor
   static func run(_ dir: URL, url: URL, name: String?, log: (String) -> Void) async throws {
     let page = Animate.Page(width: 1440, height: 900)
@@ -94,6 +112,9 @@ enum Capture {
       enc.outputFormatting = [.prettyPrinted, .sortedKeys]
       try enc.encode(names).write(to: map)
       log("logo \"\(logoName)\": animations/logos/\(saved) (use \"\(logoName)\" as a logo in an animation's data)")
+      if let light = lightness(try Data(contentsOf: logosDir.appendingPathComponent(saved))), light > 0.85 {
+        log("WARNING: the logo is drawn in white (made for a dark header), so it won't show on a white sticker; use a dot or a dark card")
+      }
     } else {
       log("no logo found on \(url.absoluteString)")
     }

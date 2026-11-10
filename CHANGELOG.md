@@ -5,7 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
-- `director capture <dir> <url>` pulls a website's logo into the video's animation logos (named so an animation can use it), saves a screenshot of the page into broll/ and prints the site's theme color, so explainers use the real logo instead of a drawn one.
+- `director capture <dir> <url>` pulls a website's logo into the video's animation logos (named so an animation can use it), saves a screenshot of the page into broll/ and prints the site's theme color, so explainers use the real logo instead of a drawn one. It warns when the logo is white (made for a dark header), which wouldn't show on a white sticker.
 - Two new animation templates, adapted from HyperFrames' catalog: Chart (bars rise one by one or a line draws through its points as you talk, then one value gets the accent and a tag counting up to it) and Big Number (one number counting up on a card with a filling track, made to float over the video as an overlay). Both draw in the paper, zine and terminal looks.
 - A new Lottie template plays a Lottie animation (an After Effects export, e.g. from LottieFiles) frame-exact in the video, over it as an overlay or on the paper: put the .json in the video's `animations/lottie/` folder and name it in the animation's data. Templates can also animate with CSS keyframes or web animations, which now render frame-exact.
 - `director animate` and `animate-test` warn when an animation's text is hard to read: WCAG contrast under 4.5:1 (3:1 for large text) against what's behind it, or, in an overlay, text sitting straight on the video with no card behind it, once it stays that way for a second.
