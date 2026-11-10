@@ -117,6 +117,16 @@ func laterChecks() {
   expect(abs(templateScripts.evaluateScript("popScale(1, 0)").toDouble() - 1) < 0.005, "and has settled when its time is up")
   expect(templateScripts.evaluateScript("easeOut(1) === 1 && easeOut(0) === 0 && easeOut(.02) < .01 && easeOut(.5) > .8").toBool(),
     "easeOut starts from rest and lands exactly on 1")
+  // The camera drifts by hand: continuous, never more than a pixel between moments 1/120 s apart (the
+  // old 12 fps jitter jumped up to the whole shake), yet it still reaches across most of its shake.
+  let drift = templateScripts.evaluateScript("""
+    (() => { const at = t => { camera(t, 1, 9); return cam.style.transform.match(/translate\\(([-\\d.e]+)px, ([-\\d.e]+)px/).slice(1).map(Number); };
+      let step = 0, reach = 0;
+      for (let i = 0; i < 600; i++) { const t = i * .0173, [x, y] = at(t), [x2, y2] = at(t + 1 / 120);
+        step = Math.max(step, Math.hypot(x2 - x, y2 - y)); reach = Math.max(reach, Math.abs(x)); }
+      return [step, reach]; })()
+    """).toArray() as? [Double] ?? []
+  expect(drift.count == 2 && drift[0] < 1 && drift[1] > 3, "the camera drifts smoothly with a 9 px shake (largest 1/120 s step, reach: \(drift))")
   expect(templateScripts.evaluateScript("stageTransform(1920, 1080)").toString() == "translate(0px, 0px) scale(1)", "a 16:9 clip fills the frame with the stage")
   expect(templateScripts.evaluateScript("stageTransform(1080, 1920)").toString() == "translate(0px, 656.25px) scale(0.5625)",
     "a vertical clip fits the stage evenly and centers it instead of stretching it")

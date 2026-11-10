@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
+- The camera in paper and zine animations drifts smoothly like a handheld shot, instead of jittering 12 times a second. Existing animations re-render with it the next time their video builds.
 - A storyboard card or sticker casts its shadow from the air as it slams in, wider and softer, and the shadow tucks in under it as it lands, so pieces read as paper dropped on the page. Paper collage look only; existing animations re-render with it the next time their video builds.
 - `director animate` and `animate-test` warn when two pieces (stickers, cards, labels, tags, rows, the heading) overlap on any frame, mid-move included, or when one reaches into the caption band, with when and for how long.
 - Animations have real motion blur: stickers, cards and labels streak in the direction they pop in, while everything standing still stays sharp. It replaces the soft blur pop-ins used to fade in with.

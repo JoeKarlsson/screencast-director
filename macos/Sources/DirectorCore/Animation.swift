@@ -52,7 +52,7 @@ public struct Animation: Codable, Equatable, Sendable {
   }
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
-  public static let engineVersion = 9
+  public static let engineVersion = 10
 
   /// Motion blur: each frame averages snapshots spread over `shutter` of a frame (a 90 degree
   /// shutter), so moving graphics streak while still ones stay sharp. How many depends on how far
@@ -71,7 +71,7 @@ public struct Animation: Codable, Equatable, Sendable {
   }
 
   /// The `count` page times averaged into frame `frame`. They start a hair after the frame's own
-  /// time and stay inside it, so the hand-drawn boil, grain and shake (stepped on whole frames) never
+  /// time and stay inside it, so the hand-drawn boil, grain and the terminal's slip (stepped on whole frames) never
   /// mix two steps in one frame, and never run past the clip's end.
   public static func subframeTimes(frame: Int, fps: Int, duration: Double, count: Int = maxSubframes) -> [Double] {
     let t = Double(frame) / Double(fps)

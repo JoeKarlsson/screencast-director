@@ -367,9 +367,11 @@ function camera(t, push, shake, seed = 1) {
     cam.style.transform = `translate(${14 * Math.sin(t * .7) + slip}px, ${9 * Math.sin(t * .53 + 1)}px) scale(${s})`;
     return;
   }
-  const r = rand(seed * 100 + Math.floor(t * 12));
+  // A handheld drift, continuous rather than a jitter re-rolled 12 times a second (huashu-motion's
+  // CAM.drift): the same reach, without the buzz on card edges.
   const s = push * (1 + .005 * Math.sin(t * 1.3));
-  const sx = (r() - .5) * shake, sy = (r() - .5) * shake, rot = (r() - .5) * shake * .05;
+  const a = shake / 2, sx = a * (Math.sin(t * 2.9 + seed) + .4 * Math.sin(t * 7.3 + seed * 2)) / 1.4, sy = a * .8 * Math.sin(t * 3.7 + seed * 3);
+  const rot = shake * .025 * Math.sin(t * 2.1 + seed * 5);
   cam.style.transform = `translate(${sx}px, ${sy}px) rotate(${rot}deg) scale(${s})`;
 }
 function grain(t) { document.getElementById("turb").setAttribute("seed", 1 + Math.floor(t * 3) % 5); }
