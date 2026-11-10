@@ -35,3 +35,5 @@ TEMPLATES.stat = function (data, cues, duration) {
     if (caption) caption.style.opacity = easeOut((t - T.caption) / .5);
   };
 };
+// x and y are shares of the frame, so the board takes the frame's shape (a vertical video's too).
+TEMPLATES.stat.reflows = true;

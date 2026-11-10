@@ -646,18 +646,19 @@ struct Checks {
     try? Data("{\"op\": 90}".utf8).write(to: lottieVideo.appendingPathComponent("a.json"))
     expect(playing.clipPath(out1080, dir: lottieRoot) != lottieClip, "editing the video's Lottie file renders a new clip")
     try? FileManager.default.removeItem(at: lottieRoot)
-    // Text contrast: WCAG ratios, and the backdrop is what most of a text box shows, glyphs aside.
+    // Text contrast: WCAG ratios, and the backdrop is what's around the text, even when its glyphs fill its box.
     expect(abs(TextContrast.ratio([0, 0, 0], [1, 1, 1]) - 21) < 0.01 && abs(TextContrast.ratio([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]) - 1) < 0.01, "contrast runs 1:1 to 21:1")
-    // A 10x10 box: white card (premultiplied BGRA), a third of it black glyphs; then the same box see-through.
-    var textCard = [UInt8](repeating: 255, count: 10 * 10 * 4)
-    for i in stride(from: 0, to: 30 * 4, by: 4) { textCard[i] = 0; textCard[i + 1] = 0; textCard[i + 2] = 0 }
-    expect(TextContrast.backdrop(bgra: textCard, width: 10, height: 10, x: 0, y: 0, w: 10, h: 10) == [1, 1, 1, 1], "a text box's backdrop is its textCard, not its glyphs")
-    expect(TextContrast.backdrop(bgra: [UInt8](repeating: 0, count: 400), width: 10, height: 10, x: 0, y: 0, w: 10, h: 10)?[3] == 0, "text on nothing has a see-through backdrop")
-    expect(TextContrast.backdrop(bgra: textCard, width: 10, height: 10, x: 20, y: 0, w: 5, h: 5) == nil, "a box off the frame has no backdrop")
-    let greyOnWhite = TextContrast.rows([["Faint", 0.0, 0.0, 10.0, 10.0, 0.8, 0.8, 0.8, 0.0]], bgra: textCard, width: 10, height: 10)
+    // A 40x40 white card (premultiplied BGRA) with a black glyph filling 10x10 of a 12x12 text box at (15, 15).
+    var textCard = [UInt8](repeating: 255, count: 40 * 40 * 4)
+    for y in 15..<25 { for x in 15..<25 { let i = (y * 40 + x) * 4; textCard[i] = 0; textCard[i + 1] = 0; textCard[i + 2] = 0 } }
+    expect(TextContrast.backdrop(bgra: textCard, width: 40, height: 40, x: 15, y: 15, w: 12, h: 12, text: [0, 0, 0]) == [1, 1, 1, 1],
+      "a bold glyph covering most of its box still reads its card")
+    expect(TextContrast.backdrop(bgra: [UInt8](repeating: 0, count: 6400), width: 40, height: 40, x: 15, y: 15, w: 10, h: 10)?[3] == 0, "text on nothing has a see-through backdrop")
+    expect(TextContrast.backdrop(bgra: textCard, width: 40, height: 40, x: 100, y: 0, w: 5, h: 5) == nil, "a box off the frame has no backdrop")
+    let greyOnWhite = TextContrast.rows([["Faint", 5.0, 5.0, 30.0, 30.0, 0.8, 0.8, 0.8, 0.0]], bgra: textCard, width: 40, height: 40)
     expect(greyOnWhite.count == 1 && greyOnWhite[0][0] as? String == "contrast" && greyOnWhite[0][2] as? String == "4.5"
       && abs((greyOnWhite[0][3] as? Double ?? 0) - 4.5 / TextContrast.ratio([0.8, 0.8, 0.8], [1, 1, 1])) < 0.001, "light grey on white is too faint to read")
-    expect(TextContrast.rows([["Ink", 0.0, 0.0, 10.0, 10.0, 0.1, 0.1, 0.1, 0.0]], bgra: textCard, width: 10, height: 10).isEmpty, "dark ink on white reads fine")
+    expect(TextContrast.rows([["Ink", 5.0, 5.0, 30.0, 30.0, 0.1, 0.1, 0.1, 0.0]], bgra: textCard, width: 40, height: 40).isEmpty, "dark ink on white reads fine")
     // An overlay floats over the whole video: its own clip, with alpha (.mov), and it covers nothing.
     var floating = anim
     floating.overlay = true

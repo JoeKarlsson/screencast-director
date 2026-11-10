@@ -144,16 +144,19 @@ import json, sys
 plan, t = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
 plan["segments"] = [{"start": 0, "end": 6, "speed": 1}]
 plan["animations"] = [{"start": 1, "end": 4, "template": "hub", "data": t["data"], "overlay": True,
-                       "cues": {c["key"]: round(1 + c["at"] * 3 / t["length"], 3) for c in t["cues"]}}]
+                       "cues": {c["key"]: round(1 + c["at"] * 3 / t["length"], 3) for c in t["cues"]}},
+                      {"start": 1, "end": 4, "template": "chart", "overlay": True, "cues": {"chart": 1.2, "callout": 3.5},
+                       "data": {"title": "Bars", "values": [5, 9], "labels": ["Bare", "Words"]}}]
 plan.pop("look", None)
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
 "$DIRECTOR" validate "$PROJECT" >/dev/null || { echo "FAIL: a plan with an overlay doesn't validate" >&2; exit 1; }
 frame=$((3 * $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['output']['fps'])" "$PROJECT/plan.json") / 2 + 30))
 "$DIRECTOR" still "$PROJECT" "$frame" "$TMP/over.png" >/dev/null 2>"$TMP/over.log"
-# The hub's heading is bare ink on paper: as an overlay it sits on the video with nothing behind it.
-grep -q 'text "One plugin for all of them" sits straight on the video' "$TMP/over.log" \
-  || { echo "FAIL: no warning about the overlay's bare heading: $(cat "$TMP/over.log")" >&2; exit 1; }
+# Overlay headings get the paper behind them; a chart's labels are bare text, straight on the video.
+grep -q 'text "Bare" sits straight on the video' "$TMP/over.log" \
+  || { echo "FAIL: no warning about the overlay's bare label: $(cat "$TMP/over.log")" >&2; exit 1; }
+if grep -q 'text "One plugin for all of them"' "$TMP/over.log"; then echo "FAIL: the overlay's heading has no backing: $(cat "$TMP/over.log")" >&2; exit 1; fi
 ls "$PROJECT"/.animations/hub-*.mov >/dev/null || { echo "FAIL: the overlay didn't render to a .mov" >&2; exit 1; }
 python3 - "$PROJECT/plan.json" <<'PY'
 import json, sys

@@ -148,6 +148,10 @@ html.theme-terminal .statcard .caption { color: var(--ink); }
    whatever the theme. Highlighters multiply onto the video instead of the paper. */
 html.overlay, html.overlay body, html.overlay #stage { background: transparent !important; }
 html.overlay #grain, html.overlay #vignette, html.overlay #marks { display: none !important; }
+/* Text that sits on the paper gets the paper behind it instead, so it reads over the video. */
+html.overlay .head, html.overlay .hand:not(.chip), html.overlay .row, html.overlay.theme-zine .chip {
+  background: var(--paper); padding: 4px 22px 10px; border-radius: 14px; }
+html.overlay.theme-terminal .head, html.overlay.theme-terminal .hand:not(.chip), html.overlay.theme-terminal .row { border-radius: 0; }
 </style>
 </head>
 <body>

@@ -360,7 +360,7 @@ check "capture names the logo for animations" grep -q '"Acme Co" : "acme-co.svg"
 check "capture keeps the logo's color once it stands alone" grep -q 'color: rgb(255, 0, 0)' "$P/animations/logos/acme-co.svg"
 check "capture screenshots the page into broll/" test -s "$P/broll/acme-co-site.png"
 check "capture prints the theme color" grep -q "theme color: #ff3366" "$TMP/capture.txt"
-check "capture doesn't call a red logo white" bash -c '! grep -q "drawn in white" "$0"' "$TMP/capture.txt"
+check "capture doesn't call a red logo white" test "$(grep -c "drawn in white" "$TMP/capture.txt")" = 0
 sed -i '' 's/rgb(255, 0, 0)/rgb(255, 255, 255)/' "$TMP/site/index.html"
 "$DIRECTOR" capture "$P" "file://$TMP/site/index.html" --name "Acme White" >"$TMP/capture-white.txt" 2>&1 || fail "capture: $(cat "$TMP/capture-white.txt")"
 check "capture warns about a white logo" grep -q "drawn in white" "$TMP/capture-white.txt"

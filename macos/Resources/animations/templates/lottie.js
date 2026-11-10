@@ -26,3 +26,5 @@ TEMPLATES.lottie = function (data, cues, duration) {
     anim.goToAndStop(loop ? f % frames : Math.min(f, frames - 1), true);
   };
 };
+// x, y and width are shares of the frame, so the board takes the frame's shape (a vertical video's too).
+TEMPLATES.lottie.reflows = true;

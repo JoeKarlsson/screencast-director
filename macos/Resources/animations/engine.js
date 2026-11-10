@@ -319,6 +319,8 @@ function heading(text, highlight) {
   const html = i < 0 ? `<span class="wrapt"><span class="hl"></span>${esc(text)}</span>`
     : `${esc(text.slice(0, i))}<span class="wrapt"><span class="hl"></span>${esc(highlight)}</span>${esc(text.slice(i + highlight.length))}`;
   const h = el("head", html + (THEME === "terminal" ? '<span class="cursor">█</span>' : ""));
+  // No heading: nothing to show (an overlay would otherwise draw its empty backing).
+  if (!text) h.style.display = "none";
   // Each word in its own mask, for revealHeading.
   const walker = document.createTreeWalker ? document.createTreeWalker(h, 4) : null;
   const texts = [];
