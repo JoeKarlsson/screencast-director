@@ -21,8 +21,12 @@ func stockChecks() {
     expect(nasaFile == "https://n/x~large.mp4", "NASA: the large MP4, over https (\(nasaFile ?? "nil"))")
 
     expect(Stock.commonsLicense("cc-by-sa-4.0", allowCredit: true) == nil, "Commons: share-alike is never offered")
-    expect(Stock.commonsLicense("cc-by-4.0", allowCredit: false) == nil && Stock.commonsLicense("cc-by-4.0", allowCredit: true)?.credit == true, "Commons: CC BY only with --credit-ok, and it needs credit")
-    expect(Stock.commonsLicense("pd-usgov", allowCredit: false)?.credit == false && Stock.commonsLicense("cc0", allowCredit: false) != nil, "Commons: CC0 and public domain need no credit")
+    expect(
+      Stock.commonsLicense("cc-by-4.0", allowCredit: false) == nil && Stock.commonsLicense("cc-by-4.0", allowCredit: true)?.credit == true,
+      "Commons: CC BY only with --credit-ok, and it needs credit")
+    expect(
+      Stock.commonsLicense("pd-usgov", allowCredit: false)?.credit == false && Stock.commonsLicense("cc0", allowCredit: false) != nil,
+      "Commons: CC0 and public domain need no credit")
     let commons = try Stock.commonsItems(data(#"""
       {"query":{"pages":{"1":{"title":"File:Short.webm","index":2,"imageinfo":[{"url":"https://u/s.webm","descriptionurl":"https://c/s","duration":11,
         "extmetadata":{"License":{"value":"cc0"},"Artist":{"value":"<a href=\"x\">Me &amp; You</a>"}}}]},
@@ -43,7 +47,8 @@ func stockChecks() {
         {"slug":"gif-only","file":{"md":{"gif":{"url":"https://k/m.gif"}}}}],"current_page":1,"has_next":true}}
       """#))
     expect(klipy.map(\.file) == ["https://k/h.mp4", "https://k/m.gif"] && klipy.first?.id == "klipy:hello-hi-662", "KLIPY: the MP4 over the GIF, the biggest size offered (\(klipy))")
-    expect(try Stock.klipyItems(data(#"{"result":true,"data":[{"slug":"s","file":{"sm":{"gif":{"url":"https://k/s.gif"}}}}]}"#)).count == 1, "KLIPY: an items answer with the list right under data")
+    let flat = try Stock.klipyItems(data(#"{"result":true,"data":[{"slug":"s","file":{"sm":{"gif":{"url":"https://k/s.gif"}}}}]}"#))
+    expect(flat.count == 1, "KLIPY: an items answer with the list right under data")
     do {
       _ = try Stock.klipyItems(data(#"{"result":false,"errors":{"message":["The provided API key is invalid."]}}"#))
       expect(false, "KLIPY: a refused key throws")

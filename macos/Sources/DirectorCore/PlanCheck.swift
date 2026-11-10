@@ -207,7 +207,10 @@ public enum PlanCheck {
       short("annotations[\(i)]", a.start, a.end)
     }
     for (i, b) in plan.insertList.enumerated() {
-      oneOf("inserts[\(i)].placement", b.placement, ["screen", "full", "overlay"])
+      oneOf("inserts[\(i)].placement", b.placement, ["screen", "full", "overlay", "sticker"])
+      unit("inserts[\(i)].x", b.x)
+      unit("inserts[\(i)].y", b.y)
+      if let w = b.w, !(0.05...1).contains(w) { out.append("inserts[\(i)].w is \(fmt(w)); a sticker's width is a fraction of the frame from 0.05 to 1") }
       oneOf("inserts[\(i)].fit", b.fit, ["fill", "fit"])
       motion("inserts[\(i)].enter", b.enter)
       motion("inserts[\(i)].exit", b.exit)

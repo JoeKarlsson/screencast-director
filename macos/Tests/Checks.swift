@@ -843,6 +843,21 @@ struct Checks {
     let fittedFrame = fs2.broll(CIImage(color: .blue).cropped(to: CGRect(x: 0, y: 0, width: fs2.W, height: fs2.H)), frame: fs2.inserts[0].s,
       full: true, overlay: true, box: Box(x: 0, y: 0, w: 1, h: 1, r: 0, opacity: 1), frames: [0: tallPicture])
     expect(pixel(fittedFrame, x: 2, y: 2)[2] > 0.9, "a fitted overlay doesn't letterbox the video on black")
+    // A sticker (a reaction GIF) floats like an overlay, in its own box kept clear of the frame's edges.
+    var stuck = seam
+    var meme = Insert(start: 2, end: 4, file: "a.mp4", placement: "sticker")
+    meme.x = 0.98
+    meme.topText = "when the build"
+    stuck.inserts = [meme]
+    let st = Scene(plan: stuck, words: [], clicks: [], shortcuts: [])
+    expect(!st.fullFrameCovers(st.inserts[0].s) && !st.cardCovers(st.inserts[0].s), "a sticker hides neither the screen's marks nor the card")
+    let stickerBox = st.stickerRect(meme, imageSize: CGSize(width: 400, height: 400))
+    expect(abs(stickerBox.width - st.W * 0.32) < 0.5 && abs(stickerBox.height - stickerBox.width) < 0.5, "a sticker is a third of the frame wide, at the clip's shape")
+    expect(st.W - stickerBox.maxX >= st.stickerBorder + st.H * 0.04 - 0.5, "a sticker pushed past the edge stays inside the frame (\(stickerBox))")
+    let tallSticker = st.stickerRect(meme, imageSize: CGSize(width: 100, height: 1000))
+    expect(tallSticker.height <= st.H * 0.8 + 0.5 && abs(tallSticker.width / tallSticker.height - 0.1) < 0.01, "a tall clip is capped at 80% of the frame's height, keeping its shape")
+    let text = st.memeText(meme, size: CGSize(width: 400, height: 400))
+    expect(text != nil && st.memeText(Insert(start: 0, end: 1, file: "a.mp4"), size: CGSize(width: 400, height: 400)) == nil, "meme text draws only when there is some")
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam

@@ -115,6 +115,14 @@ public struct Insert: Codable, Equatable, Sendable {
   /// in color, and the camera's crayon outline around it when that's on. "none": as shot. Unset,
   /// video B-roll follows the camera's room and images stay as they are.
   public var room: String?
+  /// A sticker's center (fractions of the frame from its top left; default upper right) and width
+  /// (a fraction of the frame's width, default 0.32). Its height follows the clip's shape.
+  public var x: Double?
+  public var y: Double?
+  public var w: Double?
+  /// Meme text on a sticker, in white capitals with a black outline, along its top and bottom.
+  public var topText: String?
+  public var bottomText: String?
   public var note: String?
   public init(
     start: Double, end: Double, file: String, from: Double? = nil, placement: String? = nil, fit: String? = nil, enter: Motion? = nil,
@@ -135,8 +143,10 @@ public struct Insert: Codable, Equatable, Sendable {
   public var isImage: Bool { Insert.imageExtensions.contains((file as NSString).pathExtension.lowercased()) }
   public var isFull: Bool { placement == "full" }
   /// Floats over the whole finished frame (screen, camera and all) and covers nothing: a clip or
-  /// picture with alpha, like an overlay animation's.
-  public var isOverlay: Bool { placement == "overlay" }
+  /// picture with alpha, like an overlay animation's, or a sticker.
+  public var isOverlay: Bool { placement == "overlay" || isSticker }
+  /// A small clip or picture (a reaction GIF) in a white sticker border over the video, at `x`, `y`.
+  public var isSticker: Bool { placement == "sticker" }
 }
 
 /// A named point on the timeline (source seconds): a note to yourself or the AI ("intro ends").

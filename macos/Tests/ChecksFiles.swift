@@ -33,7 +33,9 @@ private func planCheckChecks() {
   var bad = plan
   bad.zooms = [Zoom(start: 2, end: 4, x: 1.4, y: 0.5, scale: 9)]
   bad.segments.append(Segment(start: bad.segments[0].start, end: bad.segments[0].end, speed: 1))
-  bad.inserts = [Insert(start: 1, end: 3, file: "broll/missing.png")]
+  var sticker = Insert(start: 1, end: 3, file: "broll/missing.png", placement: "sticker")
+  sticker.w = 2
+  bad.inserts = [sticker]
   bad.callouts = [Callout(start: 5, end: 25, text: "Long", style: "banner")]
   bad.animations = [Animation(start: 1, end: 3, template: "nope", data: .object([:]), cues: ["late": 9])]
   let report = PlanCheck.check(bad, project: project, templates: ["storyboard"])
@@ -42,6 +44,7 @@ private func planCheckChecks() {
   expect(has("zooms[0].scale"), "a zoom scale out of range is a problem")
   expect(has("overlap"), "two segments over the same source time are a problem")
   expect(has("inserts[0].file: no file at broll/missing.png"), "a missing B-roll file is a problem")
+  expect(has("inserts[0].w is 2"), "a sticker wider than the frame is a problem")
   expect(has("callouts[0].style is \"banner\""), "an unknown callout style is a problem")
   expect(has("template \"nope\" doesn't exist") && has("cues.late"), "an unknown template and a cue outside the animation are problems")
 

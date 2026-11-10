@@ -53,6 +53,10 @@ extension Scene {
       guard var src = insertImages[ins.index] ?? frames[ins.index] else { continue }
       let pose = insertPose(ins, frame: f)
       guard pose.visible else { continue }
+      if ins.a.isSticker {
+        out = sticker(src, ins.a, pose: pose).composited(over: out)
+        continue
+      }
       if brollRoom(ins) == "halftone" {
         src = styledBroll(src, ins, frame: Int(f), shownWidth: full ? W : b.w)
       }
@@ -77,6 +81,68 @@ extension Scene {
       out = pose.lines < 0.999 ? interlaced(shown, over: out, in: rect, share: pose.lines) : shown.composited(over: out)
     }
     return out
+  }
+
+  /// Where a sticker sits (Core Image coordinates): `w` of the frame's width at the clip's shape, no
+  /// taller than 80% of the frame, centered on `x`, `y` but kept, border and all, 4% of the frame's
+  /// height from its edges.
+  func stickerRect(_ a: Insert, imageSize s: CGSize) -> CGRect {
+    let edge = stickerBorder + H * 0.04
+    var w = W * (a.w ?? 0.32), h = w * s.height / s.width
+    if h > H * 0.8 { (w, h) = (H * 0.8 * s.width / s.height, H * 0.8) }
+    let cx = min(max(W * (a.x ?? 0.74), w / 2 + edge), W - w / 2 - edge)
+    let cy = min(max(H * (a.y ?? 0.3), h / 2 + edge), H - h / 2 - edge)
+    return CGRect(x: cx - w / 2, y: H - cy - h / 2, width: w, height: h)
+  }
+
+  var stickerBorder: Double { 10 * u }
+
+  /// A sticker: the clip or picture in a white border with a soft drop shadow and its meme text,
+  /// posed as one piece about its center.
+  func sticker(_ src: CIImage, _ a: Insert, pose: OverlayPose) -> CIImage {
+    let rect = stickerRect(a, imageSize: src.extent.size)
+    let k = rect.width / src.extent.width
+    var piece = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
+      .transformed(by: CGAffineTransform(translationX: rect.minX, y: rect.minY)).cropped(to: rect)
+    if let text = memeText(a, size: rect.size) {
+      piece = text.transformed(by: CGAffineTransform(translationX: rect.minX, y: rect.minY)).composited(over: piece)
+    }
+    let paper = rect.insetBy(dx: -stickerBorder, dy: -stickerBorder)
+    let shade = CIFilter(
+      name: "CIRoundedRectangleGenerator",
+      parameters: ["inputExtent": CIVector(cgRect: paper.offsetBy(dx: 0, dy: -8 * u)), "inputRadius": 6 * u, "inputColor": CIColor(red: 0, green: 0, blue: 0, alpha: 0.35)]
+    )!.outputImage!.applyingGaussianBlur(sigma: 10 * u)
+    piece = piece.composited(over: roundedMask(paper, radius: 6 * u)).composited(over: shade)
+    let t = CGAffineTransform(translationX: -rect.midX, y: -rect.midY).concatenating(CGAffineTransform(scaleX: pose.scale, y: pose.scale))
+      .concatenating(CGAffineTransform(translationX: rect.midX + pose.dx * rect.width, y: rect.midY - pose.dy * rect.height))
+    piece = piece.transformed(by: t)
+    if pose.opacity < 0.999 {
+      piece = piece.applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: max(0, pose.opacity))])
+    }
+    return piece
+  }
+
+  /// A sticker's top and bottom text, sized to fit its width (at most a quarter of its height
+  /// each), as an image the sticker's size; nil without text.
+  func memeText(_ a: Insert, size: CGSize) -> CIImage? {
+    let lines = [a.topText, a.bottomText].map { ($0 ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+    guard lines.contains(where: { !$0.isEmpty }), let ctx = Scene.context(Int(size.width), Int(size.height)) else { return nil }
+    ctx.translateBy(x: 0, y: size.height)
+    ctx.scaleBy(x: 1, y: -1)
+    let pad = size.height * 0.04, maxW = size.width * 0.94
+    for (i, line) in lines.enumerated() where !line.isEmpty {
+      var fontSize = size.height * 0.16 / 0.9
+      var s: NSAttributedString, fit: CGSize
+      repeat {
+        fontSize *= 0.9
+        s = Scene.text(line, size: fontSize, weight: .heavy, font: "Impact", stroke: 5)
+        fit = CTFramesetterSuggestFrameSizeWithConstraints(
+          CTFramesetterCreateWithAttributedString(s), CFRange(location: 0, length: 0), nil, CGSize(width: maxW, height: .greatestFiniteMagnitude), nil)
+      } while fit.height > size.height * 0.25 && fontSize > 8
+      let y = i == 0 ? pad : size.height - pad - fit.height
+      drawText(ctx, s, at: CGPoint(x: (size.width - maxW) / 2, y: y), size: CGSize(width: maxW, height: fit.height))
+    }
+    return ctx.makeImage().map { CIImage(cgImage: $0) }
   }
 
   /// `top` over `bottom` through an interlaced reveal of `rect`: bands of lines four pixels tall (at
