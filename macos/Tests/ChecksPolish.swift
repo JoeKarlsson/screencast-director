@@ -134,3 +134,31 @@ func scanPolishChecks() {
   expect(Polish.frameRate(plan, cameraFPS: 24.97).first?.text.contains("output.fps 25") == true, "a 25 fps camera in 30 fps is named")
   expect(Polish.frameRate(plan, cameraFPS: 60).isEmpty && Polish.frameRate(plan, cameraFPS: 29.97).isEmpty, "60 and 29.97 fps cameras are fine")
 }
+
+/// `director check-words`: kept words missing from an export, and extra words in it.
+func wordCheckChecks() {
+  let kept = ["Open", "the", "config", "file", "and", "save", "it."].enumerated().map { i, w in (text: w, out: Double(i) * 0.5, src: 10 + Double(i) * 0.5) }
+  func heard(_ words: [String]) -> [Word] { words.enumerated().map { Word(text: $0.element, start: Double($0.offset) * 0.5, end: Double($0.offset) * 0.5 + 0.4) } }
+  let clean = WordCheck.compare(expected: kept, heard: heard(["open", "the", "config", "file", "and", "save", "it"]), cuts: [9, 13.5], joins: [1.0])
+  expect(clean.isEmpty, "every kept word heard: nothing to report (\(clean))")
+  let misheard = WordCheck.compare(expected: kept, heard: heard(["open", "the", "konfig", "file", "and", "save", "it"]), cuts: [9, 13.5], joins: [1.0])
+  expect(misheard.isEmpty, "one misheard word isn't reported (\(misheard))")
+  // The cut at 13.5 s ran into "save it."
+  let clipped = WordCheck.compare(expected: kept, heard: heard(["open", "the", "config", "file", "and"]), cuts: [9, 13.5], joins: [1.0])
+  expect(clipped.count == 1 && clipped[0].kind == "missing" && clipped[0].words == ["save", "it."] && clipped[0].cut == 13.5, "clipped words at a cut (\(clipped))")
+  let ghost = WordCheck.compare(expected: kept, heard: heard(["open", "the", "so", "the", "config", "file", "and", "save", "it"]), cuts: [9, 13.5], joins: [1.0])
+  expect(ghost.count == 1 && ghost[0].kind == "extra" && ghost[0].words == ["so", "the"], "a false start left in at a join (\(ghost))")
+  let farGhost = WordCheck.compare(expected: kept, heard: heard(["open", "the", "config", "file", "and", "so", "um", "save", "it"]), cuts: [9, 13.5], joins: [1.0])
+  expect(farGhost.isEmpty, "two extra words away from any cut are Whisper's, not the edit's (\(farGhost))")
+  let split = WordCheck.compare(expected: kept, heard: heard(["open", "the", "config", "file", "and", "save", "it"]).enumerated().map { i, w in
+    i == 2 ? Word(text: "configfile", start: w.start, end: w.end) : w }.filter { $0.text != "file" }, cuts: [9, 13.5], joins: [1.0])
+  expect(split.isEmpty, "two words heard as one (\"config file\" as \"configfile\") is a mishearing (\(split))")
+  // Sped-up clips play muted, so their words aren't expected.
+  let dir = FileManager.default.temporaryDirectory
+  let project = Project(dir: dir, source: Project.Source(video: "s.mp4", width: 1920, height: 1080, duration: 20, captureStart: nil, camera: nil))
+  var plan = buildPlan(project)
+  plan.intro = nil
+  plan.segments = [Segment(start: 0, end: 5, speed: 1), Segment(start: 5, end: 10, speed: 4)]
+  let words = [Word(text: "hello", start: 1, end: 1.5), Word(text: "typing", start: 6, end: 6.5)]
+  expect(WordCheck.expected(plan, words: words).map(\.text) == ["hello"], "words in a sped-up clip aren't expected")
+}

@@ -40,6 +40,7 @@ let usage = """
     director stock    <dir> sounds|images <query> [--credit-ok]   search Openverse (CC0 and public domain; --credit-ok adds CC BY)
     director stock    <dir> get-sound|get-image <id>...   a sound into My Sounds/Openverse, a picture into broll/
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
+    director check-words <dir> <export.mp4>        transcribe a finished export and list kept words it's missing (clipped at a cut) and extra words it has (a false start left in)
     director scan     <video.mp4>                   in a finished video: shots under a second between two others, hitches (a repeated frame mid-move) and black frames
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
@@ -443,6 +444,17 @@ do {
     let frames = try await GIF.export(built, to: out, options: opts)
     let size = (try? FileManager.default.attributesOfItem(atPath: out.path)[.size] as? Int) ?? 0
     print(String(format: "Wrote %@: %d frames, %.1f MB in %.1fs", out.path, frames, Double(size) / 1e6, Date().timeIntervalSince(started)))
+  case "check-words":
+    guard positional.count == 3 else { fail(usage) }
+    let project = try Project.load(dir)
+    let export = URL(fileURLWithPath: positional[2])
+    func modified(_ url: URL) -> Date? { try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }
+    if let e = modified(export), let p = modified(project.planURL), e < p {
+      print("note: \(export.lastPathComponent) is older than plan.json, so it's checked against edits it doesn't have; render it again first")
+    }
+    let findings = try await WordCheck.run(project, try Plan.load(project.planURL), export: export)
+    if findings.isEmpty { print("Every kept word is in the export, and nothing extra.") }
+    for f in findings { print(WordCheck.describe(f)) }
   case "scan":
     // args[1] is the video here, not a project folder.
     let report = try await ShotScan.scan(dir)

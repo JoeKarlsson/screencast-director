@@ -29,6 +29,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - A layout that runs to the end of the video holds through the last frame, instead of easing back to the default layout (and showing the screen) in the last half second.
 
 ### CLI and agents
+- `director check-words <dir> <export.mp4>` transcribes a finished video and compares it with the words the edit keeps: a word clipped at a cut, or a false start left in at one, is listed with its time. A word Whisper merely hears differently isn't.
 - `director scan` also finds hitches in a finished video (a frame that repeats while the picture moves, which a camera recording at 25 fps in a 30 fps video does every sixth frame) and black frames mid-video. Animations stepping at 12 fps on purpose don't count.
 - `director review` names a camera whose frame rate doesn't divide into the video's (a 25 fps PAL camera in a 30 fps video judders on your face), with the fix.
 - `director review` adds polish notes: a click that lands while the camera is still moving, camera moves too fast for the video's motion style, a camera that stops and starts or doubles back, titles and labels too short to read, styled transitions on too many cuts (or the same one twice in a row), more than three sound effects in ten seconds, and two overlays entering on the same frame. The edit skills and the app's Claude box fix them.

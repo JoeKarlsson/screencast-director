@@ -992,6 +992,7 @@ struct Checks {
     planCheckExtraChecks()
     polishChecks()
     scanPolishChecks()
+    wordCheckChecks()
     claudeEditChecks()
     timelineRowChecks()
     punchInChecks()
