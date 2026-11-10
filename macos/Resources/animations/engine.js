@@ -5,6 +5,8 @@
 const NS = "http://www.w3.org/2000/svg";
 const TEMPLATES = {};
 let cam, lines, LOGOS = {};
+// The Lottie animation the data names (config.lottie, its parsed JSON), for the lottie template.
+let LOTTIE = null;
 // The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion;
 // "zine" is joekarlsson.com: black, hot pink, squiggly crayon lines and the site's scribbles drifting behind.
 let THEME = "";
@@ -481,13 +483,19 @@ function stageTransform(width, height, stage = { w: 1920, h: 1080 }) {
   return `translate(${(width - stage.w * k) / 2}px, ${(height - stage.h * k) / 2}px) scale(${k})`;
 }
 
+// CSS animations and element.animate() in a template run on the page's clock: pin them to t.
+function pinAnimations(t) {
+  if (document.getAnimations) for (const a of document.getAnimations()) { a.pause(); a.currentTime = t * 1000; }
+}
+
 // --- entry points --------------------------------------------------------------
 // config: { template, data, cues, duration, width, height, fonts: [{family, url}], titleFont, bodyFont,
-//           accent, paper, ink, theme, safeTop, logos, overlay (true: a transparent page over the video) }
+//           accent, paper, ink, theme, safeTop, logos, overlay (true: a transparent page over the video), lottie }
 window.init = async function (config) {
   cam = document.getElementById("cam");
   lines = document.getElementById("lines");
   LOGOS = config.logos || {};
+  LOTTIE = config.lottie || null;
   const root = document.documentElement.style;
   THEME = config.theme || "";
   if (THEME) document.documentElement.classList.add(`theme-${THEME}`);
@@ -516,6 +524,7 @@ window.init = async function (config) {
   if (THEME !== "terminal") setupPackets();
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
+    pinAnimations(t);
     seekTemplate(t);
     if (brushLines) drawBrushLines(t);
     if (packetLayer) drawPackets(t);

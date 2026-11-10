@@ -46,6 +46,10 @@ func animationScripts(_ animations: URL) -> JSContext {
     const makeElement = el;
     el = (cls, html) => { const d = makeElement(cls, html); made.push(d); return d; };
     logoHTML = name => "@" + name;
+    // lottie-web isn't loaded here: a stand-in records the frames the lottie template asks for.
+    var lottieFrames = [];
+    var lottie = { loadAnimation: () => ({ goToAndStop: f => lottieFrames.push(f) }) };
+    LOTTIE = { w: 400, h: 200, ip: 0, op: 60, fr: 30 };
     """)
   return js
 }
@@ -629,6 +633,18 @@ struct Checks {
     expect(anim.clipPath(out1080, dir: nil, look: terminal) != anim.clipPath(out1080, dir: nil), "a theme renders a new clip")
     expect(anim.clipPath(out1080, dir: nil, look: mint) != anim.clipPath(out1080, dir: nil, look: terminal), "a new accent renders a new clip")
     expect(anim.clipPath(out1080, dir: nil, look: mint) == anim.clipPath(out1080, dir: nil, look: mint), "the same look reuses its clip")
+    // A Lottie file comes from the first folder with it, never from outside one, and its contents name the clip.
+    let lottieRoot = FileManager.default.temporaryDirectory.appendingPathComponent("sd-lottie-\(UUID().uuidString)")
+    let lottieVideo = AnimationSources.videoFolder(lottieRoot).appendingPathComponent("lottie")
+    try? FileManager.default.createDirectory(at: lottieVideo, withIntermediateDirectories: true)
+    try? Data("{\"op\": 60}".utf8).write(to: lottieVideo.appendingPathComponent("a.json"))
+    let lottieSources = AnimationSources(project: lottieRoot, builtIn: lottieRoot, personal: lottieRoot)
+    expect(lottieSources.lottie("a.json") != nil && lottieSources.lottie("../lottie/a.json") == nil, "a Lottie is found by name only")
+    let playing = Animation(start: 0, end: 4, template: "lottie", data: .object(["lottie": .string("a.json")]))
+    let lottieClip = playing.clipPath(out1080, dir: lottieRoot)
+    try? Data("{\"op\": 90}".utf8).write(to: lottieVideo.appendingPathComponent("a.json"))
+    expect(playing.clipPath(out1080, dir: lottieRoot) != lottieClip, "editing the video's Lottie file renders a new clip")
+    try? FileManager.default.removeItem(at: lottieRoot)
     // Text contrast: WCAG ratios, and the backdrop is what most of a text box shows, glyphs aside.
     expect(abs(TextContrast.ratio([0, 0, 0], [1, 1, 1]) - 21) < 0.01 && abs(TextContrast.ratio([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]) - 1) < 0.01, "contrast runs 1:1 to 21:1")
     // A 10x10 box: white card (premultiplied BGRA), a third of it black glyphs; then the same box see-through.

@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
+- A new Lottie template plays a Lottie animation (an After Effects export, e.g. from LottieFiles) frame-exact in the video, over it as an overlay or on the paper: put the .json in the video's `animations/lottie/` folder and name it in the animation's data. Templates can also animate with CSS keyframes or web animations, which now render frame-exact.
 - `director animate` and `animate-test` warn when an animation's text is hard to read: WCAG contrast under 4.5:1 (3:1 for large text) against what's behind it, or, in an overlay, text sitting straight on the video with no card behind it, once it stays that way for a second.
 - Animations can float over the whole video instead of filling the frame: `"overlay": true` renders one on a transparent background (HEVC with alpha), and it plays over the screen recording and the face camera, under captions. In a vertical video it covers the whole frame without splitting it. B-roll can do the same with `"placement": "overlay"` for a picture or clip with alpha.
 - Meme stickers: B-roll with `"placement": "sticker"` shows a reaction GIF or short clip in a white sticker border with a soft shadow over everything, placed with `x`, `y` and `w`, with optional meme text along its top and bottom (`topText`, `bottomText`) in outlined capitals. `/edit-screencast` suggests 3 to 5 meme moments from the transcript when you ask for memes, or on a personal video, and adds the ones you pick.

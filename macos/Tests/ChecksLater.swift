@@ -169,6 +169,17 @@ func laterChecks() {
       """)
     expect(drawn?.toBool() == true, "\(t.name): every frame draws")
   }
+  // The lottie template shows the Lottie frame for each moment, looping or holding the last one.
+  let lottieAt = templateScripts.evaluateScript("""
+    (() => { lottieFrames = []; TEMPLATES.lottie({}, {play: 1}, 5)(3.5); TEMPLATES.lottie({loop: false}, {}, 5)(4); return lottieFrames; })()
+    """)?.toArray() as? [Double] ?? []
+  expect(lottieAt == [15, 59], "a Lottie plays from its cue, loops at its end, or holds its last frame (\(lottieAt))")
+  // CSS animations and element.animate() are pinned to the frame's time, paused.
+  let pinned = templateScripts.evaluateScript("""
+    (() => { const a = { pause() { this.paused = true; } }; document.getAnimations = () => [a]; pinAnimations(1.5);
+      delete document.getAnimations; return a.paused === true && a.currentTime === 1500; })()
+    """)
+  expect(pinned?.toBool() == true, "CSS and web animations are paused at the frame's time")
   func hubField(_ grid: [String], _ own: [String]) -> [String] {
     let data = String(decoding: (try? JSONEncoder().encode(["apps": grid, "moreApps": own])) ?? Data(), as: UTF8.self)
     let result = templateScripts.evaluateScript("""

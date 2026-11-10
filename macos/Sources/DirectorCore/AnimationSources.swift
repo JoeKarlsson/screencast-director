@@ -59,6 +59,24 @@ public struct AnimationSources: Sendable {
     folders.map { $0.1.appendingPathComponent("templates/\(name).js") }.first { FileManager.default.fileExists(atPath: $0.path) }
   }
 
+  /// A Lottie file an animation's data names (`data.lottie`), from the first folder whose `lottie/` has it.
+  public func lottie(_ name: String) -> URL? {
+    guard !name.contains("/") else { return nil }
+    return folders.map { $0.1.appendingPathComponent("lottie/\(name)") }.first { FileManager.default.fileExists(atPath: $0.path) }
+  }
+
+  /// Copies a Lottie file into the video's folder unless it's already there, like a template, so the
+  /// clip's name follows the video's copy. Returns whether it copied.
+  @discardableResult
+  public func freezeLottie(_ name: String) throws -> Bool {
+    guard let project, let source = lottie(name) else { return false }
+    let dst = AnimationSources.videoFolder(project).appendingPathComponent("lottie/\(name)")
+    guard source != dst else { return false }
+    try FileManager.default.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try FileManager.default.copyItem(at: source, to: dst)
+    return true
+  }
+
   /// Logo names to files, the video's overriding the personal library's overriding the app's.
   /// Throws, naming the file, when a logos.json is there but isn't a name-to-file map.
   public func logos() throws -> [String: URL] {
@@ -127,6 +145,12 @@ public struct AnimationSources: Sendable {
   public func differsFromLibrary(_ name: String) -> Bool {
     guard let project, let lib = libraryFolder(for: name) else { return false }
     return AnimationSources.digest(name, in: AnimationSources.videoFolder(project)) != AnimationSources.digest(name, in: lib)
+  }
+
+  /// A hash of a file's contents ("" when it isn't there).
+  public static func digest(of file: URL) -> String {
+    guard let data = try? Data(contentsOf: file) else { return "" }
+    return SHA256.hash(data: data).prefix(6).map { String(format: "%02x", $0) }.joined()
   }
 
   /// A hash of a template's script and manifest in a folder ("" when it isn't there).

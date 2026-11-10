@@ -150,6 +150,9 @@ enum Animate {
     for name in Set(plan.animationList.map(\.template)) where try sources.freeze(name) {
       log("froze the \(name) template into animations/templates/")
     }
+    for name in Set(plan.animationList.compactMap(\.lottieFile)) where try sources.freezeLottie(name) {
+      log("copied the Lottie file \(name) into animations/lottie/")
+    }
     let folder = dir.appendingPathComponent(".animations")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     if try plan.removeUnusedAnimationClips(dir: dir) == nil {
@@ -303,7 +306,7 @@ enum Animate {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
       do {
-        let config = try Animate.config(a, plan: plan, logos: try sources.logos())
+        let config = try Animate.config(a, plan: plan, sources: sources)
         _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
         throw DirectorError("the \(a.template) template didn't start: \(error)")
@@ -457,7 +460,8 @@ enum Animate {
   }
 
   /// What the page's init() gets: the template, its data and cues, and the plan's brand look.
-  static func config(_ a: Animation, plan: Plan, logos files: [String: URL]) throws -> [String: Any] {
+  static func config(_ a: Animation, plan: Plan, sources: AnimationSources) throws -> [String: Any] {
+    let files = try sources.logos()
     let data = try JSONSerialization.jsonObject(with: JSONEncoder().encode(a.data), options: [.fragmentsAllowed])
     let logos = files.mapValues(\.absoluteString)
     let look = plan.look
@@ -474,6 +478,12 @@ enum Animate {
     if let t = look?.animationTheme { config["theme"] = t }
     if plan.animationSafeTop(a) > 0 { config["safeTop"] = plan.animationSafeTop(a) }
     if a.isOverlay { config["overlay"] = true }
+    if let name = a.lottieFile {
+      guard let url = sources.lottie(name) else {
+        throw DirectorError("no Lottie file \"\(name)\" in the video's animations/lottie/ folder, the personal library or the app")
+      }
+      config["lottie"] = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+    }
     return config
   }
 

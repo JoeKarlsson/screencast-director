@@ -1,0 +1,17 @@
+{
+  "name": "lottie",
+  "title": "Lottie",
+  "summary": "Plays a Lottie animation (an After Effects export, e.g. from LottieFiles) at a spot in the frame, frame-exact. Drop the .json in the video's animations/lottie/ folder; works as an overlay too.",
+  "length": 4,
+  "fields": [
+    { "key": "lottie", "label": "Lottie file", "type": "text", "help": "A .json in the video's animations/lottie/ folder." },
+    { "key": "x", "label": "Center x (%)", "type": "number", "max": 100 },
+    { "key": "y", "label": "Center y (%)", "type": "number", "max": 100 },
+    { "key": "width", "label": "Width (% of frame)", "type": "number", "max": 100 },
+    { "key": "speed", "label": "Speed", "type": "number", "max": 4 }
+  ],
+  "cues": [
+    { "key": "play", "label": "Starts playing", "at": 0 }
+  ],
+  "data": { "lottie": "pulse.json", "x": 50, "y": 50, "width": 30, "speed": 1 }
+}

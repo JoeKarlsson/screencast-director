@@ -71,7 +71,9 @@ plan = json.load(open(sys.argv[1]))
 plan.setdefault("look", {})["animationTheme"] = "zine"
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
-"$DIRECTOR" animate-test "$PROJECT" 2 11.8 "$TMP/zine.mp4" >/dev/null
+# The storyboard's index and start, whatever other templates sort before it.
+read -r SB SB_START < <(python3 -c "import json,sys; a=json.load(open(sys.argv[1]))['animations']; i=[x['template'] for x in a].index('storyboard'); print(i, a[i]['start'])" "$PROJECT/plan.json")
+"$DIRECTOR" animate-test "$PROJECT" "$SB" "$(python3 -c "print($SB_START + 2.8)")" "$TMP/zine.mp4" >/dev/null
 ffmpeg -v error -sseof -0.1 -i "$TMP/zine.mp4" -frames:v 1 -f rawvideo -pix_fmt gray -y "$TMP/zine.gray"
 python3 - "$TMP/zine.gray" <<'PY'
 import sys
@@ -94,7 +96,7 @@ a["data"] = {"title": "Overlap", "steps": [
 a["cues"] = {"s1": a["start"] + 0.2, "s2": a["start"] + 0.5}
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
-"$DIRECTOR" animate-test "$PROJECT" 2 10.5 "$TMP/overlap.mp4" >"$TMP/overlap.txt" 2>&1
+"$DIRECTOR" animate-test "$PROJECT" "$SB" "$(python3 -c "print($SB_START + 1.5)")" "$TMP/overlap.mp4" >"$TMP/overlap.txt" 2>&1
 grep -q '^WARNING: .* overlap ' "$TMP/overlap.txt" || { echo "FAIL: two stickers on one spot weren't reported: $(cat "$TMP/overlap.txt")" >&2; exit 1; }
 echo "ok: the overlap probe reports two pieces on one spot ($(grep -m1 '^WARNING:.* overlap ' "$TMP/overlap.txt" | cut -c1-120))"
 

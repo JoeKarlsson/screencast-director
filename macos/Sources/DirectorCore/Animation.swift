@@ -26,6 +26,9 @@ public struct Animation: Codable, Equatable, Sendable {
 
   public var isOverlay: Bool { overlay == true }
 
+  /// The Lottie file the data names (`data.lottie`, in the video's animations/lottie/), for the lottie template.
+  public var lottieFile: String? { data[path: "lottie"]?.string }
+
   public struct Alternate: Codable, Equatable, Sendable {
     public var template: String
     public var data: JSONValue
@@ -170,7 +173,11 @@ public struct Animation: Codable, Equatable, Sendable {
 
   /// The rendered clip, relative to the project folder `dir`: an .mp4, or a .mov with alpha for an overlay.
   public func clipPath(_ output: Plan.Output, dir: URL?, look: Look? = nil, safeTop: Int = 0) -> String {
-    let script = dir.map { AnimationSources.digest(template, in: AnimationSources.videoFolder($0)) } ?? ""
+    // The video's frozen copies: the template, and the Lottie file it plays.
+    let script = dir.map { d in
+      let folder = AnimationSources.videoFolder(d)
+      return AnimationSources.digest(template, in: folder) + (lottieFile.map { AnimationSources.digest(of: folder.appendingPathComponent("lottie/\($0)")) } ?? "")
+    } ?? ""
     let key = renderKey(width: output.width, height: output.height, fps: output.fps, script: script, look: look, safeTop: safeTop)
     return ".animations/\(template)-\(key).\(isOverlay ? "mov" : "mp4")"
   }
