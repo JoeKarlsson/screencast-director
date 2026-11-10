@@ -90,6 +90,13 @@ func laterChecks() {
   // Animation scripts run in JavaScriptCore: every template's frames draw without throwing, and the
   // hub's background field shows its own apps, each once before any repeats, never the grid's.
   let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
+  // Springs: a pop-in overshoots a little (not the old 20%) and settles on full size; easeOut starts
+  // from rest and lands exactly on 1.
+  let peak = templateScripts.evaluateScript("Math.max(...Array.from({length: 200}, (_, i) => popScale(i / 100, 0)))").toDouble()
+  expect(peak > 1.05 && peak < 1.12, "a sticker springs about 9% past full size (\(peak))")
+  expect(abs(templateScripts.evaluateScript("popScale(1, 0)").toDouble() - 1) < 0.005, "and has settled when its time is up")
+  expect(templateScripts.evaluateScript("easeOut(1) === 1 && easeOut(0) === 0 && easeOut(.02) < .01 && easeOut(.5) > .8").toBool(),
+    "easeOut starts from rest and lands exactly on 1")
   expect(templateScripts.evaluateScript("stageTransform(1920, 1080)").toString() == "translate(0px, 0px) scale(1)", "a 16:9 clip fills the frame with the stage")
   expect(templateScripts.evaluateScript("stageTransform(1080, 1920)").toString() == "translate(0px, 656.25px) scale(0.5625)",
     "a vertical clip fits the stage evenly and centers it instead of stretching it")

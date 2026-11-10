@@ -11,17 +11,25 @@ let THEME = "";
 
 // --- motion -----------------------------------------------------------------
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-const easeOut = x => 1 - Math.pow(1 - clamp(x), 3);
+// Springs, in closed form: the step response from 0 to 1 at x (x = 1 is the move's length), a pure
+// function of time like everything here. `zeta` under 1 overshoots a little and settles; 1 is
+// critically damped (no overshoot). Both start from rest, so a move accelerates and decelerates.
+function spring(x, zeta = 1) {
+  if (x <= 0) return 0;
+  if (zeta >= 1) { const w = 7 * x; return 1 - (1 + w) * Math.exp(-w); }
+  // Settled to 1% by x = 1.
+  const w = 4.6 / zeta, wd = w * Math.sqrt(1 - zeta * zeta);
+  return 1 - Math.exp(-zeta * w * x) * (Math.cos(wd * x) + zeta / Math.sqrt(1 - zeta * zeta) * Math.sin(wd * x));
+}
+// A critically damped spring, landing exactly on 1 at x = 1.
+const easeOut = x => clamp(spring(clamp(x)) / spring(1));
 const easeInOut = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
-// A sticker slapped down: grows past full size and settles.
+// A sticker slapped down: springs past full size (about 9%) and settles.
 function popScale(t, start, dur = .42) {
   if (t < start) return 0;
   // Terminal: no bounce; it flickers on like a screen element, then holds.
   if (THEME === "terminal") return t - start < .2 ? Math.floor((t - start) * 24) % 2 === 0 ? 1 : 0 : 1;
-  const u = (t - start) / dur;
-  if (u >= 1) return 1;
-  const c = 2.6;
-  return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2);
+  return spring((t - start) / dur, .6);
 }
 // Pop-ins used to blur here in place of motion blur. The renderer now averages subframes for real
 // motion blur, so this stays only for templates frozen into videos before that.

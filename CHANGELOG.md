@@ -5,7 +5,8 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
-- Animations have real motion blur: stickers, cards and labels streak in the direction they pop in, while everything standing still stays sharp. It replaces the soft blur pop-ins used to fade in with. Existing animations re-render with it the next time their video builds, and frames that move take longer to render.
+- Animations have real motion blur: stickers, cards and labels streak in the direction they pop in, while everything standing still stays sharp. It replaces the soft blur pop-ins used to fade in with.
+- Stickers and cards pop in on a spring: they overshoot about 9% instead of 20% and settle smoothly, and lines, highlights and counters ease in and out instead of starting at full speed. Existing animations re-render with it the next time their video builds, and frames that move take longer to render.
 
 
 ### Fixes

@@ -27,7 +27,7 @@ public struct Animation: Codable, Equatable, Sendable {
   }
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
-  public static let engineVersion = 5
+  public static let engineVersion = 6
 
   /// Motion blur: each frame averages snapshots spread over `shutter` of a frame (a 90 degree
   /// shutter), so moving graphics streak while still ones stay sharp. How many depends on how far
