@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Animation render check: adds one animation per bundled template to a synthetic project, renders
 # them with `director animate` (offscreen WebKit), and fails when a template throws, a clip is missing
-# or the wrong length, or its last frame is blank.
+# or the wrong length, or its last frame is blank; then a one-second `animate-test`.
 #
 #   macos/animate-test.sh
 #
@@ -59,4 +59,13 @@ if spread < 10:
 print(f"ok: {sys.argv[2]} 3s, last frame drawn (spread {spread:.1f})")
 PY
 done
+# A one-second test of the first animation: a 1 s clip and a sheet of its 12 frames.
+"$DIRECTOR" animate-test "$PROJECT" 0 1.5 "$TMP/test.mp4" >/dev/null
+length=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$TMP/test.mp4")
+python3 -c "import sys; sys.exit(0 if abs(float(sys.argv[1]) - 1) < 0.1 else 1)" "$length" \
+  || { echo "FAIL: animate-test made ${length}s, not 1s" >&2; exit 1; }
+[[ -s "$TMP/test.png" ]] || { echo "FAIL: animate-test wrote no contact sheet" >&2; exit 1; }
+if "$DIRECTOR" animate-test "$PROJECT" 0 30 "$TMP/late.mp4" 2>"$TMP/err"; then echo "FAIL: animate-test outside the animation succeeded" >&2; exit 1; fi
+grep -q "isn't in it" "$TMP/err" || { echo "FAIL: animate-test outside the animation said: $(cat "$TMP/err")" >&2; exit 1; }
+echo "ok: animate-test renders 1 s and its sheet, and refuses a moment outside the animation"
 echo "animation checks passed"

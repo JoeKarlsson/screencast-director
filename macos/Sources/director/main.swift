@@ -14,6 +14,7 @@ let usage = """
     director describe <dir>
     director validate <dir>                         each problem in plan.json with its JSON path (typo'd keys, bad values, overlaps, flashes); exits 1 on any
     director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
+    director animate-test <dir> <index> <source-second> [out.mp4]   one second of animation #index from that moment, plus a contact sheet of its frames (default .checks/animation-<index>-test.mp4)
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
@@ -329,6 +330,13 @@ do {
     _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     try await stillFrame(project, plan, frame: frame, to: out)
     print(positional[3])
+  case "animate-test":
+    guard positional.count >= 4, positional.count <= 5, let index = Int(positional[2]), let at = Double(positional[3]) else { fail(usage) }
+    let project = try Project.load(dir)
+    let out = try checkedImageOutput(positional.count == 5 ? positional[4] : dir.appendingPathComponent(".checks/animation-\(index)-test.mp4").path)
+    let started = Date()
+    let sheet = try await Animate.renderTest(dir, try planFor(project), index: index, at: at, to: out)
+    print(String(format: "%@\n%@\n(%.1fs)", out.path, sheet.path, Date().timeIntervalSince(started)))
   case "contact-sheet":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)

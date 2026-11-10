@@ -13,6 +13,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - A layout that runs to the end of the video holds through the last frame, instead of easing back to the default layout (and showing the screen) in the last half second.
 
 ### CLI and agents
+- `director animate-test <dir> <index> <source-second>` renders one second of an animation from that moment, with a contact sheet of its frames, so a new template's hardest move can be checked in seconds before the whole animation renders.
 - `director contact-sheet <dir> <out.png>` puts a labeled frame from each cut, zoom, layout, title, B-roll, punch-in and animation beat into one image, to check a whole edit before rendering it. Claude Code's edit and animate skills look at it first.
 - Everything the app does can now be done from the terminal or by an agent ([docs/cli.md](docs/cli.md) maps each app action to its command).
   - `director draft` (and `sd draft`) makes the same first draft as the app: the plan, then your default profile, pause level and voice polish, face centering and lip sync. `sd auto` now uses it.

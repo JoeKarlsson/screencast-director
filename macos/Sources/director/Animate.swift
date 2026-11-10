@@ -58,6 +58,27 @@ enum Animate {
     return todo.count
   }
 
+  /// A quick test of one animation: `length` seconds of animation `index` from source second `at`,
+  /// written to `out` (an mp4) with a contact sheet of its frames beside it (the same name, .png),
+  /// which it returns. The cached clips in .animations are left alone.
+  @MainActor
+  static func renderTest(_ dir: URL, _ plan: Plan, index: Int, at: Double, length: Double = 1, to out: URL) async throws -> URL {
+    let list = plan.animationList
+    guard list.indices.contains(index) else { throw DirectorError("no animation #\(index) (the plan has \(list.count))") }
+    let a = list[index]
+    guard at >= a.start, at < a.end else {
+      throw DirectorError("animation #\(index) plays from \(fmtTime(a.start)) to \(fmtTime(a.end)) (source), so \(fmtTime(at)) isn't in it")
+    }
+    let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
+    var frames: [(image: CGImage, label: String)] = []
+    try await page.render(a, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length) {
+      f, image in frames.append((image, String(format: "src %.2f  f%d", a.start + Double(f) / Double(fps), f)))
+    }
+    let sheet = out.deletingPathExtension().appendingPathExtension("png")
+    try Publish.writePNG(try ContactSheet.draw(frames), to: sheet)
+    return sheet
+  }
+
   @MainActor
   final class Page: NSObject, WKNavigationDelegate {
     let web: WKWebView
@@ -88,7 +109,12 @@ enum Animate {
       if let error { c?.resume(throwing: error) } else { c?.resume() }
     }
 
-    func render(_ a: Animation, plan: Plan, sources: AnimationSources, to out: URL) async throws {
+    /// Renders `a` to `out`, or just `length` seconds of it from `from` (seconds into it) for a quick
+    /// test; `onFrame` gets each finished frame.
+    func render(
+      _ a: Animation, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
+      onFrame: ((Int, CGImage) throws -> Void)? = nil
+    ) async throws {
       // A fresh page per animation, so one template's nodes never leak into the next. Read access to
       // the whole disk: fonts come from profile folders, templates and logos from the video, the
       // personal library or the bundle.
@@ -135,6 +161,8 @@ enum Animate {
 
       let duration = a.end - a.start
       let frames = max(1, Int((duration * Double(Animate.fps)).rounded()))
+      let first = min(frames - 1, Int((from * Double(Animate.fps)).rounded()))
+      let last = length.map { min(frames, first + max(1, Int(($0 * Double(Animate.fps)).rounded()))) } ?? frames
       let bytes = width * height * 4
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
@@ -148,7 +176,7 @@ enum Animate {
         guard let boxes = result as? [Double] else { throw DirectorError("the motion probe returned \(String(describing: result)) at \(t)s") }
         return boxes
       }
-      for f in 0..<frames {
+      for f in first..<last {
         // Motion blur: how far things move across the shutter decides how many snapshots to average.
         let span = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 2)
         let before = try await seek(span[0], probe: true), after = try await seek(span[1], probe: true)
@@ -161,16 +189,18 @@ enum Animate {
           for i in sum.indices { sum[i] &+= UInt32(pixels[i]) }
         }
         let count = UInt32(times.count)
+        for i in pixels.indices { pixels[i] = UInt8((sum[i] + count / 2) / count) }
+        if let onFrame { try onFrame(f, try image(pixels)) }
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
         guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
         var buffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
         guard let buffer else { throw DirectorError("no pixel buffer") }
-        copyAverage(sum, count: count, into: buffer)
-        adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f), timescale: CMTimeScale(Animate.fps)))
+        copy(pixels, into: buffer)
+        adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f - first), timescale: CMTimeScale(Animate.fps)))
       }
       input.markAsFinished()
-      writer.endSession(atSourceTime: CMTime(value: CMTimeValue(frames), timescale: CMTimeScale(Animate.fps)))
+      writer.endSession(atSourceTime: CMTime(value: CMTimeValue(last - first), timescale: CMTimeScale(Animate.fps)))
       await writer.finishWriting()
       guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
@@ -201,16 +231,27 @@ enum Animate {
       }
     }
 
-    /// Writes the average of `count` summed snapshots into the clip's frame, row by row (the
-    /// buffer's rows may be padded).
-    func copyAverage(_ sum: [UInt32], count: UInt32, into buffer: CVPixelBuffer) {
+    /// Copies a frame into the clip's buffer, row by row (the buffer's rows may be padded).
+    func copy(_ pixels: [UInt8], into buffer: CVPixelBuffer) {
       CVPixelBufferLockBaseAddress(buffer, [])
       defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
       let out = CVPixelBufferGetBaseAddress(buffer)!.assumingMemoryBound(to: UInt8.self)
       let stride = CVPixelBufferGetBytesPerRow(buffer), row = width * 4
-      for y in 0..<height {
-        for x in 0..<row { out[y * stride + x] = UInt8((sum[y * row + x] + count / 2) / count) }
+      pixels.withUnsafeBytes { src in
+        for y in 0..<height { memcpy(out + y * stride, src.baseAddress! + y * row, row) }
       }
+    }
+
+    /// A frame's pixels as an image, for a test's contact sheet.
+    func image(_ pixels: [UInt8]) throws -> CGImage {
+      guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+        let image = CGImage(
+          width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+          space: CGColorSpace(name: CGColorSpace.sRGB)!,
+          bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue),
+          provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+      else { throw DirectorError("can't make an image of the frame") }
+      return image
     }
   }
 
