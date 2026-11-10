@@ -323,8 +323,21 @@ public struct EasedSteps: Sendable {
   }
 }
 
-/// The camera's moves for a plan: zooms in (arriving just after the click), holds, and out, with a
-/// cropped format's resting point following clicks between zooms.
+/// How long a camera move should take, as a multiple of `style.transition`: the square root of
+/// how far it goes, as motion designers time moves (short hops are quick, long trips take longer).
+/// A one-octave zoom (1x to 2x) takes exactly the transition; a small nudge about 0.6 of it, a big
+/// zoom with a long pan up to 1.35 of it. Distance is octaves of zoom plus the pan in visible widths.
+public func cameraMoveFactor(from a: [Double], to b: [Double]) -> Double {
+  let s0 = max(a[0], 0.05), s1 = max(b[0], 0.05)
+  let pan = ((b[1] - a[1]) * (b[1] - a[1]) + (b[2] - a[2]) * (b[2] - a[2])).squareRoot() * max(s0, s1)
+  let distance = abs(log2(s1 / s0)) + pan
+  return min(max(distance.squareRoot(), 0.6), 1.35)
+}
+
+/// The camera's moves for a plan: zooms in (settled just after the zoom starts, so on its first
+/// click), holds, and out, with a cropped format's resting point following clicks between zooms.
+/// A zoom without its own `seconds` moves for a time set by its distance (`cameraMoveFactor`),
+/// and every move into a zoom ends at the same moment however long it is.
 public func cameraSteps(
   zooms: [OutZoom], fps: Int, transition: Double, style: MotionStyle, lead: Double, restClicks: [(f: Double, x: Double, y: Double)]?
 ) -> EasedSteps {
@@ -334,28 +347,42 @@ public func cameraSteps(
     let c = restClicks?.last { $0.f <= f }
     return [1, c?.x ?? 0.5, c?.y ?? 0.5]
   }
+  let sorted = zooms.sorted { $0.startF < $1.startF }
+  // Each zoom's move in: from the zoom before it when they touch (a pan), else from rest.
+  var moveIn: [Double] = []
+  for (i, z) in sorted.enumerated() {
+    if let s = z.seconds { moveIn.append(max(1, s * Double(fps))); continue }
+    let prev = i > 0 ? sorted[i - 1] : nil
+    let from = prev.map { $0.endF + dur * 1.5 > z.startF } == true ? [prev!.scale, prev!.x, prev!.y] : rest(z.startF - leadF - dur)
+    moveIn.append(max(1, dur * cameraMoveFactor(from: from, to: [z.scale, z.x, z.y])))
+  }
+  // The move ends where a transition-long move centered on the lead would: half a transition
+  // after `startF - lead`. Longer moves start earlier rather than arriving late.
+  func inStart(_ i: Int) -> Double { sorted[i].startF - leadF + dur / 2 - moveIn[i] }
   var changes: [EasedSteps.Change] = []
   var holds: [(Double, Double)] = []
-  let sorted = zooms.sorted { $0.startF < $1.startF }
   for (i, z) in sorted.enumerated() {
     let ease = Ease.named(z.ease) ?? style.ease
-    let d = z.seconds.map { max(1, $0 * Double(fps)) } ?? dur
-    var inAt = z.startF - leadF - d / 2
+    let d = moveIn[i]
+    var inAt = inStart(i)
     if let last = changes.last { inAt = max(inAt, last.at + 1) }
     changes.append(.init(at: inAt, to: [z.scale, z.x, z.y], frames: d, ease: ease))
-    let outAt = max(inAt + 1, z.endF - d * 0.3)
-    let nextIn = i + 1 < sorted.count ? sorted[i + 1].startF - leadF - (sorted[i + 1].seconds.map { $0 * Double(fps) } ?? dur) / 2 : .infinity
+    let back = z.seconds.map { max(1, $0 * Double(fps)) } ?? dur * cameraMoveFactor(from: [z.scale, z.x, z.y], to: rest(z.endF))
+    let outAt = max(inAt + 1, z.endF - back * 0.3)
+    let nextIn = i + 1 < sorted.count ? inStart(i + 1) : .infinity
     if nextIn > outAt + 1 {
       // The exit is a little slower than the entrance: a long, soft settle.
-      changes.append(.init(at: outAt, to: rest(outAt + d), frames: d * 1.3, ease: ease))
+      changes.append(.init(at: outAt, to: rest(outAt + back), frames: back * 1.3, ease: ease))
       holds.append((inAt, outAt))
     } else {
       holds.append((inAt, nextIn))
     }
   }
   if let clicks = restClicks {
+    // A cropped screen pans to each click and parks before it lands, so the press is seen still.
+    let settle = Polish.settleBeforeClick * Double(fps)
     for c in clicks {
-      let at = c.f - dur / 2
+      let at = c.f - dur - settle
       guard !holds.contains(where: { at >= $0.0 - dur && at < $0.1 + dur }) else { continue }
       changes.append(.init(at: at, to: [1, c.x, c.y], frames: dur, ease: style.ease))
     }

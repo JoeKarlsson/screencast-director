@@ -13,11 +13,21 @@ Each release lists what changed for people using the app or the CLI. The version
 - Stickers and cards pop in on a spring: they overshoot about 9% instead of 20% and settle smoothly, and lines, highlights and counters ease in and out instead of starting at full speed. Existing animations re-render with it the next time their video builds, and frames that move take longer to render.
 
 
+### Motion
+- Zoom moves take as long as the distance they cover: a small nudge is quicker and a big zoom with a long pan takes a little longer, while a 1x to 2x zoom takes the same time as before. Every move into a zoom finishes at the same moment, however long it is, so longer moves start earlier rather than arriving late. A zoom with its own `seconds` keeps them.
+- In vertical and square videos the camera pans to a click and parks on it before the click lands, instead of moving through the press.
+
+### Editing
+- Cut pauses keep a breath where a sentence ends: about 0.45 s between sentences and 0.7 s when you pause longer to move on to a new thought (at the normal pause level; gentle keeps more, tight less), with the breath after your last word. Pauses in the middle of a sentence are cut as tight as before, so the rhythm sounds like you rather than a string of jump cuts. New drafts and `director pauses` use it.
+
 ### Fixes
 - B-roll shot on a phone held sideways or upside down plays upright, instead of turned 90° and cropped.
 - A layout that runs to the end of the video holds through the last frame, instead of easing back to the default layout (and showing the screen) in the last half second.
 
 ### CLI and agents
+- `director scan` also finds hitches in a finished video (a frame that repeats while the picture moves, which a camera recording at 25 fps in a 30 fps video does every sixth frame) and black frames mid-video. Animations stepping at 12 fps on purpose don't count.
+- `director review` names a camera whose frame rate doesn't divide into the video's (a 25 fps PAL camera in a 30 fps video judders on your face), with the fix.
+- `director review` adds polish notes: a click that lands while the camera is still moving, camera moves too fast for the video's motion style, a camera that stops and starts or doubles back, titles and labels too short to read, styled transitions on too many cuts (or the same one twice in a row), more than three sound effects in ten seconds, and two overlays entering on the same frame. The edit skills and the app's Claude box fix them.
 - `director animate-test <dir> <index> <source-second>` renders one second of an animation from that moment, with a contact sheet of its frames, so a new template's hardest move can be checked in seconds before the whole animation renders.
 - `director contact-sheet <dir> <out.png>` puts a labeled frame from each cut, zoom, layout, title, B-roll, punch-in and animation beat into one image, to check a whole edit before rendering it. Claude Code's edit and animate skills look at it first.
 - Everything the app does can now be done from the terminal or by an agent ([docs/cli.md](docs/cli.md) maps each app action to its command).

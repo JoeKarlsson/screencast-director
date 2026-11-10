@@ -9,6 +9,13 @@ public enum PauseLevel: String, CaseIterable, Codable, Sendable {
   /// Longest pause kept whole, and how much silence to leave on each side of a cut.
   public var maxPause: Double { [.gentle: 1.2, .normal: 0.6, .tight: 0.35][self]! }
   public var keep: Double { [.gentle: 0.25, .normal: 0.12, .tight: 0.06][self]! }
+  /// What's left of a cut pause after a sentence ends: the breath between sentences, which an edit
+  /// that keeps only `keep` on each side makes sound robotic. Measured edits keep about 0.45 s.
+  public var sentenceGap: Double { [.gentle: 0.6, .normal: 0.45, .tight: 0.3][self]! }
+  /// What's left of a pause of `sectionPause` or more after a sentence: the speaker moving on to a
+  /// new thought gets a soft landing.
+  public var sectionGap: Double { [.gentle: 0.9, .normal: 0.7, .tight: 0.45][self]! }
+  public static let sectionPause = 1.2
   public var label: String { rawValue.capitalized }
 }
 
@@ -42,7 +49,17 @@ extension Plan {
       }
     }
 
-    // 2. Cut long silences inside real-time segments, leaving `keep` on each side.
+    // 2. Cut long silences inside real-time segments, leaving `keep` on each side, or after a
+    // sentence a breath (`sentenceGap`, `sectionGap` for a long pause) with most of it after the words.
+    let sorted = words.filter { !$0.text.isEmpty }.sorted { $0.end < $1.end }
+    func cutMark(_ a: Double, _ b: Double) -> (Double, Double) {
+      let before = sorted.last { $0.end <= a + 0.15 }
+      guard let last = before?.text.trimmingCharacters(in: .whitespaces).last, ".?!".contains(last) else {
+        return (a + level.keep, b - level.keep)
+      }
+      let gap = b - a >= PauseLevel.sectionPause ? level.sectionGap : level.sentenceGap
+      return (a + gap - level.keep, b - level.keep)
+    }
     var out: [Segment] = []
     for s in joined {
       guard s.speed == 1 else {
@@ -55,14 +72,14 @@ extension Plan {
         // Measured silences (from the audio) inside this segment.
         for (a, b) in silences where b > s.start && a < s.end {
           let a2 = max(a, s.start), b2 = min(b, s.end)
-          if b2 - a2 > level.maxPause { marks.append((a2 + level.keep, b2 - level.keep)) }
+          if b2 - a2 > level.maxPause { marks.append(cutMark(a2, b2)) }
         }
       } else {
         // No audio levels: fall back to gaps between transcript words.
         let inside = words.filter { $0.end > s.start && $0.start < s.end }.sorted { $0.start < $1.start }
         var prevEnd = s.start
         for w in inside {
-          if w.start - prevEnd > level.maxPause { marks.append((prevEnd + level.keep, w.start - level.keep)) }
+          if w.start - prevEnd > level.maxPause { marks.append(cutMark(prevEnd, w.start)) }
           prevEnd = max(prevEnd, w.end)
         }
         if s.end - prevEnd > level.maxPause, !inside.isEmpty { marks.append((prevEnd + level.keep, s.end - level.keep)) }

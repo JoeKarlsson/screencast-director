@@ -21,14 +21,15 @@ Arguments: a project name (folder under `projects/`), plus optional instructions
 - If `projects/<name>/transcript.json` is missing, run `bin/sd analyze <name>`.
 - If `plan.json` is missing, run `bin/sd plan <name>`. Never pass `--force` on a plan that may hold edits unless the user asks to start over.
 - Run `bin/sd describe <name>` and read `plan.json`.
+- Before changing an existing edit, save a contact sheet of it as it stands: `bin/director contact-sheet projects/<name> projects/<name>/.checks/before.png`. The critic compares your edit with it.
 - Project files: `projects/<name>/` (gitignored): `screen.mp4`, `events.jsonl`, `source.json`, `transcript.json`, `motion.json`, `screentext.json` (OCR around each click, `DirectorCore/ScreenText.swift`; `describe` shows `on "Save"`), `plan.json`, and the export, `<name> <width>x<height>.mp4` (older ones are `<name>.mp4` or `out.mp4`).
 
 ## 2. Edit pass
 
 Apply the user's instructions first. If the project's `script.md` has an `## Edit plan` in its header (`describe` prints it), apply it too unless the user asked for one specific change: each line anchors an effect on quoted spoken words, so find them in `transcript.json` (the last kept take) and add the zoom, annotation, callout, animation (via `/animate`), sfx, punch-in, layout, transition, speed-up or insert it asks for. Take sounds from `sfx/` or the sound library, and B-roll only from `broll/` files that exist; list any the plan names that are missing, plus any line whose words were never said or are cut. The format is in `video-script-writer`'s `references/edit-plan.md` in the CData skills repo (`~/Documents/dev/cdata/skills`). Apply the header lines before the effects. `**Look:**` names a profile (`profile CData Explainer`): apply it with `director profile <project> "<name>"` (`director profiles` lists them); a profile can set the look, captions, music, voice leveling, camera grade and LUT, bubble and default layout. `**Audio:**` and `**Camera:**` lines, when present, override it for this video: `**Audio:**` sets `audio` (`normalize voice` is `normalize: true`, `warm voice` is `warm: true`, `+3 dB` is `gainDB: 3`). `**Camera:**` sets `camera`: copy the named LUT in with `director add <project> lut "$HOME/Movies/Screencast Director/LUTs/<name>.cube"` (it checks the LUT loads) and point `grade.lut` at the path it prints (no other grade fields), set `bubbleSize`, and run `director frame-camera <project>` for `centered on face` (new recordings are centered already). `**Music:**` replaces the profile's track only when it names a different one. That repo's `references/series-style.md` explains each setting and maps each kind of moment to its sound and level. Then make a quality pass unless they asked for only a specific change:
 
-- **Retakes:** when the speaker says a sentence, stumbles, and says it again, keep only the last clean take. Look for repeated phrases in the transcript and for "sorry", "let me try that again", "wait".
-- **Dead air:** gaps over ~0.6 s with nothing on screen should be cut; leave about 0.1 s on each side.
+- **Retakes:** when the speaker says a sentence, stumbles, and says it again, keep only the last clean take. Look for repeated phrases in the transcript and for "sorry", "let me try that again", "wait". A phrase said twice in a row ("you can, you can see") loses its first copy. Something the speaker says to the edit ("cut that", "one more time", "other take") outranks your judgment. A run of sentences said in one breath stays one take, even if a single word in it was better elsewhere.
+- **Dead air:** gaps over ~0.6 s with nothing on screen should be cut; `director pauses <dir> normal` re-cuts them with a breath after each sentence (about 0.45 s, 0.7 s before a new thought) and about 0.1 s on each side mid-sentence. Cutting every breath out is what makes an edit sound robotic. A pause after a punchline is the joke landing: keep 0.4 to 0.6 s of it.
 - **Speed:** typing or waiting with no narration should be sped up (3x typing, 4 to 8x for builds and installs). Never speed up narration.
 - **Zooms:** when the speaker points at something ("this button", "up here in the config"), add or move a zoom to it. Use click positions from `events.jsonl` (via `describe`) to find where things are. Keep zooms at least ~1.5 s long and don't stack them so tight that the camera jitters.
 - **Callouts:** short (2 to 5 word) titles at the start of each new section of the demo. `style` can be `lower-third` (a name with a `subtitle`), `slate` (full-screen opener or wrap) or `chapter` (section card).
@@ -46,17 +47,32 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 - **Layouts** (only with a camera): `camera` for an intro or outro talking to the lens, `side` for explanations without screen action, `pip` elsewhere. A full-face stretch is a `camera` range in `layouts`, never `defaultLayout: camera`, which hides every demo. `describe` prints a WARNING wherever full camera covers clicks or typing; fix each one.
 - Keep each segment's `note` meaningful; it shows up in `describe`.
 
+### Make it feel produced, not generated
+
+What gives an edit away as made by a template, and what a pro editor does instead. `director review`'s POLISH lines measure most of it.
+
+- **Hard cuts.** Over 90% of cuts in professional edits are plain cuts. A styled transition marks a section change; on every cut it's a template.
+- **The camera is still when something happens.** A zoom settles before the click it shows and holds through it, then leaves after the screen has changed. Start a zoom 0.5 s or more before its first click and end it 0.3 s or more after its last.
+- **One thing draws the eye at a time.** Titles, boxes and stickers arrive on their own words, not on the same frame. Use the quietest emphasis that works: a highlight before a box, a box before a title, a title before an animation. Never two loud ones together.
+- **Text lands with its word.** A title or label appears on the word it names, or a frame or two before, never after. Text that just repeats what's said adds nothing: a title names what the viewer gets.
+- **Sound is meaning.** About one sound per 10 s outside animations; the same kind of moment gets the same sound.
+- **Readable.** A title stays up a third of a second per word plus half a second (1.5 s at least).
+- **Endings cut.** No fade to black and no end card held over 1.4 s unless asked.
+
 ## 3. Verify before rendering
 
 - Run `bin/director validate projects/<name>` after every edit to plan.json (it exits 1 on any problem) and fix each one; each names the JSON path. It reports keys the plan has that aren't fields (a typo silently does nothing), values out of range, overlapping segments, unknown styles, templates and effects, missing files, items on screen under a second, and every WARNING from `describe`. The project's `PostToolUse` hook runs it after each plan.json edit, so its output may already be in front of you. Its warnings (items running past the end) are harmless. Flashes (something on screen under a second between two others) are the ones Joe hates most: make the stretch last a second or more, or cover it with what's on either side (start the next B-roll where the last one ends).
 - Then read `bin/sd describe <name>` as a viewer would: does every cut land between sentences? Is any narration sped up?
 - Look at a contact sheet before rendering the whole video: `bin/director contact-sheet projects/<name> projects/<name>/.checks/sheet.png` puts a frame from the start, half a second after each cut, after each zoom, layout, title, annotation, B-roll and punch-in lands, each animation beat and the end in one image, each labeled with its output time and frame (a long edit spills onto `sheet-2.png` and on). Read every sheet and check for cropped or overlapping text, captions over a title, and anything that vanishes or flashes mid-transition.
+- Run `bin/director review projects/<name>` and fix every POLISH line on something you added or changed (clicks during camera moves, moves too fast, stop-start or doubling back, titles too short to read, too many transitions or sounds, overlays entering together). A `frame rate` line means the camera's frame rate doesn't divide into the video's: tell the user how to set the camera, and offer the `output.fps` it names.
 - Then spot-check the moments you changed at full size (zoom framing, callout text, layout):
   `bin/director still projects/<name> <frame> /tmp/f.png` (`still` and `contact-sheet` write only inside the project, e.g. `.checks/`, or a temp folder, and never through a symlink)
 
 ## 4. Render and report
 
 - `bin/sd render <name>` writes `projects/<name>/<name> <width>x<height>.mp4`. For a quick look, open the project in the Screencast Director app.
+- Scan the export: `bin/director scan "projects/<name>/<export>.mp4"`. Fix each short shot (a flash), each black stretch, and each hitch outside an animation. A hitch "with a steady cadence" is a source's frame rate (usually the camera), not the edit; say so.
+- For an edit the user will publish, get a second opinion from the `video-critic` agent: give it `.checks/before.png` (and any `before-2.png`...) and the new contact sheets, and act on what it says the new one does worse. It compares them both ways round, so trust a verdict only when both orders agree.
 - Report the source and output length, and list what you changed in a few lines, with output timestamps so the user can jump to them.
 
 ## Beyond plan.json

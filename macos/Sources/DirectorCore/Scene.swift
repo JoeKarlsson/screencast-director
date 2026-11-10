@@ -317,12 +317,7 @@ public final class Scene: @unchecked Sendable {
       return withEffects(
         card(c, look.outro, logo: outroLogo, frame: f - outroStart, length: frameCount - outroStart, intro: false), layer: "frame", frame: f)
     }
-    // A cropped screen (vertical, square) rests on the last click instead of the center.
-    let clicks = focusClicks
-    let base: ((Int) -> (Double, Double))? =
-      !cropsScreen(plan)
-      ? nil
-      : { frame in clicks.last(where: { $0.f <= Double(frame) }).map { ($0.x, $0.y) } ?? (0.5, 0.5) }
+    let base = cameraBase
     let cam = cameraState(f, base: base)
     let boxes: LayoutBoxes
     if let layoutSteps {
@@ -500,6 +495,14 @@ public final class Scene: @unchecked Sendable {
   /// Motion blur: the share of a frame's movement smeared (a 180 degree shutter is 0.5), and its cap.
   static let shutter = 0.5
   static let maxBlur = 28.0
+
+  /// Where the camera rests between zooms: a cropped screen (vertical, square) rests on the last
+  /// click instead of the center (nil: the center).
+  var cameraBase: ((Int) -> (Double, Double))? {
+    guard cropsScreen(plan) else { return nil }
+    let clicks = focusClicks
+    return { frame in clicks.last(where: { $0.f <= Double(frame) }).map { ($0.x, $0.y) } ?? (0.5, 0.5) }
+  }
 
   func cameraState(_ f: Int, base: ((Int) -> (Double, Double))?) -> CameraState {
     if let camSteps {

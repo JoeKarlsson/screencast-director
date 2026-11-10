@@ -990,6 +990,8 @@ struct Checks {
     reorderChecks()
     planFileChecks()
     planCheckExtraChecks()
+    polishChecks()
+    scanPolishChecks()
     claudeEditChecks()
     timelineRowChecks()
     punchInChecks()

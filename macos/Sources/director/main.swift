@@ -38,7 +38,7 @@ let usage = """
     director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
-    director scan     <video.mp4>                   find shots under a second between two others in a finished video
+    director scan     <video.mp4>                   in a finished video: shots under a second between two others, hitches (a repeated frame mid-move) and black frames
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
   """
@@ -283,7 +283,8 @@ do {
     }
   case "review":
     let project = try Project.load(dir)
-    print(editReview(project, try Plan.load(project.planURL)))
+    let plan = try Plan.load(project.planURL)
+    print(editReview(project, plan, cameraFPS: await Polish.cameraFrameRate(project, plan)))
   case "animate":
     let project = try Project.load(dir)
     let plan = try planFor(project)
@@ -442,9 +443,20 @@ do {
     print(String(format: "Wrote %@: %d frames, %.1f MB in %.1fs", out.path, frames, Double(size) / 1e6, Date().timeIntervalSince(started)))
   case "scan":
     // args[1] is the video here, not a project folder.
-    let shots = try await ShotScan.shortShots(in: dir)
-    if shots.isEmpty { print("No shots under a second.") }
-    for shot in shots { print(ShotScan.describe(shot)) }
+    let report = try await ShotScan.scan(dir)
+    if report.shortShots.isEmpty { print("No shots under a second.") }
+    for shot in report.shortShots { print(ShotScan.describe(shot)) }
+    // Hitches close together are one stutter; list where each run starts.
+    var runs: [(start: Double, count: Int)] = []
+    for t in report.hitches {
+      if let last = runs.last, t - last.start < 1 { runs[runs.count - 1].count += 1 } else { runs.append((t, 1)) }
+    }
+    for r in runs {
+      // Several a second, steadily: a source whose frame rate doesn't divide into the video's.
+      let cadence = r.count >= 3 ? " (a steady cadence: a source's frame rate, like a 25 fps camera, doesn't divide into the video's; director review names it)" : ""
+      print("hitch at \(fmtTime(r.start)): \(r.count) repeated frame(s) while the picture moves\(cadence)")
+    }
+    for b in report.black { print(String(format: "black for %.2f s at %@", b.length, fmtTime(b.start))) }
   case "upload":
     // args[1] is the file here, not a project folder.
     // The S3_* env vars when set, else the bucket set up in the app's Settings > Sharing.

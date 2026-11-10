@@ -90,7 +90,7 @@ extension Plan {
 
 /// What an AI's second look at its own edit needs: for each zoom, what was said and clicked while
 /// it's on screen, and every cut edge that lands inside a word.
-public func editReview(_ project: Project, _ plan: Plan) -> String {
+public func editReview(_ project: Project, _ plan: Plan, cameraFPS: Double? = nil) -> String {
   var lines: [String] = []
   let fps = plan.output.fps
   let mapped = mapPlan(plan)
@@ -112,7 +112,13 @@ public func editReview(_ project: Project, _ plan: Plan) -> String {
     lines.append("cut edge at src \(fmtTime(edge)) splits the word \"\(w.text)\" (\(fmtTime(w.start))-\(fmtTime(w.end)))")
   }
   for f in flashes(plan, dir: project.dir) { lines.append("WARNING: \(describeFlash(f, plan))") }
-  return lines.isEmpty ? "No zooms and no cuts inside words." : lines.joined(separator: "\n")
+  let polish = Polish.notes(project, plan, cameraFPS: cameraFPS)
+  if !polish.isEmpty {
+    lines.append("")
+    lines.append("## Polish (judgment calls that make an edit feel produced; fix each or say why it stays)")
+    lines += polish.map { "POLISH \($0.kind): \($0.text)" }
+  }
+  return lines.isEmpty ? "No zooms, no cuts inside words and nothing to polish." : lines.joined(separator: "\n")
 }
 
 /// Source-time ranges an edit touched: clips and timed items (zooms, layouts, titles, annotations,

@@ -35,6 +35,14 @@ Logos come from each folder's `logos/logos.json` (display name → file in that 
 
 `cues` maps each beat (or storyboard step's `cue`) to a source time, usually the start of the word that names it. Give a beat a few tenths of a second before the word if it should be on screen as the word lands.
 
+How a hand-made build reads, and how a template gives itself away:
+
+- **One idea per animation.** If the sentence describing it needs an "and", it's two animations, or one of them goes.
+- **Build up from empty, one piece at a time.** The biggest structural piece first (the hub, the board's first node), the decisive detail second to last, the label or payoff last. Pieces arrive 0.35 to 0.6 s apart, unevenly: the same gap between every beat is a template's tell. Nothing drifts or slowly zooms while it builds; the motion is the pieces landing.
+- **Land just before the word.** A piece should be on screen a frame or two (about 0.07 s) before its word, and its whole entrance done before the next cue.
+- **Hold the finished picture** for 1.2 s or more before the animation ends, so the viewer can take it in.
+- **Keep overshoot for the moment that matters.** The engine's pop-ins already spring; don't add bounce on top of it, and don't make every piece the loudest thing on screen.
+
 ## 4. Add it, render, check
 
 ```json
@@ -49,7 +57,7 @@ Logos come from each folder's `logos/logos.json` (display name → file in that 
 }]
 ```
 
-Run `bin/director animate <dir>` (one to two minutes per 20 s of animation) and look at the contact sheet, which has a frame after each cue: `director contact-sheet <dir> <dir>/.checks/sheet.png`. Look closer with `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word.
+Run `bin/director animate <dir>` (one to two minutes per 20 s of animation). It prints a warning for each pair of pieces that overlap on any frame, mid-move included, and for anything that lands in the caption band; fix each by moving a piece (`x`/`y`) or spacing the cues. Then look at the contact sheet, which has a frame after each cue: `director contact-sheet <dir> <dir>/.checks/sheet.png`. Look closer with `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word.
 
 ## Writing a template for one video
 
