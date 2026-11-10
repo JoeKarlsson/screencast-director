@@ -255,7 +255,7 @@ function drawBurst(b, x, y, t, start, size = 1, rot = 0) {
   const u = t - start - .05;
   b.svg.style.opacity = u < 0 || u > .8 ? 0 : 1;
   b.svg.style.transform = `translate(${x}px, ${y}px) rotate(${rot * 3}deg) scale(${size * (.8 + .4 * easeOut(u / .5))})`;
-  b.strokes.forEach((p, i) => { p.style.strokeDashoffset = u < 0 ? 1 : u < .55 ? 1 - easeOut((u - i * .012) / .2) : -easeOut((u - .55) / .25); });
+  b.strokes.forEach((p, i) => { p.style.strokeDashoffset = u < 0 ? 1 : u < .55 ? 1 - easeOut((u - i * .012) / .2) : 2 - easeOut((u - .55) / .25); });
 }
 // Heading words rise out of a mask line, 60 ms apart (heading() wraps each word).
 function revealHeading(h, t, start) {
@@ -443,12 +443,13 @@ function buildZineMarks() {
   });
 }
 // How much of a stroke is hidden at loop position u (0..1): 1 before it draws, 0 while it holds, and
-// negative as it erases from its start. One stroke draws over the first 35% and erases after 85%; a
+// 2 down to 1 as it erases from its start (the same spot in the 1-on 1-off dash as 0 to -1; macOS 26's
+// WebKit draws a negative offset back in). One stroke draws over the first 35% and erases after 85%; a
 // mark of several strokes draws each in 4.5% of the loop, one after another, and erases them in turn.
 function redrawOffset(u, i, count) {
-  if (count === 1) return u < .35 ? 1 - easeOut(u / .35) : u < .85 ? 0 : -easeInOut((u - .85) / .15);
+  if (count === 1) return u < .35 ? 1 - easeOut(u / .35) : u < .85 ? 0 : 2 - easeInOut((u - .85) / .15);
   const s = i * .045;
-  return u < s ? 1 : u < s + .045 ? 1 - easeOut((u - s) / .045) : u < .8 + s * .3 ? 0 : -clamp((u - .8 - s * .3) / .04);
+  return u < s ? 1 : u < s + .045 ? 1 - easeOut((u - s) / .045) : u < .8 + s * .3 ? 0 : 2 - clamp((u - .8 - s * .3) / .04);
 }
 function zineTick(t) {
   zineMarks.forEach(({ svg, strokes, dur, delay, k }) => {

@@ -25,6 +25,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Cut pauses keep a breath where a sentence ends: about 0.45 s between sentences and 0.7 s when you pause longer to move on to a new thought (at the normal pause level; gentle keeps more, tight less), with the breath after your last word. Pauses in the middle of a sentence are cut as tight as before, so the rhythm sounds like you rather than a string of jump cuts. New drafts and `director pauses` use it.
 
 ### Fixes
+- On macOS 26 the scribble burst behind a storyboard node erases instead of flashing back for a frame, and the zine look's marks erase the same way.
 - B-roll shot on a phone held sideways or upside down plays upright, instead of turned 90° and cropped.
 - A layout that runs to the end of the video holds through the last frame, instead of easing back to the default layout (and showing the screen) in the last half second.
 
