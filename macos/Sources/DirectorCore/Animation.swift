@@ -16,6 +16,31 @@ public struct Animation: Codable, Equatable, Sendable {
   public var note: String?
   /// Sounds keyed by cue name ("start" for the animation's start); each plays on its beat.
   public var sounds: [String: Sound]?
+  /// Other versions of this animation, kept but not played. `director animate-variants` renders
+  /// them side by side and `animate-choose` swaps one in, so the one replaced is kept too.
+  public var alternates: [Alternate]?
+
+  public struct Alternate: Codable, Equatable, Sendable {
+    public var template: String
+    public var data: JSONValue
+    public var cues: [String: Double]?
+    public var note: String?
+  }
+
+  /// Plays alternate `k` instead, keeping this version in its place.
+  public mutating func choose(_ k: Int) throws {
+    guard var list = alternates, list.indices.contains(k) else {
+      throw DirectorError("no alternate #\(k) (this animation has \(alternates?.count ?? 0))")
+    }
+    let chosen = list[k]
+    list[k] = Alternate(template: template, data: data, cues: cues, note: note)
+    (template, data, cues, note, alternates) = (chosen.template, chosen.data, chosen.cues, chosen.note, list)
+  }
+
+  /// This version, then each alternate as the animation it would be.
+  public var versions: [Animation] {
+    [self] + (alternates ?? []).map { Animation(start: start, end: end, template: $0.template, data: $0.data, cues: $0.cues, note: $0.note) }
+  }
 
   public init(start: Double, end: Double, template: String, data: JSONValue, cues: [String: Double]? = nil, note: String? = nil) {
     self.start = start

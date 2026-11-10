@@ -44,6 +44,21 @@ private func planCheckChecks() {
   expect(has("inserts[0].file: no file at broll/missing.png"), "a missing B-roll file is a problem")
   expect(has("callouts[0].style is \"banner\""), "an unknown callout style is a problem")
   expect(has("template \"nope\" doesn't exist") && has("cues.late"), "an unknown template and a cue outside the animation are problems")
+
+  // Alternate versions: checked like the one in use, and choosing one keeps the one it replaces.
+  var versions = Animation(start: 1, end: 3, template: "storyboard", data: .object(["a": .string("in use")]), cues: ["x": 2], note: "first")
+  versions.alternates = [.init(template: "gone", data: .object(["a": .string("other")]), cues: nil, note: "second")]
+  plan.animations = [versions]
+  let alt = PlanCheck.check(plan, project: project, templates: ["storyboard"]).problems
+  expect(alt.contains { $0.hasPrefix("animations[0].alternates[0].template \"gone\"") }, "an alternate's unknown template is a problem (\(alt))")
+  try? versions.choose(0)
+  expect(
+    versions.template == "gone" && versions.note == "second" && versions.cues == nil
+      && versions.alternates == [.init(template: "storyboard", data: .object(["a": .string("in use")]), cues: ["x": 2], note: "first")],
+    "choosing an alternate plays it and keeps the replaced one (\(versions))")
+  expect((try? versions.choose(1)) == nil, "choosing an alternate that isn't there throws")
+  expect(versions.versions.map(\.template) == ["gone", "storyboard"], "versions lists the one in use first")
+  plan.animations = nil
   expect(report.warnings.contains { $0.contains("callouts[0]: ends at 25") }, "running past the recording's end is only a warning (\(report.warnings))")
 
   // A real plan with text where segments[0].end's number should be.

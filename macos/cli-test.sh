@@ -85,6 +85,19 @@ check "describe lists the cut" grep -qi "cut" <<<"$desc"
 review=$("$DIRECTOR" review "$P")
 check "review reports on the zoom" grep -qi "zoom" <<<"$review"
 
+# --- secrets on screen: a scan, then a finding the edit shows until --blur covers it
+check "secrets finds none on the fixture" grep -q "no secrets on screen" <<<"$("$DIRECTOR" secrets "$P")"
+cp "$P/plan.json" "$TMP/before-secrets.json"
+echo '[{"kind":"api key","masked":"sk-p…d34","start":3,"end":5,"x":0.1,"y":0.1,"w":0.3,"h":0.05}]' >"$P/secrets.json"
+check "describe warns about an unblurred secret" grep -q "WARNING: secret #0" <<<"$("$DIRECTOR" describe "$P")"
+check "secrets --blur adds a blur" grep -q "added 1 blur" <<<"$("$DIRECTOR" secrets "$P" --blur)"
+check "then describe doesn't warn" bash -c "! '$DIRECTOR' describe '$P' | grep -q 'WARNING: secret'"
+expect_error "--allow a secret that isn't there fails" "no secret #3" "$DIRECTOR" secrets "$P" --allow 3
+echo 'not json' >"$P/secrets.json"
+check "an unreadable secrets.json is a warning, not silence" grep -q "secrets.json can't be read" <<<"$("$DIRECTOR" describe "$P")"
+cp "$TMP/before-secrets.json" "$P/plan.json"
+rm "$P/secrets.json"
+
 # --- cut and restore (source seconds), with a history snapshot each time
 before=$(output_seconds)
 "$DIRECTOR" cut "$P" 1 2 >/dev/null

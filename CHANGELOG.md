@@ -15,7 +15,13 @@ Each release lists what changed for people using the app or the CLI. The version
 - `director animate` and `animate-test` warn when something in an animation shows for a single frame and is gone the next (a sticker drawn a frame before its cue), with the source time to look at.
 - The zine look's lines are drawn in colored pencil (p5.brush), with the uneven pressure and broken edge of a real pencil, instead of an even crayon texture.
 - Stickers and cards pop in on a spring: they overshoot about 9% instead of 20% and settle smoothly, and lines, highlights and counters ease in and out instead of starting at full speed. Existing animations re-render with it the next time their video builds, and frames that move take longer to render.
+- An animation can keep other versions (`alternates`). `director animate-variants <dir> <index>` renders each one in full with a sheet comparing them row by row, and `director animate-choose <dir> <index> <k>` plays the one you pick while keeping the one it replaced.
 
+### Privacy
+- `director secrets <dir>` reads the whole recording for API keys, tokens, passwords in connection strings and config, private keys and email addresses, and `--blur` covers each one the edit shows with a blur that cuts in and out with no fade. Until they're covered, `director describe` and `validate` warn about them; `--allow <n>` marks one as fine to show. It reads only where the screen changed, so a 10-minute recording takes about a minute.
+
+### Exports
+- Every export carries what made it: the app version, the date and the exact plan it rendered, inside the MP4. `director provenance <video>` prints them and what `plan.json` has changed since, and `--plan` prints the plan, so you can tell which edit an upload was.
 
 ### Motion
 - Zoom moves take as long as the distance they cover: a small nudge is quicker and a big zoom with a long pan takes a little longer, while a 1x to 2x zoom takes the same time as before. Every move into a zoom finishes at the same moment, however long it is, so longer moves start earlier rather than arriving late. A zoom with its own `seconds` keeps them.

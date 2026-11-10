@@ -15,6 +15,8 @@ let usage = """
     director validate <dir>                         each problem in plan.json with its JSON path (typo'd keys, bad values, overlaps, flashes); exits 1 on any
     director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
     director animate-test <dir> <index> <source-second> [out.mp4]   one second of animation #index from that moment, plus a contact sheet of its frames (default .checks/animation-<index>-test.mp4)
+    director animate-variants <dir> <index>          render animation #index and each of its alternates to .checks/, with one sheet comparing them (a row each)
+    director animate-choose <dir> <index> <k>       play alternate k of animation #index, keeping the one it replaces as an alternate
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
@@ -31,6 +33,7 @@ let usage = """
     director frame-camera <dir>                      center the camera on the speaker's face
     director sync-camera <dir>                       line the camera up with the voice by watching the lips
     director screentext <dir>                        read the text around each click (screentext.json)
+    director secrets  <dir> [--blur] [--allow n]    find API keys, passwords, tokens and emails on screen (secrets.json); --blur covers each one the edit shows, --allow marks one as fine to show
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director move     <dir> <start> <end> [--before <t>]   play a source-time range first (a cold open), or just before source time t
@@ -41,6 +44,7 @@ let usage = """
     director stock    <dir> get-sound|get-image <id>...   a sound into My Sounds/Openverse, a picture into broll/
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
     director check-words <dir> <export.mp4>        transcribe a finished export and list kept words it's missing (clipped at a cut) and extra words it has (a false start left in)
+    director provenance <video.mp4> [--plan]       what made an export: app version, date, and what plan.json beside it has changed since; --plan prints the plan it rendered
     director scan     <video.mp4>                   in a finished video: shots under a second between two others, hitches (a repeated frame mid-move) and black frames
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
     presets: \(ExportPreset.all.map(\.id).joined(separator: " "))
@@ -100,7 +104,7 @@ func planFor(_ project: Project) throws -> Plan {
   if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -141,6 +145,51 @@ do {
     try await readScreenText(dir) { print($0) }
     let samples = ScreenText.load(dir)
     print("Read \(samples.count) clicks: " + samples.prefix(8).map { ScreenText.clicked(samples, at: $0.t) ?? "?" }.joined(separator: ", "))
+  case "secrets":
+    let project = try Project.load(dir)
+    if let n = number("--allow").map(Int.init) {
+      guard var found = try Secrets.load(dir), found.indices.contains(n) else { fail("no secret #\(n); run `director secrets \(dir.path)` first") }
+      found[n].allowed = true
+      try Secrets.save(found, to: dir)
+      print("secret #\(n) (\(found[n].kind) \(found[n].masked)) may show")
+      break
+    }
+    // --blur reuses the last scan when there is one.
+    var found = args.contains("--blur") ? try Secrets.load(dir) : nil
+    if found == nil {
+      print("Reading the screen for secrets...")
+      // An unreadable old scan only costs its allowed marks: this one replaces it.
+      found = Secrets.keepingAllowed(try await Secrets.scan(project), from: ((try? Secrets.load(dir)) ?? nil) ?? [])
+      try Secrets.save(found!, to: dir)
+    }
+    let findings = found!
+    var plan = try Plan.load(project.planURL)
+    if args.contains("--blur") {
+      let blurs = Secrets.blurs(for: findings, plan: plan)
+      plan.annotations = (plan.annotations ?? []) + blurs
+      if !blurs.isEmpty { try plan.write(to: project.planURL) }
+      print("added \(blurs.count) blur\(blurs.count == 1 ? "" : "s")")
+    }
+    let open = Set(Secrets.uncovered(findings, plan: plan).map(\.index))
+    for (i, f) in findings.enumerated() {
+      let state = f.allowed == true ? "allowed" : open.contains(i) ? "UNBLURRED" : "blurred or cut"
+      print("#\(i) \(f.kind) \(f.masked) src \(fmtTime(f.start))-\(fmtTime(f.end)) at (\(f.x.formatted(.number.precision(.fractionLength(3)))), \(f.y.formatted(.number.precision(.fractionLength(3))))): \(state)")
+    }
+    if findings.isEmpty { print("no secrets on screen") }
+  case "provenance":
+    guard let made = try await Provenance.read(dir) else {
+      fail("\(dir.path) has no Screencast Director stamp (exported before 0.2.0 or by another app)")
+    }
+    if args.contains("--plan") {
+      let enc = JSONEncoder()
+      enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+      print(String(decoding: try enc.encode(made.plan), as: UTF8.self))
+      break
+    }
+    print("made by Screencast Director \(made.app) on \(made.exported.formatted(date: .abbreviated, time: .shortened))")
+    print("\(fmtTime(planSeconds(made.plan))) at \(made.plan.output.width)x\(made.plan.output.height)")
+    let beside = dir.deletingLastPathComponent().appendingPathComponent("plan.json")
+    if let now = try? Plan.load(beside) { print("plan.json has changed since: \(PlanHistory.summary(from: made.plan, to: now))") }
   case "plan":
     let project = try Project.load(dir)
     refuseOverwrite(project)
@@ -341,6 +390,20 @@ do {
     let started = Date()
     let sheet = try await Animate.renderTest(dir, try planFor(project), index: index, at: at, to: out)
     print(String(format: "%@\n%@\n(%.1fs)", out.path, sheet.path, Date().timeIntervalSince(started)))
+  case "animate-variants":
+    guard positional.count == 3, let index = Int(positional[2]) else { fail(usage) }
+    let sheet = try await Animate.renderVariants(dir, try planFor(try Project.load(dir)), index: index, folder: dir.appendingPathComponent(".checks")) {
+      print($0)
+    }
+    print(sheet.path)
+  case "animate-choose":
+    guard positional.count == 4, let index = Int(positional[2]), let k = Int(positional[3]) else { fail(usage) }
+    let project = try Project.load(dir)
+    var plan = try Plan.load(project.planURL)
+    guard plan.animationList.indices.contains(index) else { fail("no animation #\(index) (the plan has \(plan.animationList.count))") }
+    try plan.animationList[index].choose(k)
+    try plan.write(to: project.planURL)
+    print("animation #\(index) is now \(plan.animationList[index].template)\(plan.animationList[index].note.map { " (\($0))" } ?? "")")
   case "contact-sheet":
     guard positional.count == 3 else { fail(usage) }
     let project = try Project.load(dir)

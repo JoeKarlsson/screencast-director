@@ -105,8 +105,11 @@ public enum PlanCheck {
     for (i, r) in plan.effectRangeList.enumerated() { span("effectRanges[\(i)]", r.start, r.end) }
     for (i, a) in plan.animationList.enumerated() {
       span("animations[\(i)]", a.start, a.end)
-      if let templates, !templates.contains(a.template) {
-        out.append("animations[\(i)].template \"\(a.template)\" doesn't exist (there are: \(templates.sorted().joined(separator: ", ")))")
+      for (k, v) in a.versions.enumerated() {
+        if let templates, !templates.contains(v.template) {
+          let at = k == 0 ? "animations[\(i)]" : "animations[\(i)].alternates[\(k - 1)]"
+          out.append("\(at).template \"\(v.template)\" doesn't exist (there are: \(templates.sorted().joined(separator: ", ")))")
+        }
       }
       for (cue, t) in a.cues ?? [:] where t < a.start - 0.001 || t > a.end + 0.001 {
         out.append("animations[\(i)].cues.\(cue) at \(fmt(t)) is outside the animation (\(fmt(a.start))-\(fmt(a.end)))")

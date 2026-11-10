@@ -158,6 +158,42 @@ enum Animate {
       + "something shows for a single frame and is gone the next; look with animate-test"
   }
 
+  /// Every version of animation `index` (it and its alternates) rendered in full to
+  /// `<folder>/animation-<index>-v<k>.mp4`, and one sheet beside them with a row per version at the
+  /// same moments, so they compare at a glance. Returns the sheet.
+  @MainActor
+  static func renderVariants(_ dir: URL, _ plan: Plan, index: Int, folder: URL, log: (String) -> Void) async throws -> URL {
+    let list = plan.animationList
+    guard list.indices.contains(index) else { throw DirectorError("no animation #\(index) (the plan has \(list.count))") }
+    let versions = list[index].versions
+    guard versions.count > 1 else { throw DirectorError("animation #\(index) has no alternates to compare") }
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let size = plan.animationOutput
+    let columns = ContactSheet.layout(frameWidth: size.width, frameHeight: size.height).columns
+    let frameCount = Int((list[index].end - list[index].start) * Double(fps))
+    // The same frames for every version: spread over the animation, the last one near its end.
+    let picks = Set((1...columns).map { frameCount * $0 / columns - ($0 == columns ? 2 : 0) })
+    let sources = AnimationSources(project: dir, builtIn: resources)
+    var cells: [(image: CGImage, label: String)] = []
+    for (k, a) in versions.enumerated() {
+      let out = folder.appendingPathComponent("animation-\(index)-v\(k).mp4")
+      var row: [(image: CGImage, label: String)] = []
+      let (pops, overlaps) = try await Page(width: size.width, height: size.height).render(
+        a, index: index, plan: plan, sources: sources, to: out
+      ) { f, image in
+        if picks.contains(f) {
+          row.append((image, String(format: "v%d %@%@  src %.1f", k, a.template, k == 0 ? " (in use)" : "", a.start + Double(f) / Double(fps))))
+        }
+      }
+      log("v\(k) \(a.template)\(a.note.map { ": \($0)" } ?? ""): \(out.path)")
+      for line in pops.map({ "v\(k): " + popWarning(index: index, a, frame: $0) }) + overlaps { log(line) }
+      cells += row
+    }
+    let sheet = folder.appendingPathComponent("animation-\(index)-variants.png")
+    try Publish.writePNG(try ContactSheet.draw(cells), to: sheet)
+    return sheet
+  }
+
   @MainActor
   final class Page: NSObject, WKNavigationDelegate {
     let web: WKWebView

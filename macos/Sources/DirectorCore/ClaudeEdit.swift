@@ -8,10 +8,11 @@ public enum ClaudeEdit {
   /// freeze/update, which copy from the user's library, and the segment edits, which keep every
   /// timed item with its clip, where a hand edit of `segments` easily leaves them behind). Not `add`
   /// (it would copy any file on disk into the project, where Read reaches it) or `template save` (it
-  /// writes the library other videos use).
+  /// writes the library other videos use). `secrets` writes only secrets.json and blurs into the plan,
+  /// `animate-choose` only the plan.
   public static let directorCommands = [
     "describe:*", "still:*", "review:*", "validate:*", "profiles", "profile .:*", "template . freeze:*", "template . update:*",
-    "cut .:*", "restore .:*", "move .:*", "repeat .:*", "pauses .:*",
+    "cut .:*", "restore .:*", "move .:*", "repeat .:*", "pauses .:*", "secrets .:*", "animate-choose .:*",
   ]
 
   /// Arguments for an edit in the project folder. `director` is the quoted path Claude is told to

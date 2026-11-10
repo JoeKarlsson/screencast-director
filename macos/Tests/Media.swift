@@ -121,6 +121,7 @@ struct Media {
     do {
       try await analysis(root)
       try await analyzeAndScreenText(root)
+      try await secrets(root)
       try await join(root)
       try await gifAndPublish(root)
       try await exportQueue(root)
@@ -235,6 +236,41 @@ struct Media {
     try write("", dir.appendingPathComponent("events.jsonl"))
     try await readScreenText(dir)
     expect(!FileManager.default.fileExists(atPath: ScreenText.url(dir).path), "no clicks, no screentext.json")
+  }
+
+  /// The secret scan on a drawn screen: a key that's up from 2 to 4 s, a connection string's password
+  /// throughout, and a commit hash and masked field it must leave alone.
+  static func secrets(_ root: URL) async throws {
+    let dir = try folder(root, "secrets")
+    let w = 1280, h = 720, fps = 30
+    try await writeVideo(to: dir.appendingPathComponent("screen.mp4"), width: w, height: h, seconds: 6) { ctx, f in
+      ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+      ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+      func line(_ s: String, _ y: Double) {
+        let font = CTFontCreateWithName("Menlo" as CFString, 22, nil)
+        let text = NSAttributedString(
+          string: s, attributes: [.init(kCTFontAttributeName as String): font, .init(kCTForegroundColorAttributeName as String): CGColor(gray: 0, alpha: 1)])
+        ctx.textPosition = CGPoint(x: 60, y: Double(h) * (1 - y))
+        CTLineDraw(CTLineCreateWithAttributedString(text), ctx)
+      }
+      let t = Double(f) / Double(fps)
+      if t >= 2 && t < 4 { line("export OPENAI_API_KEY=sk-proj-Ab12Cd34Ef56Gh78Ij90KlMnOpQr", 0.2) }
+      line("Server=db.local;User Id=joe;Password=Hunter2Secret!;", 0.5)
+      line("commit 3f9a2b7c1d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a   Password: ••••••••", 0.8)
+    }
+    try writeSource(dir, width: Double(w), height: Double(h), duration: 6)
+    let found = try await Secrets.scan(try Project.load(dir))
+    let key = found.first { $0.kind == "api key" }
+    expect(key.map { $0.start < 2.2 && $0.start > 1 && $0.end > 3.8 && $0.end < 5 } == true, "the key is found while it's up (\(found))")
+    expect(key.map { $0.y < 0.2 && $0.y + $0.h > 0.18 } == true, "the key's box is where it was drawn (\(String(describing: key)))")
+    let password = found.first { $0.kind == "secret" }
+    expect(password?.masked.hasPrefix("Hunt") == true, "the password is found, masked (\(found.map(\.masked)))")
+    // Vision's box for part of a line is loose: it starts a word or two early, never late.
+    expect(
+      password.map { $0.x > 0.2 && $0.x < 0.43 && $0.x + $0.w > 0.57 && $0.start < 0.6 && $0.end > 5.4 } == true,
+      "the password's box covers it but not the line's start, all the way through, as one finding (\(String(describing: password)))")
+    expect(found.count == 2, "the commit hash and the masked field are left alone (\(found.map(\.masked)))")
+    expect(!found.contains { $0.masked.contains("Hunter2Secret") }, "findings never hold the secret")
   }
 
   /// Joining two takes: one video, a camera on the joined clock, and every timed file shifted.
@@ -390,6 +426,10 @@ struct Media {
       expect(size == CGSize(width: 640, height: 360), "\(out.lastPathComponent) is 640x360 (\(String(describing: size)))")
       expect(abs(length - frames / 30) < 0.02, "\(out.lastPathComponent) is the plan's length (\(length) vs \(frames / 30))")
     }
+    let stamp = try await Provenance.read(outA)
+    expect(stamp?.plan == plan, "the export carries the plan it rendered (\(String(describing: stamp?.plan.segments)))")
+    expect(stamp.map { abs($0.exported.timeIntervalSinceNow) < 120 && !$0.app.isEmpty } == true, "and when and by what (\(String(describing: stamp?.app)))")
+    expect(try await Provenance.read(dir.appendingPathComponent("screen.mp4")) == nil, "a video from elsewhere has no stamp")
   }
 
   /// A file in test/fixtures (see its README). media-test.sh runs from macos/.

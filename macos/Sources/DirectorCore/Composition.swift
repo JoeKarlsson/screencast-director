@@ -389,6 +389,7 @@ public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable 
   nonisolated(unsafe) let session = made
   session.videoComposition = built.videoComposition
   session.audioMix = built.audioMix
+  session.metadata = [try Provenance(app: Provenance.appVersion, exported: Date(), plan: built.scene.plan).metadataItem()]
   let watcher = Task {
     for await state in session.states(updateInterval: 0.5) {
       if case .exporting(let p) = state { progress?(p.fractionCompleted) }

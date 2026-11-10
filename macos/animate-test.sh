@@ -105,4 +105,28 @@ python3 -c "import sys; sys.exit(0 if abs(float(sys.argv[1]) - 1) < 0.1 else 1)"
 if "$DIRECTOR" animate-test "$PROJECT" 0 30 "$TMP/late.mp4" 2>"$TMP/err"; then echo "FAIL: animate-test outside the animation succeeded" >&2; exit 1; fi
 grep -q "isn't in it" "$TMP/err" || { echo "FAIL: animate-test outside the animation said: $(cat "$TMP/err")" >&2; exit 1; }
 echo "ok: animate-test renders 1 s and its sheet, and refuses a moment outside the animation"
+# Versions: the second animation kept as an alternate of the first, both rendered, then swapped in.
+python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+a, b = plan["animations"][0], plan["animations"][1]
+shift = a["start"] - b["start"]
+a["alternates"] = [{"template": b["template"], "data": b["data"], "cues": {k: round(v + shift, 3) for k, v in b["cues"].items()}, "note": "second"}]
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" validate "$PROJECT" >/dev/null || { echo "FAIL: a plan with an alternate doesn't validate" >&2; exit 1; }
+"$DIRECTOR" animate-variants "$PROJECT" 0 >/dev/null
+for k in 0 1; do
+  [[ -s "$PROJECT/.checks/animation-0-v$k.mp4" ]] || { echo "FAIL: animate-variants didn't render v$k" >&2; exit 1; }
+done
+[[ -s "$PROJECT/.checks/animation-0-variants.png" ]] || { echo "FAIL: animate-variants wrote no sheet" >&2; exit 1; }
+first=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['animations'][0]['template'])" "$PROJECT/plan.json")
+"$DIRECTOR" animate-choose "$PROJECT" 0 0 >/dev/null
+python3 - "$PROJECT/plan.json" "$first" <<'PY'
+import json, sys
+a = json.load(open(sys.argv[1]))["animations"][0]
+if a.get("note") != "second" or a["alternates"][0]["template"] != sys.argv[2]:
+    sys.exit(f"FAIL: animate-choose didn't swap in the alternate and keep the first: {a.get('note')}, {a['alternates']}")
+PY
+echo "ok: animate-variants renders each version and a sheet; animate-choose swaps one in and keeps the other"
 echo "animation checks passed"
