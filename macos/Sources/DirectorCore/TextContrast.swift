@@ -39,4 +39,20 @@ public enum TextContrast {
     guard a > 0.01 else { return [0, 0, 0, 0] }
     return [Double(s[0]), Double(s[1]), Double(s[2])].map { min(1, $0 / Double(n) / 255 / a) } + [a]
   }
+
+  /// `director animate`'s textProbe rows of one frame as overlapWarnings rows: ["contrast", text, needed ratio, how
+  /// many times short of it] for text too faint against what's behind it, ["bare", text, "", 0] for
+  /// text with nothing behind it (an overlay's, straight on the video).
+  public static func rows(_ rows: [[Any]], bgra pixels: [UInt8], width: Int, height: Int) -> [[Any]] {
+    rows.compactMap { row -> [Any]? in
+      guard row.count == 9, let name = row[0] as? String else { return nil }
+      let n = row.dropFirst().map { ($0 as? Double) ?? 0 }
+      guard let back = backdrop(bgra: pixels, width: width, height: height, x: Int(n[0]), y: Int(n[1]), w: Int(n[2]), h: Int(n[3]))
+      else { return nil }
+      if back[3] < 0.5 { return ["bare", name, "", 0.0] }
+      let needed = needed(large: n[7] > 0), ratio = ratio(Array(n[4...6]), back)
+      return ratio < needed ? ["contrast", name, String(format: "%g", needed), needed / ratio] : nil
+    }
+  }
+
 }

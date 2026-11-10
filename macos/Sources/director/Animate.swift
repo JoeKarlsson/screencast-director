@@ -101,21 +101,6 @@ enum Animate {
     return plan.captions.enabled && size.width > size.height ? 150.0 / 1080 : 0
   }
 
-  /// The textProbe rows of one frame as overlapWarnings rows: ["contrast", text, needed ratio, how
-  /// many times short of it] for text too faint against what's behind it, ["bare", text, "", 0] for
-  /// text with nothing behind it (an overlay's, straight on the video).
-  static func contrastRows(_ rows: [[Any]], bgra pixels: [UInt8], width: Int, height: Int) -> [[Any]] {
-    rows.compactMap { row -> [Any]? in
-      guard row.count == 9, let name = row[0] as? String else { return nil }
-      let n = row.dropFirst().map { ($0 as? Double) ?? 0 }
-      guard let back = TextContrast.backdrop(bgra: pixels, width: width, height: height, x: Int(n[0]), y: Int(n[1]), w: Int(n[2]), h: Int(n[3]))
-      else { return nil }
-      if back[3] < 0.5 { return ["bare", name, "", 0.0] }
-      let needed = TextContrast.needed(large: n[7] > 0), ratio = TextContrast.ratio(Array(n[4...6]), back)
-      return ratio < needed ? ["contrast", name, String(format: "%g", needed), needed / ratio] : nil
-    }
-  }
-
   /// One line per pair of pieces that overlapped (or piece in the caption band, or text hard to read),
   /// from the rows each probed frame returned (`step` seconds apart), with when it started (source
   /// seconds) and for how long. Text counts only once it stays hard to read for two probes running.
@@ -397,7 +382,7 @@ enum Animate {
           overlaps.append((Double(f) / Double(Animate.fps), rows))
         }
         if f % Animate.textProbeEvery == 0, let rows = try await web.evaluateJavaScript("textProbe()") as? [[Any]] {
-          let found = Animate.contrastRows(rows, bgra: pixels, width: width, height: height)
+          let found = TextContrast.rows(rows, bgra: pixels, width: width, height: height)
           if !found.isEmpty { faint.append((Double(f) / Double(Animate.fps), found)) }
         }
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }

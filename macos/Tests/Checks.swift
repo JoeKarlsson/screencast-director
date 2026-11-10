@@ -637,6 +637,10 @@ struct Checks {
     expect(TextContrast.backdrop(bgra: textCard, width: 10, height: 10, x: 0, y: 0, w: 10, h: 10) == [1, 1, 1, 1], "a text box's backdrop is its textCard, not its glyphs")
     expect(TextContrast.backdrop(bgra: [UInt8](repeating: 0, count: 400), width: 10, height: 10, x: 0, y: 0, w: 10, h: 10)?[3] == 0, "text on nothing has a see-through backdrop")
     expect(TextContrast.backdrop(bgra: textCard, width: 10, height: 10, x: 20, y: 0, w: 5, h: 5) == nil, "a box off the frame has no backdrop")
+    let greyOnWhite = TextContrast.rows([["Faint", 0.0, 0.0, 10.0, 10.0, 0.8, 0.8, 0.8, 0.0]], bgra: textCard, width: 10, height: 10)
+    expect(greyOnWhite.count == 1 && greyOnWhite[0][0] as? String == "contrast" && greyOnWhite[0][2] as? String == "4.5"
+      && abs((greyOnWhite[0][3] as? Double ?? 0) - 4.5 / TextContrast.ratio([0.8, 0.8, 0.8], [1, 1, 1])) < 0.001, "light grey on white is too faint to read")
+    expect(TextContrast.rows([["Ink", 0.0, 0.0, 10.0, 10.0, 0.1, 0.1, 0.1, 0.0]], bgra: textCard, width: 10, height: 10).isEmpty, "dark ink on white reads fine")
     // An overlay floats over the whole video: its own clip, with alpha (.mov), and it covers nothing.
     var floating = anim
     floating.overlay = true
