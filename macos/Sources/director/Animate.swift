@@ -119,7 +119,6 @@ enum Animate {
 
     /// Renders `a` to `out`, or just `length` seconds of it from `from` (seconds into it) for a quick
     /// test; `onFrame` gets each finished frame. Returns the frames that pop (`Animation.pops`).
-    @discardableResult
     func render(
       _ a: Animation, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
       onFrame: ((Int, CGImage) throws -> Void)? = nil
