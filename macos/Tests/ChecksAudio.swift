@@ -87,12 +87,16 @@ func audioChecks() {
   pop.license = "cc0"
   expect(Openverse.fileName(pop, .images) == "Pop high A.mp3", "a picture keeps its title")
   let licenseDir = FileManager.default.temporaryDirectory.appendingPathComponent("openverse-\(UUID())")
-  try! FileManager.default.createDirectory(at: licenseDir, withIntermediateDirectories: true)
-  pop.title = "Say \"pop\""
-  try! Openverse.record(pop, file: "a.mp3", in: licenseDir)
-  try! Openverse.record(Openverse.Item(id: "00000000-0000-0000-0000-000000000001", license: "cc0", url: "u"), file: "b.mp3", in: licenseDir)
-  expect(Openverse.recorded(pop.id, in: licenseDir) == "a.mp3", "the license record finds a downloaded id")
-  expect(Openverse.recorded("00000000-0000-0000-0000-000000000001", in: licenseDir) == "b.mp3", "rows append under one header")
+  do {
+    try FileManager.default.createDirectory(at: licenseDir, withIntermediateDirectories: true)
+    pop.title = "Say \"pop\""
+    try Openverse.record(pop, file: "a.mp3", in: licenseDir)
+    try Openverse.record(Openverse.Item(id: "00000000-0000-0000-0000-000000000001", license: "cc0", url: "u"), file: "b.mp3", in: licenseDir)
+    expect(Openverse.recorded(pop.id, in: licenseDir) == "a.mp3", "the license record finds a downloaded id")
+    expect(Openverse.recorded("00000000-0000-0000-0000-000000000001", in: licenseDir) == "b.mp3", "rows append under one header")
+  } catch {
+    expect(false, "Openverse license record: \(error)")
+  }
   try? FileManager.default.removeItem(at: licenseDir)
 
   // New Recording's mic check: quiet only after 3 s with nothing over -55 dB; any sound resets it.
