@@ -292,10 +292,7 @@ enum Animate {
       // A fresh page per animation, so one template's nodes never leak into the next. Read access to
       // the whole disk: fonts come from profile folders, templates and logos from the video, the
       // personal library or the bundle.
-      try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
-        loading = c
-        web.loadFileURL(Animate.resources.appendingPathComponent("animation.html"), allowingReadAccessTo: URL(fileURLWithPath: "/"))
-      }
+      try await open(Animate.resources.appendingPathComponent("animation.html"), readAccess: URL(fileURLWithPath: "/"))
       guard let scriptURL = sources.script(a.template) else {
         throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
@@ -407,6 +404,19 @@ enum Animate {
         Animate.overlapWarnings(a, index: index, frames: overlaps)
           + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(Animate.fps))
       )
+    }
+
+    /// Loads `url` (a web page, or a local file with read access to `readAccess`, default its folder)
+    /// and waits until it has finished loading.
+    func open(_ url: URL, readAccess: URL? = nil) async throws {
+      try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
+        loading = c
+        if url.isFileURL {
+          web.loadFileURL(url, allowingReadAccessTo: readAccess ?? url.deletingLastPathComponent())
+        } else {
+          web.load(URLRequest(url: url))
+        }
+      }
     }
 
     func snapshot() async throws -> CGImage {

@@ -348,5 +348,19 @@ printf '%s\n' '{"type":"meta","clock":"uptime_raw","t":51234.5}' '{"type":"click
 "$DIRECTOR" plan "$TMP/recorded" >/dev/null
 check "a click on the host clock lands 7 s into the recording" grep -q "0:07.0" <<<"$("$DIRECTOR" describe "$TMP/recorded")"
 
+# capture: a site's logo into the video's logos (named for animations) and a screenshot into broll/.
+mkdir -p "$TMP/site"
+cat > "$TMP/site/index.html" <<'HTML'
+<!doctype html><html><head><title>Acme</title><meta name="theme-color" content="#ff3366"></head>
+<body><header><a href="/" style="color: rgb(255, 0, 0)"><svg class="site-logo" width="120" height="40">
+<rect width="120" height="40" rx="8" fill="currentColor"/></svg></a></header><h1>Hello</h1></body></html>
+HTML
+"$DIRECTOR" capture "$P" "file://$TMP/site/index.html" --name "Acme Co" >"$TMP/capture.txt" 2>&1 || fail "capture: $(cat "$TMP/capture.txt")"
+check "capture names the logo for animations" grep -q '"Acme Co" : "acme-co.svg"' "$P/animations/logos/logos.json"
+check "capture keeps the logo's color once it stands alone" grep -q 'color: rgb(255, 0, 0)' "$P/animations/logos/acme-co.svg"
+check "capture screenshots the page into broll/" test -s "$P/broll/acme-co-site.png"
+check "capture prints the theme color" grep -q "theme color: #ff3366" "$TMP/capture.txt"
+expect_error "capture refuses a non-web URL" "usage" "$DIRECTOR" capture "$P" "ftp://example.com"
+
 [[ "$failures" == 0 ]] || { echo "$failures CLI check(s) failed" >&2; exit 1; }
 echo "CLI checks passed"

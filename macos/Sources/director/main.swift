@@ -24,6 +24,7 @@ let usage = """
     director profile  <dir> <name | profileDir>     apply a saved profile (by name) or a profile folder
     director profile-save <dir> <name> [--music] [--voice] [--camera]   save this video's look as a profile
     director profiles                               list saved profiles (* is the default for new recordings)
+    director capture  <dir> <url> [--name <logo name>]   a website's logo into animations/logos/ (as a logo animations can use) and a screenshot into broll/
     director template <dir> freeze|update|save <name>   copy an animation template into the video, refresh it from the library, or save the video's copy to My Templates
     director add      <dir> broll|lut|music|logo|font <file>   copy a file into the project; prints the path to use in plan.json
     director settings [get <key> | set <key> <value>]   the app's settings (no arguments lists them)
@@ -107,7 +108,7 @@ func planFor(_ project: Project) throws -> Plan {
   if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow", "--source"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow", "--source", "--name"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -240,6 +241,11 @@ do {
     let library = ProfileLibrary()
     try library.save(from: plan, as: names[2], extras: extras)
     print("saved the profile \(names[2]) to \(library.folder(names[2].trimmingCharacters(in: .whitespaces)).path)")
+  case "capture":
+    guard positional.count == 3, let url = URL(string: positional[2]), ["http", "https", "file"].contains(url.scheme ?? "") else { fail(usage) }
+    _ = try Project.load(dir)
+    let name = args.firstIndex(of: "--name").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+    try await Capture.run(dir, url: url, name: name) { print($0) }
   case "template":
     guard positional.count == 4 else { fail(usage) }
     _ = try Project.load(dir)
