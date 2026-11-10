@@ -17,6 +17,7 @@ let usage = """
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
+    director contact-sheet <dir> <out.png> [--preset id | --clip name]   a labeled frame at each cut, item and animation beat (out-2.png... for long edits)
     director profile  <dir> <name | profileDir>     apply a saved profile (by name) or a profile folder
     director profile-save <dir> <name> [--music] [--voice] [--camera]   save this video's look as a profile
     director profiles                               list saved profiles (* is the default for new recordings)
@@ -104,6 +105,21 @@ let positional = args.enumerated().filter { i, a in !flags.contains(a) && (i == 
 /// The build's warnings, on stderr.
 func printWarnings(_ built: BuiltComposition) {
   for w in built.warnings { FileHandle.standardError.write(Data("warning: \(w)\n".utf8)) }
+}
+
+/// Where `still` and `contact-sheet` may write. Headless Claude may run them: only into the project
+/// (e.g. .checks/) or a temp folder, and never through a symlink.
+func checkedImageOutput(_ path: String) throws -> URL {
+  let out = URL(fileURLWithPath: path)
+  let roots = [dir, URL(fileURLWithPath: NSTemporaryDirectory()), URL(fileURLWithPath: "/tmp")]
+  guard roots.contains(where: { PathSafety.url(out, isInside: $0) }) else {
+    fail("refusing to write \(out.path): stills go in the project folder or a temp folder")
+  }
+  if (try? FileManager.default.destinationOfSymbolicLink(atPath: out.path)) != nil { fail("refusing to overwrite the symlink \(out.path)") }
+  if PathSafety.url(out, isInside: dir) {
+    try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+  }
+  return out
 }
 
 func stillFrame(_ project: Project, _ plan: Plan, frame: Int, to out: URL) async throws {
@@ -308,21 +324,33 @@ do {
   case "still":
     guard positional.count == 4, let frame = Int(positional[2]) else { fail(usage) }
     let project = try Project.load(dir)
-    // Headless Claude may run this: write only into the project (e.g. .checks/) or a temp folder,
-    // and never through a symlink.
-    let out = URL(fileURLWithPath: positional[3])
-    let roots = [dir, URL(fileURLWithPath: NSTemporaryDirectory()), URL(fileURLWithPath: "/tmp")]
-    guard roots.contains(where: { PathSafety.url(out, isInside: $0) }) else {
-      fail("refusing to write \(out.path): stills go in the project folder or a temp folder")
-    }
-    if (try? FileManager.default.destinationOfSymbolicLink(atPath: out.path)) != nil { fail("refusing to overwrite the symlink \(out.path)") }
-    if PathSafety.url(out, isInside: dir) {
-      try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
-    }
+    let out = try checkedImageOutput(positional[3])
     let plan = try planFor(project)
     _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     try await stillFrame(project, plan, frame: frame, to: out)
     print(positional[3])
+  case "contact-sheet":
+    guard positional.count == 3 else { fail(usage) }
+    let project = try Project.load(dir)
+    let out = try checkedImageOutput(positional[2])
+    let plan = try planFor(project)
+    _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+    let built = try await buildComposition(project: project, plan: plan)
+    printWarnings(built)
+    let beats = ContactSheet.beats(plan)
+    let perSheet = ContactSheet.layout(frameWidth: plan.output.width, frameHeight: plan.output.height).perSheet
+    // A long edit spills onto more sheets: out.png, out-2.png, ...
+    for (n, start) in stride(from: 0, to: beats.count, by: perSheet).enumerated() {
+      var frames: [(image: CGImage, label: String)] = []
+      for b in beats[start..<min(beats.count, start + perSheet)] {
+        frames.append((try await stillImage(built, frame: b.frame), "\(fmtTime(Double(b.frame) / Double(plan.output.fps)))  f\(b.frame)  \(b.label)"))
+      }
+      let base = out.deletingPathExtension()
+      let file = n == 0 ? out : base.deletingLastPathComponent().appendingPathComponent("\(base.lastPathComponent)-\(n + 1).\(out.pathExtension)")
+      if (try? FileManager.default.destinationOfSymbolicLink(atPath: file.path)) != nil { fail("refusing to overwrite the symlink \(file.path)") }
+      try Publish.writePNG(try ContactSheet.draw(frames), to: file)
+      print(file.path)
+    }
   case "publish":
     let project = try Project.load(dir)
     let title = args.firstIndex(of: "--title").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? dir.lastPathComponent

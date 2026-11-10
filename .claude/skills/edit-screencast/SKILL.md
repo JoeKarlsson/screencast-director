@@ -50,8 +50,9 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 
 - Run `bin/director validate projects/<name>` after every edit to plan.json (it exits 1 on any problem) and fix each one; each names the JSON path. It reports keys the plan has that aren't fields (a typo silently does nothing), values out of range, overlapping segments, unknown styles, templates and effects, missing files, items on screen under a second, and every WARNING from `describe`. The project's `PostToolUse` hook runs it after each plan.json edit, so its output may already be in front of you. Its warnings (items running past the end) are harmless. Flashes (something on screen under a second between two others) are the ones Joe hates most: make the stretch last a second or more, or cover it with what's on either side (start the next B-roll where the last one ends).
 - Then read `bin/sd describe <name>` as a viewer would: does every cut land between sentences? Is any narration sped up?
-- Spot-check frames instead of rendering the whole video: render stills at the moments you changed and look at them (zoom framing, callout text, layout):
-  `bin/director still projects/<name> <frame> /tmp/f.png` (`still` writes only inside the project, e.g. `.checks/`, or a temp folder, and never through a symlink)
+- Look at a contact sheet before rendering the whole video: `bin/director contact-sheet projects/<name> projects/<name>/.checks/sheet.png` puts a frame from the start, half a second after each cut, after each zoom, layout, title, annotation, B-roll and punch-in lands, each animation beat and the end in one image, each labeled with its output time and frame (a long edit spills onto `sheet-2.png` and on). Read every sheet and check for cropped or overlapping text, captions over a title, and anything that vanishes or flashes mid-transition.
+- Then spot-check the moments you changed at full size (zoom framing, callout text, layout):
+  `bin/director still projects/<name> <frame> /tmp/f.png` (`still` and `contact-sheet` write only inside the project, e.g. `.checks/`, or a temp folder, and never through a symlink)
 
 ## 4. Render and report
 

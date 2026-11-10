@@ -23,8 +23,9 @@ function popScale(t, start, dur = .42) {
   const c = 2.6;
   return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2);
 }
-// A little blur on the way in, standing in for motion blur.
-function popBlur(t, start) { if (THEME === "terminal") return 0; const u = (t - start) / .25; return u > 0 && u < 1 ? (1 - u) * 6 : 0; }
+// Pop-ins used to blur here in place of motion blur. The renderer now averages subframes for real
+// motion blur, so this stays only for templates frozen into videos before that.
+function popBlur() { return 0; }
 function rand(seed) { let s = Math.floor(seed) * 9301 + 49297; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
 
 // --- building blocks ---------------------------------------------------------

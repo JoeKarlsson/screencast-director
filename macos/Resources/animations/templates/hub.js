@@ -45,16 +45,16 @@ TEMPLATES.hub = function (data, cues, duration) {
     document.getElementById("stage").style.filter = t < .7 ? `blur(${(1 - pull) * 10}px)` : "";
     place(head.node, 110, 92, 1, 0, easeOut((t - .1) / .4));
     setHL(head.hl, (t - .6) / .5);
-    place(dot, D[0], D[1], popScale(t, T.dot, .5), 0, 1, popBlur(t, T.dot));
+    place(dot, D[0], D[1], popScale(t, T.dot, .5));
     if (dotLabel) { place(dotLabel, D[0] - 85, D[1] + 112, popScale(t, .4), -3); setHL(dotLabel.querySelector(".hl"), (t - .7) / .4); }
     drawPath(main, handCurve([D[0] + 95, D[1]], [H[0] - 165, H[1]], t, 99, 0), (t - T.hub - .3) / .4);
     const hs = popScale(t, T.hub, .5);
-    place(hubNode, H[0], H[1], hs, -2 * (1 - hs), 1, popBlur(t, T.hub));
+    place(hubNode, H[0], H[1], hs, -2 * (1 - hs));
     if (link) place(link, (D[0] + H[0]) / 2 - 60, D[1] - 90, popScale(t, T.link), -4);
-    icons.forEach((ic, k) => place(ic, (D[0] + H[0]) / 2 - 70 + k * 70, D[1], popScale(t, T.cost[k], .4), 0, 1, popBlur(t, T.cost[k])));
+    icons.forEach((ic, k) => place(ic, (D[0] + H[0]) / 2 - 70 + k * 70, D[1], popScale(t, T.cost[k], .4)));
     apps.forEach(a => {
       drawPath(a.line, handCurve([H[0] + 165, H[1]], [a.home[0] - 60, a.home[1]], t, a.seed, 0), (t - a.t) / .35, .85);
-      place(a.node, a.home[0], a.home[1], popScale(t, a.t + .15) * .9, a.rot, 1, popBlur(t, a.t + .15));
+      place(a.node, a.home[0], a.home[1], popScale(t, a.t + .15) * .9, a.rot);
     });
     ghosts.forEach(g => place(g.node, g.at[0], g.at[1], popScale(t, g.t, .3), 0, .55));
     if (more) { place(more, 1470, 925, popScale(t, T.more + .9), -2); setHL(more.querySelector(".hl"), (t - T.more - 1.1) / .4); }

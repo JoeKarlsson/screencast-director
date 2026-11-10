@@ -27,7 +27,32 @@ public struct Animation: Codable, Equatable, Sendable {
   }
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
-  public static let engineVersion = 4
+  public static let engineVersion = 5
+
+  /// Motion blur: each frame averages snapshots spread over `shutter` of a frame (a 90 degree
+  /// shutter), so moving graphics streak while still ones stay sharp. How many depends on how far
+  /// things move in that span (`subframeCount`): at 12 fps a pop-in moves far in one frame, and
+  /// snapshots more than a few pixels apart show as separate copies instead of a streak.
+  public static let maxSubframes = 10
+  public static let shutter = 0.25
+  /// The farthest apart, in output pixels, two snapshots of the same thing may land (3 px at 1080p
+  /// on a 4K frame). A slower drift, like the zine's scribbles, isn't blurred at all.
+  public static let subframeStep = 6.0
+
+  /// Snapshots for a frame in which something moves `motion` pixels across the shutter: one when
+  /// it moves less than a step, else enough to keep them `subframeStep` apart, up to `maxSubframes`.
+  public static func subframeCount(motion: Double) -> Int {
+    motion.isNaN ? maxSubframes : motion < subframeStep ? 1 : Int(min(Double(maxSubframes), max(2, (motion / subframeStep).rounded(.up) + 1)))
+  }
+
+  /// The `count` page times averaged into frame `frame`. They start a hair after the frame's own
+  /// time and stay inside it, so the hand-drawn boil, grain and shake (stepped on whole frames) never
+  /// mix two steps in one frame, and never run past the clip's end.
+  public static func subframeTimes(frame: Int, fps: Int, duration: Double, count: Int = maxSubframes) -> [Double] {
+    let t = Double(frame) / Double(fps)
+    let span = shutter / Double(fps)
+    return (0..<count).map { k in min(duration, t + 1e-6 + (count < 2 ? 0 : Double(k) / Double(count - 1) * span * 0.999)) }
+  }
 
   /// Shifts the animation and its cues together, so the beats keep landing where they did in it.
   public mutating func move(by d: Double) {

@@ -40,7 +40,7 @@ TEMPLATES.sprawl = function (data, cues, duration) {
     camera(t, 1 + .03 * clamp(t / Math.max(duration, 1)) + .03 * tangle, 2.2 + 7 * tangle);
     place(head.node, 110, 92, 1, 0, easeOut((t - .1) / .4));
     setHL(head.hl, (t - .6) / .5);
-    place(dot, C[0], C[1], popScale(t, T.dot, .5), 0, 1, popBlur(t, T.dot));
+    place(dot, C[0], C[1], popScale(t, T.dot, .5));
     if (dotLabel) { place(dotLabel, C[0] - 95, C[1] + 118, popScale(t, .5), -3); setHL(dotLabel.querySelector(".hl"), (t - .8) / .4); }
 
     apps.forEach((a, i) => {
@@ -49,11 +49,11 @@ TEMPLATES.sprawl = function (data, cues, duration) {
       const curve = handCurve(C, a.home, t, a.seed, i % 2 ? 40 : -40, tangle * (i % 3 === 0 ? 1.1 : .8));
       drawPath(a.line, curve, (t - a.t) / .45, op);
       const s = popScale(t, a.t + .2);
-      place(a.node, a.home[0], a.home[1], s, a.rot * (1 - .3 * s), op, popBlur(t, a.t + .2));
+      place(a.node, a.home[0], a.home[1], s, a.rot * (1 - .3 * s), op);
       if (dim > .01) a.node.style.filter += ` grayscale(${dim})`;
       a.icons.forEach((ic, k) => {
         const start = a.extra ? Math.max(T.cost[k], a.t + .45 + k * .12) : T.cost[k] + i * .07;
-        place(ic, a.home[0] - 44 + k * 44, a.home[1] + 74, popScale(t, start, .35) * .62, 0, op, popBlur(t, start));
+        place(ic, a.home[0] - 44 + k * 44, a.home[1] + 74, popScale(t, start, .35) * .62, 0, op);
       });
     });
     notes.forEach(g => place(g.node, g.at[0], g.at[1], popScale(t, g.s), g.rot * popScale(t, g.s), 1 - easeOut((t - T.cost[0] + .3) / .4)));

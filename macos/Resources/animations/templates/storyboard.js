@@ -132,7 +132,7 @@ TEMPLATES.storyboard = function (data, cues, duration) {
       const s = popScale(t, n.t) * (1 - out) * (1 - hide) * big;
       const dim = easeOut((t - n.dimT) / .5);
       const [x, y] = at(n);
-      place(n.node, x, y, s, n.kind === "sticker" ? n.rot * (1 - .3 * s) : 0, 1 - .78 * dim, popBlur(t, n.t));
+      place(n.node, x, y, s, n.kind === "sticker" ? n.rot * (1 - .3 * s) : 0, 1 - .78 * dim);
       if (dim > .01) n.node.style.filter += ` grayscale(${dim})`;
       if (n.label) {
         const below = (n.kind === "dot" ? 118 : 86) * big;

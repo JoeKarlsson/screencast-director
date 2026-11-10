@@ -5,10 +5,25 @@ import WebKit
 
 /// Renders the plan's animations to their cached clips with an offscreen WKWebView: the bundled
 /// Resources/animations page is driven frame by frame (init once, then seek(t)) and each snapshot is
-/// written to an H.264 clip. Graphics step at 12 fps, the handmade Vox look. Runs on the main actor and
+/// written to an H.264 clip. Graphics step at 12 fps, the handmade Vox look, each frame an average of
+/// snapshots for motion blur (`Animation.subframeCount`). Runs on the main actor and
 /// awaits WebKit, so the main queue stays free to deliver its callbacks.
 enum Animate {
   static let fps = 12
+
+  /// Defines motionProbe(): each element's on-screen box, in pixels. Two probes a moment apart tell
+  /// how far anything moved. Fades and lines drawing on don't count: blending two snapshots already
+  /// makes them smooth.
+  static let motionProbe = """
+    function motionProbe() {
+      const out = [];
+      for (const e of document.body.querySelectorAll("*")) {
+        const r = e.getBoundingClientRect();
+        out.push(r.x, r.y, r.width, r.height);
+      }
+      return out;
+    }
+    """
 
   /// Where the templates live: next to the app's director binary when bundled, else in the source tree.
   static var resources: URL {
@@ -85,7 +100,7 @@ enum Animate {
         throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
       do {
-        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;0")
+        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + Animate.motionProbe + "\n;0")
       } catch {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
@@ -118,21 +133,40 @@ enum Animate {
       guard writer.startWriting() else { throw writer.error ?? DirectorError("can't write \(tmp.path)") }
       writer.startSession(atSourceTime: .zero)
 
-      let frames = max(1, Int(((a.end - a.start) * Double(Animate.fps)).rounded()))
-      for f in 0..<frames {
-        let t = Double(f) / Double(Animate.fps)
+      let duration = a.end - a.start
+      let frames = max(1, Int((duration * Double(Animate.fps)).rounded()))
+      let bytes = width * height * 4
+      var sum = [UInt32](repeating: 0, count: bytes)
+      var pixels = [UInt8](repeating: 0, count: bytes)
+      func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
+        let result: Any?
         do {
-          _ = try await web.evaluateJavaScript("seek(\(t)); 0")
+          result = try await web.evaluateJavaScript("seek(\(t)); \(probe ? "motionProbe()" : "[]")")
         } catch {
           throw DirectorError("the \(a.template) template failed at \(t)s: \(error)")
         }
-        let image = try await snapshot()
+        guard let boxes = result as? [Double] else { throw DirectorError("the motion probe returned \(String(describing: result)) at \(t)s") }
+        return boxes
+      }
+      for f in 0..<frames {
+        // Motion blur: how far things move across the shutter decides how many snapshots to average.
+        let span = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 2)
+        let before = try await seek(span[0], probe: true), after = try await seek(span[1], probe: true)
+        let motion = before.count == after.count ? zip(before, after).map { abs($0 - $1) }.max() ?? 0 : .infinity
+        let times = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: Animation.subframeCount(motion: motion))
+        for i in sum.indices { sum[i] = 0 }
+        for t in times {
+          _ = try await seek(t)
+          try draw(try await snapshot(), into: &pixels)
+          for i in sum.indices { sum[i] &+= UInt32(pixels[i]) }
+        }
+        let count = UInt32(times.count)
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
         guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
         var buffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
         guard let buffer else { throw DirectorError("no pixel buffer") }
-        draw(image, into: buffer)
+        copyAverage(sum, count: count, into: buffer)
         adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f), timescale: CMTimeScale(Animate.fps)))
       }
       input.markAsFinished()
@@ -153,15 +187,30 @@ enum Animate {
       return cg
     }
 
-    func draw(_ image: CGImage, into buffer: CVPixelBuffer) {
+    /// Draws a snapshot into `pixels`: BGRA, `width` * 4 bytes a row.
+    func draw(_ image: CGImage, into pixels: inout [UInt8]) throws {
+      let (width, height) = (width, height)
+      try pixels.withUnsafeMutableBytes { raw in
+        guard let ctx = CGContext(
+          data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+          space: CGColorSpace(name: CGColorSpace.sRGB)!,
+          bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { throw DirectorError("can't draw the snapshot") }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      }
+    }
+
+    /// Writes the average of `count` summed snapshots into the clip's frame, row by row (the
+    /// buffer's rows may be padded).
+    func copyAverage(_ sum: [UInt32], count: UInt32, into buffer: CVPixelBuffer) {
       CVPixelBufferLockBaseAddress(buffer, [])
       defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-      let ctx = CGContext(
-        data: CVPixelBufferGetBaseAddress(buffer), width: width, height: height, bitsPerComponent: 8,
-        bytesPerRow: CVPixelBufferGetBytesPerRow(buffer), space: CGColorSpace(name: CGColorSpace.sRGB)!,
-        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
-      ctx.interpolationQuality = .high
-      ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      let out = CVPixelBufferGetBaseAddress(buffer)!.assumingMemoryBound(to: UInt8.self)
+      let stride = CVPixelBufferGetBytesPerRow(buffer), row = width * 4
+      for y in 0..<height {
+        for x in 0..<row { out[y * stride + x] = UInt8((sum[y * row + x] + count / 2) / count) }
+      }
     }
   }
 

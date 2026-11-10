@@ -231,6 +231,9 @@ ln -s "$TMP/elsewhere.png" "$P/.checks/link.png"
 expect_error "still refuses to write through a symlink" "symlink" "$DIRECTOR" still "$P" 30 "$P/.checks/link.png"
 expect_error "still without a frame number prints usage" "usage:" "$DIRECTOR" still "$P" x "$TMP/f.png"
 expect_error "an unknown preset prints usage" "usage:" "$DIRECTOR" still "$P" 30 "$TMP/f.png" --preset huge
+sheet=$("$DIRECTOR" contact-sheet "$P" "$P/.checks/sheet.png" 2>/dev/null)
+check "contact-sheet writes one labeled sheet for a short edit ($sheet, $(dims "$P/.checks/sheet.png"))" test "$sheet" = "$P/.checks/sheet.png" -a -s "$P/.checks/sheet.png"
+expect_error "contact-sheet refuses to write outside the project and temp" "refusing" "$DIRECTOR" contact-sheet "$P" "$HOME/sd-cli-sheet.png"
 
 "$DIRECTOR" gif "$P" "$TMP/clip.gif" --from 0 --to 2 --width 240 --fps 10 >/dev/null
 check "gif is the width asked for ($(dims "$TMP/clip.gif"))" test "$(dims "$TMP/clip.gif")" = "240x135"

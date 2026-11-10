@@ -4,11 +4,16 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Animations
+- Animations have real motion blur: stickers, cards and labels streak in the direction they pop in, while everything standing still stays sharp. It replaces the soft blur pop-ins used to fade in with. Existing animations re-render with it the next time their video builds, and frames that move take longer to render.
+
+
 ### Fixes
 - B-roll shot on a phone held sideways or upside down plays upright, instead of turned 90° and cropped.
 - A layout that runs to the end of the video holds through the last frame, instead of easing back to the default layout (and showing the screen) in the last half second.
 
 ### CLI and agents
+- `director contact-sheet <dir> <out.png>` puts a labeled frame from each cut, zoom, layout, title, B-roll, punch-in and animation beat into one image, to check a whole edit before rendering it. Claude Code's edit and animate skills look at it first.
 - Everything the app does can now be done from the terminal or by an agent ([docs/cli.md](docs/cli.md) maps each app action to its command).
   - `director draft` (and `sd draft`) makes the same first draft as the app: the plan, then your default profile, pause level and voice polish, face centering and lip sync. `sd auto` now uses it.
   - `director profiles` lists your profiles. `director profile` takes a saved profile's name as well as a folder, and `profile-save` saves a video's look.

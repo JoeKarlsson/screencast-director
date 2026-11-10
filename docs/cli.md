@@ -1,6 +1,6 @@
 # CLI
 
-The `sd` CLI runs the editing pipeline from the terminal on a recording made in the app, or one you import. `sd analyze`, `plan`, `draft`, `describe` and `render` run the Swift `director`, the same engine as the macOS app, rebuilding it first when its sources changed. Everything `sd` can't do (stills, publish, GIF, join, upload) is a `director` command; run `bin/director` (which rebuilds it when its sources changed) with no arguments for the list, and `bin/director validate <dir>` to find what's wrong with a plan.
+The `sd` CLI runs the editing pipeline from the terminal on a recording made in the app, or one you import. `sd analyze`, `plan`, `draft`, `describe` and `render` run the Swift `director`, the same engine as the macOS app, rebuilding it first when its sources changed. Everything `sd` can't do (stills, contact sheets, publish, GIF, join, upload) is a `director` command; run `bin/director` (which rebuilds it when its sources changed) with no arguments for the list, and `bin/director validate <dir>` to find what's wrong with a plan.
 
 ## Setup
 
