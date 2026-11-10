@@ -42,19 +42,21 @@ public enum Openverse {
   static let userAgent = "ScreencastDirector (macOS video editor)"
 
   /// The search request: credit-free licenses unless `allowCredit`, sounds under 30 s, 20 results
-  /// (the most an anonymous request gets).
-  public static func searchURL(_ media: Media, query: String, allowCredit: Bool) -> URL {
+  /// (the most an anonymous request gets). `fileExtension` narrows pictures to one type ("gif").
+  public static func searchURL(_ media: Media, query: String, allowCredit: Bool, fileExtension: String? = nil) -> URL {
     var c = URLComponents(url: api.appendingPathComponent("\(media.rawValue)/"), resolvingAgainstBaseURL: false)!
     let licenses = noCredit.union(allowCredit ? creditOK : []).sorted().joined(separator: ",")
     c.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "license", value: licenses), URLQueryItem(name: "page_size", value: "20")]
     if media == .sounds { c.queryItems!.append(URLQueryItem(name: "length", value: "shortest")) }
+    if let fileExtension { c.queryItems!.append(URLQueryItem(name: "extension", value: fileExtension)) }
     return c.url!
   }
 
   /// Results the app can use: sounds in a format the library plays, pictures B-roll can show.
-  public static func search(_ media: Media, query: String, allowCredit: Bool) async throws -> [Item] {
+  public static func search(_ media: Media, query: String, allowCredit: Bool, fileExtension: String? = nil) async throws -> [Item] {
     struct Page: Decodable { var results: [Item] }
-    let page = try JSONDecoder().decode(Page.self, from: try await get(searchURL(media, query: query, allowCredit: allowCredit)))
+    let url = searchURL(media, query: query, allowCredit: allowCredit, fileExtension: fileExtension)
+    let page = try JSONDecoder().decode(Page.self, from: try await get(url))
     return page.results.filter { usable($0, media) }
   }
 
@@ -147,8 +149,8 @@ public enum Openverse {
 
   /// The file already downloaded for this id, from the folder's license record (file and id are
   /// the first two fields, neither of which can hold a quote).
-  static func recorded(_ id: String, in folder: URL) -> String? {
-    guard let text = try? String(contentsOf: folder.appendingPathComponent(licenseFile), encoding: .utf8) else { return nil }
+  static func recorded(_ id: String, in folder: URL, file: String = licenseFile) -> String? {
+    guard let text = try? String(contentsOf: folder.appendingPathComponent(file), encoding: .utf8) else { return nil }
     for line in text.split(separator: "\n") {
       let fields = line.split(separator: "\"", omittingEmptySubsequences: false)
       if fields.count > 3, fields[3] == id { return String(fields[1]) }

@@ -42,6 +42,9 @@ let usage = """
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director stock    <dir> sounds|images <query> [--credit-ok]   search Openverse (CC0 and public domain; --credit-ok adds CC BY)
     director stock    <dir> get-sound|get-image <id>...   a sound into My Sounds/Openverse, a picture into broll/
+    director stock    <dir> videos <query> [--credit-ok] [--source pexels,nasa,commons,archive]   video B-roll (Pexels needs PEXELS_API_KEY)
+    director stock    <dir> gifs <query> [--credit-ok]   GIFs: Openverse, plus KLIPY reaction GIFs in a personal video (KLIPY_API_KEY)
+    director stock    <dir> get-video|get-gif <id>...   into broll/ as an MP4 (GIFs loop), logged in broll/stock-licenses.csv
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
     director check-words <dir> <export.mp4>        transcribe a finished export and list kept words it's missing (clipped at a cut) and extra words it has (a false start left in)
     director provenance <video.mp4> [--plan]       what made an export: app version, date, and what plan.json beside it has changed since; --plan prints the plan it rendered
@@ -104,7 +107,7 @@ func planFor(_ project: Project) throws -> Plan {
   if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow", "--source"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -552,9 +555,37 @@ do {
     }
     for b in report.black { print(String(format: "black for %.2f s at %@", b.length, fmtTime(b.start))) }
   case "stock":
+    let sourceFlag = args.firstIndex(of: "--source").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
     let rest = positional.dropFirst(3).filter { $0 != "--credit-ok" }
     guard positional.count >= 4, !rest.isEmpty else { fail(usage) }
+    let allowCredit = args.contains("--credit-ok")
+    func isWork() throws -> Bool { try ProfileLibrary().isWork(try Plan.load(try Project.load(dir).planURL).profile) }
     switch positional[2] {
+    case "videos", "gifs":
+      var sources = positional[2] == "videos" ? Stock.videoSources : Stock.gifSources(work: try isWork())
+      if let sourceFlag {
+        let picked = sourceFlag.split(separator: ",").map { Stock.Source(rawValue: String($0)) }
+        guard picked.allSatisfy({ $0.map(sources.contains) == true }) else {
+          fail("--source takes \(sources.map(\.rawValue).joined(separator: ", ")) here")
+        }
+        sources = picked.compactMap { $0 }
+      }
+      let (items, problems) = await Stock.search(sources, query: rest.joined(separator: " "), allowCredit: allowCredit)
+      for item in items {
+        let size = item.width.map { "\($0)x\(item.height ?? 0), " } ?? ""
+        let length = item.seconds.map { String(format: "%.0f s, ", $0) } ?? ""
+        print("\(item.id)  \(item.title)  [\(size)\(length)\(item.license), \(item.creator.isEmpty ? "unknown" : item.creator)]")
+        print("    \(item.file ?? item.page)")
+      }
+      for p in problems { FileHandle.standardError.write(Data("skipped \(p)\n".utf8)) }
+      if items.isEmpty && !problems.isEmpty { exit(1) }
+    case "get-video", "get-gif":
+      let work = try isWork()
+      for id in rest {
+        let item = try await Stock.item(id, allowCredit: true)
+        print(try await Stock.add(item, project: dir, work: work) { FileHandle.standardError.write(Data("\($0)\n".utf8)) })
+        if item.needsCredit { print("    credit in the description: \(item.title) by \(item.creator), \(item.license)") }
+      }
     case "sounds", "images":
       let media: Openverse.Media = positional[2] == "sounds" ? .sounds : .images
       for item in try await Openverse.search(media, query: rest.joined(separator: " "), allowCredit: args.contains("--credit-ok")) {

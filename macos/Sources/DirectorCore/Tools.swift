@@ -20,6 +20,11 @@ public enum Tools: Sendable {
     return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
   }
 
+  /// Homebrew's ffmpeg, which turns GIFs and WebM stock clips into MP4 B-roll.
+  public static var ffmpeg: URL? {
+    ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].map(URL.init(fileURLWithPath:)).first { FileManager.default.isExecutableFile(atPath: $0.path) }
+  }
+
   /// Best installed model, most accurate first.
   public static var model: URL? {
     let dirs = [

@@ -1004,6 +1004,7 @@ struct Checks {
     sceneDrawingChecks()
     scribbleChecks()
     audioChecks()
+    stockChecks()
     editorActionChecks()
     recordedBrollChecks()
     reorderChecks()

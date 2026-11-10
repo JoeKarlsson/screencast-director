@@ -5,7 +5,7 @@ import Foundation
 // Audio processing: music ducking, the gain tap and voice cleanup. Called from Checks.main; run with macos/test.sh.
 
 /// Runs async work from the synchronous checks.
-private func blocking<T>(_ body: @escaping () async throws -> T) -> Result<T, Error> {
+func blocking<T>(_ body: @escaping () async throws -> T) -> Result<T, Error> {
   var result: Result<T, Error>?
   let done = DispatchSemaphore(value: 0)
   Task.detached {
