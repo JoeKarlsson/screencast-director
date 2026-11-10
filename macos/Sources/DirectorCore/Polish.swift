@@ -160,7 +160,7 @@ public enum Polish {
             text: "camera stops for \(fmtSeconds(gap)) s at out \(fmtTime(Double(r.b) / fps)) and moves again: a stutter. Join the two moves (one zoom to the final framing) or hold a second or more between them"))
       }
       // A reversal: the pan swings back the way it came while both are real moves, not a spring settling.
-      for g in (r.a + 1)...max(r.a + 1, r.b) where g <= r.b {
+      for g in stride(from: r.a + 1, through: r.b, by: 1) {
         let v0 = speeds[g - 1], v1 = speeds[g]
         if v0.dx * v1.dx + v0.dy * v1.dy < 0, v0.pan > 0.3 * peakPan, v1.pan > 0.3 * peakPan, peakPan > 0.5 {
           out.append(

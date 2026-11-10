@@ -51,9 +51,11 @@ extension Plan {
 
     // 2. Cut long silences inside real-time segments, leaving `keep` on each side, or after a
     // sentence a breath (`sentenceGap`, `sectionGap` for a long pause) with most of it after the words.
-    let sorted = words.filter { !$0.text.isEmpty }.sorted { $0.end < $1.end }
+    // The word said before a pause is the last one to start before it: Whisper stretches a word's
+    // end into the silence, so the last one to end could be the sentence before.
+    let sorted = words.filter { !$0.text.isEmpty }.sorted { $0.start < $1.start }
     func cutMark(_ a: Double, _ b: Double) -> (Double, Double) {
-      let before = sorted.last { $0.end <= a + 0.15 }
+      let before = sorted.last { $0.start < a }
       guard let last = before?.text.trimmingCharacters(in: .whitespaces).last, ".?!".contains(last) else {
         return (a + level.keep, b - level.keep)
       }

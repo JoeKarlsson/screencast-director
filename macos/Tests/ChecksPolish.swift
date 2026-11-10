@@ -24,6 +24,15 @@ func polishChecks() {
   expect(abs(kept(4, 4.9) - 0.45) < 0.01, "a pause after a sentence keeps a 0.45 s breath (\(kept(4, 4.9)))")
   expect(abs(kept(6.5, 9) - 0.7) < 0.01, "a long pause after a sentence lands softly in 0.7 s (\(kept(6.5, 9)))")
   expect(paced.segments.contains { $0.start <= 4 && $0.end >= 4.33 }, "the breath sits after the sentence, not before the next")
+  // Whisper stretched "But" into the pause: it's still a pause mid-sentence, not after "years."
+  var stretched = buildPlan(pauseProject)
+  stretched.segments = [Segment(start: 0, end: 6, speed: 1)]
+  let quiet = [(2.2, 3.2)]
+  stretched.retrimPauses(
+    words: [Word(text: " years.", start: 1, end: 1.9), Word(text: " But", start: 2.0, end: 2.6), Word(text: " now", start: 3.2, end: 4)],
+    level: .normal, silences: quiet)
+  let left = stretched.segments.reduce(0.0) { $0 + max(0, min($1.end, 3.2) - max($1.start, 2.2)) }
+  expect(abs(left - 0.24) < 0.01, "a pause after a stretched word mid-sentence keeps only the edges (\(left))")
 
   // Move time follows distance: one octave is the transition, a nudge is quicker, a trip slower.
   expect(abs(cameraMoveFactor(from: [1, 0.5, 0.5], to: [2, 0.5, 0.5]) - 1) < 1e-9, "a 1x-2x zoom takes the transition")
