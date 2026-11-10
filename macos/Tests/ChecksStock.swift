@@ -1,4 +1,6 @@
+import AVFoundation
 import Foundation
+import ImageIO
 
 /// Stock video and GIFs: each library's answer read into items (captured shapes, trimmed), only
 /// licenses a video can use, the file picked to download, and no KLIPY GIF in a work video.
@@ -69,9 +71,32 @@ func stockChecks() {
     expect(false, "a KLIPY GIF is refused in a work video")
   }
 
-  let gifArgs = Stock.ffmpegArguments(URL(fileURLWithPath: "/a.gif"), URL(fileURLWithPath: "/a.mp4"), loop: true)
-  expect(gifArgs.prefix(2) == ["-stream_loop", "9"] && gifArgs.contains("30"), "a GIF loops ten times, at most 30 s")
+  // A one-frame GIF becomes 30 s of video, not a clip too short to show.
+  let gifDir = FileManager.default.temporaryDirectory.appendingPathComponent("stock-gif-\(UUID())")
+  defer { try? FileManager.default.removeItem(at: gifDir) }
+  do {
+    try FileManager.default.createDirectory(at: gifDir, withIntermediateDirectories: true)
+    let gif = gifDir.appendingPathComponent("still.gif"), mp4 = gifDir.appendingPathComponent("still.mp4")
+    let ctx = CGContext(data: nil, width: 16, height: 16, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    let dest = CGImageDestinationCreateWithURL(gif as CFURL, "com.compuserve.gif" as CFString, 1, nil)!
+    CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+    expect(CGImageDestinationFinalize(dest), "a one-frame GIF is written")
+    try Stock.convertToMP4(gif, to: mp4, loop: true)
+    let seconds = try blocking { try await AVURLAsset(url: mp4).load(.duration).seconds }.get()
+    expect(abs(seconds - Stock.gifLongest) < 0.5, "a one-frame GIF loops into \(Stock.gifLongest) s of video (\(seconds) s)")
+  } catch {
+    expect(false, "converting a one-frame GIF: \(error)")
+  }
   expect(!Stock.ffmpegArguments(URL(fileURLWithPath: "/a.webm"), URL(fileURLWithPath: "/a.mp4"), loop: false).contains("-stream_loop"), "a video plays once")
+
+  // A network error never shows the URL, which carries KLIPY's key.
+  let offline = blocking { try await Stock.get(URL(string: "http://127.0.0.1:9/secret-key/gifs")!) }
+  if case .failure(let error) = offline {
+    expect(!"\(error)".contains("secret-key") && error.localizedDescription.contains("127.0.0.1"), "a network error names the host only (\(error))")
+  } else {
+    expect(false, "a request to a closed port fails")
+  }
   expect(Stock.key(.pexels, env: ["PEXELS_API_KEY": "k"]) == "k" && Stock.key(.nasa, env: [:]) == nil, "keys come from the environment; keyless sources have none")
   expect(Openverse.searchURL(.images, query: "x", allowCredit: false, fileExtension: "gif").query?.contains("extension=gif") == true, "Openverse GIF search asks for GIFs")
 }

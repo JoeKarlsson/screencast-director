@@ -367,9 +367,8 @@ public enum Stock {
 
   // MARK: download
 
-  /// Plays a GIF this many times over (capped at `gifLongest` seconds), since a B-roll clip shorter
-  /// than its slot holds its last frame.
-  static let gifLoops = 10
+  /// A GIF loops for this long, since a B-roll clip shorter than its slot holds its last frame (and
+  /// a one-frame GIF would be too short to show at all).
   static let gifLongest = 30.0
 
   /// Downloads an item into the project's broll/ as an MP4 and records its license. A GIF is
@@ -394,7 +393,8 @@ public enum Stock {
     log("Downloading \(item.title)...")
     try await download(url, to: raw)
     let out = temp.appendingPathComponent("\(fileName(item.title, fallback: item.sourceID)).mp4")
-    let isGIF = ext == "gif"
+    // KLIPY's reactions come as MP4s but are GIFs all the same: they loop too.
+    let isGIF = ext == "gif" || item.source == .klipy
     if ["mp4", "m4v", "mov"].contains(ext) && !isGIF {
       try FileManager.default.moveItem(at: raw, to: out)
     } else {
@@ -425,9 +425,9 @@ public enum Stock {
   }
 
   /// ffmpeg's arguments for an H.264 MP4 B-roll can play: even dimensions, no sound, and a GIF
-  /// looped `gifLoops` times up to `gifLongest` seconds.
+  /// looped for `gifLongest` seconds.
   static func ffmpegArguments(_ input: URL, _ output: URL, loop: Bool) -> [String] {
-    (loop ? ["-stream_loop", "\(gifLoops - 1)"] : []) + ["-y", "-v", "error", "-i", input.path]
+    (loop ? ["-stream_loop", "-1"] : []) + ["-y", "-v", "error", "-i", input.path]
       + (loop ? ["-t", "\(Int(gifLongest))"] : [])
       + ["-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", output.path]
   }
@@ -472,7 +472,7 @@ public enum Stock {
     var request = URLRequest(url: url)
     request.setValue(Openverse.userAgent, forHTTPHeaderField: "User-Agent")
     for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let (data, response) = try await withoutURL(url) { try await URLSession.shared.data(for: request) }
     try check(response, url: url, body: data)
     return data
   }
@@ -481,9 +481,16 @@ public enum Stock {
   static func download(_ url: URL, to file: URL) async throws {
     var request = URLRequest(url: url)
     request.setValue(Openverse.userAgent, forHTTPHeaderField: "User-Agent")
-    let (temp, response) = try await URLSession.shared.download(for: request)
+    let (temp, response) = try await withoutURL(url) { try await URLSession.shared.download(for: request) }
     try check(response, url: url, body: nil)
     try FileManager.default.moveItem(at: temp, to: file)
+  }
+
+  /// A network error names the host only: URLError carries the whole URL, and KLIPY's has the key in it.
+  static func withoutURL<T>(_ url: URL, _ body: () async throws -> T) async throws -> T {
+    do { return try await body() } catch let e as URLError {
+      throw DirectorError("couldn't reach \(url.host ?? "the server"): \(e.code == .notConnectedToInternet ? "no internet connection" : "network error \(e.code.rawValue)")")
+    }
   }
 
   static func check(_ response: URLResponse, url: URL, body: Data?) throws {
