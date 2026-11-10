@@ -292,6 +292,20 @@ function drawPackets(t) {
   packetLines = [];
 }
 const packetIndex = new Map();
+// How strongly a packet is arriving at the end of path p right now (1 on arrival, fading over about
+// a quarter second), so a node can pop when data reaches it. 0 before its packets run.
+function arrivalPulse(p, t) {
+  if (!packetIndex.has(p)) return 0;
+  const i = packetIndex.get(p);
+  return Math.max(...[0, .5].map(k => Math.exp(-(((t * .85 + i * .37 + k) % 1) / .85) * 9)));
+}
+// The point where a line from a to b should stop: the edge of a box w by h centered on b, plus a gap.
+function edgePoint(a, b, w, h, gap = 16) {
+  const dx = a[0] - b[0], dy = a[1] - b[1], L = Math.hypot(dx, dy) || 1;
+  const k = Math.min(w / 2 / (Math.abs(dx) || 1e-6), h / 2 / (Math.abs(dy) || 1e-6));
+  const d = Math.min(L * .45, k * L + gap);
+  return [b[0] + dx / L * d, b[1] + dy / L * d];
+}
 
 function heading(text, highlight) {
   const i = highlight ? text.indexOf(highlight) : -1;

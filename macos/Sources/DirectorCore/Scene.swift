@@ -200,6 +200,9 @@ public final class Scene: @unchecked Sendable {
     }
   }
 
+  /// How long a portrait animation's split takes to ease in and out, at least.
+  static let animationSplitSeconds = 1.1
+
   /// Layout changes as eased moves between each mode's boxes, centered on the change.
   static func layoutSteps(_ plan: Plan, _ ranges: [OutLayout], frames: Int, style: MotionStyle) -> EasedSteps {
     var boxes: [LayoutMode: [Double]] = [:]
@@ -218,6 +221,12 @@ public final class Scene: @unchecked Sendable {
       edges.insert(l.startF)
       edges.insert(l.endF)
     }
+    // In portrait an animation's split eases in from the frame the animation starts and out to the
+    // frame it ends, slower and in-out: centered on the cut, the card showed the screen recording for
+    // a moment first, and the snappy ease dropped the face to the bottom half in a tenth of a second.
+    let animated = socialTop(plan) == nil ? [] : plan.animationList.flatMap { srcRangeToOut(mapPlan(plan), $0.start, $0.end, fps: plan.output.fps) }
+    let animDur = max(dur, Scene.animationSplitSeconds * Double(plan.output.fps))
+    let animEase = Ease.named("cinematic")!
     // The video opens in whatever layout covers its first frame, and a range running to the last
     // frame stays put: no layout change eases in at frame 0 or out at the end.
     var changes: [EasedSteps.Change] = []
@@ -226,7 +235,13 @@ public final class Scene: @unchecked Sendable {
       let m = mode(f)
       guard m != current else { continue }
       current = m
-      changes.append(.init(at: f - dur / 2, to: boxes[m]!, frames: dur, ease: style.ease))
+      if animated.contains(where: { abs($0.startF - f) < 0.5 }) {
+        changes.append(.init(at: f, to: boxes[m]!, frames: animDur, ease: animEase))
+      } else if animated.contains(where: { abs($0.endF - f) < 0.5 }) {
+        changes.append(.init(at: f - animDur, to: boxes[m]!, frames: animDur, ease: animEase))
+      } else {
+        changes.append(.init(at: f - dur / 2, to: boxes[m]!, frames: dur, ease: style.ease))
+      }
     }
     return EasedSteps(initial: boxes[mode(0)]!, changes: changes)
   }

@@ -81,7 +81,10 @@ TEMPLATES.storyboard = function (data, cues, duration) {
       const ring = el("ringmark", "");
       // Labels are text placed by their corner: no burst behind them.
       const burst = kind === "label" ? null : burstMark(node);
-      nodes[s.id] = { s, node, label, ring, burst, kind, t: s.t, board: s.board, dimT: Infinity, hideT: Infinity, hlT: Infinity, rot: (rand(seed++)() - .5) * 10 };
+      // Its size, so lines stop at its edge; a text label is centered on its spot like the rest.
+      const w = node.offsetWidth || (kind === "dot" ? 190 : kind === "card" ? 330 : 120), h = node.offsetHeight || (kind === "card" ? 150 : kind === "dot" ? 190 : 120);
+      if (kind === "label") node.style.margin = `${-h / 2}px 0 0 ${-w / 2}px`;
+      nodes[s.id] = { s, node, label, ring, burst, kind, w, h, t: s.t, board: s.board, dimT: Infinity, hideT: Infinity, hlT: Infinity, rot: (rand(seed++)() - .5) * 10 };
     }
   });
   steps.forEach(s => {
@@ -164,7 +167,10 @@ TEMPLATES.storyboard = function (data, cues, duration) {
       const a = nodes[l.s.from], b = nodes[l.s.to];
       const out = gone(l.s.board, t), dim = Math.max(easeOut((t - a.dimT) / .5), easeOut((t - b.dimT) / .5));
       const hidden = t >= Math.min(a.hideT, b.hideT);
-      const curve = handCurve(at(a), at(b), t, l.seed, l.seed % 2 ? 30 : -30, tangleOf(l.s.board, t) * (l.seed % 3 === 0 ? 1.1 : .8));
+      // From edge to edge, so lines (and their packets) never run under a card or through a label.
+      const big = STAGE.reflow ? 1.7 : 1;
+      const from = edgePoint(at(b), at(a), a.w * big, a.h * big), to = edgePoint(at(a), at(b), b.w * big, b.h * big);
+      const curve = handCurve(from, to, t, l.seed, l.seed % 2 ? 30 : -30, tangleOf(l.s.board, t) * (l.seed % 3 === 0 ? 1.1 : .8));
       drawPath(l.path, curve, hidden ? 0 : (t - l.s.t) / .45, (1 - .78 * dim) * (1 - out));
       if (l.s.dashed) {
         // Dashes and the draw-on share stroke-dasharray, so a dashed line fades in instead.
@@ -180,8 +186,16 @@ TEMPLATES.storyboard = function (data, cues, duration) {
       const out = gone(n.board, t);
       const hide = easeOut((t - n.hideT) / .3);
       const dim = easeOut((t - n.dimT) / .5);
-      const [x, y] = at(n);
-      land(n.node, x, y, t, n.t, (1 - out) * (1 - hide) * big, n.kind === "sticker" ? n.rot : n.rot * .4, 1 - .78 * dim);
+      // Alive once it's down: a slow float, a pop and a flash when a packet reaches it, and a dip
+      // (smaller, dimmer) while a newer node on the board takes the focus.
+      const floatY = 6 * Math.sin(t * 1.7 + n.rot) * clamp((t - n.t - .4) / .5);
+      const pulse = Math.max(0, ...lines.filter(l => l.s.to === n.s.id).map(l => arrivalPulse(l.path, t)));
+      const dip = Math.max(0, ...Object.values(nodes).filter(o => o !== n && o.board === n.board && o.t > n.t)
+        .map(o => { const u = (t - o.t) / .8; return u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0; }));
+      const [x, y0] = at(n), y = y0 + floatY;
+      land(n.node, x, y, t, n.t, (1 - out) * (1 - hide) * big * (1 + .09 * pulse - .08 * dip), n.kind === "sticker" ? n.rot : n.rot * .4,
+        (1 - .78 * dim) * (1 - .3 * dip));
+      if (pulse > .02) n.node.style.filter = `brightness(${1 + .35 * pulse})`;
       drawIcons(n.node, t, n.t + .12);
       drawBurst(n.burst, x, y, t, n.t, (n.kind === "card" ? 1.05 : .8) * Math.sqrt(big), n.rot);
       if (dim > .01) n.node.style.filter += ` grayscale(${dim})`;

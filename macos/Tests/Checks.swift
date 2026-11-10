@@ -824,6 +824,25 @@ struct Checks {
     expect(openerSteps.at(0) == full && openerSteps.at(299) == full, "full camera from the first frame to the last")
     expect(openerSteps.at(130) != full, "the middle still eases to pip")
 
+    // In portrait, an animation's split starts easing on the animation's first frame (the card never
+    // shows the screen first) and takes 1.1 s, not the snappy 0.8 s centered on the cut.
+    var portrait = opener
+    portrait.output = Plan.Output(width: 1080, height: 1920, fps: 30)
+    portrait.defaultLayout = LayoutMode.camera
+    portrait.segments = [Segment(start: 0, end: 20, speed: 1)]
+    portrait.animations = [Animation(start: 5, end: 10, template: "storyboard", data: .object([:]))]
+    let splitSteps = Scene.layoutSteps(portrait, layoutsToOut(portrait, mapPlan(portrait)), frames: 600, style: MotionStyle.named("snappy"))
+    let fullBoxes = layoutBoxes(LayoutMode.camera, plan: portrait), pipBoxes = layoutBoxes(LayoutMode.pip, plan: portrait)
+    let camVec: [Double] = fullBoxes.screen.vec + fullBoxes.cam.vec
+    let splitVec: [Double] = pipBoxes.screen.vec + pipBoxes.cam.vec
+    let atStart: [Double] = splitSteps.at(150), partway: [Double] = splitSteps.at(160), settled: [Double] = splitSteps.at(183)
+    let beforeEnd: [Double] = splitSteps.at(267), atEnd: [Double] = splitSteps.at(300)
+    expect(atStart == camVec, "the face is still full frame on the animation's first frame")
+    expect(partway != camVec && partway != splitVec, "a third of a second in, it's on its way")
+    expect(settled == splitVec, "and has settled in the split 1.1 s after the animation starts")
+    expect(beforeEnd == splitVec, "it holds the split until the animation's last 1.1 s")
+    expect(atEnd == camVec, "and is back to full frame as the animation ends")
+
     // Full camera over a demo is flagged.
     var hide = p
     hide.source.camera = nil
