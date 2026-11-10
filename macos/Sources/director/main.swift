@@ -37,6 +37,8 @@ let usage = """
     director repeat   <dir> <start> <end> [--before <t>]   play a source-time range again first (or before t), keeping it in its place too
     director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
+    director stock    <dir> sounds|images <query> [--credit-ok]   search Openverse (CC0 and public domain; --credit-ok adds CC BY)
+    director stock    <dir> get-sound|get-image <id>...   a sound into My Sounds/Openverse, a picture into broll/
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
     director scan     <video.mp4>                   in a finished video: shots under a second between two others, hitches (a repeated frame mid-move) and black frames
     director gif      <dir> [out.gif] [--from s] [--to s] [--width 720] [--fps 12] [--preset id]   output seconds
@@ -457,6 +459,28 @@ do {
       print("hitch at \(fmtTime(r.start)): \(r.count) repeated frame(s) while the picture moves\(cadence)")
     }
     for b in report.black { print(String(format: "black for %.2f s at %@", b.length, fmtTime(b.start))) }
+  case "stock":
+    let rest = positional.dropFirst(3).filter { $0 != "--credit-ok" }
+    guard positional.count >= 4, !rest.isEmpty else { fail(usage) }
+    switch positional[2] {
+    case "sounds", "images":
+      let media: Openverse.Media = positional[2] == "sounds" ? .sounds : .images
+      for item in try await Openverse.search(media, query: rest.joined(separator: " "), allowCredit: args.contains("--credit-ok")) {
+        let size = media == .sounds ? String(format: "%.1f s", Double(item.duration ?? 0) / 1000) : "\(item.width ?? 0)x\(item.height ?? 0)"
+        print("\(item.id)  \(item.title ?? "")  [\(size), \(item.license.uppercased()), \(item.creator ?? "unknown") on \(item.source ?? "?")]")
+        print("    \(item.url)")
+      }
+    case "get-sound", "get-image":
+      let media: Openverse.Media = positional[2] == "get-sound" ? .sounds : .images
+      if media == .images { _ = try Project.load(dir) }
+      for id in rest {
+        let item = try await Openverse.item(media, id: id)
+        print(media == .sounds ? try await Openverse.addSound(item) : try await Openverse.addImage(item, project: dir))
+        if item.needsCredit { print("    credit in the description: \(item.attribution ?? "")") }
+      }
+    default:
+      fail(usage)
+    }
   case "upload":
     // args[1] is the file here, not a project folder.
     // The S3_* env vars when set, else the bucket set up in the app's Settings > Sharing.

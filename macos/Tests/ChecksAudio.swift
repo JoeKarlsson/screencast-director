@@ -77,6 +77,24 @@ private func readMono(_ url: URL) throws -> [Float] {
 }
 
 func audioChecks() {
+  // Openverse: only licenses a video can use, names the library and plan paths can hold, and the
+  // license record that finds an id already downloaded.
+  let query = Openverse.searchURL(.sounds, query: "ui pop", allowCredit: false).query ?? ""
+  expect(query.contains("license=cc0,pdm&") && query.contains("length=shortest"), "Openverse sound search asks for credit-free short sounds (\(query))")
+  expect(Openverse.searchURL(.images, query: "x", allowCredit: true).query?.contains("license=by,cc0,pdm") == true, "--credit-ok adds CC BY only")
+  var pop = Openverse.Item(id: "130a70f2-4fa5-4600-8bca-eeec3c82edd3", title: "Pop: high / A.wav", license: "by", url: "https://x/p.mp3", filetype: "mp3")
+  expect(Openverse.fileName(pop, .sounds) == "Openverse - Pop high A (CC BY).mp3", "a sound's name drops / and : and flags CC BY (\(Openverse.fileName(pop, .sounds)))")
+  pop.license = "cc0"
+  expect(Openverse.fileName(pop, .images) == "Pop high A.mp3", "a picture keeps its title")
+  let licenseDir = FileManager.default.temporaryDirectory.appendingPathComponent("openverse-\(UUID())")
+  try! FileManager.default.createDirectory(at: licenseDir, withIntermediateDirectories: true)
+  pop.title = "Say \"pop\""
+  try! Openverse.record(pop, file: "a.mp3", in: licenseDir)
+  try! Openverse.record(Openverse.Item(id: "00000000-0000-0000-0000-000000000001", license: "cc0", url: "u"), file: "b.mp3", in: licenseDir)
+  expect(Openverse.recorded(pop.id, in: licenseDir) == "a.mp3", "the license record finds a downloaded id")
+  expect(Openverse.recorded("00000000-0000-0000-0000-000000000001", in: licenseDir) == "b.mp3", "rows append under one header")
+  try? FileManager.default.removeItem(at: licenseDir)
+
   // New Recording's mic check: quiet only after 3 s with nothing over -55 dB; any sound resets it.
   var watch = SilenceWatch(start: 10)
   expect(!watch.isSilent(at: 12.9) && watch.isSilent(at: 13), "a mic that hears nothing is flagged after 3 s, not before")

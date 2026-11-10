@@ -33,6 +33,7 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 | Camera › Center on face, Lip sync | `director frame-camera`, `sync-camera` |
 | Apply a profile, Save This Look as a Profile | `director profile <dir> <name>`, `profile-save <dir> <name> [--music] [--voice] [--camera]`, `profiles` |
 | Add B-roll, Choose LUT, Music File, logo, font | `director add <dir> broll\|lut\|music\|logo\|font <file>`, then use the printed path in `plan.json` |
+| More sound effects and pictures from Openverse | `director stock <dir> sounds\|images <query> [--credit-ok]`, then `stock <dir> get-sound\|get-image <id>...`; sounds land in My Sounds › Openverse, pictures in `broll/`, each logged in `openverse-licenses.csv` |
 | Animation template: freeze, Update Template, Save to My Templates | `director template <dir> freeze\|update\|save <name>` |
 | Export, clips, GIF, captions and thumbnails | `director render [--preset id\|--clip name\|--clips]`, `gif`, `publish` |
 | Upload and Copy Link | `director upload <file>` (uses Settings › Sharing; macOS asks once to let it read the keys) |

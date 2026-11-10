@@ -49,6 +49,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Rendering an animation from the CLI while the app has the same video open no longer breaks either render. Each one cleaned up the other's in-progress file, and the app could hang.
 
 ### Sound and music
+- `director stock` searches Openverse for sound effects (under 30 seconds, mostly Freesound) and pictures (Wikimedia, Flickr and others), CC0 and public domain only unless you add `--credit-ok` for CC BY. Downloaded sounds show up in the sound picker under Openverse; pictures go into the video's `broll/`. Each one's license and credit line is saved in `openverse-licenses.csv` next to it, for a Content ID dispute or the description.
 - Work-only sounds and music: files in `Work/Sounds` and `Work/Music` (in the support folder) are listed, and can be built into a video, only when its profile has `"work": true` in its profile.json. A video with another profile that uses one fails `director validate` and won't render. Applying a profile now records its name in the plan as `profile`.
 
 ### Recording
