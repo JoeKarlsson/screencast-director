@@ -74,7 +74,7 @@ enum Animate {
   static let textProbe = """
     function textProbe() {
       const out = [], k = innerHeight / 1080;
-      for (const e of document.querySelectorAll("#stage *")) {
+      for (const e of document.querySelectorAll("#stage *, #sticker *")) {
         if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
         let o = 1;
         for (let n = e; n && n !== document.body; n = n.parentElement) {
@@ -164,7 +164,10 @@ enum Animate {
     for (i, a, path) in todo {
       // One page while the size and transparency stay the same: each holds a window and a WebKit process.
       let size = plan.animationOutput(a)
-      if page == nil || page!.width != size.width || page!.height != size.height || page!.transparent != a.isOverlay { page = Page(plan, a) }
+      // A sticker's page is resized to its content, so it's never reused.
+      if page == nil || a.sticker != nil || page!.width != size.width || page!.height != size.height || page!.transparent != a.isOverlay {
+        page = Page(plan, a)
+      }
       let page = page!
       let started = Date()
       let (pops, overlaps) = try await page.render(a, index: i, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
@@ -245,7 +248,9 @@ enum Animate {
   final class Page: NSObject, WKNavigationDelegate {
     let web: WKWebView
     let window: NSWindow
-    let width: Int, height: Int
+    let width: Int
+    /// A sticker's clip is cut to its content's height once the template has laid it out.
+    var height: Int
     /// An overlay's page: nothing painted behind the template, and a clip with alpha.
     let transparent: Bool
     var loading: CheckedContinuation<Void, Error>?
@@ -307,6 +312,14 @@ enum Animate {
         _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
         throw DirectorError("the \(a.template) template didn't start: \(error)")
+      }
+      if a.sticker != nil {
+        // The sticker's clip is its content's size, so the border hugs it with no empty paper: the
+        // snapshots take the top of the page (resizing the view instead left them zoomed in).
+        guard let h = try await web.evaluateJavaScript("stickerHeight()") as? Double, h >= 2 else {
+          throw DirectorError("the \(a.template) template has nothing to show as a sticker (no #sticker element)")
+        }
+        height = min(width * 2, Int((h / 2).rounded(.up)) * 2)
       }
 
       // One temp file per process: the app and the CLI can render the same clip at once (same
@@ -488,6 +501,7 @@ enum Animate {
     if let t = look?.animationTheme { config["theme"] = t }
     if plan.animationSafeTop(a) > 0 { config["safeTop"] = plan.animationSafeTop(a) }
     if a.isOverlay { config["overlay"] = true }
+    if a.sticker != nil { config["sticker"] = true }
     if let name = a.lottieFile {
       guard let url = sources.lottie(name) else {
         throw DirectorError("no Lottie file \"\(name)\" in the video's animations/lottie/ folder, the personal library or the app")

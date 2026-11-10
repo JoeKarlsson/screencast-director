@@ -1,0 +1,16 @@
+{
+  "name": "note",
+  "title": "Sticker Note",
+  "summary": "A sticker over the video, the same as a meme sticker: a big word or number with a crayon scribble drawn around it, a word beside it, a line under it, an optional logo. Set its sticker position (x, y, w); it pops on and off like every sticker.",
+  "length": 2.5,
+  "fields": [
+    { "key": "big", "label": "Big word or number", "type": "text", "help": "The scribble goes around this." },
+    { "key": "text", "label": "Beside it", "type": "text" },
+    { "key": "small", "label": "Line under it", "type": "text" },
+    { "key": "mark", "label": "Scribble", "type": "text", "help": "oval, underline, burst or none" }
+  ],
+  "cues": [
+    { "key": "mark", "label": "Scribble draws on", "at": 0.45 }
+  ],
+  "data": { "big": "3–4", "text": "years", "small": "and still holding up", "mark": "oval" }
+}

@@ -89,7 +89,7 @@ public enum Polish {
   /// Output frames where the screen isn't what the viewer sees: full camera, or a full-frame animation.
   static func screenHidden(_ scene: Scene, _ plan: Plan) -> (Double) -> Bool {
     let fps = scene.fps
-    let covered = plan.animationList.filter { !$0.isOverlay }.flatMap { srcRangeToOut(scene.mapped, $0.start, $0.end, fps: fps) }
+    let covered = plan.animationList.filter { !$0.floats }.flatMap { srcRangeToOut(scene.mapped, $0.start, $0.end, fps: fps) }
       + plan.insertList.filter(\.isFull).flatMap { srcRangeToOut(scene.mapped, $0.start, $0.end, fps: fps) }
       + plan.layouts.filter { $0.mode == .camera }.flatMap { srcRangeToOut(scene.mapped, $0.start, $0.end, fps: fps) }
     return { f in covered.contains { f >= $0.startF && f < $0.endF } }

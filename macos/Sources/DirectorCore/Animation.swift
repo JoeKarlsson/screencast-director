@@ -25,6 +25,23 @@ public struct Animation: Codable, Equatable, Sendable {
   public var overlay: Bool?
 
   public var isOverlay: Bool { overlay == true }
+  /// Shown as a sticker over the video, exactly like a meme sticker (white border, tilt, the stick-on
+  /// pop in and shrink-away out, kept inside the frame): its clip renders at its content's own size.
+  public var sticker: Sticker?
+
+  /// Where a sticker sits, as on a meme sticker insert (`Insert.x`, `y`, `w`, `rotation`).
+  public struct Sticker: Codable, Equatable, Sendable {
+    public var x: Double?
+    public var y: Double?
+    public var w: Double?
+    public var rotation: Double?
+    public init(x: Double? = nil, y: Double? = nil, w: Double? = nil, rotation: Double? = nil) {
+      (self.x, self.y, self.w, self.rotation) = (x, y, w, rotation)
+    }
+  }
+
+  /// Over the video without covering or splitting it: an overlay or a sticker.
+  public var floats: Bool { isOverlay || sticker != nil }
 
   /// The Lottie file the data names (`data.lottie`, in the video's animations/lottie/), for the lottie template.
   public var lottieFile: String? { data[path: "lottie"]?.string }
@@ -51,6 +68,7 @@ public struct Animation: Codable, Equatable, Sendable {
     [self] + (alternates ?? []).map {
       var a = Animation(start: start, end: end, template: $0.template, data: $0.data, cues: $0.cues, note: $0.note)
       a.overlay = overlay
+      a.sticker = sticker
       return a
     }
   }
@@ -63,6 +81,9 @@ public struct Animation: Codable, Equatable, Sendable {
     self.cues = cues
     self.note = note
   }
+
+  /// A sticker's width when it doesn't say, as a share of the frame's: a meme sticker's default.
+  public static let stickerWidth = 0.32
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
   public static let engineVersion = 11
@@ -157,6 +178,8 @@ public struct Animation: Codable, Equatable, Sendable {
       let top: Int?
       /// True for a transparent overlay (nil otherwise, so older clips keep their names).
       let overlay: Bool?
+      /// A sticker's width share, which sets its resolution (nil when not a sticker).
+      let sticker: Double?
     }
     let enc = JSONEncoder()
     enc.outputFormatting = .sortedKeys
@@ -164,7 +187,8 @@ public struct Animation: Codable, Equatable, Sendable {
       v: Animation.engineVersion, template: template, script: script, data: data, cues: localCues.mapValues { ($0 * 1000).rounded() / 1000 },
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps,
       brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) },
-      top: safeTop > 0 ? safeTop : nil, overlay: isOverlay ? true : nil)
+      top: safeTop > 0 ? safeTop : nil, overlay: isOverlay ? true : nil,
+      sticker: sticker.map { $0.w ?? Animation.stickerWidth })
     // Encoding plain values can only fail on a non-finite number; hash the key's description then,
     // so two different animations never share the empty-data name.
     let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data(String(reflecting: key).utf8))
@@ -232,8 +256,11 @@ extension Plan {
     return animationList.compactMap { a in
       let path = a.clipPath(in: self, dir: dir)
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
-      return Insert(
-        start: a.start, end: a.end, file: path, from: animationSeek(a), placement: a.isOverlay ? "overlay" : placement, fit: "fill", note: a.note)
+      var ins = Insert(
+        start: a.start, end: a.end, file: path, from: animationSeek(a), placement: a.sticker != nil ? "sticker" : a.isOverlay ? "overlay" : placement,
+        fit: "fill", note: a.note)
+      if let s = a.sticker { (ins.x, ins.y, ins.w, ins.rotation) = (s.x, s.y, s.w ?? Animation.stickerWidth, s.rotation) }
+      return ins
     }
   }
 
@@ -279,12 +306,20 @@ extension Plan {
   }
 
   /// The size an animation's clip renders at: the frame for an overlay, else `animationOutput`.
-  public func animationOutput(_ a: Animation) -> Output { a.isOverlay ? output : animationOutput }
+  /// A sticker's is its width on the frame, square: the renderer trims its height to the content.
+  public func animationOutput(_ a: Animation) -> Output {
+    if let s = a.sticker {
+      let w = Int((Double(output.width) * (s.w ?? Animation.stickerWidth) / 2).rounded()) * 2
+      return Output(width: w, height: w, fps: output.fps)
+    }
+    return a.isOverlay ? output : animationOutput
+  }
 
   /// Pixels at the top of an animation's clip a vertical video's app UI covers: for an overlay, the
   /// frame's top above the safe area; else `animationSafeTop`.
   public func animationSafeTop(_ a: Animation) -> Int {
-    guard a.isOverlay else { return animationSafeTop }
+    guard a.floats else { return animationSafeTop }
+    guard a.isOverlay else { return 0 }
     return SafeArea.rect(self).map { max(0, Int($0.minY.rounded())) } ?? 0
   }
 
@@ -293,7 +328,7 @@ extension Plan {
   /// Landscape: the bottom 150 of 1080 pixels. A vertical overlay: around 64% down, the social
   /// captions' place without a split (Scene.drawCaptions). Captions dragged to `y`: around there.
   public func captionBand(_ a: Animation) -> (top: Double, bottom: Double)? {
-    guard captions.enabled, a.isOverlay || socialTop(self) == nil else { return nil }
+    guard captions.enabled, a.sticker == nil, a.isOverlay || socialTop(self) == nil else { return nil }
     if let y = captions.y { return (y - 0.08, y + 0.08) }
     return socialTop(self) == nil ? (1 - 150.0 / 1080, 1) : (0.62, 0.78)
   }

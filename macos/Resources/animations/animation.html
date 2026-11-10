@@ -128,22 +128,27 @@ html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-ra
 html.theme-terminal .bar { border-radius: 0; }
 html.theme-terminal .bar.lit, html.theme-zine .bar.lit { box-shadow: none; }
 html.theme-terminal .pip { border-radius: 0; }
-/* Stat (templates/stat.js): one big number on a card, a track filling under it, a caption. */
-.statcard { background: #fff; border-radius: 28px; padding: 30px 50px 36px; box-shadow: 0 18px 44px rgba(21,21,28,.2); }
-.statcard .num { font-size: 150px; }
-.statcard .label { font-size: 42px; }
-.statcard .track { margin-top: 20px; height: 16px; border-radius: 8px; background: rgba(21,21,28,.12); overflow: hidden; }
-.statcard .fill { height: 100%; background: var(--ink); transform-origin: 0 50%; transform: scaleX(0); }
-.statcard .caption { font: 400 32px var(--body); color: #4a5060; margin-top: 16px; white-space: nowrap; }
-html.theme-zine .statcard { background: #000; box-shadow: none; border: 5px solid var(--accent); border-radius: 22px; }
-html.theme-zine .statcard .label { font-family: var(--title); font-weight: 400; text-transform: uppercase; }
-html.theme-zine .statcard .track { background: rgba(237,237,237,.18); }
-html.theme-zine .statcard .fill, html.theme-terminal .statcard .fill { background: var(--accent); }
-html.theme-zine .statcard .caption { color: #CFCFCF; }
-html.theme-terminal .statcard { background: #0B100D; border: 2px solid var(--accent); border-radius: 0; box-shadow: 10px 10px 0 rgba(158,240,184,.16); }
-html.theme-terminal .statcard .track { border-radius: 0; background: rgba(158,240,184,.15); }
-html.theme-terminal .statcard .caption { color: var(--ink); }
 .lottiebox svg { display: block; }
+/* Note (templates/note.js) and any sticker (config.sticker): a card the page's width, which the video
+   shows in a sticker border. Type is sized to the card (vw) and shrinks by --k to fit one row. */
+html.sticker-page, html.sticker-page body { background: #fff; }
+html.sticker-page #stage { display: none; }
+.note { position: relative; box-sizing: border-box; width: 100vw; padding: 5vw 6vw 6vw; background: #fff; color: #0A0A0A; text-align: center; }
+html:not(.sticker-page) .note { position: absolute; left: 50%; top: 50%; width: 40vw; transform: translate(-50%, -50%); }
+.note .line { display: flex; justify-content: center; align-items: baseline; gap: 3.5vw; white-space: nowrap; }
+.note .big { font: 400 calc(30vw * var(--k, 1)) / 1 var(--title); }
+.note .txt { font: 400 calc(14vw * var(--k, 1)) / 1 var(--title); }
+.note .small { font: 800 calc(6.4vw * var(--k, 1)) / 1.15 var(--body); margin-top: 3vw; }
+.note .logo { margin-bottom: 3vw; }
+.note .logo img { width: 62%; height: auto; max-height: 24vw; object-fit: contain; }
+.note .logo .word { font: 700 9vw var(--body); }
+.note.dark { background: #000; color: var(--accent); }
+.note.dark .small { color: #EDEDED; }
+html.theme-zine .note .big, html.theme-zine .note .txt { text-transform: uppercase; }
+.note svg.mark { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.note svg.mark path { fill: none; stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round; }
+.note.dark svg.mark path { stroke: #EDEDED; }
+html:not(.sticker-page) .note .line { overflow: hidden; }
 /* Overlay (config.overlay): the graphics float over the video, so nothing is painted behind them,
    whatever the theme. Highlighters multiply onto the video instead of the paper. */
 html.overlay, html.overlay body, html.overlay #stage { background: transparent !important; }

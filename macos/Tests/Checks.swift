@@ -32,7 +32,7 @@ func animationScripts(_ animations: URL) -> JSContext {
       setAttribute() {}, appendChild() {}, querySelector() { return fake(); }, querySelectorAll() { return []; },
       before() {}, after() {}, childNodes: [] });
     var window = globalThis;
-    var document = { createElement: fake, createElementNS: fake, getElementById: fake, documentElement: fake(), images: [] };
+    var document = { createElement: fake, createElementNS: fake, getElementById: fake, documentElement: fake(), body: fake(), images: [] };
     """)
   let templateFiles = ((try? FileManager.default.contentsOfDirectory(atPath: animations.appendingPathComponent("templates").path)) ?? [])
     .filter { $0.hasSuffix(".js") }.sorted().map { "templates/" + $0 }
@@ -803,6 +803,16 @@ struct Checks {
     expect(floatingHook.animationOutput(floatingAnim) == floatingHook.output, "a portrait overlay renders at the frame's size")
     expect(floatingHook.animationSafeTop(floatingAnim) == Int(SafeArea.rect(floatingHook)!.minY.rounded()), "a portrait overlay keeps clear of the app UI at the top")
     expect(layoutsToOut(floatingHook, mapSegments(floatingHook.segments, fps: 30)).last?.mode != .pip, "a portrait overlay doesn't split the frame")
+    // A sticker animation is shown like a meme sticker: its clip is the sticker's width (its height the
+    // card's), placed and posed by the sticker code, and it never splits a vertical video either.
+    var stickerHook = hookPlan
+    stickerHook.animationList[0].sticker = Animation.Sticker(x: 0.25, y: 0.2, w: 0.4)
+    let stickerAnim = stickerHook.animationList[0]
+    expect(stickerHook.animationOutput(stickerAnim).width == 432 && stickerHook.animationSafeTop(stickerAnim) == 0, "a sticker renders at its width on the frame")
+    expect(layoutsToOut(stickerHook, mapSegments(stickerHook.segments, fps: 30)).last?.mode != .pip, "a sticker animation doesn't split the frame")
+    var resized = stickerAnim
+    resized.sticker?.w = 0.3
+    expect(resized.clipPath(out1080, dir: nil) != stickerAnim.clipPath(out1080, dir: nil), "a sticker's width renders a new clip")
     // Where captions sit, for an animation to keep clear of: none in a portrait card, around 64% down over a portrait frame.
     var captioned = floatingHook
     captioned.captions.enabled = true
@@ -860,6 +870,22 @@ struct Checks {
     let os = Scene(plan: floatingOver, words: [], clicks: [], shortcuts: [])
     expect(!os.fullFrameCovers(os.inserts[0].s) && !os.cardCovers(os.inserts[0].s), "an overlay hides neither the screen's marks nor the card")
     expect(!os.cutFrames.contains(os.inserts[0].s), "an overlay appearing isn't a cut")
+    // A sticker animation becomes a sticker insert with its place, and pops like a meme sticker.
+    let noteDir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-note-\(UUID().uuidString)")
+    var notePlan = seam
+    notePlan.inserts = nil
+    var noteAnim = Animation(start: 2, end: 4, template: "note", data: .object(["big": .string("4")]))
+    noteAnim.sticker = Animation.Sticker(x: 0.2, y: 0.25, w: 0.4, rotation: 3)
+    notePlan.animations = [noteAnim]
+    let noteClip = noteDir.appendingPathComponent(noteAnim.clipPath(in: notePlan, dir: noteDir))
+    try? FileManager.default.createDirectory(at: noteClip.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: noteClip.path, contents: Data())
+    let noteIns = notePlan.animationInserts(dir: noteDir).first
+    expect(noteIns.map { $0.isSticker && $0.x == 0.2 && $0.y == 0.25 && $0.w == 0.4 && $0.rotation == 3 } == true, "a sticker animation plays as a sticker insert in its place")
+    let ns = Scene(plan: notePlan, words: [], clicks: [], shortcuts: [], dir: noteDir)
+    expect(ns.inserts.first.map { ns.insertPose($0, frame: $0.s).scale < 0.2 && ns.insertPose($0, frame: $0.s + 30).scale > 0.95 } == true,
+      "a sticker animation springs on like a meme sticker")
+    try? FileManager.default.removeItem(at: noteDir)
     // A fitted overlay leaves the frame around it see-through instead of letterboxing it on black.
     var fitted = floatingOver
     fitted.inserts?[0].fit = "fit"

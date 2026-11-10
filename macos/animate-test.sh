@@ -148,7 +148,9 @@ plan["animations"] = [{"start": 1, "end": 4, "template": "hub", "data": t["data"
                       {"start": 1, "end": 4, "template": "chart", "overlay": True, "cues": {"chart": 1.2, "callout": 3.5},
                        "data": {"title": "Bars", "values": [5, 9], "labels": ["Bare", "Words"]}},
                       {"start": 1, "end": 4, "template": "storyboard", "overlay": True, "cues": {"s1": 1.2},
-                       "data": {"title": "", "steps": [{"cue": "s1", "do": "show", "id": "e", "kind": "sticker", "label": "Edge", "x": 99, "y": 50}]}}]
+                       "data": {"title": "", "steps": [{"cue": "s1", "do": "show", "id": "e", "kind": "sticker", "label": "Edge", "x": 99, "y": 50}]}},
+                      {"start": 1, "end": 4, "template": "note", "sticker": {"x": 0.25, "y": 0.25, "w": 0.4},
+                       "data": {"big": "3-4", "text": "years", "small": "and holding"}}]
 plan.pop("look", None)
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
@@ -158,6 +160,11 @@ frame=$((3 * $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['
 # Overlay headings get the paper behind them; a chart's labels are bare text, straight on the video.
 grep -q 'text "Bare" sits straight on the video' "$TMP/over.log" \
   || { echo "FAIL: no warning about the overlay's bare label: $(cat "$TMP/over.log")" >&2; exit 1; }
+# A note sticker's clip is the sticker's width (0.4 of 480) and the card's own height, no empty paper.
+note=$(find "$PROJECT/.animations" -name "note-*.mp4" | head -1)
+size=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=p=0 "$note")
+python3 -c "import sys; w, h = map(int, sys.argv[1].split(',')); sys.exit(0 if w == 192 and 40 < h < 192 else 1)" "$size" \
+  || { echo "FAIL: the note sticker's clip is $size, not 192 wide and cut to its card" >&2; exit 1; }
 # Overlays aren't framed by a camera: a sticker at the edge is cut off; the hub's pieces all fit.
 grep -q 'sticker "Edge" runs off the edge' "$TMP/over.log" || { echo "FAIL: no warning about a sticker off the edge: $(cat "$TMP/over.log")" >&2; exit 1; }
 if grep -q '(hub).*runs off the edge' "$TMP/over.log"; then echo "FAIL: the hub overlay's pieces called off the edge: $(cat "$TMP/over.log")" >&2; exit 1; fi

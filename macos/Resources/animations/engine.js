@@ -490,6 +490,9 @@ function stageTransform(width, height, stage = { w: 1920, h: 1080 }) {
   return `translate(${(width - stage.w * k) / 2}px, ${(height - stage.h * k) / 2}px) scale(${k})`;
 }
 
+// A sticker's height in pixels, for the renderer to size the clip to it.
+window.stickerHeight = () => { const s = document.getElementById("sticker"); return s ? Math.ceil(s.getBoundingClientRect().height) : 0; };
+
 // CSS animations and element.animate() in a template run on the page's clock: pin them to t.
 function pinAnimations(t) {
   if (document.getAnimations) for (const a of document.getAnimations()) { a.pause(); a.currentTime = t * 1000; }
@@ -507,6 +510,10 @@ window.init = async function (config) {
   THEME = config.theme || "";
   if (THEME) document.documentElement.classList.add(`theme-${THEME}`);
   OVERLAY = config.overlay === true;
+  // A sticker (config.sticker): the template builds #sticker, a card the page's width shown in a
+  // sticker border over the video; the stage isn't shown.
+  // ("sticker-page": the storyboard's .sticker class is a node's.)
+  if (config.sticker) document.documentElement.classList.add("sticker-page");
   if (OVERLAY) document.documentElement.classList.add("overlay");
   if (config.accent) root.setProperty("--accent", config.accent);
   if (config.paper) root.setProperty("--paper", config.paper);

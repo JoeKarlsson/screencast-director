@@ -225,7 +225,7 @@ public final class Scene: @unchecked Sendable {
     // In portrait an animation's split eases in from the frame the animation starts and out to the
     // frame it ends, slower and in-out: centered on the cut, the card showed the screen recording for
     // a moment first, and the snappy ease dropped the face to the bottom half in a tenth of a second.
-    let animated = socialTop(plan) == nil ? [] : plan.animationList.filter { !$0.isOverlay }.flatMap { srcRangeToOut(mapPlan(plan), $0.start, $0.end, fps: plan.output.fps) }
+    let animated = socialTop(plan) == nil ? [] : plan.animationList.filter { !$0.floats }.flatMap { srcRangeToOut(mapPlan(plan), $0.start, $0.end, fps: plan.output.fps) }
     let animDur = max(dur, Scene.animationSplitSeconds * Double(plan.output.fps))
     let animEase = Ease.named("cinematic")!
     // The video opens in whatever layout covers its first frame, and a range running to the last
