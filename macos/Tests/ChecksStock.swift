@@ -89,6 +89,8 @@ func stockChecks() {
   } else {
     expect(false, "a request to a closed port fails")
   }
-  expect((try? Stock.klipyKey(env: ["KLIPY_API_KEY": "k"])) == "k" && (try? Stock.klipyKey(env: [:])) == nil, "KLIPY's key comes from the environment only")
+  expect((try? Stock.klipyKey(env: ["KLIPY_API_KEY": "k"], saved: { "app" })) == "k", "KLIPY's key from the environment wins over the app's")
+  expect((try? Stock.klipyKey(env: [:], saved: { "app" })) == "app", "without the environment, the key saved in the app's Settings is used")
+  expect((try? Stock.klipyKey(env: [:], saved: { nil })) == nil, "no key anywhere is an error")
   expect(Openverse.searchURL(.images, query: "x", allowCredit: false, fileExtension: "gif").query?.contains("extension=gif") == true, "Openverse GIF search asks for GIFs")
 }

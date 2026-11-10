@@ -9,10 +9,12 @@ public enum ClaudeEdit {
   /// timed item with its clip, where a hand edit of `segments` easily leaves them behind). Not `add`
   /// (it would copy any file on disk into the project, where Read reaches it) or `template save` (it
   /// writes the library other videos use). `secrets` writes only secrets.json and blurs into the plan,
-  /// `animate-choose` only the plan.
+  /// `animate-choose` only the plan. `stock` searches and downloads B-roll and GIFs into this
+  /// project's broll/ (not `get-sound`, which writes the shared sound library).
   public static let directorCommands = [
     "describe:*", "still:*", "review:*", "validate:*", "profiles", "profile .:*", "template . freeze:*", "template . update:*",
     "cut .:*", "restore .:*", "move .:*", "repeat .:*", "pauses .:*", "secrets .:*", "animate-choose .:*",
+    "stock . videos:*", "stock . gifs:*", "stock . images:*", "stock . get-video:*", "stock . get-gif:*", "stock . get-image:*",
   ]
 
   /// Arguments for an edit in the project folder. `director` is the quoted path Claude is told to

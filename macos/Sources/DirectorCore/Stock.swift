@@ -41,12 +41,17 @@ public enum Stock {
 
   // MARK: keys
 
-  /// KLIPY's API key, from `KLIPY_API_KEY` (`bin/director` loads it from the repo's .env.local).
-  static func klipyKey(env: [String: String] = ProcessInfo.processInfo.environment) throws -> String {
-    guard let key = env["KLIPY_API_KEY"], !key.isEmpty else {
-      throw DirectorError("klipy needs a free API key (https://partner.klipy.com/api-keys) in KLIPY_API_KEY, e.g. in the repo's .env.local")
-    }
-    return key
+  /// The Keychain account the app's Settings > Stock saves the user's KLIPY key under.
+  public static let klipyKeyAccount = "klipy-api-key"
+
+  /// KLIPY's API key: `KLIPY_API_KEY` (`bin/director` loads it from the repo's .env.local), else the
+  /// key the user pasted into the app's Settings > Stock.
+  static func klipyKey(
+    env: [String: String] = ProcessInfo.processInfo.environment, saved: () -> String? = { AppPreferences.keychainValue(klipyKeyAccount) }
+  ) throws -> String {
+    if let key = env["KLIPY_API_KEY"], !key.isEmpty { return key }
+    if let key = saved(), !key.isEmpty { return key }
+    throw DirectorError("klipy needs a free API key (https://partner.klipy.com/api-keys): paste it in the app's Settings > Stock, or set KLIPY_API_KEY")
   }
 
   // MARK: search

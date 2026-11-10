@@ -3,7 +3,7 @@ import DirectorCore
 import ScreenCaptureKit
 import SwiftUI
 
-/// Settings (⌘,): General, Recording, AI and Sharing tabs.
+/// Settings (⌘,): General, Recording, AI, Sharing and Stock tabs.
 struct SettingsView: View {
   @ObservedObject var settings: AppSettings
 
@@ -13,9 +13,38 @@ struct SettingsView: View {
       RecordingSettings(settings: settings, windows: CaptureWindows.shared).tabItem { Label("Recording", systemImage: "record.circle") }
       AISettingsView().tabItem { Label("AI", systemImage: "sparkles") }
       Form { SharingSection() }.formStyle(.grouped).tabItem { Label("Sharing", systemImage: "link.icloud") }
+      Form { StockSection() }.formStyle(.grouped).tabItem { Label("Stock", systemImage: "photo.stack") }
     }
     // A grouped Form has no height of its own; without a frame the window collapses.
     .frame(width: 560, height: 480)
+  }
+}
+
+/// The user's own KLIPY key, kept in the Keychain, which `director stock gifs` reads.
+final class StockKeys: ObservableObject {
+  static let shared = StockKeys()
+
+  var klipy: String {
+    get { Keychain.get(Stock.klipyKeyAccount) ?? "" }
+    set {
+      let key = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+      if key.isEmpty { Keychain.delete(Stock.klipyKeyAccount) } else { Keychain.set(key, for: Stock.klipyKeyAccount) }
+      objectWillChange.send()
+    }
+  }
+}
+
+/// Settings > Stock: the KLIPY key that turns on reaction GIFs (memes) in personal videos.
+struct StockSection: View {
+  @ObservedObject var keys = StockKeys.shared
+
+  var body: some View {
+    Section("Reaction GIFs") {
+      SecureField("KLIPY API key", text: $keys.klipy)
+      Text("Reaction GIFs for memes come from KLIPY, in personal videos only. Paste your free key here; it's stored in your Keychain.")
+        .font(.caption).foregroundStyle(.secondary)
+      Link("Get a KLIPY key", destination: URL(string: "https://partner.klipy.com/api-keys")!)
+    }
   }
 }
 

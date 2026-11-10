@@ -12,6 +12,10 @@ func claudeEditChecks() {
   for command in ["cut", "restore", "move", "repeat", "pauses"] {
     expect(fresh.contains("Bash('/A/director' \(command) .:*)"), "the edit may run director \(command) on its own project")
   }
+  expect(
+    fresh.contains("Bash('/A/director' stock . get-gif:*)") && fresh.contains("Bash('/A/director' stock . gifs:*)"),
+    "the edit may find and download GIFs into its own project")
+  expect(!fresh.contains { $0.contains("get-sound") }, "the edit may not download into the shared sound library")
   expect(fresh.contains("Edit(./plan.json)") && !fresh.contains("Edit(./**)"), "the edit may change only plan.json")
   expect(fresh.firstIndex(of: "--setting-sources").map { fresh[$0 + 1] } == "", "no settings files load")
   expect(fresh.firstIndex(of: "--disallowedTools").map { fresh[($0 + 1)...].contains("Write") } == true, "Write is denied")
