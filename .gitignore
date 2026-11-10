@@ -7,3 +7,4 @@ macos/.whisper/
 dist/
 .claude/worktrees/
 .vale.ini
+.env.local

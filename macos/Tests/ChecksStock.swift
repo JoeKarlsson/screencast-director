@@ -7,14 +7,6 @@ import ImageIO
 func stockChecks() {
   func data(_ s: String) -> Data { Data(s.utf8) }
   do {
-    let pexels = try Stock.pexelsItems(data(#"""
-      {"videos":[{"id":857195,"url":"https://www.pexels.com/video/a-person-typing-on-a-laptop-857195/","duration":12,"user":{"name":"Ann"},
-        "video_files":[{"file_type":"video/mp4","width":1280,"height":720,"link":"https://p/hd.mp4"},
-                       {"file_type":"video/mp4","width":7680,"height":4320,"link":"https://p/8k.mp4"},
-                       {"file_type":"video/mp4","width":3840,"height":2160,"link":"https://p/4k.mp4"}]}]}
-      """#))
-    expect(pexels.first?.file == "https://p/4k.mp4" && pexels.first?.title == "a person typing on a laptop", "Pexels: the sharpest MP4 up to 4K, titled from the page slug (\(pexels))")
-
     let nasa = try Stock.nasaItems(data(#"""
       {"collection":{"items":[{"data":[{"nasa_id":"a","title":"Spacewalk","center":"JSC"}]},{"data":[{"nasa_id":"b","title":"Launch","photographer":"Rocket Lab"}]}]}}
       """#))
@@ -97,6 +89,6 @@ func stockChecks() {
   } else {
     expect(false, "a request to a closed port fails")
   }
-  expect(Stock.key(.pexels, env: ["PEXELS_API_KEY": "k"]) == "k" && Stock.key(.nasa, env: [:]) == nil, "keys come from the environment; keyless sources have none")
+  expect((try? Stock.klipyKey(env: ["KLIPY_API_KEY": "k"])) == "k" && (try? Stock.klipyKey(env: [:])) == nil, "KLIPY's key comes from the environment only")
   expect(Openverse.searchURL(.images, query: "x", allowCredit: false, fileExtension: "gif").query?.contains("extension=gif") == true, "Openverse GIF search asks for GIFs")
 }

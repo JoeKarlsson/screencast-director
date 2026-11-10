@@ -43,7 +43,7 @@ let usage = """
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
     director stock    <dir> sounds|images <query> [--credit-ok]   search Openverse (CC0 and public domain; --credit-ok adds CC BY)
     director stock    <dir> get-sound|get-image <id>...   a sound into My Sounds/Openverse, a picture into broll/
-    director stock    <dir> videos <query> [--credit-ok] [--source pexels,nasa,commons,archive]   video B-roll (Pexels needs PEXELS_API_KEY)
+    director stock    <dir> videos <query> [--credit-ok] [--source nasa,commons,archive]   video B-roll
     director stock    <dir> gifs <query> [--credit-ok]   GIFs: Openverse, plus KLIPY reaction GIFs in a personal video (KLIPY_API_KEY)
     director stock    <dir> get-video|get-gif <id>...   into broll/ as an MP4 (GIFs loop), logged in broll/stock-licenses.csv
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)

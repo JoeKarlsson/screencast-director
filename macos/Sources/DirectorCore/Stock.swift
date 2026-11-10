@@ -4,8 +4,7 @@ import Foundation
 /// (GIFs and WebM/Ogg clips are converted, since B-roll plays through AVFoundation), each logged with
 /// its license in broll/stock-licenses.csv.
 ///
-/// Video: Pexels (Pexels License, no credit; needs a free key), NASA (public domain), Wikimedia
-/// Commons (CC0 and public domain; CC BY with `allowCredit`; never share-alike or NC) and the
+/// Video: NASA (public domain), Wikimedia Commons (CC0 and public domain; CC BY with `allowCredit`; never share-alike or NC) and the
 /// Internet Archive's Prelinger collection (public domain vintage film; other Archive uploads
 /// declare their own licenses, which are often wrong).
 /// GIFs: Openverse (CC0 and public domain, as for pictures) everywhere, plus KLIPY (reaction GIFs,
@@ -13,10 +12,10 @@ import Foundation
 /// its API terms forbid keeping copies of its GIFs.
 public enum Stock {
   public enum Source: String, CaseIterable, Sendable {
-    case pexels, nasa, commons, archive, klipy, openverse
+    case nasa, commons, archive, klipy, openverse
   }
 
-  public static let videoSources: [Source] = [.pexels, .nasa, .commons, .archive]
+  public static let videoSources: [Source] = [.nasa, .commons, .archive]
 
   /// The GIF libraries a video may use: no KLIPY in a work video.
   public static func gifSources(work: Bool) -> [Source] { work ? [.openverse] : [.klipy, .openverse] }
@@ -42,27 +41,12 @@ public enum Stock {
 
   // MARK: keys
 
-  /// A library's API key: the environment variable, else the Keychain item the app's other keys
-  /// live under (`security add-generic-password -s com.joekarlsson.screencastdirector.ai -a pexels-api-key -w <key>`).
-  public static func key(_ source: Source, env: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-    guard let name = keyName(source) else { return nil }
-    if let k = env["\(name.uppercased())_API_KEY"], !k.isEmpty { return k }
-    return AppPreferences.keychainValue("\(name)-api-key").flatMap { $0.isEmpty ? nil : $0 }
-  }
-
-  static func keyName(_ source: Source) -> String? {
-    switch source {
-    case .pexels: "pexels"
-    case .klipy: "klipy"
-    default: nil
+  /// KLIPY's API key, from `KLIPY_API_KEY` (`bin/director` loads it from the repo's .env.local).
+  static func klipyKey(env: [String: String] = ProcessInfo.processInfo.environment) throws -> String {
+    guard let key = env["KLIPY_API_KEY"], !key.isEmpty else {
+      throw DirectorError("klipy needs a free API key (https://partner.klipy.com/api-keys) in KLIPY_API_KEY, e.g. in the repo's .env.local")
     }
-  }
-
-  static func missingKey(_ source: Source) -> DirectorError {
-    let name = keyName(source) ?? source.rawValue
-    let signup = source == .pexels ? "https://www.pexels.com/api/" : "https://partner.klipy.com/api-keys"
-    return DirectorError(
-      "\(source.rawValue) needs a free API key (\(signup)): set \(name.uppercased())_API_KEY, or save it in the Keychain with `security add-generic-password -s \(AppPreferences.keychainService) -a \(name)-api-key -w <key>`")
+    return key
   }
 
   // MARK: search
@@ -83,9 +67,6 @@ public enum Stock {
 
   static func search(_ source: Source, query: String, allowCredit: Bool) async throws -> [Item] {
     switch source {
-    case .pexels:
-      guard let key = key(.pexels) else { throw missingKey(.pexels) }
-      return try pexelsItems(await get(pexelsSearchURL(query), headers: ["Authorization": key]))
     case .nasa:
       return try nasaItems(await get(nasaSearchURL(query)))
     case .commons:
@@ -93,8 +74,7 @@ public enum Stock {
     case .archive:
       return try archiveItems(await get(archiveSearchURL(query)))
     case .klipy:
-      guard let key = key(.klipy) else { throw missingKey(.klipy) }
-      return try klipyItems(await get(klipySearchURL(query, key: key)))
+      return try klipyItems(await get(klipySearchURL(query, key: try klipyKey())))
     case .openverse:
       return try await Openverse.search(.images, query: query, allowCredit: allowCredit, fileExtension: "gif").map(openverseItem)
     }
@@ -104,15 +84,11 @@ public enum Stock {
   public static func item(_ id: String, allowCredit: Bool = true) async throws -> Item {
     let probe = Item(id: id, title: "", creator: "", license: "", needsCredit: false, page: "")
     guard let source = probe.source, !probe.sourceID.isEmpty else {
-      throw DirectorError("\"\(id)\" isn't a stock id; they look like pexels:857195 or klipy:hello-hi-662, as `director stock` lists them")
+      throw DirectorError("\"\(id)\" isn't a stock id; they look like nasa:jsc2026m000932_Spacewalk_101_AVAIL1080p or klipy:hello-hi-662, as `director stock` lists them")
     }
     let sid = probe.sourceID
-    let enc = sid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? sid
     let found: [Item]
     switch source {
-    case .pexels:
-      guard let key = key(.pexels) else { throw missingKey(.pexels) }
-      found = try pexelsItems(await get(URL(string: "https://api.pexels.com/videos/videos/\(enc)")!, headers: ["Authorization": key]), single: true)
     case .nasa:
       var c = URLComponents(string: "https://images-api.nasa.gov/search")!
       c.queryItems = [URLQueryItem(name: "nasa_id", value: sid), URLQueryItem(name: "media_type", value: "video")]
@@ -126,8 +102,7 @@ public enum Stock {
       c.queryItems = archiveQuery("identifier:\"\(sid)\"")
       found = try archiveItems(await get(c.url!))
     case .klipy:
-      guard let key = key(.klipy) else { throw missingKey(.klipy) }
-      var c = URLComponents(string: "https://api.klipy.com/api/v1/\(key)/gifs/items")!
+      var c = URLComponents(string: "https://api.klipy.com/api/v1/\(try klipyKey())/gifs/items")!
       c.queryItems = [URLQueryItem(name: "slugs", value: sid)]
       found = try klipyItems(await get(c.url!))
     case .openverse:
@@ -137,34 +112,6 @@ public enum Stock {
       throw DirectorError("\(source.rawValue) has no usable item \(sid) (gone, or under a license a video can't use freely)")
     }
     return item
-  }
-
-  // MARK: Pexels
-
-  static func pexelsSearchURL(_ query: String) -> URL {
-    var c = URLComponents(string: "https://api.pexels.com/videos/search")!
-    c.queryItems = [URLQueryItem(name: "query", value: query), URLQueryItem(name: "per_page", value: "15")]
-    return c.url!
-  }
-
-  /// A search page (`videos`), or one video when `single`.
-  static func pexelsItems(_ data: Data, single: Bool = false) throws -> [Item] {
-    struct File: Decodable { var file_type: String?; var width: Int?; var height: Int?; var link: String }
-    struct User: Decodable { var name: String? }
-    struct Video: Decodable { var id: Int; var url: String; var duration: Double?; var user: User?; var video_files: [File] }
-    struct Page: Decodable { var videos: [Video] }
-    let videos = single ? [try JSONDecoder().decode(Video.self, from: data)] : try JSONDecoder().decode(Page.self, from: data).videos
-    return videos.compactMap { v in
-      // The sharpest MP4 up to 4K (Pexels also offers 8K-wide files no export needs).
-      guard let best = v.video_files.filter({ $0.file_type == "video/mp4" && ($0.width ?? 0) <= 3840 }).max(by: { ($0.width ?? 0) < ($1.width ?? 0) })
-      else { return nil }
-      // The page URL ends in a slug of the title: .../video/a-person-typing-on-a-laptop-857195/
-      let slug = URL(string: v.url)?.lastPathComponent ?? ""
-      let title = slug.split(separator: "-").dropLast().joined(separator: " ")
-      return Item(
-        id: "pexels:\(v.id)", title: title.isEmpty ? "Pexels \(v.id)" : title, creator: v.user?.name ?? "", license: "Pexels License",
-        needsCredit: false, page: v.url, file: best.link, width: best.width, height: best.height, seconds: v.duration)
-    }
   }
 
   // MARK: NASA
@@ -468,10 +415,9 @@ public enum Stock {
 
   // MARK: HTTP
 
-  static func get(_ url: URL, headers: [String: String] = [:]) async throws -> Data {
+  static func get(_ url: URL) async throws -> Data {
     var request = URLRequest(url: url)
     request.setValue(Openverse.userAgent, forHTTPHeaderField: "User-Agent")
-    for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
     let (data, response) = try await withoutURL(url) { try await URLSession.shared.data(for: request) }
     try check(response, url: url, body: data)
     return data
