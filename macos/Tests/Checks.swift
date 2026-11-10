@@ -28,6 +28,7 @@ func animationScripts(_ animations: URL) -> JSContext {
   js.exceptionHandler = { _, e in expect(false, "animation script threw: \(e?.toString() ?? "?")") }
   js.evaluateScript("""
     const fake = () => ({ className: "", innerHTML: "", textContent: "", style: { setProperty() {} },
+      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
       setAttribute() {}, appendChild() {}, querySelector() { return fake(); }, querySelectorAll() { return []; },
       before() {}, after() {}, childNodes: [] });
     var window = globalThis;

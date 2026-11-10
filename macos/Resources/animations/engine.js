@@ -25,6 +25,9 @@ function spring(x, zeta = 1) {
 }
 // A critically damped spring, landing exactly on 1 at x = 1.
 const easeOut = x => clamp(spring(clamp(x)) / spring(1));
+// The start of the 12 fps frame t falls in: a number counting up shows one value a frame, so motion
+// blur's snapshots (spread inside the frame) never average two numbers into a smear.
+const frameStart = t => Math.floor(t * 12 + 1e-4) / 12;
 const easeInOut = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
 // A sticker slapped down: springs past full size (about 9%) and settles.
 function popScale(t, start, dur = .42) {
@@ -122,7 +125,7 @@ function place(node, x, y, s = 1, rot = 0, opacity = 1, blur = 0) {
 function drawPath(p, curve, progress, opacity = 1) {
   p.setAttribute("d", curve.d); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1 - clamp(progress);
   p.style.opacity = progress <= 0 ? 0 : opacity;
-  if (packetLayer && curve.at && progress >= 1 && opacity > .05) packetLines.push({ p, curve, opacity });
+  if (packetLayer && curve.at && !curve.still && progress >= 1 && opacity > .05) packetLines.push({ p, curve, opacity });
   // Zine: p5.brush draws it instead (the path stays, hidden, for layout).
   if (brushLines && curve.at) {
     p.style.visibility = "hidden";

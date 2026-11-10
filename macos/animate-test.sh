@@ -26,9 +26,13 @@ plan_path, templates = sys.argv[1], sys.argv[2]
 plan = json.load(open(plan_path))
 plan["output"].update(width=480, height=270)
 plan["animations"] = []
-for i, path in enumerate(sorted(glob.glob(os.path.join(templates, "*.json")))):
+paths = sorted(glob.glob(os.path.join(templates, "*.json")))
+# Spread over the recording, each 3 s with a gap after it.
+step = min(4, (plan["source"]["duration"] - 1) / len(paths))
+if step < 3.05: sys.exit(f"FAIL: {len(paths)} templates don't fit 3 s apiece in the {plan['source']['duration']} s fixture")
+for i, path in enumerate(paths):
     t = json.load(open(path))
-    start = 1 + i * 4
+    start = round(1 + i * step, 2)
     squeeze = 3 / t["length"]
     plan["animations"].append({
         "start": start, "end": start + 3, "template": t["name"], "data": t["data"],
@@ -118,7 +122,7 @@ shift = a["start"] - b["start"]
 a["alternates"] = [{"template": b["template"], "data": b["data"], "cues": {k: round(v + shift, 3) for k, v in b["cues"].items()}, "note": "second"}]
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
-"$DIRECTOR" validate "$PROJECT" >/dev/null || { echo "FAIL: a plan with an alternate doesn't validate" >&2; exit 1; }
+"$DIRECTOR" validate "$PROJECT" >"$TMP/validate.txt" 2>&1 || { echo "FAIL: a plan with an alternate doesn't validate: $(cat "$TMP/validate.txt")" >&2; exit 1; }
 "$DIRECTOR" animate-variants "$PROJECT" 0 >/dev/null
 for k in 0 1; do
   [[ -s "$PROJECT/.checks/animation-0-v$k.mp4" ]] || { echo "FAIL: animate-variants didn't render v$k" >&2; exit 1; }

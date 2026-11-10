@@ -1,0 +1,30 @@
+{
+  "name": "chart",
+  "title": "Chart",
+  "summary": "A bar or line chart that builds as you talk it through: bars rise one by one (or a line draws through its points), values count up, then one value gets the accent and a tag that counts up to it.",
+  "length": 7,
+  "fields": [
+    { "key": "title", "label": "Heading", "type": "text" },
+    { "key": "highlight", "label": "Highlighted words", "type": "text", "help": "Part of the heading that gets the highlighter." },
+    { "key": "kind", "label": "Kind", "type": "text", "help": "bars or line" },
+    { "key": "labels", "label": "Labels", "type": "texts", "max": 12 },
+    { "key": "unit", "label": "Unit after each value", "type": "text", "help": "e.g. % or k" },
+    { "key": "prefix", "label": "Before each value", "type": "text", "help": "e.g. $" },
+    { "key": "emphasize", "label": "Value to call out (0 = first)", "type": "number", "max": 11 },
+    { "key": "note", "label": "Note by the callout", "type": "text" }
+  ],
+  "cues": [
+    { "key": "chart", "label": "Chart builds", "at": 1 },
+    { "key": "callout", "label": "Call out the value", "at": 3.8 }
+  ],
+  "data": {
+    "prefix": "", "emphasize": 3,
+    "title": "Hours spent wiring up apps",
+    "highlight": "wiring up",
+    "kind": "bars",
+    "values": [12, 19, 31, 46],
+    "labels": ["Q1", "Q2", "Q3", "Q4"],
+    "unit": "h",
+    "note": "and still counting"
+  }
+}
