@@ -52,8 +52,9 @@ enum Animate {
     let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     for (i, a, path) in todo {
       let started = Date()
-      try await page.render(a, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
+      let pops = try await page.render(a, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
       log(String(format: "animation #%d (%@): %@ in %.1fs", i, a.template, path, Date().timeIntervalSince(started)))
+      for f in pops { log(popWarning(index: i, a, frame: f)) }
     }
     return todo.count
   }
@@ -71,12 +72,19 @@ enum Animate {
     }
     let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     var frames: [(image: CGImage, label: String)] = []
-    try await page.render(a, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length) {
+    let pops = try await page.render(a, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length) {
       f, image in frames.append((image, String(format: "src %.2f  f%d", a.start + Double(f) / Double(fps), f)))
     }
+    for f in pops { FileHandle.standardError.write(Data((popWarning(index: index, a, frame: f) + "\n").utf8)) }
     let sheet = out.deletingPathExtension().appendingPathExtension("png")
     try Publish.writePNG(try ContactSheet.draw(frames), to: sheet)
     return sheet
+  }
+
+  /// "WARNING: animation #0 (storyboard) pops for one frame at src 0:12.3 (frame 41) ..."
+  static func popWarning(index: Int, _ a: Animation, frame: Int) -> String {
+    "WARNING: animation #\(index) (\(a.template)) pops for one frame at src \(fmtTime(a.start + Double(frame) / Double(fps))) (frame \(frame)): "
+      + "something shows for a single frame and is gone the next; look with animate-test"
   }
 
   @MainActor
@@ -110,11 +118,12 @@ enum Animate {
     }
 
     /// Renders `a` to `out`, or just `length` seconds of it from `from` (seconds into it) for a quick
-    /// test; `onFrame` gets each finished frame.
+    /// test; `onFrame` gets each finished frame. Returns the frames that pop (`Animation.pops`).
+    @discardableResult
     func render(
       _ a: Animation, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
       onFrame: ((Int, CGImage) throws -> Void)? = nil
-    ) async throws {
+    ) async throws -> [Int] {
       // A fresh page per animation, so one template's nodes never leak into the next. Read access to
       // the whole disk: fonts come from profile folders, templates and logos from the video, the
       // personal library or the bundle.
@@ -166,6 +175,7 @@ enum Animate {
       let bytes = width * height * 4
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
+      var tiles: [[Double]] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
         let result: Any?
         do {
@@ -190,6 +200,7 @@ enum Animate {
         }
         let count = UInt32(times.count)
         for i in pixels.indices { pixels[i] = UInt8((sum[i] + count / 2) / count) }
+        tiles.append(Animation.popTiles(bgra: pixels, width: width, height: height))
         if let onFrame { try onFrame(f, try image(pixels)) }
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
         guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
@@ -205,6 +216,7 @@ enum Animate {
       guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
+      return Animation.pops(tiles).map { $0 + first }
     }
 
     func snapshot() async throws -> CGImage {

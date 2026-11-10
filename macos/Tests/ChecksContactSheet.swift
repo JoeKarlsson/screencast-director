@@ -22,6 +22,22 @@ func contactSheetChecks() {
   expect(Animation.subframeCount(motion: 500) == Animation.maxSubframes && Animation.subframeCount(motion: .infinity) == Animation.maxSubframes,
     "a fast pop-in, or elements coming and going, takes the most")
 
+  // One-frame pops: a 960x540 frame (7x4 tiles of 135 px), a white 100 px square drawn on gray.
+  func frame(square: (x: Int, y: Int)?) -> [Double] {
+    var px = [UInt8](repeating: 128, count: 960 * 540 * 4)
+    if let s = square {
+      for y in s.y..<(s.y + 100) { for x in s.x..<(s.x + 100) { for c in 0..<3 { px[(y * 960 + x) * 4 + c] = 255 } } }
+    }
+    return Animation.popTiles(bgra: px, width: 960, height: 540)
+  }
+  expect(frame(square: nil).count == 7 * 4 * 3, "a 960x540 frame splits into 7x4 tiles (\(frame(square: nil).count / 3))")
+  let still = frame(square: nil)
+  expect(Animation.pops([still, frame(square: (20, 20)), still, still]) == [1], "a square shown for one frame pops")
+  expect(Animation.pops([still, frame(square: (20, 20)), frame(square: (20, 20)), still]).isEmpty, "a square shown for two frames doesn't")
+  expect(Animation.pops([still, still, frame(square: (20, 20)), frame(square: (20, 20))]).isEmpty, "a square that appears and stays doesn't")
+  let moving = (0..<12).map { frame(square: (20 + $0 * 25, 20)) }
+  expect(Animation.pops(moving).isEmpty, "a square moving across tiles doesn't (\(Animation.pops(moving)))")
+
   // Beats: the first and last frames, after a cut, after a zoom lands, after each animation cue,
   // nothing for an item that's cut, and beats close together share one frame.
   let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 60, captureStart: nil, camera: nil)

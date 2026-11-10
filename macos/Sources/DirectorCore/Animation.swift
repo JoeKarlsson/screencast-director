@@ -54,6 +54,49 @@ public struct Animation: Codable, Equatable, Sendable {
     return (0..<count).map { k in min(duration, t + 1e-6 + (count < 2 ? 0 : Double(k) / Double(count - 1) * span * 0.999)) }
   }
 
+  /// One-frame pops: something on screen for a single frame (a sticker drawn a frame before its
+  /// cue, a start state flashing), the jump-and-jump-back pattern huashu-motion's `om qa` looks for.
+  /// Frames are compared as the mean color of square tiles about a quarter of the frame's short side,
+  /// so a thing moving inside a tile or a whole-frame drift barely changes them, while a sticker
+  /// appearing in one changes it a lot. A tile pops when its frame differs from both neighbors by
+  /// `popDiff` (share of full range) and the neighbors differ from each other by under a third of that.
+  public static let popTilesPerShortSide = 4
+  public static let popDiff = 0.04
+
+  /// Mean B, G and R (0-1) of each tile of a BGRA frame, row by row, as `pops` compares them.
+  public static func popTiles(bgra pixels: [UInt8], width: Int, height: Int) -> [Double] {
+    let side = max(1, min(width, height) / popTilesPerShortSide)
+    let cols = max(1, Int((Double(width) / Double(side)).rounded())), rows = max(1, Int((Double(height) / Double(side)).rounded()))
+    var sums = [Int](repeating: 0, count: cols * rows * 3), counts = [Int](repeating: 0, count: cols * rows)
+    for y in 0..<height {
+      let row = min(rows - 1, y * rows / height) * cols
+      for x in 0..<width {
+        let tile = row + min(cols - 1, x * cols / width), p = (y * width + x) * 4
+        sums[tile * 3] += Int(pixels[p])
+        sums[tile * 3 + 1] += Int(pixels[p + 1])
+        sums[tile * 3 + 2] += Int(pixels[p + 2])
+        counts[tile] += 1
+      }
+    }
+    return sums.indices.map { Double(sums[$0]) / Double(max(1, counts[$0 / 3])) / 255 }
+  }
+
+  /// Indices of the frames (each `popTiles` of one frame) where some tile pops.
+  public static func pops(_ frames: [[Double]]) -> [Int] {
+    guard frames.count > 2 else { return [] }
+    func diff(_ a: [Double], _ b: [Double], _ tile: Int) -> Double {
+      (0..<3).map { abs(a[tile * 3 + $0] - b[tile * 3 + $0]) }.max()!
+    }
+    return (1..<(frames.count - 1)).filter { i in
+      let (before, now, after) = (frames[i - 1], frames[i], frames[i + 1])
+      guard before.count == now.count, now.count == after.count else { return false }
+      return (0..<(now.count / 3)).contains { tile in
+        let jump = min(diff(now, before, tile), diff(now, after, tile))
+        return jump >= popDiff && diff(before, after, tile) < jump / 3
+      }
+    }
+  }
+
   /// Shifts the animation and its cues together, so the beats keep landing where they did in it.
   public mutating func move(by d: Double) {
     start += d

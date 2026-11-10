@@ -57,7 +57,7 @@ How a hand-made build reads, and how a template gives itself away:
 }]
 ```
 
-Run `bin/director animate <dir>` (one to two minutes per 20 s of animation). It prints a warning for each pair of pieces that overlap on any frame, mid-move included, and for anything that lands in the caption band; fix each by moving a piece (`x`/`y`) or spacing the cues. Then look at the contact sheet, which has a frame after each cue: `director contact-sheet <dir> <dir>/.checks/sheet.png`. Look closer with `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word.
+Run `bin/director animate <dir>` (one to two minutes per 20 s of animation). It prints a warning for each pair of pieces that overlap on any frame, mid-move included, and for anything that lands in the caption band; fix each by moving a piece (`x`/`y`) or spacing the cues. Then look at the contact sheet, which has a frame after each cue: `director contact-sheet <dir> <dir>/.checks/sheet.png`. Look closer with `director still <dir> <frame> /tmp/a.png`. Check that nothing overlaps, nothing runs off the frame, the bottom ~150 px stays clear for captions, and each beat lands on its word. A `pops for one frame` WARNING means something is on screen for a single frame (drawn a frame before its cue, or a start state showing): look at that moment with `animate-test` and fix it.
 
 ## Writing a template for one video
 

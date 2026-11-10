@@ -136,13 +136,15 @@ TEMPLATES.storyboard = function (data, cues, duration) {
   });
   function framing(t) {
     if (!frames.length) return null;
-    let k = frames[0].k, cx = frames[0].c[0], cy = frames[0].c[1];
+    let logK = Math.log(frames[0].k), cx = frames[0].c[0], cy = frames[0].c[1];
     frames.forEach((f, i) => {
       if (!i) return;
       // The move starts before the node lands, so it arrives inside the frame.
       const p = spring((t - f.t + .35) / .9, .9), prev = frames[i - 1];
-      k += (f.k - prev.k) * p; cx += (f.c[0] - prev.c[0]) * p; cy += (f.c[1] - prev.c[1]) * p;
+      // Scale in log space: the same ratio each frame reads as a steady zoom (huashu-motion's zlerp).
+      logK += Math.log(f.k / prev.k) * p; cx += (f.c[0] - prev.c[0]) * p; cy += (f.c[1] - prev.c[1]) * p;
     });
+    const k = Math.exp(logK);
     // Where the framed center lands: the middle of the space under the heading.
     const target = [STAGE.w / 2, headroom + (STAGE.h - headroom) / 2];
     const dx = target[0] - STAGE.w / 2 - k * (cx - STAGE.w / 2), dy = target[1] - STAGE.h / 2 - k * (cy - STAGE.h / 2);

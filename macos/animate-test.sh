@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Animation render check: adds one animation per bundled template to a synthetic project, renders
 # them with `director animate` (offscreen WebKit), and fails when a template throws, a clip is missing
-# or the wrong length, or its last frame is blank; then a one-second `animate-test`.
+# or the wrong length, something pops for one frame, or its last frame is blank; then a one-second `animate-test`.
 #
 #   macos/animate-test.sh
 #
@@ -37,7 +37,9 @@ for i, path in enumerate(sorted(glob.glob(os.path.join(templates, "*.json")))):
 json.dump(plan, open(plan_path, "w"), indent=2)
 PY
 
-"$DIRECTOR" animate "$PROJECT"
+"$DIRECTOR" animate "$PROJECT" | tee "$TMP/animate.log"
+# Nothing in a bundled template shows for a single frame (Animation.pops).
+if grep -q "pops for one frame" "$TMP/animate.log"; then echo "FAIL: a template pops for one frame (above)" >&2; exit 1; fi
 templates=$(find Resources/animations/templates -name '*.json' | wc -l | tr -d ' ')
 clips=$(find "$PROJECT/.animations" -name '*.mp4' | wc -l | tr -d ' ')
 [[ "$clips" == "$templates" ]] || { echo "FAIL: $templates templates but $clips clips" >&2; exit 1; }
