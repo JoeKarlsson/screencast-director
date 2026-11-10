@@ -81,6 +81,21 @@ if lit < 0.002: sys.exit(f"FAIL: the zine frame has no lines or cards drawn ({li
 print(f"ok: zine lines drawn in p5.brush on a black stage (mean {mean:.0f}, {lit:.3f} lit)")
 PY
 
+# Two storyboard stickers parked on the same spot: the render's overlap probe names them.
+python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+a = next(a for a in plan["animations"] if a["template"] == "storyboard")
+a["data"] = {"title": "Overlap", "steps": [
+    {"cue": "s1", "do": "show", "id": "a", "kind": "sticker", "label": "First", "x": 50, "y": 55},
+    {"cue": "s2", "do": "show", "id": "b", "kind": "sticker", "label": "Second", "x": 51, "y": 56}]}
+a["cues"] = {"s1": a["start"] + 0.2, "s2": a["start"] + 0.5}
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" animate-test "$PROJECT" 2 10.5 "$TMP/overlap.mp4" >"$TMP/overlap.txt" 2>&1
+grep -q '^WARNING: .* overlap ' "$TMP/overlap.txt" || { echo "FAIL: two stickers on one spot weren't reported: $(cat "$TMP/overlap.txt")" >&2; exit 1; }
+echo "ok: the overlap probe reports two pieces on one spot ($(grep -m1 '^WARNING:.* overlap ' "$TMP/overlap.txt" | cut -c1-120))"
+
 # A one-second test of the first animation: a 1 s clip and a sheet of its 12 frames.
 "$DIRECTOR" animate-test "$PROJECT" 0 1.5 "$TMP/test.mp4" >/dev/null
 length=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$TMP/test.mp4")

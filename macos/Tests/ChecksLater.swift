@@ -94,8 +94,14 @@ func laterChecks() {
   // unknown icon draws nothing.
   expect(templateScripts.evaluateScript("(iconHTML('laptop').match(/<path/g) || []).length").toInt32() == 2, "the laptop icon is two strokes")
   expect(templateScripts.evaluateScript("iconHTML('nope')").toString() == "", "an unknown icon draws nothing")
-  let squash = templateScripts.evaluateScript("const n1 = { style: {} }; land(n1, 10, 20, .45, .4); n1.style.transform").toString() ?? ""
-  let settled = templateScripts.evaluateScript("const n2 = { style: {} }; land(n2, 10, 20, 3, .4); n2.style.transform").toString() ?? ""
+  let node = "{ style: { setProperty(k, v) { this[k] = v; } } }"
+  let squash = templateScripts.evaluateScript("const n1 = \(node); land(n1, 10, 20, .45, .4); n1.style.transform").toString() ?? ""
+  let settled = templateScripts.evaluateScript("const n2 = \(node); land(n2, 10, 20, 3, .4); n2.style.transform").toString() ?? ""
+  // A landing card casts its shadow from the air (--lift near 1) and settles it (0) within 0.3 s.
+  let lifts = [0.42, 0.55, 0.8].map { t in
+    templateScripts.evaluateScript("(() => { const n = \(node); land(n, 0, 0, \(t), .4); return n.style['--lift']; })()").toDouble()
+  }
+  expect(lifts[0] > 0.7 && lifts[1] < lifts[0] && lifts[2] == 0, "the shadow lifts in flight and settles on landing (\(lifts))")
   let scales = { (s: String) -> [Double] in
     guard let r = s.range(of: #"scale\(([-\d.e]+), ([-\d.e]+)\)"#, options: .regularExpression) else { return [] }
     return s[r].dropFirst(6).dropLast().split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }

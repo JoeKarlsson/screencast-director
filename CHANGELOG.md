@@ -5,6 +5,8 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
+- A storyboard card or sticker casts its shadow from the air as it slams in, wider and softer, and the shadow tucks in under it as it lands, so pieces read as paper dropped on the page. Paper collage look only; existing animations re-render with it the next time their video builds.
+- `director animate` and `animate-test` warn when two pieces (stickers, cards, labels, tags, rows, the heading) overlap on any frame, mid-move included, or when one reaches into the caption band, with when and for how long.
 - Animations have real motion blur: stickers, cards and labels streak in the direction they pop in, while everything standing still stays sharp. It replaces the soft blur pop-ins used to fade in with.
 - In a vertical video, the split for an animation eases in over about a second from the moment the animation starts (and out as it ends), instead of snapping the face to the bottom half and showing the screen recording in the top card for a moment first.
 - Storyboard nodes stay alive once they land: they float, pop and brighten when a packet reaches them, and shrink and dim for a moment while a newer node takes the focus. Lines stop at a node's edge instead of running under cards or through text labels.

@@ -232,6 +232,8 @@ function land(node, x, y, t, start, size = 1, rot = 0, opacity = 1) {
   node.style.transform = `translate(${x}px, ${y}px) rotate(${rot * (1 - .4 * clamp(u / .4))}deg) scale(${s * size * (1 + wob)}, ${s * size * (1 - wob)})`;
   node.style.opacity = s <= .001 ? 0 : opacity;
   node.style.filter = "";
+  // In the air its shadow falls wider and softer; it settles under the card as it lands.
+  node.style.setProperty("--lift", u > 0 ? 1 - easeOut(u / .3) : 1);
 }
 // The site's burst scribble, in the accent, flaring behind a node as it lands and erasing.
 function burstMark(behind) {

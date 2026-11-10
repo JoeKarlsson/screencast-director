@@ -25,6 +25,74 @@ enum Animate {
     }
     """
 
+  /// Defines overlapProbe(band): the pieces on screen (stickers, dots, hubs, chips, labels, tags,
+  /// rows, the heading) that overlap each other by more than `overlapShare` of the smaller one, and,
+  /// when `band` (a share of the height) is over 0, any that reach into the caption band at the bottom.
+  /// Returns [kind, first piece, second piece, share] rows ("overlap" or "captions").
+  static let overlapShare = 0.15
+  static let overlapProbe = """
+    function overlapProbe(band) {
+      const kinds = ["sticker", "dot", "hub", "chip", "label", "tag", "row", "head"];
+      const pieces = [];
+      for (const e of document.querySelectorAll("#cam > .abs")) {
+        const k = kinds.find(c => e.classList.contains(c));
+        if (!k) continue;
+        let o = 1;
+        for (let n = e; n && n !== document.body; n = n.parentElement) {
+          const cs = getComputedStyle(n);
+          if (cs.display === "none" || cs.visibility === "hidden") { o = 0; break; }
+          o *= parseFloat(cs.opacity);
+        }
+        const r = e.getBoundingClientRect();
+        if (o < .5 || r.width * r.height < 100) continue;
+        const img = e.querySelector("img");
+        const text = (e.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 32);
+        pieces.push({ name: k + " \\"" + (text || (img && img.alt) || "?") + "\\"", r });
+      }
+      const out = [], H = innerHeight;
+      for (let i = 0; i < pieces.length; i++) for (let j = i + 1; j < pieces.length; j++) {
+        const a = pieces[i].r, b = pieces[j].r;
+        const ix = Math.min(a.right, b.right) - Math.max(a.left, b.left), iy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (ix <= 0 || iy <= 0) continue;
+        const share = ix * iy / Math.min(a.width * a.height, b.width * b.height);
+        if (share > \(overlapShare)) out.push(["overlap", pieces[i].name, pieces[j].name, share]);
+      }
+      if (band > 0) for (const p of pieces) if (p.r.bottom > H * (1 - band) && p.r.top < H) out.push(["captions", p.name, "", 0]);
+      return out;
+    }
+    """
+
+  /// The caption band an animation keeps clear when captions are on: the bottom 150 of 1080 pixels
+  /// in a landscape video (vertical captions sit outside the animation's card).
+  static func captionBand(_ plan: Plan) -> Double {
+    plan.captions.enabled && plan.animationOutput.width > plan.animationOutput.height ? 150.0 / 1080 : 0
+  }
+
+  /// One line per pair of pieces that overlapped (or piece in the caption band), from the rows
+  /// each frame's overlapProbe returned, with when it started (source seconds) and for how long.
+  static func overlapWarnings(_ a: Animation, index: Int, frames: [(t: Double, rows: [[Any]])]) -> [String] {
+    var found: [(kind: String, p: String, q: String, start: Double, end: Double, share: Double)] = []
+    let step = 1 / Double(fps)
+    for (t, rows) in frames {
+      for row in rows {
+        guard row.count == 4, let kind = row[0] as? String, let p = row[1] as? String, let q = row[2] as? String else { continue }
+        let share = (row[3] as? Double) ?? 0
+        if let i = found.firstIndex(where: { $0.kind == kind && $0.p == p && $0.q == q }) {
+          found[i].end = t + step
+          found[i].share = max(found[i].share, share)
+        } else {
+          found.append((kind, p, q, t, t + step, share))
+        }
+      }
+    }
+    return found.map { f in
+      let when = String(format: "from src %.2f for %.2f s", a.start + f.start, f.end - f.start)
+      return f.kind == "overlap"
+        ? "WARNING: animation #\(index) (\(a.template)): \(f.p) and \(f.q) overlap \(Int((f.share * 100).rounded()))% \(when); move one (x/y) or space their cues"
+        : "WARNING: animation #\(index) (\(a.template)): \(f.p) reaches into the caption band at the bottom \(when); move it up"
+    }
+  }
+
   /// Where the templates live: next to the app's director binary when bundled, else in the source tree.
   static var resources: URL {
     let bundled = Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("../Resources/animations").standardizedFileURL
@@ -52,9 +120,10 @@ enum Animate {
     let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     for (i, a, path) in todo {
       let started = Date()
-      let pops = try await page.render(a, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
+      let (pops, overlaps) = try await page.render(a, index: i, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
       log(String(format: "animation #%d (%@): %@ in %.1fs", i, a.template, path, Date().timeIntervalSince(started)))
       for f in pops { log(popWarning(index: i, a, frame: f)) }
+      for w in overlaps { log(w) }
     }
     return todo.count
   }
@@ -72,10 +141,12 @@ enum Animate {
     }
     let page = Page(width: plan.animationOutput.width, height: plan.animationOutput.height)
     var frames: [(image: CGImage, label: String)] = []
-    let pops = try await page.render(a, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length) {
-      f, image in frames.append((image, String(format: "src %.2f  f%d", a.start + Double(f) / Double(fps), f)))
+    let (pops, overlaps) = try await page.render(
+      a, index: index, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length
+    ) { f, image in
+      frames.append((image, String(format: "src %.2f  f%d", a.start + Double(f) / Double(fps), f)))
     }
-    for f in pops { FileHandle.standardError.write(Data((popWarning(index: index, a, frame: f) + "\n").utf8)) }
+    for line in pops.map({ popWarning(index: index, a, frame: $0) }) + overlaps { FileHandle.standardError.write(Data((line + "\n").utf8)) }
     let sheet = out.deletingPathExtension().appendingPathExtension("png")
     try Publish.writePNG(try ContactSheet.draw(frames), to: sheet)
     return sheet
@@ -118,11 +189,12 @@ enum Animate {
     }
 
     /// Renders `a` to `out`, or just `length` seconds of it from `from` (seconds into it) for a quick
-    /// test; `onFrame` gets each finished frame. Returns the frames that pop (`Animation.pops`).
+    /// test; `onFrame` gets each finished frame. Returns the frames that pop (`Animation.pops`) and
+    /// what the overlap probe found, a line each (`overlapWarnings`).
     func render(
-      _ a: Animation, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
+      _ a: Animation, index: Int, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
       onFrame: ((Int, CGImage) throws -> Void)? = nil
-    ) async throws -> [Int] {
+    ) async throws -> (pops: [Int], overlaps: [String]) {
       // A fresh page per animation, so one template's nodes never leak into the next. Read access to
       // the whole disk: fonts come from profile folders, templates and logos from the video, the
       // personal library or the bundle.
@@ -134,7 +206,7 @@ enum Animate {
         throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
       do {
-        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + Animate.motionProbe + "\n;0")
+        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + Animate.motionProbe + "\n;" + Animate.overlapProbe + "\n;0")
       } catch {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
@@ -175,6 +247,8 @@ enum Animate {
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
       var tiles: [[Double]] = []
+      let band = Animate.captionBand(plan)
+      var overlaps: [(t: Double, rows: [[Any]])] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
         let result: Any?
         do {
@@ -201,6 +275,11 @@ enum Animate {
         for i in pixels.indices { pixels[i] = UInt8((sum[i] + count / 2) / count) }
         tiles.append(Animation.popTiles(bgra: pixels, width: width, height: height))
         if let onFrame { try onFrame(f, try image(pixels)) }
+        // Overlaps on every frame, mid-move included: a piece flying through a label is as wrong as one parked on it.
+        let at = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 1)[0]
+        if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band))") as? [[Any]], !rows.isEmpty {
+          overlaps.append((Double(f) / Double(Animate.fps), rows))
+        }
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
         guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
         var buffer: CVPixelBuffer?
@@ -215,7 +294,7 @@ enum Animate {
       guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
-      return Animation.pops(tiles).map { $0 + first }
+      return (Animation.pops(tiles).map { $0 + first }, Animate.overlapWarnings(a, index: index, frames: overlaps))
     }
 
     func snapshot() async throws -> CGImage {
