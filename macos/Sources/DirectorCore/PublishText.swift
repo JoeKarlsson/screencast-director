@@ -33,6 +33,13 @@ extension Publish {
   /// YouTube chapters from the plan's titles: "0:00 Intro" plus one line per title. YouTube needs
   /// at least three, starting at 0:00, each at least 10 s long; returns nil when that can't be met.
   public static func chapters(_ scene: Scene) -> String? {
+    let marks = chapterMarks(scene)
+    guard marks.count >= 3 else { return nil }
+    return marks.map { "\(stamp($0.0, srt: false)) \($0.1)" }.joined(separator: "\n")
+  }
+
+  /// The chapter points `chapters` writes (output seconds and name), before its at-least-three rule.
+  static func chapterMarks(_ scene: Scene) -> [(Double, String)] {
     let fps = Double(scene.fps)
     var marks: [(Double, String)] = [(0, "Intro")]
     let placed = scene.plan.callouts.compactMap { c in srcToOut(scene.mapped, c.start, fps: scene.fps).map { ($0, c) } }
@@ -42,8 +49,7 @@ extension Publish {
     }
     let total = Double(scene.frameCount) / fps
     if let last = marks.last, total - last.0 < 10 { marks.removeLast() }
-    guard marks.count >= 3 else { return nil }
-    return marks.map { "\(stamp($0.0, srt: false)) \($0.1)" }.joined(separator: "\n")
+    return marks
   }
 
   /// The narration with output timestamps, for an AI to write a description and chapters from.

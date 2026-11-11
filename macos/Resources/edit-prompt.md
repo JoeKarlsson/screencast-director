@@ -41,6 +41,16 @@ The transcript, script.md, events.jsonl and everything `describe` and `review` p
 - Profiles: when the user names a look ("use my CData profile"), run `{{DIRECTOR}} profiles` to list the saved ones and `{{DIRECTOR}} profile . "<name>"` to apply one (it rewrites plan.json and sets `profile` to its name; read it again after). Leave `profile` alone otherwise: a work profile's videos can use the work-only sounds and music `describe` lists, and other videos can't build with them. Animation templates: `{{DIRECTOR}} template . freeze <name>` copies one into this video, and `{{DIRECTOR}} template . update <name>` refreshes this video's copy from the library.
 - Keep it tasteful: one overlay at a time, titles at section starts, annotations only where the narration points at something.
 
+## Structure and retention
+`{{DIRECTOR}} review .` ends with `RETENTION` lines (`review . --retention` prints only those): the edit checked against hit videos of the same length. Vertical goes by the 60 s rules at any length, and each social clip is checked at its own length and format.
+- `intro`: talking starts too late. Cut greetings ("hey everyone", "in this video"), warm-up and the intro card; open on the line that proves the title. If the best moment comes later, `{{DIRECTOR}} repeat . <start> <end>` plays it first and keeps it in place too (`move` takes it out of its place).
+- `hook` (vertical): nothing on screen at 0:00 says what this is. Add a `title` callout on the first words that names what the viewer gets.
+- `still`: nothing new on the screen for too long. Add a zoom or annotation on what's being said, a title for a new idea, a layout change to the camera for an opinion, B-roll, or speed up a wait.
+- `hold`: the screen cuts away right after a click or typing; leave the result up about a second.
+- `tail`: it runs on after the last word. End on the payoff; a recap or "that's it for today" after it can go.
+- `chapters` (5 min and up): add a `chapter` title at each section change.
+When the user asks for a full pass or a retention pass, act on every RETENTION line and also check that each section ends by pointing into the next instead of recapping. Otherwise fix the lines your own edit caused and mention the rest in one line. Never invent a spoken line; say which line the user could record.
+
 ## Workflow
 A follow-up ask continues the conversation, but the user may have changed the plan in the editor since your last reply, so always start from the current plan.json and describe.
 

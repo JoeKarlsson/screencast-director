@@ -118,7 +118,16 @@ public func editReview(_ project: Project, _ plan: Plan, cameraFPS: Double? = ni
     lines.append("## Polish (judgment calls that make an edit feel produced; fix each or say why it stays)")
     lines += polish.map { "POLISH \($0.kind): \($0.text)" }
   }
-  return lines.isEmpty ? "No zooms, no cuts inside words and nothing to polish." : lines.joined(separator: "\n")
+  lines += retentionReview(project, plan)
+  return lines.isEmpty ? "No zooms, no cuts inside words and nothing to polish or flag for retention." : lines.joined(separator: "\n")
+}
+
+/// `review`'s retention section: structure against the video's length bucket (Retention.swift).
+public func retentionReview(_ project: Project, _ plan: Plan) -> [String] {
+  let notes = Retention.notes(project, plan)
+  guard !notes.isEmpty else { return [] }
+  return ["", "## Retention (\(EngagementTargets.of(plan).name) video: limits from measured hit videos; fix each or say why it stays)"]
+    + notes.map { "RETENTION \($0.kind): \($0.text)" }
 }
 
 /// Source-time ranges an edit touched: clips and timed items (zooms, layouts, titles, annotations,

@@ -17,7 +17,7 @@ let usage = """
     director animate-test <dir> <index> <source-second> [out.mp4]   one second of animation #index from that moment, plus a contact sheet of its frames (default .checks/animation-<index>-test.mp4)
     director animate-variants <dir> <index>          render animation #index and each of its alternates to .checks/, with one sheet comparing them (a row each)
     director animate-choose <dir> <index> <k>       play alternate k of animation #index, keeping the one it replaces as an alternate
-    director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
+    director review   <dir> [--retention]           what each zoom shows, cut edges inside words, polish and retention notes (--retention: only the retention notes, fast)
     director faces    <dir>                         where the face is under each sticker and title, how much they cover, and a clear spot
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
@@ -384,6 +384,10 @@ do {
   case "review":
     let project = try Project.load(dir)
     let plan = try Plan.load(project.planURL)
+    if args.contains("--retention") {
+      print(retentionReview(project, plan).dropFirst().joined(separator: "\n"))
+      break
+    }
     print(editReview(project, plan, cameraFPS: await Polish.cameraFrameRate(project, plan)))
     // Pop-ups over the face: rendered frames, so only with a camera to find a face in.
     if plan.camera != nil {

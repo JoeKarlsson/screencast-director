@@ -237,3 +237,70 @@ func faceCoverChecks() {
   expect(safe.contains(spot) && !spot.intersects(face) && !spot.intersects(captions), "the clear spot avoids the face and captions (\(spot))")
   expect(abs(spot.width / spot.height - 4.0 / 3) < 0.01, "the spot is the pop-up's shape")
 }
+
+/// `director review`'s retention notes (Retention.swift): limits by the video's length bucket.
+func retentionChecks() {
+  func project(_ seconds: Double, words: [Word], events: [InputEvent] = []) -> Project {
+    Project(
+      dir: URL(fileURLWithPath: "/tmp"), source: Project.Source(video: "s.mp4", width: 1920, height: 1080, duration: seconds, captureStart: nil, camera: nil),
+      words: words, events: events)
+  }
+  func plan(_ p: Project, vertical: Bool = false) -> Plan {
+    var plan = buildPlan(p)
+    plan.intro = nil
+    plan.outro = nil
+    plan.segments = [Segment(start: 0, end: p.source.duration, speed: 1)]
+    plan.zooms = []
+    if vertical { plan.output = Plan.Output(width: 1080, height: 1920, fps: 30) }
+    return plan
+  }
+  // Length buckets, by output length; vertical goes by the 60 s rules at any length.
+  for (seconds, name) in [(60.0, "60 s"), (91, "3 min"), (300, "5 min"), (600, "20 min"), (3000, "60 min")] {
+    let got = EngagementTargets.of(plan(project(seconds, words: []))).name
+    expect(got == name, "a \(seconds) s video is in the \(name) bucket (\(got))")
+  }
+  expect(EngagementTargets.of(plan(project(300, words: []), vertical: true)).name == "60 s", "a 5 min vertical video goes by the 60 s rules")
+
+  // A 5 min screen recording that talks late, ends 50 s after the last word, has no chapters and
+  // nothing new on screen: every note fires.
+  let late = stride(from: 5.0, to: 250, by: 2).map { Word(text: " w", start: $0, end: $0 + 0.5) }
+  let bare = plan(project(300, words: late))
+  let notes = Retention.notes(project(300, words: late), bare)
+  func has(_ kind: String, _ text: String = "") -> Bool { notes.contains { $0.kind == kind && $0.text.contains(text) } }
+  expect(has("intro", "out 0:05.0"), "first word at 5 s is late for 5 min (\(notes.map(\.text)))")
+  expect(has("tail", "s past the last word at out 4:09.5"), "50 s after the last word is too long a tail")
+  expect(has("chapters", "at least 3"), "a 5 min video with no titles needs chapters")
+  expect(has("still", "for 300 s"), "a static screen with nothing added is one long still stretch")
+  expect(!has("hook"), "the hook check is for vertical video only")
+
+  // The same video edited well: talking at once, chapters every minute, a zoom every 20 s, ends on the last word.
+  let prompt = stride(from: 0.2, to: 295, by: 2).map { Word(text: " w", start: $0, end: $0 + 0.5) }
+  var good = plan(project(300, words: prompt))
+  good.callouts = [60, 120, 180, 240].map { Callout(start: $0, end: $0 + 3, text: "Part \(Int($0))", style: "chapter") }
+  good.zooms = stride(from: 10.0, to: 290, by: 20).map { Zoom(start: $0, end: $0 + 4, x: 0.5, y: 0.5, scale: 1.5) }
+  expect(Retention.notes(project(300, words: prompt), good).isEmpty, "a well-paced edit stays quiet (\(Retention.notes(project(300, words: prompt), good).map(\.text)))")
+  // A chapter longer than 2 min in a 5 min video.
+  var long = good
+  long.callouts = [60, 240].map { Callout(start: $0, end: $0 + 3, text: "Part \(Int($0))", style: "chapter") }
+  expect(Retention.notes(project(300, words: prompt), long).contains { $0.kind == "chapters" && $0.text.contains("\"Part 60\"") }, "a 3 min chapter is split")
+
+  // Cutting to the face 0.2 s after a click hides what the click did.
+  var away = good
+  away.layouts = [LayoutRange(start: 100.2, end: 110, mode: .camera)]
+  let clicked = project(300, words: prompt, events: [InputEvent(t: 100, type: .click, x: 0.5, y: 0.5)])
+  expect(Retention.notes(clicked, away).contains { $0.kind == "hold" && $0.text.contains("out 1:40.0") }, "a cut away right after a click")
+  away.layouts = [LayoutRange(start: 101.5, end: 110, mode: .camera)]
+  expect(!Retention.notes(clicked, away).contains { $0.kind == "hold" }, "a cut away 1.5 s after a click holds the result")
+
+  // Vertical: nothing on the first frame says what it is, until a title goes on the first words.
+  let short = stride(from: 2.0, to: 58, by: 1).map { Word(text: " w", start: $0, end: $0 + 0.5) }
+  var vertical = plan(project(60, words: short), vertical: true)
+  expect(Retention.notes(project(60, words: short), vertical).contains { $0.kind == "hook" }, "a vertical video opening on nothing")
+  vertical.callouts = [Callout(start: 0, end: 3, text: "My desk runs on one cable", style: "title")]
+  expect(!Retention.notes(project(60, words: short), vertical).contains { $0.kind == "hook" }, "a hook title at 0:00")
+  // Clips are checked at their own length and format, named: this one opens 1.4 s before its first word.
+  good.clipList = [Clip(name: "Best bit", start: 98.8, end: 150, format: "vertical")]
+  expect(
+    Retention.notes(project(300, words: prompt), good).contains { $0.kind == "hook" && $0.text.hasPrefix("clip \"Best bit\":") },
+    "a vertical clip with no hook title is flagged by name")
+}
