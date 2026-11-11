@@ -82,6 +82,8 @@ public final class Scene: @unchecked Sendable {
   let clickTimes: [Double]
   /// Clicks on this screen (source time, x, y), sorted, so the drawn cursor lands on each one.
   let clickPoints: [(t: Double, x: Double, y: Double)]
+  /// Source times the pointer actually moved, for fading the cursor out while it rests.
+  let pointerMoves: [Double]
 
   public init(
     plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
@@ -100,6 +102,14 @@ public final class Scene: @unchecked Sendable {
       plan.cursor?.hidden == true
       ? [] : cursorPath.filter { (-0.05...1.05).contains($0.x) && (-0.05...1.05).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
     clickTimes = clicks.map(\.t).sorted()
+    // Measured from where it last moved, so a slow glide counts as moving too.
+    var moves: [Double] = []
+    var anchor = pointer.first
+    for p in pointer.dropFirst() where hypot(p.x - anchor!.x, p.y - anchor!.y) > 0.002 {
+      moves.append(p.t)
+      anchor = p
+    }
+    pointerMoves = moves
     clickPoints = clicks.filter { (0...1).contains($0.x) && (0...1).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
     let fps = plan.output.fps
     mapped = mapPlan(plan)

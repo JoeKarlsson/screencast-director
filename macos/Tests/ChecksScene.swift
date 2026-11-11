@@ -201,7 +201,9 @@ func sceneDrawingChecks() {
   let pointer = (0..<20).map { InputEvent(t: Double($0) * 0.5, type: .move, x: 0.5, y: 0.5) }
   // The arrow is 32 px tall at 1080p, drawn in 54-unit steps; (6, 30) is inside its body.
   let body = (x: markMid.x + 6 * 32 / 54, y: markMid.y + 30 * 32 / 54)
-  let arrowBody = at(render(base, frame: 90, cursor: pointer), body.x, body.y)
+  var resting = base
+  resting.cursor = CursorSettings(idleHide: false)
+  let arrowBody = at(render(resting, frame: 90, cursor: pointer), body.x, body.y)
   expect(arrowBody.min()! > 0.9, "the cursor is drawn at the pointer (\(arrowBody))")
   expect(near(at(render(base, frame: 90), body.x, body.y), gray, 0.02), "no pointer data, no cursor")
   var hidden = base
@@ -225,6 +227,20 @@ func sceneDrawingChecks() {
   expect(abs(unpinned.cursorPosition(frame: 5 * fps)!.x - 0.8) > 0.1, "without the pin, smoothing would miss the click")
   let later = (pinned.cursorPosition(frame: 5.5 * fps)!.x, unpinned.cursorPosition(frame: 5.5 * fps)!.x)
   expect(abs(later.0 - later.1) < 1e-9, "half a second after the click the cursor follows the smoothed path (\(later))")
+  // A resting cursor fades out after 1.5 s and back in just before it moves; a click keeps it.
+  let rest = (0..<600).map { i -> InputEvent in
+    let t = Double(i) / 60
+    return InputEvent(t: t, type: .move, x: t < 2 || t > 6 ? 0.2 + t * 0.01 : 0.22, y: 0.5)
+  }
+  let idle = Scene(plan: base, words: [], clicks: [], shortcuts: [], cursorPath: rest)
+  expect(idle.cursorPosition(frame: 1 * fps)?.alpha == 1, "a moving cursor is fully shown")
+  expect(idle.cursorPosition(frame: 4 * fps)?.alpha == 0, "a cursor resting 2 s has faded out")
+  expect(idle.cursorPosition(frame: 6.02 * fps)?.alpha == 1, "it's back as soon as it moves")
+  let clickedWhileResting = Scene(plan: base, words: [], clicks: [InputEvent(t: 4, type: .click, x: 0.22, y: 0.5)], shortcuts: [], cursorPath: rest)
+  expect(clickedWhileResting.cursorPosition(frame: 4 * fps)?.alpha == 1, "a click shows the cursor even while it rests")
+  var keep = base
+  keep.cursor = CursorSettings(idleHide: false)
+  expect(Scene(plan: keep, words: [], clicks: [], shortcuts: [], cursorPath: rest).cursorPosition(frame: 4 * fps)?.alpha == 1, "idleHide false keeps it")
   expect(Scene.clickPinWeight(-0.3) == 0 && Scene.clickPinWeight(0.05) == 1 && Scene.clickPinWeight(0.4) == 0, "the pin eases in before a click and lets go after")
 
   // Brackets: the accent corners sit just outside the screen card (a 12 px stroke centered 16 px out).

@@ -25,7 +25,7 @@ extension Scene {
     let border = !covered && plan.camera?.cutout != true && plan.camera?.bubbleBorder != false && (camBox.map { $0.opacity > 0.01 } ?? false)
     let ins = insets(plan)
     let brackets = look.frame == "brackets" && (ins.fullBleed || b.opacity > 0.01)
-    let pointerAt = b.opacity > 0.01 && !screenHidden ? cursorPosition(frame: f) : nil
+    let pointerAt = b.opacity > 0.01 && !screenHidden ? cursorPosition(frame: f).flatMap { $0.alpha > 0 ? $0 : nil } : nil
     if page == nil && chip == nil && shownCallouts.isEmpty && shownMarks.isEmpty && ripples.isEmpty && !border && !brackets
       && watermark == nil && pointerAt == nil {
       return nil
@@ -72,9 +72,12 @@ extension Scene {
       ctx.saveGState()
       ctx.addPath(CGPath(roundedRect: CGRect(x: b.x, y: b.y, width: b.w, height: b.h), cornerWidth: b.r, cornerHeight: b.r, transform: nil))
       ctx.clip()
+      ctx.setAlpha(p.alpha)
+      ctx.beginTransparencyLayer(auxiliaryInfo: nil)
       let (k, tx, ty) = screenMap(b, cam)
       drawCursor(ctx, at: CGPoint(x: tx + k * p.x * plan.source.width, y: ty + k * p.y * plan.source.height),
         height: (plan.cursor?.size ?? 32) * u * cam.scale * p.pulse)
+      ctx.endTransparencyLayer()
       ctx.restoreGState()
     }
 

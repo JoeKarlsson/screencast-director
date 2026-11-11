@@ -201,8 +201,9 @@ extension Scene {
   }
 
   /// The smoothed pointer position (0..1 of the screen) at an output frame, plus a press pulse
-  /// (1 = normal size, briefly larger just after a click). nil when there's no pointer data.
-  func cursorPosition(frame f: Double) -> (x: Double, y: Double, pulse: Double)? {
+  /// (1 = normal size, briefly larger just after a click) and the drawn arrow's opacity (it fades
+  /// out while it rests; effects still follow it). nil when there's no pointer data.
+  func cursorPosition(frame f: Double) -> (x: Double, y: Double, pulse: Double, alpha: Double)? {
     guard !pointer.isEmpty, let t = outToSrc(mapped, f, fps: plan.output.fps) else { return nil }
     // Hide it before the first sample and after a long gap (pointer on another display).
     guard t >= pointer[0].t - 0.2, t <= pointer[pointer.count - 1].t + 2 else { return nil }
@@ -242,7 +243,18 @@ extension Scene {
     if let c = clickTimes.last(where: { $0 <= t }), t - c < 0.3 {
       pulse = 1 + 0.25 * sin(.pi * (t - c) / 0.3)
     }
-    return (x, y, pulse)
+    let alpha = plan.cursor?.idleHide == false ? 1 : cursorAlpha(at: t)
+    return (x, y, pulse, alpha)
+  }
+
+  /// 1 while the pointer moves; after it rests 1.5 s it fades out over 0.3 s, and it fades back in
+  /// over the 0.15 s before its next move. Never faded within 0.5 s of a click.
+  func cursorAlpha(at t: Double) -> Double {
+    if clickTimes.contains(where: { abs($0 - t) < 0.5 }) { return 1 }
+    let last = pointerMoves.last { $0 <= t } ?? pointer[0].t
+    let fadingOut = 1 - (t - last - 1.5) / 0.3
+    let fadingIn = pointerMoves.first { $0 > t }.map { 1 - ($0 - t) / 0.15 } ?? 0
+    return min(1, max(0, fadingOut, fadingIn))
   }
 
   /// How far the drawn cursor is pulled onto a click's point, `dt` seconds after it (negative:

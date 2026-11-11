@@ -219,10 +219,13 @@ public struct CursorSettings: Codable, Equatable, Sendable {
   public var smoothing: Double?
   /// Hide the drawn cursor entirely.
   public var hidden: Bool?
-  public init(size: Double? = nil, smoothing: Double? = nil, hidden: Bool? = nil) {
+  /// Fade the cursor out while it rests (1.5 s without moving). Default true.
+  public var idleHide: Bool?
+  public init(size: Double? = nil, smoothing: Double? = nil, hidden: Bool? = nil, idleHide: Bool? = nil) {
     self.size = size
     self.smoothing = smoothing
     self.hidden = hidden
+    self.idleHide = idleHide
   }
 }
 

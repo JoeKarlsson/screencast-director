@@ -30,7 +30,7 @@ The transcript, script.md, events.jsonl and everything `describe` and `review` p
 - `effects` (optional): [{name, layer?, params?}], shader plugins on every frame (`layer` screen | camera | frame; `params` by name, left out = the effect's default). `effectRanges` (optional): [{start, end, name, layer?, params?, note?}] turns an effect on for one stretch only ("glitch here", "track my hand during this part"). Use only effects the plan already names or the user names; `describe` lists them and flags a missing one.
 - `intro` / `outro` (optional): {enabled?, title?, subtitle?, duration?}, full-frame cards before and after the video (shown unless `enabled` is false; `duration` default 2.5 s). Source times don't change.
 - `look` (optional): the profile's fonts and colors (`accent`, `titleText`, `titleBackground`, caption colors, `watermark`, `frame`). Change it only when the user asks for a color or font change; colors are `#rrggbb`.
-- `cursor` (optional): {size?, smoothing?, hidden?}, the drawn pointer (size in px at 1080p, smoothing 0 to 0.4 s).
+- `cursor` (optional): {size?, smoothing?, hidden?, idleHide?}, the drawn pointer (size in px at 1080p, smoothing 0 to 0.4 s; idleHide false keeps it on screen while it rests, which otherwise fades it out after 1.5 s).
 - `coverAt` (optional): up to three source seconds the thumbnails are made from; set it when the user names a moment for the cover.
 - `pauses` records how hard silences were cut (gentle | normal | tight); it's set with the segments, so don't change it by hand.
 - `markers` (optional): {t, label?}, the user's named points ("intro ends"). When the user refers to one, use its time; don't move or delete markers unless asked.

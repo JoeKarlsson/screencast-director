@@ -297,6 +297,7 @@ extension InspectorView {
         slider("Size", bind("cursorSize", { $0.cursorSettings.size ?? 32 }, { $0.cursorSettings.size = $1.rounded() }), 16...72, "\(Int(plan.cursor?.size ?? 32)) pt")
         slider("Smoothing", bind("cursorSmoothing", { $0.cursorSettings.smoothing ?? 0.12 }, { $0.cursorSettings.smoothing = ($1 * 100).rounded() / 100 }), 0...0.4,
           String(format: "%.2f s", plan.cursor?.smoothing ?? 0.12))
+        toggle("Hide when still", "Fades out after 1.5 s without moving.", bind(nil, { $0.cursorSettings.idleHide ?? true }, { $0.cursorSettings.idleHide = $1 ? nil : false }))
       }
       toggle("Click ripples", "A ring where you click.", bind("ripples", { $0.clickRipples }, { $0.clickRipples = $1 }))
       toggle("Shortcut labels", "Shows chips like ⌘K when you press a shortcut.", bind("chips", { $0.shortcutChips }, { $0.shortcutChips = $1 }))
