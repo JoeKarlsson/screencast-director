@@ -208,6 +208,25 @@ func sceneDrawingChecks() {
   hidden.cursor = CursorSettings(hidden: true)
   expect(near(at(render(hidden, frame: 90, cursor: pointer), body.x, body.y), gray, 0.02), "a hidden cursor isn't drawn")
 
+  // Heavy smoothing lags a fast move into a click, so the cursor is pinned to the click's point
+  // around it, and follows the smoothed path again once it's let go.
+  var smooth = base
+  smooth.cursor = CursorSettings(smoothing: 0.4)
+  let dash = (0..<600).map { i -> InputEvent in
+    let t = Double(i) / 60
+    return InputEvent(t: t, type: .move, x: t < 5 ? 0.2 : 0.8, y: 0.5)
+  }
+  let click = InputEvent(t: 5, type: .click, x: 0.8, y: 0.5)
+  let pinned = Scene(plan: smooth, words: [], clicks: [click], shortcuts: [], cursorPath: dash)
+  let unpinned = Scene(plan: smooth, words: [], clicks: [], shortcuts: [], cursorPath: dash)
+  let fps = Double(smooth.output.fps)
+  let atClick = pinned.cursorPosition(frame: 5 * fps)!
+  expect(abs(atClick.x - 0.8) < 0.002, "the cursor sits on the click it makes, however smooth (\(atClick.x))")
+  expect(abs(unpinned.cursorPosition(frame: 5 * fps)!.x - 0.8) > 0.1, "without the pin, smoothing would miss the click")
+  let later = (pinned.cursorPosition(frame: 5.5 * fps)!.x, unpinned.cursorPosition(frame: 5.5 * fps)!.x)
+  expect(abs(later.0 - later.1) < 1e-9, "half a second after the click the cursor follows the smoothed path (\(later))")
+  expect(Scene.clickPinWeight(-0.3) == 0 && Scene.clickPinWeight(0.05) == 1 && Scene.clickPinWeight(0.4) == 0, "the pin eases in before a click and lets go after")
+
   // Brackets: the accent corners sit just outside the screen card (a 12 px stroke centered 16 px out).
   var bracketed = base
   bracketed.look = Look()

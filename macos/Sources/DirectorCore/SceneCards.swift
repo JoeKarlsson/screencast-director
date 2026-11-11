@@ -230,11 +230,29 @@ extension Scene {
       sy = last.y
       sw = 1
     }
+    // Smoothing lags a fast move, so the tip could sit beside the button it clicks: ease onto the
+    // click's own point just before it, hold there, and ease back to the smoothed path after.
+    var x = sx / sw, y = sy / sw
+    if let c = clickPoints.min(by: { abs($0.t - t) < abs($1.t - t) }) {
+      let w = Scene.clickPinWeight(t - c.t)
+      x += (c.x - x) * w
+      y += (c.y - y) * w
+    }
     var pulse = 1.0
     if let c = clickTimes.last(where: { $0 <= t }), t - c < 0.3 {
       pulse = 1 + 0.25 * sin(.pi * (t - c) / 0.3)
     }
-    return (sx / sw, sy / sw, pulse)
+    return (x, y, pulse)
+  }
+
+  /// How far the drawn cursor is pulled onto a click's point, `dt` seconds after it (negative:
+  /// before): eases in over the 0.25 s before, holds 0.1 s, and eases out over 0.25 s.
+  static func clickPinWeight(_ dt: Double) -> Double {
+    func smoothstep(_ u: Double) -> Double { let v = min(max(u, 0), 1); return v * v * (3 - 2 * v) }
+    if dt < -0.25 || dt > 0.35 { return 0 }
+    if dt < 0 { return smoothstep((dt + 0.25) / 0.25) }
+    if dt <= 0.1 { return 1 }
+    return 1 - smoothstep((dt - 0.1) / 0.25)
   }
 
   /// The arrow from the app icon, tip at `at`, white with a dark outline.

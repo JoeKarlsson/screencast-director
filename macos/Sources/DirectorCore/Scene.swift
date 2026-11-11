@@ -80,6 +80,8 @@ public final class Scene: @unchecked Sendable {
   let pointer: [(t: Double, x: Double, y: Double)]
   /// Click times (source), for the cursor's press pulse.
   let clickTimes: [Double]
+  /// Clicks on this screen (source time, x, y), sorted, so the drawn cursor lands on each one.
+  let clickPoints: [(t: Double, x: Double, y: Double)]
 
   public init(
     plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
@@ -98,6 +100,7 @@ public final class Scene: @unchecked Sendable {
       plan.cursor?.hidden == true
       ? [] : cursorPath.filter { (-0.05...1.05).contains($0.x) && (-0.05...1.05).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
     clickTimes = clicks.map(\.t).sorted()
+    clickPoints = clicks.filter { (0...1).contains($0.x) && (0...1).contains($0.y) }.map { ($0.t, $0.x, $0.y) }.sorted { $0.t < $1.t }
     let fps = plan.output.fps
     mapped = mapPlan(plan)
     frameCount = planFrames(plan)
