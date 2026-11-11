@@ -61,7 +61,7 @@ struct NoticeBanner: View {
         .padding(.vertical, 10)
         .frame(maxWidth: 560)
         .glassCard(cornerRadius: 14)
-        .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+        .elevation(.pop)
         .transition(.move(edge: .top).combined(with: .opacity))
         .id(n.id)
       }

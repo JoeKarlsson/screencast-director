@@ -41,7 +41,7 @@ struct HomeView: View {
       Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
         .shadow(color: Theme.accent.opacity(0.35), radius: 16, y: 6)
       VStack(alignment: .leading, spacing: 6) {
-        Text("Screencast Director").font(.system(size: 30, weight: .bold, design: .rounded))
+        Text("Screencast Director").font(Theme.glyph(30, .bold, design: .rounded))
         Text("Record your screen, then edit it by hand or by telling Claude what you want.")
           .font(.title3).foregroundStyle(.secondary)
         HStack(spacing: 10) {
@@ -243,7 +243,7 @@ struct RecordingCard: View {
       .overlay(
         RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
           .strokeBorder(hovered ? Theme.accent : Color.primary.opacity(0.1), lineWidth: hovered ? 2 : 1))
-      .shadow(color: .black.opacity(hovered ? 0.25 : 0.1), radius: hovered ? 14 : 6, y: hovered ? 8 : 3)
+      .elevation(hovered ? .pop : .card)
       VStack(alignment: .leading, spacing: 2) {
         Text(url.lastPathComponent).font(.body.weight(.medium)).lineLimit(2, reservesSpace: true)
         Text(info.date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)

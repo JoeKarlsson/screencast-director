@@ -14,6 +14,12 @@ Each release lists what changed for people using the app or the CLI. The version
 - Cutting words in the transcript takes the pause after them too, up to 70 ms before the next word, so deleting a sentence leaves one natural pause instead of two. Any cut (the timeline, the transcript, `director cut`) also takes a leftover piece under two frames beside it, which would only flash by.
 - Drafted zooms are steadier: the video opens wide for its first 2.5 s, the click that stops the recording gets no zoom, clicks that drift further than one zoomed view can show become two zooms, and two zooms less than 1.5 s apart pan from one to the next instead of zooming out and straight back in.
 
+### Editor
+- Settings with a few options show them all as a row of choices instead of a menu or segmented control: frame style, animation theme, chapter style, shape, resolution, frame rate, screen crop, camera shape and room, pauses, effect layers, the logo's corner and B-roll placement. Cursor smoothing picks Off, Light, Medium or Strong (a value set between them shows as Custom).
+- The inspector is quieter: the explanations under settings moved into their tooltips, and controls that can't apply right now are hidden instead of greyed out (nudging items that can't move, reordering a single clip, Repeat at Playhead with the playhead inside the clip, layouts without a camera).
+- The timeline shows the selected bar with a halo in its own color, gives the playhead a soft glow, shows a dragged edge's in and out times above it, and outlines how far a clip can grow while you trim it (in recording time).
+- One type scale, spacing scale and set of corner radii across the inspector, timeline, Claude box and recording setup, with rounder cards.
+
 ### Retention
 - `director review` checks an edit's structure against what hit videos of the same length do, in new `RETENTION` lines: talking too late (an intro card or warm-up before the first word), a vertical video with nothing on its first frame saying what it is, a static screen with nothing new for too long, cutting away from the screen right after a click or typing, running on after the last word, and missing or overlong chapters from 5 minutes up. The limits come from measuring 31 hit videos at five lengths (60 s, 3, 5, 20 and 60 minutes), and vertical video and each social clip are checked by the 60 s rules. `director review <dir> --retention` prints only these.
 - The Claude box knows the retention lines and acts on all of them when you ask for a full or retention pass.

@@ -138,13 +138,13 @@ struct RecordingHUDView: View {
   @ObservedObject var recorder: Recorder
 
   var body: some View {
-    HStack(spacing: 14) {
+    HStack(spacing: Theme.Space.l) {
       clock
       if !model.compact { details }
-      HStack(spacing: 6) {
+      HStack(spacing: Theme.Space.s) {
         if !model.compact { controls }
         Button(action: model.onStop) {
-          Image(systemName: "stop.fill").font(.system(size: 13, weight: .bold))
+          Image(systemName: "stop.fill").font(Theme.glyph(13, .bold))
             .frame(width: 34, height: 34)
             .background(Circle().fill(Theme.recording))
             .foregroundStyle(.white)
@@ -155,7 +155,7 @@ struct RecordingHUDView: View {
           model.compact.toggle()
         } label: {
           Image(systemName: model.compact ? "chevron.left" : "chevron.right")
-            .font(.system(size: 10, weight: .bold))
+            .font(Theme.glyph(10, .bold))
             .frame(width: 16, height: 30)
             .foregroundStyle(.secondary)
             .contentShape(Rectangle())
@@ -164,9 +164,9 @@ struct RecordingHUDView: View {
         .help(model.compact ? "Show the full widget" : "Shrink to the clock and Stop")
       }
     }
-    .padding(.leading, 18)
-    .padding(.trailing, 8)
-    .padding(.vertical, 10)
+    .padding(.leading, Theme.Space.l)
+    .padding(.trailing, Theme.Space.s)
+    .padding(.vertical, Theme.Space.m)
     .glassCard(cornerRadius: 30)
     .animation(.snappy, value: recorder.retakeCount)
     .animation(.snappy, value: recorder.isPaused)
@@ -218,7 +218,7 @@ struct RecordingHUDView: View {
   }
 
   private var clock: some View {
-    HStack(spacing: 8) {
+    HStack(spacing: Theme.Space.s) {
       if recorder.isPaused {
         Image(systemName: "pause.circle.fill").foregroundStyle(.yellow).font(.title3)
       } else {
@@ -235,7 +235,7 @@ struct RecordingHUDView: View {
 
   private func hudButton(_ symbol: String, _ help: String, tint: Color? = nil, action: @escaping () -> Void) -> some View {
     Button(action: action) {
-      Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
+      Image(systemName: symbol).font(Theme.glyph(13, .semibold))
         .frame(width: 30, height: 30)
         .background(Circle().fill(tint.map { $0.opacity(0.9) } ?? Color.primary.opacity(0.08)))
         .foregroundStyle(tint == nil ? Color.primary : .white)
@@ -353,9 +353,9 @@ struct CountdownView: View {
   @ObservedObject var countdown: Countdown
 
   var body: some View {
-    VStack(spacing: 4) {
+    VStack(spacing: Theme.Space.xs) {
       Text("\(countdown.remaining)")
-        .font(.system(size: 84, weight: .bold, design: .rounded)).monospacedDigit()
+        .font(Theme.glyph(84, .bold, design: .rounded)).monospacedDigit()
         .contentTransition(.numericText(countsDown: true))
       Text("⌃⌥⌘R to cancel").font(.caption).foregroundStyle(.secondary)
     }

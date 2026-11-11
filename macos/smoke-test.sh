@@ -319,6 +319,13 @@ sleep 0.5
 [[ "$(press_help "Hide Titles & chips")" == pressed ]] || fail "opening Titles & chips didn't give it a fold button"
 echo "ok: Titles & chips folds and opens"
 
+# 8d. A choice row sets its setting: the frame style's Window cell (found by its help) writes look.frame.
+frame_style() { python3 -c 'import json,sys; print((json.load(open(sys.argv[1])).get("look") or {}).get("frame", ""))' "$PROJECT/plan.json"; }
+[[ "$(press_help "Window gives the screen a title bar")" == pressed ]] || fail "no Window choice for the frame style"
+for _ in $(seq 1 25); do [[ "$(frame_style)" == window ]] && break; sleep 0.2; done
+[[ "$(frame_style)" == window ]] || fail "choosing Window didn't set look.frame (it's \"$(frame_style)\")"
+echo "ok: the frame style's Window choice set look.frame"
+
 # 9. Quitting while Claude is still editing stops it and records that, then the test instance quits.
 echo hang >"$TMP/claude-mode"
 ask "tighten the intro"

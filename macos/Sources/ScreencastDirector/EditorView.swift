@@ -203,7 +203,7 @@ struct TransportBar: View {
         icon("backward.end.fill", "Go to start (⌘←)", action: project.goToStart)
         Button(action: project.togglePlay) {
           Image(systemName: project.isPlaying ? "pause.fill" : "play.fill")
-            .font(.system(size: 15, weight: .semibold))
+            .font(Theme.glyph(15, .semibold))
             .frame(width: 34, height: 28)
             .contentShape(Rectangle())
         }
@@ -222,7 +222,7 @@ struct TransportBar: View {
 
   private func icon(_ symbol: String, _ help: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
-      Image(systemName: symbol).font(.system(size: 11)).frame(width: 24, height: 24).contentShape(Rectangle())
+      Image(systemName: symbol).font(Theme.glyph(11)).frame(width: 24, height: 24).contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .foregroundStyle(.secondary)
@@ -245,7 +245,7 @@ struct PreviewVolumeControl: View {
   var body: some View {
     HStack(spacing: 4) {
       Button { settings.previewMuted.toggle() } label: {
-        Image(systemName: symbol).font(.system(size: 11)).frame(width: 22, height: 24, alignment: .leading).contentShape(Rectangle())
+        Image(systemName: symbol).font(Theme.glyph(11)).frame(width: 22, height: 24, alignment: .leading).contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .foregroundStyle(.secondary)

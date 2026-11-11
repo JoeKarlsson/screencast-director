@@ -8,7 +8,7 @@ extension InspectorView {
 
   /// The selected item's kind as a colored chip, its name, and its time range.
   func itemHeader(_ kind: String, _ icon: String, _ color: Color, _ range: String) -> some View {
-    HStack(spacing: 10) {
+    HStack(spacing: Theme.Space.m) {
       KindChip(icon: icon, color: color)
       VStack(alignment: .leading, spacing: 1) {
         Text(kind).font(.title3.weight(.semibold))
@@ -59,16 +59,16 @@ extension InspectorView {
       let n = count(k)
       return n == 0 ? nil : "\(n) \(k)\(n == 1 ? "" : "s")"
     }
-    return VStack(alignment: .leading, spacing: 14) {
+    return VStack(alignment: .leading, spacing: Theme.Space.l) {
       itemHeader("\(items.count) Selected", "square.stack.3d.up", Theme.accent, parts.joined(separator: ", "))
       InspectorSection("Together", detail: "Drag any of them to move them all; ⌥← and ⌥→ nudge by a frame. ⇧-click adds or removes one.") {
-        HStack(spacing: 8) {
-          Button { project.nudgeSelection(frames: -Double(project.fps) / 2) } label: { Label("½ s Earlier", systemImage: "arrow.left").frame(maxWidth: .infinity) }
-            .help("Move the selected items half a second earlier")
-            .disabled(!items.contains(where: \.movable))
-          Button { project.nudgeSelection(frames: Double(project.fps) / 2) } label: { Label("½ s Later", systemImage: "arrow.right").frame(maxWidth: .infinity) }
-            .help("Move the selected items half a second later")
-            .disabled(!items.contains(where: \.movable))
+        if items.contains(where: \.movable) {
+          HStack(spacing: Theme.Space.s) {
+            Button { project.nudgeSelection(frames: -Double(project.fps) / 2) } label: { Label("½ s Earlier", systemImage: "arrow.left").frame(maxWidth: .infinity) }
+              .help("Move the selected items half a second earlier")
+            Button { project.nudgeSelection(frames: Double(project.fps) / 2) } label: { Label("½ s Later", systemImage: "arrow.right").frame(maxWidth: .infinity) }
+              .help("Move the selected items half a second later")
+          }
         }
         Button {
           project.instruction = "For the selected items: "
@@ -136,18 +136,19 @@ extension InspectorView {
     }
     InspectorSection("Order",
       detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
-      HStack(spacing: 6) {
-        Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
-          .help("Play this clip first")
-        Button { project.moveSelectedClip(to: i - 1) } label: { Label("Earlier", systemImage: "arrow.left") }
-          .help("Play this clip one place earlier")
-        Button { project.moveSelectedClip(to: i + 1) } label: { Label("Later", systemImage: "arrow.right") }
-          .help("Play this clip one place later")
-        Button { project.moveSelectedClip(to: plan.segments.count - 1) } label: { Label("Last", systemImage: "arrow.right.to.line") }
-          .help("Play this clip last")
+      if plan.segments.count > 1 {
+        HStack(spacing: Theme.Space.s) {
+          Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
+            .help("Play this clip first")
+          Button { project.moveSelectedClip(to: i - 1) } label: { Label("Earlier", systemImage: "arrow.left") }
+            .help("Play this clip one place earlier")
+          Button { project.moveSelectedClip(to: i + 1) } label: { Label("Later", systemImage: "arrow.right") }
+            .help("Play this clip one place later")
+          Button { project.moveSelectedClip(to: plan.segments.count - 1) } label: { Label("Last", systemImage: "arrow.right.to.line") }
+            .help("Play this clip last")
+        }
+        .controlSize(.small)
       }
-      .controlSize(.small)
-      .disabled(plan.segments.count < 2)
       if s.repeats == true {
         Text("A repeat: this moment also plays in its own place.").font(.caption).foregroundStyle(.secondary)
       } else {
@@ -159,19 +160,20 @@ extension InspectorView {
         .controlSize(.small)
         .help("Play this clip again at the very start, keeping it where it is too")
         let at = project.playheadSrc
-        Button {
-          let range = s.start..<s.end
-          project.apply { _ = $0.repeatRange(range, before: at) }
-          if let j = project.plan?.segments.firstIndex(where: { $0.repeats == true && $0.start == range.lowerBound && $0.end == range.upperBound }) {
-            project.selection = .segment(j)
-          }
-        } label: { Label("Repeat at Playhead", systemImage: "repeat.1").frame(maxWidth: .infinity) }
-        .controlSize(.small)
-        .disabled((s.start..<s.end).contains(at))
-        .help("Play this clip again where the playhead is, keeping it where it is too (move the playhead outside the clip first)")
+        if !(s.start..<s.end).contains(at) {
+          Button {
+            let range = s.start..<s.end
+            project.apply { _ = $0.repeatRange(range, before: at) }
+            if let j = project.plan?.segments.firstIndex(where: { $0.repeats == true && $0.start == range.lowerBound && $0.end == range.upperBound }) {
+              project.selection = .segment(j)
+            }
+          } label: { Label("Repeat at Playhead", systemImage: "repeat.1").frame(maxWidth: .infinity) }
+          .controlSize(.small)
+          .help("Play this clip again where the playhead is, keeping it where it is too")
+        }
       }
     }
-    HStack(spacing: 8) {
+    HStack(spacing: Theme.Space.s) {
       Button(action: project.splitAtPlayhead) { Label("Split at Playhead", systemImage: "scissors").frame(maxWidth: .infinity) }
       removeButton("Cut Clip")
     }
@@ -303,16 +305,8 @@ extension InspectorView {
     let c = plan.insertList[i]
     itemHeader("B-roll", "photo.on.rectangle", Theme.broll, range(c.start, c.end))
     InspectorSection((c.file as NSString).lastPathComponent, detail: c.isImage ? "A picture." : "A clip, played at real time and muted.") {
-      Picker("Where", selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement)) {
-        Text("In the screen").tag(String?.none)
-        Text("Full frame").tag(String?.some("full"))
-      }
-      .pickerStyle(.segmented)
-      Picker("Fit", selection: bindItem("insertFit\(i)", \.insertList, i, \.fit)) {
-        Text("Fill").tag(String?.none)
-        Text("Show all").tag(String?.some("fit"))
-      }
-      .pickerStyle(.segmented)
+      ChoiceRow([(String?.none, "In the screen"), (String?.some("full"), "Full frame")], selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement))
+      ChoiceRow([(String?.none, "Fill"), (String?.some("fit"), "Show all")], selection: bindItem("insertFit\(i)", \.insertList, i, \.fit))
       if !c.isImage {
         slider(
           "Start at",
@@ -364,10 +358,10 @@ extension InspectorView {
       Picker("Effect", selection: effectName) {
         ForEach(Array(Set(sources.available() + [r.name])).sorted(), id: \.self) { Text(sources.manifest($0)?.title ?? $0).tag($0) }
       }
-      Picker("On", selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer)) {
-        Text("Its own (\(manifest?.layer ?? "frame"))").tag(String?.none)
-        ForEach(Effects.layers, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
-      }
+      ChoiceRow(
+        [(String?.none, "Default", "The effect's own layer (\(manifest?.layer ?? "frame"))")]
+          + Effects.layers.map { (String?.some($0), $0.capitalized, "Draw it on the \($0)") },
+        selection: bindItem("effectLayer\(i)", \.effectRangeList, i, \.layer))
     }
     if let params = manifest?.params, !params.isEmpty {
       InspectorSection("Settings") {
@@ -452,7 +446,7 @@ extension InspectorView {
     var files = soundFiles()
     if let current = sound.wrappedValue?.file, !files.contains(current) { files.append(current) }
     return InspectorSection("Sound", detail: "Plays as it appears, and moves with it.") {
-      HStack(spacing: 8) {
+      HStack(spacing: Theme.Space.s) {
         // The project's own sounds, when it has any; the library is always one click away.
         if !files.isEmpty {
           Picker(
@@ -507,7 +501,7 @@ extension InspectorView {
   }
 
   var nothingSelected: some View {
-    VStack(alignment: .leading, spacing: 14) {
+    VStack(alignment: .leading, spacing: Theme.Space.l) {
       emptyState("cursorarrow.click.2", "Nothing selected", "Click a clip, zoom, layout, title or annotation on the timeline to edit it.")
       InspectorSection("On the timeline") {
         tip("arrow.left.and.right", "Drag a selected bar's handles to trim it; drag zooms, layouts and titles to move them.")
@@ -528,14 +522,14 @@ extension InspectorView {
   }
 
   func tip(_ icon: String, _ text: String) -> some View {
-    HStack(alignment: .firstTextBaseline, spacing: 8) {
+    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
       Image(systemName: icon).foregroundStyle(.secondary).frame(width: 18)
       Text(text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
     }
   }
 
   func shortcut(_ keys: [String], _ text: String) -> some View {
-    HStack(spacing: 10) {
+    HStack(spacing: Theme.Space.m) {
       HStack(spacing: 3) { ForEach(keys, id: \.self) { Keycap($0) } }
         .frame(width: 78, alignment: .leading)
       Text(text).font(.callout).foregroundStyle(.secondary)
@@ -545,29 +539,28 @@ extension InspectorView {
 
   /// The four layouts as icon tiles.
   func layoutPicker(_ binding: Binding<LayoutMode>, hasCamera: Bool) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-        ForEach(LayoutMode.allCases, id: \.self) { mode in
-          let on = binding.wrappedValue == mode
-          Button {
-            binding.wrappedValue = mode
-          } label: {
-            VStack(spacing: 5) {
-              Image(systemName: layoutIcon(mode)).font(.system(size: 18))
-              Text(modeName(mode)).font(.caption)
+    VStack(alignment: .leading, spacing: Theme.Space.s) {
+      if hasCamera {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: Theme.Space.s), GridItem(.flexible(), spacing: Theme.Space.s)], spacing: Theme.Space.s) {
+          ForEach(LayoutMode.allCases, id: \.self) { mode in
+            let on = binding.wrappedValue == mode
+            Button {
+              binding.wrappedValue = mode
+            } label: {
+              VStack(spacing: Theme.Space.xs) {
+                Image(systemName: layoutIcon(mode)).font(Theme.glyph(18))
+                Text(modeName(mode)).font(.caption)
+              }
+              .frame(maxWidth: .infinity, minHeight: 54)
+              .selectableTile(on: on)
+              .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, minHeight: 54)
-            .selectableTile(on: on)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .help(modeName(mode))
+            .accessibilityAddTraits(on ? .isSelected : [])
           }
-          .buttonStyle(.plain)
-          .help(modeName(mode))
-          .accessibilityAddTraits(on ? .isSelected : [])
         }
-      }
-      .disabled(!hasCamera)
-      .opacity(hasCamera ? 1 : 0.5)
-      if !hasCamera {
+      } else {
         Text("This recording has no camera. Turn on \"Record camera\" in Settings to use split screen and the camera bubble.")
           .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
       }

@@ -54,29 +54,44 @@ extension TimelineView {
       .overlay {
         if striped { Hatch(spacing: 7).stroke(Color.white.opacity(0.22), lineWidth: 2).clipShape(shape) }
       }
-      .overlay(
-        shape.strokeBorder(
-          selected ? Color.white : Color.white.opacity(hovered ? 0.35 : 0.12), lineWidth: selected ? 1.5 : 0.5)
-      )
+      .overlay(shape.strokeBorder(Color.white.opacity(selected ? 0 : hovered ? 0.35 : 0.12), lineWidth: 0.5))
       .overlay(alignment: .leading) {
-        HStack(spacing: 5) {
+        HStack(spacing: Theme.Space.xs) {
           if let badge, w > 30 {
-            Text(badge).font(.system(size: 9, weight: .bold).monospacedDigit())
+            Text(badge).font(Theme.font(.micro, .bold, mono: true))
               .lineLimit(1).fixedSize()
-              .padding(.horizontal, 4).padding(.vertical, 1)
+              .padding(.horizontal, Theme.Space.xs).padding(.vertical, 1)
               .background(Capsule().fill(Color.black.opacity(0.25)))
           }
           if w > 24 && !label.isEmpty {
-            Text(label).font(.system(size: 10, weight: .medium)).lineLimit(1)
+            Text(label).font(Theme.font(.label, .medium)).lineLimit(1)
           }
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(film == nil ? 0 : 0.6), radius: 1.5)
-        .padding(.horizontal, 7)
+        .padding(.horizontal, Theme.Space.s)
       }
       .clipShape(shape)
-      .shadow(color: selected ? color.opacity(0.55) : .black.opacity(hovered ? 0.15 : 0), radius: selected ? 5 : 2, y: 1)
+      .overlay {
+        // Selected: a halo, a gap in the window's color and then a ring in the bar's own color.
+        if selected {
+          shape.inset(by: -2).strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 2)
+          shape.inset(by: -3.5).strokeBorder(color, lineWidth: 1.5)
+        }
+      }
+      .shadow(color: .black.opacity(hovered && !selected ? 0.15 : 0), radius: 2, y: 1)
       .frame(width: w, height: track.height)
+      .background(alignment: .leading) {
+        // Trimming a clip: a dashed outline of how far it can grow (in recording time; in output time
+        // the cut it would grow into has no width).
+        if track == .clips, !ui.outputTime, trimmable, ui.drag?.sel == sel {
+          RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder(color.opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            .frame(width: max(0, x(limits.upperBound) - x(limits.lowerBound)), height: track.height)
+            .offset(x: x(limits.lowerBound) - x(start))
+            .allowsHitTesting(false)
+        }
+      }
       .contentShape(Rectangle())
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("\(track.label) \([badge, label].compactMap { $0 }.joined(separator: " ")) at \(fmtTime(start))")
@@ -160,7 +175,7 @@ extension TimelineView {
   ) -> some View {
     return Capsule().fill(Color.white)
       .frame(width: 4)
-      .padding(.vertical, 6)
+      .padding(.vertical, Theme.Space.s)
       .padding(.horizontal, 2)
       .shadow(color: .black.opacity(0.3), radius: 1)
       .contentShape(Rectangle().inset(by: -3))

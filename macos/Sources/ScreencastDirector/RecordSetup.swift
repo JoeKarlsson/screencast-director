@@ -67,7 +67,7 @@ struct RecordSetupView: View {
   private var recordingWindow: Bool { settings.captureWindowID != 0 }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
+    VStack(alignment: .leading, spacing: Theme.Space.l) {
       HStack {
         Label("New Recording", systemImage: "record.circle").font(.headline).foregroundStyle(.primary)
         Spacer()
@@ -80,7 +80,7 @@ struct RecordSetupView: View {
         .help("Close (Esc)")
       }
 
-      HStack(spacing: 10) {
+      HStack(spacing: Theme.Space.m) {
         sourceTile("Display", "display", selected: !recordingWindow) { settings.captureWindowID = 0 }
         sourceTile("Window", "macwindow", selected: recordingWindow) {
           if let first = windows.windows.first {
@@ -136,7 +136,7 @@ struct RecordSetupView: View {
         }
       }
 
-      HStack(spacing: 10) {
+      HStack(spacing: Theme.Space.m) {
         cameraPreview
         whiteBalance
       }
@@ -152,7 +152,7 @@ struct RecordSetupView: View {
           .font(.caption).foregroundStyle(.secondary)
         Spacer()
         Button(action: start) {
-          Label("Start Recording", systemImage: "record.circle.fill").padding(.horizontal, 6)
+          Label("Start Recording", systemImage: "record.circle.fill").padding(.horizontal, Theme.Space.s)
         }
         .buttonStyle(.borderedProminent)
         .tint(Theme.recording)
@@ -161,7 +161,7 @@ struct RecordSetupView: View {
         .help("Or press ⌃⌥⌘R in any app")
       }
     }
-    .padding(18)
+    .padding(Theme.Space.l)
     .frame(width: 520)
     .glassCard(cornerRadius: Theme.panelCorner)
     .tint(Theme.accent)
@@ -185,8 +185,8 @@ struct RecordSetupView: View {
   /// The pre-flight white balance reading. Its height is fixed so the panel, pinned to the top of
   /// the screen, doesn't grow upward when the advice arrives.
   private var whiteBalance: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack(spacing: 6) {
+    VStack(alignment: .leading, spacing: Theme.Space.xs) {
+      HStack(spacing: Theme.Space.s) {
         Group {
           switch cameraCheck.state {
           case .checking: ProgressView().controlSize(.mini)
@@ -210,7 +210,7 @@ struct RecordSetupView: View {
       // Capped so the box keeps its height; the full text is in the tooltip.
       Text(whiteBalanceText).font(.caption).foregroundStyle(.secondary).lineLimit(5).help(whiteBalanceText)
     }
-    .padding(10)
+    .padding(Theme.Space.m)
     .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
     .background(RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous).fill(Color.primary.opacity(0.05)))
   }
@@ -231,8 +231,8 @@ struct RecordSetupView: View {
 
   private func sourceTile(_ title: String, _ symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
     Button(action: action) {
-      VStack(spacing: 6) {
-        Image(systemName: symbol).font(.system(size: 22, weight: .regular))
+      VStack(spacing: Theme.Space.s) {
+        Image(systemName: symbol).font(Theme.glyph(22))
         Text(title).font(.callout.weight(.medium))
       }
       .frame(maxWidth: .infinity, minHeight: 64)

@@ -238,7 +238,7 @@ struct PlacementDragger: View {
       }
       .overlay(alignment: .topTrailing) {
         if selected {
-          knob.overlay(Image(systemName: "arrow.clockwise").font(.system(size: 8, weight: .bold)).foregroundStyle(.black))
+          knob.overlay(Image(systemName: "arrow.clockwise").font(Theme.glyph(8, .bold)).foregroundStyle(.black))
             .offset(x: 7, y: -7)
             .gesture(
               dragging(item, box) { start, v in

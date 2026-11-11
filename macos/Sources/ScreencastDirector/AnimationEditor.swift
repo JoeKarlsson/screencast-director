@@ -194,7 +194,7 @@ struct AnimationEditor: View {
               list.remove(at: k)
               set(field.key, .array(list.map { .string($0) }))
             } label: {
-              Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+              Image(systemName: "xmark").font(Theme.glyph(9, .bold))
             }
             .buttonStyle(.plain)
             .help("Remove \(name)")

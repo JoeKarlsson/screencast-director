@@ -16,7 +16,7 @@ struct TimelineView: View {
   var rows: TimelineRows { TimelineRows(plan: project.plan, hasWords: !(project.project?.words.isEmpty ?? true)) }
 
   var body: some View {
-    VStack(spacing: 8) {
+    VStack(spacing: Theme.Space.s) {
       toolRow
       if let plan = project.plan {
         GeometryReader { geo in
@@ -124,17 +124,17 @@ struct TimelineView: View {
   var labels: some View {
     ZStack(alignment: .topLeading) {
       ForEach(rows.visible.filter { $0 != .ruler }, id: \.self) { t in
-        HStack(spacing: 5) {
+        HStack(spacing: Theme.Space.xs) {
           Image(systemName: t.icon)
-            .font(.system(size: t == .words ? 9 : 10, weight: .semibold))
+            .font(Theme.font(t == .words ? .micro : .label, .semibold))
             .foregroundStyle(t.color)
             .frame(width: 14)
           Text(t.label)
-            .font(.system(size: 10, weight: .medium))
+            .font(Theme.font(.label, .medium))
             .foregroundStyle(.secondary)
             .lineLimit(1)
         }
-        .padding(.leading, 6)
+        .padding(.leading, Theme.Space.s)
         .frame(width: Self.headerWidth - 6, height: t.height, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.04)))
         .offset(y: rows.y(t))
@@ -183,6 +183,20 @@ struct TimelineView: View {
     if let d = ui.drag, d.sel == sel { return (d.start, d.end) }
     if let shift = ui.groupShift, sel.movable, project.isSelected(sel) { return (start + shift, end + shift) }
     return (start, end)
+  }
+
+  /// While an edge or bar is dragged: its in and out times (on the timeline's axis) in a capsule in
+  /// the ruler above it.
+  func dragTip(start: Double, end: Double) -> some View {
+    Text("\(fmtTime(axis(start))) – \(fmtTime(axis(end)))")
+      .font(Theme.font(.micro, .semibold, mono: true))
+      .foregroundStyle(.white)
+      .padding(.horizontal, Theme.Space.s)
+      .padding(.vertical, 2)
+      .background(Capsule().fill(Color.black.opacity(0.75)))
+      .fixedSize()
+      .offset(x: x(start), y: 2)
+      .allowsHitTesting(false)
   }
 
   /// ⇧ or ⌘ held: clicks and drag boxes add to the selection.
@@ -294,6 +308,7 @@ struct TimelineView: View {
           .offset(x: x(s) - 0.5, y: Track.ruler.height)
           .allowsHitTesting(false)
       }
+      if let d = ui.drag { dragTip(start: d.start, end: d.end) }
       aiFlash
       playhead
     }

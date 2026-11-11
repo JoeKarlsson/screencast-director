@@ -19,10 +19,10 @@ struct ClaudeBar: View {
   ]
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: Theme.Space.s) {
       if !project.asks.isEmpty { history }
-      HStack(spacing: 10) {
-        Image(systemName: "sparkles").foregroundStyle(Theme.ai).font(.system(size: 15, weight: .semibold))
+      HStack(spacing: Theme.Space.m) {
+        Image(systemName: "sparkles").foregroundStyle(Theme.ai).font(Theme.glyph(15, .semibold))
         TextField("Ask \(ai.provider.shortName) to edit…", text: $project.instruction, axis: .vertical)
           .textFieldStyle(.plain)
           .lineLimit(1...4)
@@ -32,14 +32,14 @@ struct ClaudeBar: View {
         if project.busy && project.asks.last?.running == true {
           ProgressView().controlSize(.small)
           Button(action: project.stopAsk) {
-            Image(systemName: "stop.circle.fill").font(.system(size: 22)).foregroundStyle(.secondary)
+            Image(systemName: "stop.circle.fill").font(Theme.glyph(22)).foregroundStyle(.secondary)
           }
           .buttonStyle(.plain)
           .help("Stop. What it already changed stays, and ⌘Z undoes it.")
           .accessibilityLabel("Stop")
         } else {
           Button(action: project.askClaude) {
-            Image(systemName: "arrow.up.circle.fill").font(.system(size: 22))
+            Image(systemName: "arrow.up.circle.fill").font(Theme.glyph(22))
               .foregroundStyle(project.instruction.isEmpty ? Color.secondary.opacity(0.5) : Theme.ai)
           }
           .buttonStyle(.plain)
@@ -48,10 +48,10 @@ struct ClaudeBar: View {
           .accessibilityLabel("Ask \(ai.provider.shortName)")
         }
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 9)
+      .padding(.horizontal, Theme.Space.l)
+      .padding(.vertical, Theme.Space.s)
       .glassCard(cornerRadius: 20)
-      HStack(spacing: 6) {
+      HStack(spacing: Theme.Space.s) {
         // Which AI answers, and a way to set it up when it can't yet.
         Circle().fill(ai.isReady ? Theme.ok : Theme.warning).frame(width: 6, height: 6)
         Text(ai.provider == .claudeCode ? "Claude Code" : ai.provider == .anthropic ? ai.anthropicModel : ai.model)
@@ -65,15 +65,15 @@ struct ClaudeBar: View {
             .help(project.askContext())
         }
       }
-      .padding(.horizontal, 6)
+      .padding(.horizontal, Theme.Space.s)
       if project.asks.isEmpty && project.instruction.isEmpty && project.hasPlan {
         ScrollView(.horizontal, showsIndicators: false) {
-          HStack(spacing: 6) {
+          HStack(spacing: Theme.Space.s) {
             ForEach(Self.ideas, id: \.self) { idea in
               Button(idea) { project.instruction = idea }
                 .buttonStyle(.plain)
                 .font(.caption)
-                .padding(.horizontal, 10).padding(.vertical, 4)
+                .padding(.horizontal, Theme.Space.m).padding(.vertical, Theme.Space.xs)
                 .background(Capsule().fill(Color.primary.opacity(0.06)))
                 .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
             }
@@ -94,9 +94,9 @@ struct ClaudeBar: View {
   private var history: some View {
     ScrollViewReader { scroll in
       ScrollView {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
           ForEach(project.asks) { ask in
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
               HStack {
                 Spacer(minLength: 40)
                 if ask.rewound {
@@ -111,8 +111,8 @@ struct ClaudeBar: View {
                   .accessibilityLabel("Rewind to before this ask")
                 }
                 Text(ask.instruction)
-                  .padding(.horizontal, 10).padding(.vertical, 6)
-                  .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.accent.opacity(0.2)))
+                  .padding(.horizontal, Theme.Space.m).padding(.vertical, Theme.Space.s)
+                  .background(RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous).fill(Theme.accent.opacity(0.2)))
               }
               if ask.running, !ask.steps.isEmpty {
                 // The last few steps, newest last, so you can see it working.
@@ -123,13 +123,13 @@ struct ClaudeBar: View {
                       .font(.caption).foregroundStyle(step.failed == true ? Theme.error : current ? .primary : .secondary)
                   }
                 }
-                .padding(.leading, 20)
+                .padding(.leading, Theme.Space.xl)
               } else if !ask.running, !ask.steps.isEmpty {
                 // Every step it took, folded: which ones failed and how long each ran.
                 DisclosureGroup {
                   VStack(alignment: .leading, spacing: 2) {
                     ForEach(Array(ask.steps.enumerated()), id: \.offset) { _, step in
-                      HStack(spacing: 6) {
+                      HStack(spacing: Theme.Space.s) {
                         Label(step.text, systemImage: step.failed == true ? "xmark" : "checkmark")
                           .foregroundStyle(step.failed == true ? Theme.error : .secondary)
                         Spacer()
@@ -144,10 +144,10 @@ struct ClaudeBar: View {
                     .font(.caption).monospacedDigit().foregroundStyle(failed > 0 ? Theme.error : .secondary)
                 }
                 .help("The steps it took")
-                .padding(.leading, 20)
+                .padding(.leading, Theme.Space.xl)
               }
               if !ask.reply.isEmpty || ask.running {
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .top, spacing: Theme.Space.s) {
                   Image(systemName: "sparkles").foregroundStyle(Theme.ai).font(.caption)
                   Text(ask.reply.isEmpty ? "Working…" : ask.reply)
                     .foregroundStyle(ask.reply.isEmpty ? .secondary : .primary)
@@ -162,7 +162,7 @@ struct ClaudeBar: View {
             .id(ask.id)
           }
         }
-        .padding(10)
+        .padding(Theme.Space.m)
       }
       // A floor, or the preview's layout priority squeezes it to a line.
       .frame(
@@ -186,7 +186,7 @@ extension ClaudeBar {
         Button("Keep All") { project.acceptAllChanges(in: ask.id) }.controlSize(.small)
       }
       ForEach(ask.changes) { change in
-        HStack(spacing: 6) {
+        HStack(spacing: Theme.Space.s) {
           Image(systemName: Self.icon(change.kind)).foregroundStyle(Theme.ai).frame(width: 14)
           Button {
             if let r = change.range { project.seek(src: r.0) }
@@ -210,9 +210,9 @@ extension ClaudeBar {
         .font(.caption)
       }
     }
-    .padding(8)
+    .padding(Theme.Space.s)
     .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.04)))
-    .padding(.leading, 20)
+    .padding(.leading, Theme.Space.xl)
   }
 
   static func icon(_ kind: String) -> String {

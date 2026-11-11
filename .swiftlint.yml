@@ -34,3 +34,14 @@ file_length:
 cyclomatic_complexity:
   warning: 25
   error: 60
+
+custom_rules:
+  # The app's type sizes come from Theme (Theme.font for text, Theme.glyph for symbols and display
+  # numerals), so the scale doesn't drift one hard-coded size at a time.
+  font_tokens:
+    name: "Font tokens"
+    included: "macos/Sources/ScreencastDirector/.*\\.swift"
+    excluded: "macos/Sources/ScreencastDirector/Theme\\.swift"
+    regex: '\.system\(size:'
+    message: "Use Theme.font(...) or Theme.glyph(...) instead of a hard-coded font size"
+    severity: error

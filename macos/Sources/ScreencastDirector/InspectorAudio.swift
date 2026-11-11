@@ -80,11 +80,7 @@ extension InspectorView {
           }
     }
     InspectorSection("Pauses", detail: "How hard to cut silence. Cuts that removed words always stay cut.") {
-      Picker("Pauses", selection: Binding(get: { project.plan?.pauses ?? .normal }, set: { project.setPauses($0) })) {
-        ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag($0) }
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
+      ChoiceRow(PauseLevel.allCases.map { ($0, $0.label) }, selection: Binding(get: { project.plan?.pauses ?? .normal }, set: { project.setPauses($0) }))
     }
   }
 

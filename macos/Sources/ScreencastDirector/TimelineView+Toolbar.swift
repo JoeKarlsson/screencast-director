@@ -8,7 +8,7 @@ extension TimelineView {
   // MARK: Toolbar
 
   var toolRow: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: Theme.Space.m) {
       toolGroup {
         iconButton("Split", "scissors", help: "Split the clip at the playhead (C)", action: project.splitAtPlayhead)
         iconButton(
@@ -96,15 +96,15 @@ extension TimelineView {
         .help("Turn an effect on for the in/out range, or 5 s from the playhead (effects you installed in the Effects folder)")
       }
       Spacer(minLength: 4)
-      HStack(spacing: 6) {
-        Image(systemName: "minus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+      HStack(spacing: Theme.Space.s) {
+        Image(systemName: "minus.magnifyingglass").font(Theme.glyph(11)).foregroundStyle(.secondary)
         Slider(
           value: Binding(get: { ui.pxPerSec }, set: { ui.zoom(by: $0 / ui.pxPerSec, around: axis(project.playheadSrc)) }), in: ui.minPxPerSec...400)
           .accessibilityLabel("Timeline zoom")
           .controlSize(.small)
           .frame(minWidth: 60, maxWidth: 120)
           .help("Timeline zoom")
-        Image(systemName: "plus.magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+        Image(systemName: "plus.magnifyingglass").font(Theme.glyph(11)).foregroundStyle(.secondary)
       }
       toolGroup {
         Toggle(isOn: Binding(get: { ui.outputTime }, set: { on in
@@ -122,14 +122,14 @@ extension TimelineView {
         }
       }
     }
-    .font(.system(size: 13))
+    .font(Theme.font(.body))
     .disabled(!project.hasPlan)
   }
 
   /// What to do with the in/out range: cut, speed up, zoom, title, annotate, or clear it.
   var rangeActions: some View {
     toolGroup {
-      Text("In/Out").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.accent).padding(.horizontal, 6)
+      Text("In/Out").font(Theme.font(.label, .semibold)).foregroundStyle(Theme.accent).padding(.horizontal, Theme.Space.s)
       iconButton("Cut range", "scissors.badge.ellipsis", help: "Cut the in/out range", action: project.cutMarked)
       Menu {
         ForEach([1.5, 2, 3, 4, 8], id: \.self) { s in Button("\(s.formatted())×") { project.speedMarked(s) } }

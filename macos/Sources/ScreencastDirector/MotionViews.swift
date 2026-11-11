@@ -141,7 +141,7 @@ struct ChoiceTiles: View {
           pick(c.name)
         } label: {
           VStack(spacing: 4) {
-            Image(systemName: c.icon).font(.system(size: 16))
+            Image(systemName: c.icon).font(Theme.glyph(16))
             Text(c.label).font(.caption2).lineLimit(1).minimumScaleFactor(0.8)
           }
           .frame(maxWidth: .infinity, minHeight: 46)

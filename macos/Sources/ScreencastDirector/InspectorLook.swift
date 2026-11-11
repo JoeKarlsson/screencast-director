@@ -23,7 +23,7 @@ extension InspectorView {
       .onAppear { ProfileStore.shared.refresh() }
     }
     InspectorSection("Background", detail: "A gradient behind the screen.") {
-      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
+      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Space.s), count: 4), spacing: Theme.Space.s) {
         ForEach(BackgroundPreset.all, id: \.name) { p in
           Button {
             project.apply { $0.style.background = p.colors }
@@ -54,14 +54,10 @@ extension InspectorView {
       }
       slider("Corners", bind("radius", { $0.style.radius }, { $0.style.radius = $1.rounded() }), 0...40, "\(Int(plan.style.radius)) pt")
       LabeledContent("Style") {
-        Picker("Frame style", selection: lookValue(nil, \.frame, "none")) {
-          Text("Plain").tag("none")
-          Text("Brackets").tag("brackets")
-          Text("Window").tag("window")
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .help("Brackets draw corners around the screen; Window gives it a title bar")
+        ChoiceRow(
+          [("none", "Plain", "No frame"), ("brackets", "Brackets", "Brackets draw corners around the screen"),
+           ("window", "Window", "Window gives the screen a title bar")],
+          selection: lookValue(nil, \.frame, "none"))
       }
       LabeledContent("Accent") {
         ColorPicker("Accent", selection: lookColor("accent", \.accent, "#FFE500")).labelsHidden()
@@ -106,13 +102,11 @@ extension InspectorView {
       )
       .help("How B-roll and animations without their own motion come and go")
       LabeledContent("Animations") {
-        Picker("Animation theme", selection: lookValue(nil, \.animationTheme, "")) {
-          Text("Paper collage").tag("")
-          Text("Terminal").tag("terminal")
-          Text("Zine").tag("zine")
-        }
-        .labelsHidden()
-        .help("How animations look. Changing it re-renders them.")
+        ChoiceRow(
+          [("", "Paper", "Paper collage animations (changing the theme re-renders them)"),
+           ("terminal", "Terminal", "Terminal animations (changing the theme re-renders them)"),
+           ("zine", "Zine", "Zine animations (changing the theme re-renders them)")],
+          selection: lookValue(nil, \.animationTheme, ""))
       }
     }
   }
@@ -126,7 +120,7 @@ extension InspectorView {
     ) {
       ForEach(Array(plan.clipList.enumerated()), id: \.offset) { i, c in
         if i > 0 { Divider() }
-        HStack(spacing: 8) {
+        HStack(spacing: Theme.Space.s) {
           TextField("Name", text: bindItem("clipName\(i)", \.clipList, i, \.name)).textFieldStyle(.roundedBorder)
           Button { project.seek(src: c.start) } label: { Text("\(fmtTime(c.start))-\(fmtTime(c.end))").monospacedDigit() }
             .buttonStyle(.borderless).help("Go to the clip's start")
@@ -147,11 +141,8 @@ extension InspectorView {
             .textFieldStyle(.roundedBorder)
         }
         LabeledContent("Pauses") {
-          Picker("Pauses", selection: bindItem("clipPace\(i)", \.clipList, i, \.pace)) {
-            Text("As edited").tag(PauseLevel?.none)
-            ForEach(PauseLevel.allCases, id: \.self) { Text($0.label).tag(PauseLevel?.some($0)) }
-          }
-          .labelsHidden()
+          ChoiceRow([(PauseLevel?.none, "Edit", "Keep the edit's pauses")] + PauseLevel.allCases.map { (PauseLevel?.some($0), $0.label, $0.label) },
+            selection: bindItem("clipPace\(i)", \.clipList, i, \.pace))
         }
         LabeledContent("Logo") {
           Text(c.logo.map { ($0 as NSString).lastPathComponent } ?? "None").lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
@@ -177,7 +168,7 @@ extension InspectorView {
       ForEach(Array(plan.effectList.enumerated()), id: \.offset) { i, e in
         let manifest = sources.manifest(e.name)
         if i > 0 { Divider() }
-        HStack(spacing: 8) {
+        HStack(spacing: Theme.Space.s) {
           Image(systemName: "wand.and.stars").foregroundStyle(Theme.effect)
           Text(manifest?.title ?? e.name).lineLimit(1)
           if manifest == nil { Text("missing").font(.caption).foregroundStyle(Theme.warning) }
@@ -188,11 +179,10 @@ extension InspectorView {
           .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove \(manifest?.title ?? e.name)")
         }
         LabeledContent("On") {
-          Picker("Layer", selection: bindItem("effectLayer\(i)", \.effectList, i, \.layer)) {
-            Text("Its own (\(manifest?.layer ?? "frame"))").tag(String?.none)
-            ForEach(Effects.layers, id: \.self) { Text($0.capitalized).tag(String?.some($0)) }
-          }
-          .labelsHidden()
+          ChoiceRow(
+            [(String?.none, "Default", "The effect's own layer (\(manifest?.layer ?? "frame"))")]
+              + Effects.layers.map { (String?.some($0), $0.capitalized, "Draw it on the \($0)") },
+            selection: bindItem("effectLayer\(i)", \.effectList, i, \.layer))
         }
         if let params = manifest?.params, !params.isEmpty {
           effectParamSliders("allEffectParam\(i)", params, \.effectList, i, \.params)
@@ -217,7 +207,7 @@ extension InspectorView {
   func logoSection(_ plan: Plan) -> some View {
     InspectorSection("Logo", detail: "Drawn in a corner of the video, and on intro and outro cards.") {
       if let w = plan.look?.watermark {
-        HStack(spacing: 8) {
+        HStack(spacing: Theme.Space.s) {
           Image(systemName: "photo").foregroundStyle(.secondary)
           Text((w.image as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
           Spacer(minLength: 4)
@@ -226,14 +216,10 @@ extension InspectorView {
             .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove the logo")
         }
         LabeledContent("Corner") {
-          Picker("Corner", selection: watermarkValue(nil, \.corner, "")) {
-            Text("Default").tag("")
-            Text("Top left").tag("topLeft")
-            Text("Top right").tag("topRight")
-            Text("Bottom left").tag("bottomLeft")
-            Text("Bottom right").tag("bottomRight")
-          }
-          .labelsHidden()
+          ChoiceRow(
+            [("", "Auto", "The profile's corner"), ("topLeft", "↖", "Top left"), ("topRight", "↗", "Top right"),
+             ("bottomLeft", "↙", "Bottom left"), ("bottomRight", "↘", "Bottom right")],
+            selection: watermarkValue(nil, \.corner, ""))
         }
         slider("Size", watermarkValue("logoSize", \.height, 0.035), 0.02...0.15, "\(Int(((w.height ?? 0.035) * 1000).rounded()) / 10)%")
         slider("Opacity", watermarkValue("logoOpacity", \.opacity, 0.9), 0.1...1, "\(Int(((w.opacity ?? 0.9) * 100).rounded()))%")
@@ -295,8 +281,13 @@ extension InspectorView {
       }
       if project.project?.source.cursorHidden == true && plan.cursor?.hidden != true {
         slider("Size", bind("cursorSize", { $0.cursorSettings.size ?? 32 }, { $0.cursorSettings.size = $1.rounded() }), 16...72, "\(Int(plan.cursor?.size ?? 32)) pt")
-        slider("Smoothing", bind("cursorSmoothing", { $0.cursorSettings.smoothing ?? 0.12 }, { $0.cursorSettings.smoothing = ($1 * 100).rounded() / 100 }), 0...0.4,
-          String(format: "%.2f s", plan.cursor?.smoothing ?? 0.12))
+        LabeledContent("Smoothing") {
+          // Named levels; a value set between them (by an agent, or an older plan) shows as Custom.
+          let levels: [(Double, String)] = [(0, "Off"), (0.06, "Light"), (0.12, "Medium"), (0.25, "Strong")]
+          let now = plan.cursor?.smoothing ?? 0.12
+          ChoiceRow(levels + (levels.contains { $0.0 == now } ? [] : [(now, "Custom")]),
+            selection: bind(nil, { $0.cursorSettings.smoothing ?? 0.12 }, { $0.cursorSettings.smoothing = $1 }))
+        }
         toggle("Hide when still", "Fades out after 1.5 s without moving.", bind(nil, { $0.cursorSettings.idleHide ?? true }, { $0.cursorSettings.idleHide = $1 ? nil : false }))
       }
       toggle("Click ripples", "A ring where you click.", bind("ripples", { $0.clickRipples }, { $0.clickRipples = $1 }))
@@ -333,16 +324,11 @@ extension InspectorView {
   func chaptersSection(_ plan: Plan) -> some View {
     InspectorSection("Chapters") {
       LabeledContent("Style") {
-        Picker("Chapter style", selection: bind("chapterStyle", { $0.look?.chapterStyle ?? "" }, { p, v in
+        ChoiceRow([("", "Chip"), ("big", "Big type")], selection: bind("chapterStyle", { $0.look?.chapterStyle ?? "" }, { p, v in
           var look = p.look ?? Look()
           look.chapterStyle = v.isEmpty ? nil : v
           p.look = look
-        })) {
-          Text("Chip").tag("")
-          Text("Big type").tag("big")
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        }))
       }
       .help("Big type: a black block rises under the picture with the chapter in huge letters and crayon marks.")
       // The checklist lists earlier chapter chips, so it needs at least two.
@@ -371,7 +357,7 @@ extension InspectorView {
     // Swatches without labels beside them, so the row fits the inspector column; the names are under them.
     LabeledContent("Colors") {
       VStack(alignment: .leading, spacing: 2) {
-        HStack(spacing: 10) {
+        HStack(spacing: Theme.Space.m) {
           ColorPicker("Text", selection: lookBind("capText", { $0.captionText }, { $0.captionText = $1 }, "#ffffff"))
             .labelsHidden().help("Text")
           ColorPicker("Highlight", selection: lookBind("capHL", { $0.captionHighlight }, { $0.captionHighlight = $1 }, plan.look?.accent ?? "#ffe500"))
@@ -384,7 +370,7 @@ extension InspectorView {
       Spacer(minLength: 0)
     }
     LabeledContent("Emphasis") {
-      HStack(spacing: 6) {
+      HStack(spacing: Theme.Space.s) {
         TextField("home lab, Linux", text: bind("capEmphasis", { ($0.captions.emphasis ?? []).joined(separator: ", ") }, { p, text in
           let words = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
           p.captions.emphasis = words.isEmpty ? nil : words
@@ -438,37 +424,23 @@ extension InspectorView {
     PaneTitle(title: "Format", detail: "\(plan.output.width)×\(plan.output.height) at \(plan.output.fps) fps")
     InspectorSection("Shape", detail: "The Export menu also renders other formats without changing this one.") {
       LabeledContent("Shape") {
-        Picker("Shape", selection: Binding(get: { project.plan.map { Aspect.of($0.output) } ?? Aspect.of(plan.output) }, set: { project.setFormat(aspect: $0) })) {
-          ForEach(Aspect.allCases, id: \.self) { Text($0.label).tag($0) }
-        }
-        .labelsHidden()
+        ChoiceRow(Aspect.allCases.map { ($0, $0.rawValue, $0.label) },
+          selection: Binding(get: { project.plan.map { Aspect.of($0.output) } ?? Aspect.of(plan.output) }, set: { project.setFormat(aspect: $0) }))
       }
       LabeledContent("Resolution") {
-        Picker("Resolution", selection: Binding(get: { project.plan.map { Resolution.of($0.output) } ?? Resolution.of(plan.output) },
-          set: { project.setFormat(resolution: $0) })) {
-          ForEach(Resolution.allCases, id: \.self) { Text($0.label).tag($0) }
-        }
-        .labelsHidden()
+        ChoiceRow(Resolution.allCases.map { ($0, $0.label) },
+          selection: Binding(get: { project.plan.map { Resolution.of($0.output) } ?? Resolution.of(plan.output) }, set: { project.setFormat(resolution: $0) }))
       }
       LabeledContent("Frame rate") {
-        Picker("Frame rate", selection: bind("fps", { $0.output.fps }, { $0.output.fps = $1 })) {
-          Text("30 fps").tag(30)
-          Text("60 fps").tag(60)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        ChoiceRow([(30, "30 fps"), (60, "60 fps")], selection: bind("fps", { $0.output.fps }, { $0.output.fps = $1 }))
       }
     }
     InspectorSection("Screen crop", detail: "Cropped screens pan to follow zooms and clicks.") {
       LabeledContent("Screen") {
-        Picker("Screen", selection: bind("screenAspect", { $0.style.screenAspect ?? 0 }, { $0.style.screenAspect = $1 == 0 ? nil : $1 })) {
-          Text("Whole screen").tag(0.0)
-          Text("Crop 4:3").tag(4.0 / 3)
-          Text("Crop 5:4").tag(1.25)
-          Text("Crop square").tag(1.0)
-          Text("Crop 4:5").tag(0.8)
-        }
-        .labelsHidden()
+        ChoiceRow(
+          [(0.0, "Full", "The whole screen"), (4.0 / 3, "4:3", "Crop to 4:3"), (1.25, "5:4", "Crop to 5:4"), (1.0, "1:1", "Crop square"),
+           (0.8, "4:5", "Crop to 4:5")],
+          selection: bind("screenAspect", { $0.style.screenAspect ?? 0 }, { $0.style.screenAspect = $1 == 0 ? nil : $1 }))
       }
     }
     clipsSection(plan)

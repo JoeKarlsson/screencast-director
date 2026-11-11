@@ -13,11 +13,11 @@ extension TimelineView {
         let (t, _) = project.timeRange(a.owner).map { range(a.owner, $0.0, $0.1) } ?? (a.t, a.t)
         let name = ((a.file as NSString).lastPathComponent as NSString).deletingPathExtension
         HStack(spacing: 3) {
-          Image(systemName: "link").font(.system(size: 8, weight: .semibold))
-          if ui.pxPerSec > 8 { Text(name).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
+          Image(systemName: "link").font(Theme.glyph(8, .semibold))
+          if ui.pxPerSec > 8 { Text(name).font(Theme.font(.label, .semibold)).lineLimit(1).fixedSize() }
         }
         .foregroundStyle(Theme.sfx)
-        .padding(.horizontal, 5)
+        .padding(.horizontal, Theme.Space.xs)
         .frame(height: Track.sounds.height - 4)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Theme.sfx.opacity(0.6), lineWidth: 1))
         .contentShape(Rectangle())
@@ -37,11 +37,11 @@ extension TimelineView {
         let selected = project.isSelected(sel)
         let name = ((e.file as NSString).lastPathComponent as NSString).deletingPathExtension
         HStack(spacing: 3) {
-          Image(systemName: "speaker.wave.2.fill").font(.system(size: 9, weight: .semibold))
-          if ui.pxPerSec > 8 { Text(name).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
+          Image(systemName: "speaker.wave.2.fill").font(Theme.glyph(9, .semibold))
+          if ui.pxPerSec > 8 { Text(name).font(Theme.font(.label, .semibold)).lineLimit(1).fixedSize() }
         }
         .foregroundStyle(selected ? Color.white : Theme.sfx)
-        .padding(.horizontal, 5)
+        .padding(.horizontal, Theme.Space.xs)
         .frame(height: Track.sounds.height - 4)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Theme.sfx.opacity(selected ? 0.9 : 0.22)))
         .overlay(alignment: .leading) { Rectangle().fill(Theme.sfx).frame(width: 2) }
@@ -103,7 +103,7 @@ extension TimelineView {
         HStack(spacing: 3) {
           MarkerFlag().fill(selected ? Color.white : Theme.accent).frame(width: 9, height: 12)
           if let label = m.label, !label.isEmpty, ui.pxPerSec > 8 {
-            Text(label).font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent).lineLimit(1).fixedSize()
+            Text(label).font(Theme.font(.micro, .semibold)).foregroundStyle(Theme.accent).lineLimit(1).fixedSize()
           }
         }
         .contentShape(Rectangle())
@@ -150,6 +150,7 @@ extension TimelineView {
         .offset(y: 2)
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
+    .shadow(color: Self.playheadColor.opacity(0.5), radius: 3)
     .frame(width: 12, height: rows.total, alignment: .top)
     .modifier(
       PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped, outputTime: ui.outputTime))
@@ -172,7 +173,7 @@ extension TimelineView {
           with: .color(.secondary.opacity(major ? 0.7 : 0.35)))
         if major {
           ctx.draw(
-            Text(fmtTime(t).replacingOccurrences(of: ".0", with: "")).font(.system(size: 9, weight: .medium).monospacedDigit())
+            Text(fmtTime(t).replacingOccurrences(of: ".0", with: "")).font(Theme.font(.micro, .medium, mono: true))
               .foregroundColor(.secondary),
             at: CGPoint(x: px + 3, y: 7), anchor: .leading)
         }
@@ -254,7 +255,7 @@ extension TimelineView {
         let px = output ? (out ?? 0) / Double(fps) * pps : w.start * pps
         guard px > lastEnd + 2 else { continue }
         let kept = out != nil
-        let text = ctx.resolve(Text(w.text).font(.system(size: 9)).foregroundColor(kept ? .primary.opacity(0.85) : .secondary.opacity(0.5)))
+        let text = ctx.resolve(Text(w.text).font(Theme.font(.micro)).foregroundColor(kept ? .primary.opacity(0.85) : .secondary.opacity(0.5)))
         let sz = text.measure(in: CGSize(width: 400, height: 20))
         ctx.draw(text, at: CGPoint(x: px + 2, y: 9), anchor: .leading)
         lastEnd = px + sz.width

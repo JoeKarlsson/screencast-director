@@ -85,22 +85,15 @@ extension InspectorView {
         // A cutout has no shape, border or shadow to set.
         if cam?.cutout != true {
           LabeledContent("Shape") {
-            Picker("Shape", selection: bind(nil, { $0.camera?.bubbleShape ?? "circle" }, { $0.camera?.bubbleShape = $1 == "circle" ? nil : $1 })) {
-              ForEach(Plan.Camera.shapes, id: \.name) { Text($0.label).tag($0.name) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            ChoiceRow(Plan.Camera.shapes.map { ($0.name, $0.label) },
+              selection: bind(nil, { $0.camera?.bubbleShape ?? "circle" }, { $0.camera?.bubbleShape = $1 == "circle" ? nil : $1 }))
           }
           toggle("Border", bind(nil, { $0.camera?.bubbleBorder != false }, { $0.camera?.bubbleBorder = $1 ? nil : false }))
           toggle("Shadow", bind(nil, { $0.camera?.bubbleShadow != false }, { $0.camera?.bubbleShadow = $1 ? nil : false }))
         }
         LabeledContent("Room") {
-          Picker("Room", selection: bind(nil, { $0.camera?.room ?? "" }, { $0.camera?.room = $1.isEmpty ? nil : $1 })) {
-            Text("As recorded").tag("")
-            ForEach(Plan.Camera.rooms, id: \.name) { Text($0.label).tag($0.name) }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
+          ChoiceRow([("", "As recorded")] + Plan.Camera.rooms.map { ($0.name, $0.label) },
+            selection: bind(nil, { $0.camera?.room ?? "" }, { $0.camera?.room = $1.isEmpty ? nil : $1 }))
         }
         .help("Halftone redraws the room behind you in the accent's dots on black; you stay in color.")
         toggle(

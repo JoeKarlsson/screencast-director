@@ -15,12 +15,12 @@ struct InspectorTabBar: View {
           ui.tab = tab
         } label: {
           Image(systemName: tab.icon)
-            .font(.system(size: 14, weight: .medium))
+            .font(Theme.glyph(14, .medium))
             .symbolRenderingMode(.hierarchical)
             .frame(width: 32, height: 28)
             .foregroundStyle(on ? Theme.accent : Color.secondary)
             .background(
-              RoundedRectangle(cornerRadius: 7, style: .continuous).fill(on ? Theme.accent.opacity(0.16) : Color.clear))
+              RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(on ? Theme.accent.opacity(0.16) : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -30,8 +30,45 @@ struct InspectorTabBar: View {
       }
     }
     .padding(3)
-    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.04)))
+    .background(RoundedRectangle(cornerRadius: Theme.controlCorner, style: .continuous).fill(Color.primary.opacity(0.04)))
     .frame(maxWidth: .infinity)
+  }
+}
+
+/// A setting with a few fixed options (five or fewer), all showing at once as equal-width cells
+/// instead of a menu. A cell's `.help` is its `help` (the label when that's enough), for hover and tests.
+struct ChoiceRow<Value: Hashable>: View {
+  let options: [(value: Value, label: String, help: String)]
+  @Binding var selection: Value
+
+  init(_ options: [(Value, String)], selection: Binding<Value>) {
+    self.options = options.map { ($0.0, $0.1, $0.1) }
+    _selection = selection
+  }
+
+  init(_ options: [(Value, String, String)], selection: Binding<Value>) {
+    self.options = options.map { ($0.0, $0.1, $0.2) }
+    _selection = selection
+  }
+
+  var body: some View {
+    HStack(spacing: Theme.Space.xs) {
+      ForEach(options.indices, id: \.self) { i in
+        let option = options[i], on = selection == option.value
+        Button { selection = option.value } label: {
+          Text(option.label)
+            .font(Theme.font(.small, on ? .semibold : .regular))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .selectableTile(on: on)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(option.help)
+        .accessibilityAddTraits(on ? .isSelected : [])
+      }
+    }
   }
 }
 
@@ -68,16 +105,16 @@ struct InspectorSection<Content: View>: View {
 
   var body: some View {
     let open = isOpen?.wrappedValue ?? true
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: Theme.Space.m) {
       if let isOpen {
         Button {
           withAnimation(.easeInOut(duration: 0.15)) { isOpen.wrappedValue.toggle() }
         } label: {
-          HStack(alignment: .firstTextBaseline, spacing: 6) {
+          HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
             header
             Spacer(minLength: 4)
             Image(systemName: "chevron.right")
-              .font(.system(size: 10, weight: .semibold))
+              .font(Theme.glyph(10, .semibold))
               .foregroundStyle(.secondary)
               .rotationEffect(.degrees(open ? 90 : 0))
           }
@@ -94,25 +131,20 @@ struct InspectorSection<Content: View>: View {
   }
 
   private var header: some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text(title).font(.subheadline.weight(.semibold))
-      if !detail.isEmpty {
-        Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-      }
-    }
+    Text(title).font(.subheadline.weight(.semibold)).help(detail)
   }
 }
 
 /// LabeledContent as a fixed-width secondary label and the control filling the rest, so rows line up.
 struct InspectorRowStyle: LabeledContentStyle {
   func makeBody(configuration: Configuration) -> some View {
-    HStack(spacing: 10) {
+    HStack(spacing: Theme.Space.m) {
       configuration.label
         .font(.callout)
         .foregroundStyle(.secondary)
         .lineLimit(1)
         .frame(width: 78, alignment: .leading)
-      HStack(spacing: 8) { configuration.content }
+      HStack(spacing: Theme.Space.s) { configuration.content }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
@@ -126,9 +158,9 @@ struct Keycap: View {
 
   var body: some View {
     Text(key)
-      .font(.system(size: 11, weight: .medium, design: .rounded))
+      .font(Theme.font(.caption, .medium, design: .rounded))
       .foregroundStyle(.primary)
-      .padding(.horizontal, 6)
+      .padding(.horizontal, Theme.Space.s)
       .frame(minWidth: 22, minHeight: 20)
       .background(
         RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(nsColor: .controlBackgroundColor))
@@ -145,7 +177,7 @@ struct KindChip: View {
 
   var body: some View {
     Image(systemName: icon)
-      .font(.system(size: size * 0.47, weight: .semibold))
+      .font(Theme.glyph(size * 0.47, .semibold))
       .foregroundStyle(.white)
       .frame(width: size, height: size)
       .background(
@@ -161,9 +193,9 @@ struct GradientSwatch: View {
   let selected: Bool
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 8, style: .continuous)
+    RoundedRectangle(cornerRadius: Theme.controlCorner, style: .continuous)
       .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-      .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.primary.opacity(0.12)))
+      .overlay(RoundedRectangle(cornerRadius: Theme.controlCorner, style: .continuous).strokeBorder(Color.primary.opacity(0.12)))
       .frame(height: 34)
       .padding(3)
       .overlay(
@@ -172,9 +204,9 @@ struct GradientSwatch: View {
       .overlay(alignment: .bottomTrailing) {
         if selected {
           Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 13))
+            .font(Theme.glyph(13))
             .foregroundStyle(.white, Theme.accent)
-            .padding(6)
+            .padding(Theme.Space.s)
         }
       }
       .contentShape(Rectangle())

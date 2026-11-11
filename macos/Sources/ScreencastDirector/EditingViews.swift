@@ -24,7 +24,7 @@ struct ExportQueueButton: View {
               Circle().stroke(Color.primary.opacity(0.15), lineWidth: 2.5)
               Circle().trim(from: 0, to: max(0.03, progress)).stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-              Text("\(queue.activeCount)").font(.system(size: 8, weight: .bold)).monospacedDigit()
+              Text("\(queue.activeCount)").font(Theme.font(.micro, .bold, mono: true))
             }
             .frame(width: 17, height: 17)
           }

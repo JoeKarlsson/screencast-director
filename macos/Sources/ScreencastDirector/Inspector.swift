@@ -85,11 +85,11 @@ struct InspectorView: View {
   var body: some View {
     VStack(spacing: 0) {
       InspectorTabBar(ui: ui)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Theme.Space.m)
+        .padding(.vertical, Theme.Space.s)
       Divider()
       ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
           if let plan = project.plan {
             pane(plan)
           } else {
@@ -100,7 +100,7 @@ struct InspectorView: View {
               .frame(maxWidth: .infinity)
           }
         }
-        .padding(14)
+        .padding(Theme.Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
@@ -185,29 +185,25 @@ struct InspectorView: View {
   func toggle(_ title: String, _ isOn: Binding<Bool>) -> some View { toggle(title, "", isOn) }
 
   func toggle(_ title: String, _ detail: String, _ isOn: Binding<Bool>) -> some View {
-    HStack(spacing: 10) {
-      VStack(alignment: .leading, spacing: 1) {
-        Text(title)
-        if !detail.isEmpty {
-          Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-      }
+    HStack(spacing: Theme.Space.m) {
+      Text(title)
       Spacer(minLength: 8)
       Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.small)
     }
+    .help(detail)
   }
 
   func emptyState(_ icon: String, _ title: String, _ detail: String) -> some View {
-    VStack(spacing: 8) {
+    VStack(spacing: Theme.Space.s) {
       Image(systemName: icon)
-        .font(.system(size: 34, weight: .light))
+        .font(Theme.glyph(34, .light))
         .foregroundStyle(.tertiary)
-        .padding(.bottom, 4)
+        .padding(.bottom, Theme.Space.xs)
       Text(title).font(.headline)
       Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity)
-    .padding(.vertical, 20)
+    .padding(.vertical, Theme.Space.xl)
   }
 }
