@@ -126,6 +126,17 @@ public enum PlanCheck {
 
     for (i, ins) in plan.insertList.enumerated() { span("inserts[\(i)]", ins.start, ins.end) }
     for (i, r) in (plan.music?.off ?? []).enumerated() { span("music.off[\(i)]", r.start, r.end) }
+    for (i, v) in plan.voiceEffectList.enumerated() {
+      span("voiceEffects[\(i)]", v.start, v.end)
+      oneOf("voiceEffects[\(i)].preset", v.preset, VoiceEffect.presets.map(\.name))
+      if v.preset == "slowmo", plan.segments.contains(where: { $0.start < v.end && $0.end > v.start && $0.speed >= 0.99 }) {
+        out.append("voiceEffects[\(i)] is slowmo, which only changes a slowed segment's voice; give the segments under it a speed below 1")
+      }
+    }
+    let voice = plan.voiceEffectList, order = voice.indices.sorted { voice[$0].start < voice[$1].start }
+    for (a, b) in zip(order, order.dropFirst()) where voice[b].start < voice[a].end - 0.001 {
+      out.append("voiceEffects[\(a)] and voiceEffects[\(b)] overlap; the voice can wear one effect at a time")
+    }
     report.problems = (raw.map { ignoredKeys(raw: $0, plan: plan) } ?? []) + out + assetProblems(plan, project: project)
       + presentationProblems(plan) + timelineWarnings(project, plan)
     return report

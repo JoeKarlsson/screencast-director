@@ -97,6 +97,16 @@ public enum AudioGain: Sendable {
     }
   }
 
+  /// The voice's tap for these settings, nil when there's nothing to do. Throws when the tap can't be
+  /// made: without it the voice would play with no leveling, gain or warmth.
+  public static func voiceTap(gainDB: Double, curveDB: [Double], fps: Int, warm: Bool) throws -> MTAudioProcessingTap? {
+    guard abs(gainDB) > 0.05 || !curveDB.isEmpty || warm else { return nil }
+    guard let tap = tap(gainDB: gainDB, curveDB: curveDB, fps: fps, warm: warm) else {
+      throw DirectorError("Couldn't set up the voice processing (leveling, volume, warm voice)")
+    }
+    return tap
+  }
+
   /// A tap applying `gainDB`, times `curveDB` (dB per output frame at `fps`) when given, then the
   /// warm voice chain when `warm`.
   public static func tap(gainDB: Double, curveDB: [Double] = [], fps: Int = 30, warm: Bool = false) -> MTAudioProcessingTap? {

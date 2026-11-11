@@ -61,6 +61,7 @@ public func planChanges(from old: Plan, to new: Plan) -> [PlanChange] {
   items(\.animationList, kind: "animation", { "\($0.template) animation at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.punchInList, kind: "punch-in", { "\($0.scale.formatted())x punch-in at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.effectRangeList, kind: "effect", { "\($0.name) effect at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
+  items(\.voiceEffectList, kind: "voice effect", { "\($0.preset) voice at \(fmtTime($0.start))" }, { ($0.start, $0.end) })
   items(\.sfxList, kind: "sound", { "sound \(($0.file as NSString).lastPathComponent) at \(fmtTime($0.t))" }, { ($0.t, $0.t) })
   if old.withTimedItems(from: new) != new {
     let was = old
@@ -82,6 +83,7 @@ extension Plan {
     p.inserts = other.inserts
     p.animations = other.animations
     p.sfx = other.sfx
+    p.voiceEffects = other.voiceEffects
     p.effectRanges = other.effectRanges
     p.punchInList = other.punchInList
     return p
@@ -145,6 +147,7 @@ public func changedRanges(from old: Plan, to new: Plan) -> [(Double, Double)] {
     + diff(old.animationList, new.animationList) { ($0.start, $0.end) } + diff(old.sfxList, new.sfxList) { ($0.t, $0.t) }
     + diff(old.effectRangeList, new.effectRangeList) { ($0.start, $0.end) }
     + diff(old.punchInList, new.punchInList) { ($0.start, $0.end) }
+    + diff(old.voiceEffectList, new.voiceEffectList) { ($0.start, $0.end) }
   var merged: [(Double, Double)] = []
   for r in all.sorted(by: { $0.0 < $1.0 }) {
     if let last = merged.last, r.0 <= last.1 {

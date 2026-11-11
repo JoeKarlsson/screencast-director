@@ -115,13 +115,12 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   let gainDB = plan.audio?.gainDB ?? 0
   let curveDB = plan.audio?.normalize == true && !voiceLevels.isEmpty ? levelingCurve(voiceLevels, scene) : []
   let warm = plan.audio?.warm == true
-  if let audioParams, abs(gainDB) > 0.05 || !curveDB.isEmpty || warm {
-    // Without the tap the voice would play with no leveling, gain or warmth, so fail instead.
-    guard let tap = AudioGain.tap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps, warm: warm) else {
-      throw DirectorError("Couldn't set up the voice processing (leveling, volume, warm voice)")
-    }
-    audioParams.audioTapProcessor = tap
-  }
+  // The voice's processing, for its own track and the voice effects'.
+  let voiceTap = { try AudioGain.voiceTap(gainDB: gainDB, curveDB: curveDB, fps: scene.fps, warm: warm) }
+  audioParams?.audioTapProcessor = try voiceTap()
+  // Voice effects play on their own tracks; the voice is muted under each.
+  let voicePieces = aTrack == nil ? [] : VoiceEffects.pieces(plan.voiceEffectList, mapped: scene.mapped, fps: scene.fps)
+  let mutedForEffects = voicePieces.map { ($0.outStart, $0.outStart + $0.outLength) }
 
   for s in scene.mapped {
     let at = CMTime(value: CMTimeValue(s.outStart), timescale: fps)
@@ -140,12 +139,8 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
       }
       if s.speed > 1.01 {
         audioParams?.setVolume(0, at: at)
-      } else {
-        // Short fades at each cut hide clicks in the audio.
-        let fade = CMTime(seconds: min(cutRamp, Double(s.frames) / Double(fps) / 2), preferredTimescale: 48000)
-        audioParams?.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: at, duration: fade))
-        audioParams?.setVolumeRamp(
-          fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(CMTimeAdd(at, outDur), fade), duration: fade))
+      } else if let audioParams {
+        rampVoice(audioParams, from: at, to: CMTimeAdd(at, outDur), muted: mutedForEffects)
       }
     }
 
@@ -170,15 +165,20 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
 
   let effects = try await addSoundEffects(plan, project: project, scene: scene, total: total, to: comp)
 
+  let voiceFX = try await addVoiceEffects(
+    voicePieces, source: (cleanAsset ?? screenAsset).url, project: project,
+    until: CMTime(value: CMTimeValue(min(scene.outroStart, scene.frameCount)), timescale: fps), tap: voiceTap, to: comp)
+
   var fills: [(AVMutableCompositionTrack, AVAssetTrack)] = [(vTrack, srcVideo)]
   if let aTrack, let srcAudio { fills.append((aTrack, srcAudio)) }
   if let camTrack, let (track, _, _) = camSource { fills.append((camTrack, track)) }
   if let handleTrack { fills.append((handleTrack, srcVideo)) }
   fills += broll.fills
   if let fill = effects.fill { fills.append(fill) }
+  fills += voiceFX.fills
   try await fitTracks(comp, to: total, padding: fills)
   // Every track inserts from these assets (padding too), and a track whose asset is freed fails.
-  withExtendedLifetime((camAsset, screenAsset, cleanAsset, broll.assets, effects.assets, music.asset)) {}
+  withExtendedLifetime((camAsset, screenAsset, cleanAsset, broll.assets, effects.assets, voiceFX.assets, music.asset)) {}
   if scene.outroStart < scene.frameCount {
     audioParams?.setVolume(0, at: CMTime(value: CMTimeValue(scene.outroStart), timescale: fps))
   }
@@ -193,12 +193,25 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   vc.instructions = [instruction]
 
   let mix = AVMutableAudioMix()
-  mix.inputParameters = [audioParams, music.params, effects.params].compactMap { $0 }
+  mix.inputParameters = [audioParams, music.params, effects.params].compactMap { $0 } + voiceFX.params
   // swiftlint:disable force_cast
   return BuiltComposition(
     asset: comp.copy() as! AVComposition, videoComposition: vc.copy() as! AVVideoComposition, audioMix: mix.copy() as! AVAudioMix,
     scene: scene, warnings: warnings)
   // swiftlint:enable force_cast
+}
+
+/// The voice's volume over one kept segment: on, except under voice effects (`muted`, output
+/// seconds), with a short fade at each edge to hide clicks.
+private func rampVoice(_ params: AVMutableAudioMixInputParameters, from start: CMTime, to end: CMTime, muted: [(Double, Double)]) {
+  let spans = VoiceEffects.audibleSpans(start.seconds, end.seconds, muted: muted)
+  if spans.first.map({ $0.0 > start.seconds + 0.001 }) ?? true { params.setVolume(0, at: start) }
+  for (a, b) in spans {
+    let fade = CMTime(seconds: min(cutRamp, (b - a) / 2), preferredTimescale: 48000)
+    let spanEnd = CMTime(seconds: b, preferredTimescale: 48000)
+    params.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: CMTime(seconds: a, preferredTimescale: 48000), duration: fade))
+    params.setVolumeRamp(fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(spanEnd, fade), duration: fade))
+  }
 }
 
 /// Makes every track end exactly at `total`. Rounding can leave a track (usually the camera) a few
@@ -378,6 +391,53 @@ private func addSoundEffects(_ plan: Plan, project: Project, scene: Scene, total
     fill = (track, src)
   }
   return (params, fill, assets)
+}
+
+/// Voice effects: each piece's rendered clip at its output time, its stretch scaled to the
+/// segment's speed and its tail (echo, reverb) at real time until the next piece or `until`. They
+/// get the voice's processing (`tap`). Slow-mo runs on a second track whose scaling is varispeed,
+/// so its pitch drops with the speed. Returns the mix parameters, the tracks and sources to pad,
+/// and the assets, which must outlive the composition's inserts.
+private func addVoiceEffects(
+  _ pieces: [VoiceEffects.Piece], source: URL, project: Project, until: CMTime, tap: () throws -> MTAudioProcessingTap?,
+  to comp: AVMutableComposition
+) async throws -> (params: [AVMutableAudioMixInputParameters], fills: [(AVMutableCompositionTrack, AVAssetTrack)], assets: [AVURLAsset]) {
+  var tracks: [Bool: (track: AVMutableCompositionTrack, params: AVMutableAudioMixInputParameters, src: AVAssetTrack)] = [:]
+  var assets: [AVURLAsset] = []
+  for (i, p) in pieces.enumerated() {
+    let tape = p.effect.preset == "slowmo"
+    let at = t(p.outStart)
+    // Past the end, or overlapping the one before (validate says so).
+    guard at < until, at >= tracks[tape]?.track.timeRange.end ?? .zero else { continue }
+    let url = try await VoiceEffects.rendered(p, source: source, projectDir: project.dir)
+    let asset = AVURLAsset(url: url)
+    guard let src = try await asset.loadTracks(withMediaType: .audio).first else { throw CompositionError.noAudio(url.lastPathComponent) }
+    assets.append(asset)
+    if tracks[tape] == nil {
+      guard let track = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
+      let params = AVMutableAudioMixInputParameters(track: track)
+      params.audioTimePitchAlgorithm = tape ? .varispeed : .spectral
+      params.audioTapProcessor = try tap()
+      tracks[tape] = (track, params, src)
+    }
+    guard let (track, params, _) = tracks[tape] else { continue }
+    tracks[tape]?.src = src
+    let next = pieces[(i + 1)...].first { ($0.effect.preset == "slowmo") == tape }.map { t($0.outStart) } ?? until
+    let have = try await src.load(.timeRange).duration
+    let core = CMTimeMinimum(t(p.end - p.start), have)
+    try await insert(track, CMTimeRange(start: .zero, duration: core), of: src, at: at, "voice effect")
+    if abs(p.speed - 1) > 0.01 { track.scaleTimeRange(CMTimeRange(start: at, duration: core), toDuration: t(p.outLength)) }
+    var end = track.timeRange.end
+    let tail = CMTimeMinimum(CMTimeSubtract(have, core), CMTimeSubtract(CMTimeMinimum(next, until), end))
+    if tail.seconds > 0.01 {
+      try await insert(track, CMTimeRange(start: core, duration: tail), of: src, at: end, "voice effect tail")
+      end = track.timeRange.end
+    }
+    params.setVolume(1, at: at)
+    // Silent after the effect, so the end padding can't be heard.
+    params.setVolume(0, at: end)
+  }
+  return (tracks.values.map(\.params), tracks.values.map { ($0.track, $0.src) }, assets)
 }
 
 /// Renders the plan to an MP4. `progress` gets 0...1.

@@ -189,6 +189,24 @@ struct Media {
     expect(cleaned.warnings.count == 1 && cleaned.warnings[0].contains("Clean up voice"), "a failed voice cleanup is a warning (\(cleaned.warnings))")
     expect(cleaned.asset.tracks(withMediaType: .audio).count == 1, "and the original voice still plays")
     try FileManager.default.removeItem(at: dir.appendingPathComponent(VoiceCleanup.fileName))
+    // Voice effects play on their own track: the echo from 0.2 s with its tail running on until the
+    // chipmunk at 2.2 s cuts it off; the slow-mo gets a varispeed track of its own.
+    var fxPlan = buildPlan(loaded)
+    fxPlan.segments = [Segment(start: 0, end: 3, speed: 1), Segment(start: 3, end: 4, speed: 0.5)]
+    fxPlan.voiceEffects = [
+      VoiceEffect(start: 0.2, end: 0.8, preset: "echo"), VoiceEffect(start: 2.2, end: 2.6, preset: "chipmunk"),
+      VoiceEffect(start: 3.2, end: 3.6, preset: "slowmo"),
+    ]
+    let fx = try await buildComposition(project: loaded, plan: fxPlan)
+    let audio = fx.asset.tracks(withMediaType: .audio)
+    expect(audio.count == 3, "the voice, the effects and the slow-mo each get a track (\(audio.count))")
+    expect(audio.allSatisfy { $0.timeRange.end == fx.asset.duration }, "every effect track ends with the video")
+    let parts = audio.dropFirst().flatMap { $0.segments.filter { !$0.isEmpty } }.map { ($0.timeMapping.target.start.seconds, $0.timeMapping.target.end.seconds) }
+    expect(parts.contains { abs($0.0 - 0.2) < 0.01 } && parts.contains { abs($0.0 - 2.2) < 0.01 }, "the effects start where their words play (\(parts))")
+    expect(parts.contains { abs($0.1 - 2.2) < 0.01 }, "the echo's tail rings until the next effect (\(parts))")
+    expect(parts.contains { abs($0.0 - 3.4) < 0.01 && abs($0.1 - 4.2) < 0.01 }, "the slow-mo stretches to the slowed segment (\(parts))")
+    let algorithms = (fx.audioMix.inputParameters.map(\.audioTimePitchAlgorithm))
+    expect(algorithms.contains(.varispeed), "the slow-mo track plays at tape speed (\(algorithms))")
     // Cached: a second read doesn't need the video.
     try FileManager.default.removeItem(at: video)
     let cached = try await Analyzer.loudness(loaded, video: "screen.mp4")

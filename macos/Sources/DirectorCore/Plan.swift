@@ -170,6 +170,8 @@ public struct Plan: Codable, Equatable, Sendable {
   public var music: Music?
   /// One-shot sound effects (whoosh, pop, ding) at source times. Not ducked.
   public var sfx: [SoundEffect]?
+  /// Comic effects on the voice over stretches (chipmunk, echo, radio, tape stop...; see VoiceEffect).
+  public var voiceEffects: [VoiceEffect]?
   /// The drawn cursor (only for recordings made with the real cursor hidden).
   public var cursor: CursorSettings?
   /// Full-frame cards before and after the video (shown when enabled is true). A nil logo falls

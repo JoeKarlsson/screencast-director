@@ -109,6 +109,59 @@ func audioChecks() {
   musicDuckChecks()
   gainTapChecks()
   voiceCleanupChecks()
+  voiceEffectChecks()
+}
+
+/// Voice effects: where each plays, the voice's gaps around them, and every preset's output.
+private func voiceEffectChecks() {
+  // src 0-4 at 1x, 6-8 at 2x, 10-12 at 0.5x. One effect spans the cut at 4-6, one sits in the sped-up
+  // stretch, one in the slowed one.
+  let mapped = mapSegments(
+    [Segment(start: 0, end: 4, speed: 1), Segment(start: 6, end: 8, speed: 2), Segment(start: 10, end: 12, speed: 0.5)], fps: 30)
+  let effects = [
+    VoiceEffect(start: 3.5, end: 6.5, preset: "echo"), VoiceEffect(start: 7, end: 7.5, preset: "robot"),
+    VoiceEffect(start: 10.5, end: 11, preset: "slowmo"), VoiceEffect(start: 1, end: 2, preset: "kazoo"),
+  ]
+  let pieces = VoiceEffects.pieces(effects, mapped: mapped, fps: 30)
+  expect(pieces.count == 2, "an effect across a cut plays only in kept time; sped-up stretches and unknown presets play none (\(pieces.count))")
+  expect(pieces.first.map { abs($0.outStart - 3.5) < 0.001 && abs($0.end - 4) < 0.001 } == true, "the echo plays src 3.5-4 from out 3.5 s")
+  expect(pieces.last.map { abs($0.outStart - 6) < 0.001 && abs($0.outLength - 1) < 0.001 } == true,
+    "the slow-mo plays its 0.5 s at half speed from out 6 s (\(pieces.last.map { "\($0.outStart) for \($0.outLength)" } ?? "none"))")
+  let spans = VoiceEffects.audibleSpans(0, 4, muted: [(1, 2), (3.5, 4.5)])
+  expect(spans.count == 2 && spans[0] == (0, 1) && spans[1] == (2, 3.5), "the voice plays around its effects (\(spans))")
+  expect(VoiceEffects.audibleSpans(0, 4, muted: []).count == 1, "with none, the whole segment plays")
+
+  // Every preset: the stretch's length plus its tail, in time with the dry voice, at its loudness.
+  let tone = sine(220, db: -20)
+  let dry = (0..<48000).map { i in i % 24000 < 12000 ? tone(i) : 0 }
+  for p in VoiceEffect.presets {
+    guard let wet = try? VoiceEffects.process(dry, preset: p.name) else {
+      expect(false, "voice effect \(p.name) renders")
+      continue
+    }
+    expect(wet.count == 48000 + Int(p.tail * 48000), "\(p.name) is the stretch plus its \(p.tail) s tail (\(wet.count) samples)")
+    expect(abs(rmsDB(wet, 0, 48000) - rmsDB(dry, 0, 48000)) < 0.5, "\(p.name) is as loud as the voice (\(rmsDB(wet, 0, 48000)) dB)")
+    if ["chipmunk", "deep", "radio", "phone"].contains(p.name) {
+      // The tone's on for the first quarter second, off for the next: the effect must follow it, not lag.
+      expect(rmsDB(wet, 2400, 9600) - rmsDB(wet, 14400, 21600) > 20, "\(p.name) stays in time with the voice")
+    }
+  }
+  expect((try? VoiceEffects.process(dry, preset: "kazoo")) == nil, "an unknown preset fails to render")
+
+  // validate: unknown presets, overlaps, and slow-mo where nothing's slowed.
+  let project = Project(
+    dir: URL(fileURLWithPath: "/tmp/sd-voice-effects"),
+    source: Project.Source(video: "screen.mp4", width: 640, height: 360, duration: 20, captureStart: nil, camera: nil))
+  var plan = buildPlan(project)
+  plan.segments = [Segment(start: 0, end: 20, speed: 1)]
+  plan.voiceEffects = [
+    VoiceEffect(start: 1, end: 2, preset: "kazoo"), VoiceEffect(start: 3, end: 4, preset: "echo"),
+    VoiceEffect(start: 3.5, end: 5, preset: "robot"), VoiceEffect(start: 8, end: 9, preset: "slowmo"),
+  ]
+  let problems = PlanCheck.check(plan, project: project, templates: nil).problems
+  expect(problems.contains { $0.contains("voiceEffects[0].preset is \"kazoo\"") }, "an unknown preset is a problem (\(problems))")
+  expect(problems.contains { $0.contains("voiceEffects[1] and voiceEffects[2] overlap") }, "overlapping effects are a problem")
+  expect(problems.contains { $0.contains("voiceEffects[3] is slowmo") }, "slow-mo on a 1x segment is a problem")
 }
 
 /// The music's volume ramps: (start volume, end volume, start s, end s) for the ramp at `t`, if any.

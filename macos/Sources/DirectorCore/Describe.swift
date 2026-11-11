@@ -285,6 +285,19 @@ private struct Describer: Sendable {
         out.append("  WARNING: sfx #\(i) at src \(fmtTime(e.t)) is in a cut and won't play; move it, or attach it to the item it belongs to")
       }
     }
+    let voice = plan.voiceEffectList
+    if !voice.isEmpty {
+      out.append("")
+      out.append("## Voice effects (voiceEffects #n)")
+      let pieces = VoiceEffects.pieces(voice, mapped: mapped, fps: fps)
+      for (i, e) in voice.enumerated() {
+        let at = pieces.first { $0.effect == e }.map { "out \(fmtTime($0.outStart))" } ?? "NEVER PLAYS"
+        out.append(line("  voiceEffects #\(i) src \(fmtTime(e.start))-\(fmtTime(e.end)) \(at) \(e.preset)", e.note ?? ""))
+        if !pieces.contains(where: { $0.effect == e }) {
+          out.append("  WARNING: voiceEffects #\(i) at src \(fmtTime(e.start)) is cut or sped up (the voice is muted there), so it never plays")
+        }
+      }
+    }
     if let music = plan.music {
       out.append("")
       let missing = workOnly.contains(music.file) ? " WORK ONLY (this video's profile isn't a work profile)"
