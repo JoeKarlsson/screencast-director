@@ -64,7 +64,11 @@ struct PreviewHandles: View {
       out.append(
         Item(id: "watermark", rect: r, selection: nil, help: "Drag the logo to another corner, or its corner to size it", freeSize: false
         ) { rect, p in
-          if let w = scene.watermark(covering: rect) { p.look?.watermark = w }
+          // Only what the drag changes: the scene's copy may be older than the plan's.
+          if let w = scene.watermark(covering: rect) {
+            p.look?.watermark?.corner = w.corner
+            p.look?.watermark?.height = w.height
+          }
         })
     }
     return out
@@ -122,6 +126,8 @@ struct PreviewHandles: View {
           if let s = item.selection, project.selection != s { project.select(s, adding: false) }
         }
         drag.live = nil
+        // The pointer can leave the box mid-drag without a hover-out.
+        drag.hovered = nil
       }
   }
 }
