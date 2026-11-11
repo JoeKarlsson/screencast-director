@@ -56,12 +56,13 @@ public struct AnimationSources: Sendable {
 
   /// The template's script, from the first folder that has it.
   public func script(_ name: String) -> URL? {
-    folders.map { $0.1.appendingPathComponent("templates/\(name).js") }.first { FileManager.default.fileExists(atPath: $0.path) }
+    guard PathSafety.isPlainName(name) else { return nil }
+    return folders.map { $0.1.appendingPathComponent("templates/\(name).js") }.first { FileManager.default.fileExists(atPath: $0.path) }
   }
 
   /// A Lottie file an animation's data names (`data.lottie`), from the first folder whose `lottie/` has it.
   public func lottie(_ name: String) -> URL? {
-    guard !name.contains("/") else { return nil }
+    guard !name.contains("/"), !name.hasPrefix(".") else { return nil }
     return folders.map { $0.1.appendingPathComponent("lottie/\(name)") }.first { FileManager.default.fileExists(atPath: $0.path) }
   }
 
@@ -111,7 +112,9 @@ public struct AnimationSources: Sendable {
   public func addLottie(_ file: URL, toLibrary: Bool = false) throws -> Lottie {
     guard let folder = toLibrary ? personal : project.map(AnimationSources.videoFolder) else { throw DirectorError("no video to add the Lottie to") }
     let lottie = try Lottie(file, origin: toLibrary ? .personal : .video)
-    let dst = folder.appendingPathComponent("lottie/\(lottie.name)")
+    let dst = toLibrary
+      ? folder.appendingPathComponent("lottie/\(lottie.name)")
+      : try PathSafety.ownedFolder("animations/lottie", in: folder.deletingLastPathComponent()).appendingPathComponent(lottie.name)
     let fm = FileManager.default
     if fm.fileExists(atPath: dst.path) {
       guard try Data(contentsOf: dst) == Data(contentsOf: file) else {
@@ -131,8 +134,8 @@ public struct AnimationSources: Sendable {
     guard let project, let source = lottie(name) else { return false }
     let dst = AnimationSources.videoFolder(project).appendingPathComponent("lottie/\(name)")
     guard source != dst else { return false }
-    try FileManager.default.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try FileManager.default.copyItem(at: source, to: dst)
+    try PathSafety.ownedFolder("animations/lottie", in: project)
+    try FileManager.default.copyItem(at: source, to: try PathSafety.ownedFile(dst))
     return true
   }
 
@@ -150,7 +153,12 @@ public struct AnimationSources: Sendable {
       } catch {
         throw DirectorError("\(file.path) isn't a map of logo names to files: \(error.localizedDescription)")
       }
-      for (name, file) in map { out[name] = dir.appendingPathComponent(file) }
+      for (name, file) in map {
+        // A project someone sent could map a name to "../../Pictures/x.jpg"; logos stay in their folder.
+        let logo = dir.appendingPathComponent(file)
+        guard PathSafety.url(logo, isInside: dir) else { throw DirectorError("\(file.debugDescription) in \(dir.path)/logos.json isn't a file in that folder") }
+        out[name] = logo
+      }
     }
     return out
   }
@@ -164,7 +172,8 @@ public struct AnimationSources: Sendable {
 
   /// The library version (personal, else built in) a video's copy came from or can update to.
   public func libraryFolder(for name: String) -> URL? {
-    [personal, builtIn].first { FileManager.default.fileExists(atPath: $0.appendingPathComponent("templates/\(name).js").path) }
+    guard PathSafety.isPlainName(name) else { return nil }
+    return [personal, builtIn].first { FileManager.default.fileExists(atPath: $0.appendingPathComponent("templates/\(name).js").path) }
   }
 
   /// Copies the template into the video's folder unless it's already there. Returns whether it copied.
@@ -191,8 +200,14 @@ public struct AnimationSources: Sendable {
   }
 
   private func copy(_ name: String, from: URL, to: URL) throws {
+    // The name becomes a path: "../" in it once let `template update` delete any .js file.
+    guard PathSafety.isPlainName(name) else { throw DirectorError("a template name can only use letters, digits, - and _, not \(name.debugDescription)") }
     let fm = FileManager.default
-    try fm.createDirectory(at: to.appendingPathComponent("templates"), withIntermediateDirectories: true)
+    if let project, to == AnimationSources.videoFolder(project) {
+      try PathSafety.ownedFolder("animations/templates", in: project)
+    } else {
+      try fm.createDirectory(at: to.appendingPathComponent("templates"), withIntermediateDirectories: true)
+    }
     for (src, dst) in zip(AnimationSources.files(name, in: from), AnimationSources.files(name, in: to)) where fm.fileExists(atPath: src.path) {
       try? fm.removeItem(at: dst)
       try fm.copyItem(at: src, to: dst)

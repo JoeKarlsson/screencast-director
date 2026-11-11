@@ -161,10 +161,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         Notices.shared.show("No recording at \(dir.path).", error: true)
         return
       }
+      // Opening a project builds its preview and renders its animations, and a link can come from a
+      // web page: a folder outside the projects folder (one just downloaded, say) needs a yes first.
+      if !PathSafety.url(dir, isInside: settings.projectsURL), !confirmOpen(dir) { return }
       library.refresh()
       library.selection = dir
       showMain()
     }
+  }
+
+  /// Asks before a link opens a project from outside the projects folder.
+  private func confirmOpen(_ dir: URL) -> Bool {
+    showMain()
+    let alert = NSAlert()
+    alert.messageText = "Open \(dir.lastPathComponent)?"
+    alert.informativeText = "A link asked to open \(dir.path), which isn't in your projects folder. Opening it builds its preview and runs its animations. Open it only if you know where it came from."
+    alert.addButton(withTitle: "Open")
+    alert.addButton(withTitle: "Cancel")
+    return alert.runModal() == .alertFirstButtonReturn
   }
 
   // MARK: Recording
@@ -254,9 +268,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     hud.hide()
     Task { @MainActor in
       await recorder.cancel()
-      RecordingStatus.post(.idle, message: "The recording was discarded.")
+      RecordingStatus.post(.idle, message: "The recording was discarded (it's in the Trash).")
       showMain()
-      Notices.shared.show("Recording discarded.")
+      Notices.shared.show("Recording discarded. It's in the Trash if you want it back.")
     }
   }
 

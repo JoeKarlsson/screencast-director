@@ -37,7 +37,7 @@ extension ProjectModel {
       let scene = Scene(plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts)
       let user = "Video title: \(publishTitle)\nLength: \(fmtTime(Double(scene.frameCount) / Double(scene.fps)))\n\nTranscript with timestamps:\n\(Publish.timedTranscript(scene))"
       let text = try await AIText.generate(system: AIText.descriptionSystem, user: user, settings: ai)
-      try FileManager.default.createDirectory(at: publishDir, withIntermediateDirectories: true)
+      try PathSafety.ownedFolder("publish", in: dir)
       let url = publishDir.appendingPathComponent("description.md")
       try text.write(to: url, atomically: true, encoding: .utf8)
       descriptionText = text

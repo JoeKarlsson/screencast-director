@@ -232,4 +232,45 @@ PY
 grep -q 'the mark on "Big" crosses the text "struck out"' "$TMP/marks.log" \
   || { echo "FAIL: a mark through a sticker's text wasn't reported: $(cat "$TMP/marks.log")" >&2; exit 1; }
 if grep -q '(note).*crosses the text' "$TMP/marks.log"; then echo "FAIL: a note's mark crosses its text: $(cat "$TMP/marks.log")" >&2; exit 1; fi
+# A template can come with a video someone sent, so its page reads only the app's animation folder:
+# a logo from logos.json loads (through sd-asset://), a local file elsewhere doesn't.
+ffmpeg -v error -f lavfi -i color=red:s=64x64 -frames:v 1 -y "$TMP/outside-red.png"
+mkdir -p "$PROJECT/animations/logos" "$PROJECT/animations/templates"
+cp "$TMP/outside-red.png" "$PROJECT/animations/logos/red.png"
+echo '{"red": "red.png"}' >"$PROJECT/animations/logos/logos.json"
+cat >"$PROJECT/animations/templates/probe.js" <<JS
+"use strict";
+TEMPLATES.probe = function () {
+  for (const [left, src] of [[0, LOGOS.red], [50, "file://$TMP/outside-red.png"]]) {
+    const img = new Image();
+    img.style.cssText = \`position:fixed;z-index:99;top:0;left:\${left}vw;width:50vw;height:100vh\`;
+    img.src = src;
+    document.body.appendChild(img);
+  }
+  return () => {};
+};
+JS
+read -r PROBE PROBE_START < <(python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["animations"].append({"start": 1, "end": 3, "template": "probe", "data": {}, "cues": {}})
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+print(len(plan["animations"]) - 1, 1)
+PY
+)
+"$DIRECTOR" animate-test "$PROJECT" "$PROBE" "$(python3 -c "print($PROBE_START + 0.5)")" "$TMP/probe.mp4" >"$TMP/probe.txt" 2>&1 \
+  || { cat "$TMP/probe.txt" >&2; echo "FAIL: the probe template didn't render" >&2; exit 1; }
+ffmpeg -v error -i "$TMP/probe.mp4" -frames:v 1 -f rawvideo -pix_fmt rgb24 -y "$TMP/probe.rgb"
+python3 - "$TMP/probe.rgb" "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$TMP/probe.mp4")" <<'PY'
+import sys
+data = open(sys.argv[1], "rb").read()
+w, h = map(int, sys.argv[2].split(","))
+def red(x):
+    i = ((h // 2) * w + x) * 3
+    r, g, b = data[i:i + 3]
+    return r > 180 and g < 80 and b < 80
+if not red(w // 4): sys.exit("FAIL: a logo from logos.json didn't load in the animation page")
+if red(3 * w // 4): sys.exit("FAIL: the animation page loaded a local file outside the app's animation folder")
+print("ok: the animation page loads its logos and no other local file")
+PY
 echo "animation checks passed"

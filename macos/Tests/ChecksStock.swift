@@ -5,6 +5,23 @@ import ImageIO
 /// Stock video and GIFs: each library's answer read into items (captured shapes, trimmed), only
 /// licenses a video can use, the file picked to download, and no KLIPY GIF in a work video.
 func stockChecks() {
+  // An API's id stands in for an empty title as a file name, so it's cleaned the same way.
+  expect(Stock.fileName("", fallback: "../../../SD-ESCAPE") == ".. .. .. SD-ESCAPE" && Stock.fileName("", fallback: "..") == "download",
+    "a fallback id can't hold a path (\(Stock.fileName("", fallback: "../../../SD-ESCAPE")))")
+  expect(Stock.ffmpegArguments(URL(fileURLWithPath: "/t/in.gif"), URL(fileURLWithPath: "/t/out.mp4"), loop: true).contains("-protocol_whitelist"),
+    "ffmpeg opens only local files")
+  let csvFolder = FileManager.default.temporaryDirectory.appendingPathComponent("sd-csv-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: csvFolder, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: csvFolder) }
+  try? (Openverse.licenseHeader + Openverse.csvRow(["../../x.mp4", "a"]) + Openverse.csvRow(["ok.mp4", "b"])).write(
+    to: csvFolder.appendingPathComponent(Openverse.licenseFile), atomically: true, encoding: .utf8)
+  expect(Openverse.recorded("a", in: csvFolder) == nil && Openverse.recorded("b", in: csvFolder) == "ok.mp4", "a license record only names files in its folder")
+  let zshrc = csvFolder.appendingPathComponent("victim.txt")
+  try? Data("ORIGINAL".utf8).write(to: zshrc)
+  try? FileManager.default.createSymbolicLink(atPath: csvFolder.appendingPathComponent(Stock.licenseFile).path, withDestinationPath: zshrc.path)
+  let item = Stock.Item(id: "openverse:x", title: "t $(x)", creator: "c", license: "CC0", needsCredit: false, page: "p")
+  expect((try? Stock.record(item, file: "x.mp4", in: csvFolder)) == nil && (try? String(contentsOf: zshrc, encoding: .utf8)) == "ORIGINAL",
+    "a license row never goes through a symlinked CSV")
   func data(_ s: String) -> Data { Data(s.utf8) }
   do {
     let nasa = try Stock.nasaItems(data(#"""

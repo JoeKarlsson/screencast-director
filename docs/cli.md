@@ -42,9 +42,9 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 | Upload and Copy Link | `director upload <file>` (uses Settings › Sharing; macOS asks once to let it read the keys) |
 | Join Recordings, Import Video | `director join`, `sd import` |
 | Settings (recording, drafts, AI, sharing) | `director settings`, `settings get <key>`, `settings set <key> <value>` (API keys stay in Settings) |
-| Record, Stop, Pause, Resume, Restart, Discard, Mark Retake | `open "screencastdirector://record/start"` (`stop`, `pause`, `resume`, `restart`, `discard`, `retake`) |
+| Record, Stop, Pause, Resume, Restart, Discard, Mark Retake | `open "screencastdirector://record/start"` (`stop`, `pause`, `resume`, `restart`, `discard`, `retake`; a discarded or restarted take goes to the Trash) |
 | Watch the recording widget | `director status [--wait <state>] [--timeout <s>]` |
-| Open a recording in the editor | `open "screencastdirector://open?project=<folder>"` |
+| Open a recording in the editor | `open "screencastdirector://open?project=<folder>"` (a folder outside the projects folder asks first) |
 
 `director validate` checks `plan.json` after a hand edit. It lists each problem with its JSON path, like `zooms[3].x is 1.4; positions are fractions from 0 to 1`, and exits 1 when there are any. Items that run past the end of the recording are only warnings, since they stop there.
 

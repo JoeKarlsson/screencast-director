@@ -140,8 +140,8 @@ extension Project {
     let path = url.standardizedFileURL.resolvingSymlinksInPath().path
     if path.hasPrefix(root) { return String(path.dropFirst(root.count)) }
     let fm = FileManager.default
-    let target = dir.appendingPathComponent(folder)
-    try fm.createDirectory(at: target, withIntermediateDirectories: true)
+    // A project someone sent may ship the folder as a symlink: never copy into one.
+    let target = try PathSafety.ownedFolder(folder, in: dir)
     let base = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
     var name = url.lastPathComponent, n = 2
     while fm.fileExists(atPath: target.appendingPathComponent(name).path) {

@@ -330,7 +330,7 @@ public enum Stock {
     if work, item.source == .klipy {
       throw DirectorError("KLIPY GIFs are mostly clips from TV and film, so work videos don't use them; pick an openverse: GIF instead")
     }
-    let broll = dir.appendingPathComponent("broll")
+    let broll = try PathSafety.ownedFolder("broll", in: dir)
     if let file = Openverse.recorded(item.id, in: broll, file: licenseFile), FileManager.default.fileExists(atPath: broll.appendingPathComponent(file).path) {
       return "broll/\(file)"
     }
@@ -371,15 +371,18 @@ public enum Stock {
 
   /// A title as a file name: characters paths can't hold become spaces, at most 80 characters.
   static func fileName(_ title: String, fallback: String) -> String {
-    let name = String(String(title.map { "/:?\\\"*<>|".contains($0) || $0.isNewline ? " " : $0 }).split(separator: " ").joined(separator: " ").prefix(80))
-      .trimmingCharacters(in: .whitespaces)
-    return name.isEmpty ? String(fallback.prefix(40)) : name
+    // The fallback (an id from the API, like a KLIPY slug) is cleaned the same way: "../../x" once
+    // sent ffmpeg's output out of its temp folder.
+    let name = Openverse.fileSafe(title, limit: 80)
+    let id = Openverse.fileSafe(fallback, limit: 40)
+    return !name.isEmpty ? name : !id.isEmpty ? id : "download"
   }
 
   /// ffmpeg's arguments for an H.264 MP4 B-roll can play: even dimensions, no sound, and a GIF
   /// looped for `gifLongest` seconds.
   static func ffmpegArguments(_ input: URL, _ output: URL, loop: Bool) -> [String] {
-    (loop ? ["-stream_loop", "-1"] : []) + ["-y", "-v", "error", "-i", input.path]
+    // Only local files: a downloaded "video" that's really a playlist mustn't make ffmpeg open others.
+    (loop ? ["-stream_loop", "-1"] : []) + ["-y", "-v", "error", "-protocol_whitelist", "file", "-i", input.path]
       + (loop ? ["-t", "\(Int(gifLongest))"] : [])
       + ["-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", output.path]
   }
@@ -404,7 +407,7 @@ public enum Stock {
 
   /// Appends the item's license to broll/stock-licenses.csv (the same columns as Openverse's record).
   static func record(_ item: Item, file: String, in folder: URL) throws {
-    let csv = folder.appendingPathComponent(licenseFile)
+    let csv = try Openverse.licenseRecord(licenseFile, in: folder)
     let row = Openverse.csvRow([
       file, item.id, item.title, item.creator, item.license, item.page, item.needsCredit ? "\(item.title) by \(item.creator), \(item.license)" : "",
       ISO8601DateFormatter().string(from: Date()),

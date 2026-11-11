@@ -297,7 +297,10 @@ extension Plan {
       guard let saved = try? Plan.load(planFile) else { return nil }
       wanted.formUnion(saved.animationClipNames(dir: dir))
     }
-    guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+    guard FileManager.default.fileExists(atPath: folder.path) || PathSafety.isSymlink(folder.path) else { return [] }
+    // A project someone sent can ship .animations as a symlink to any folder; deleting "unused clips"
+    // there would empty it.
+    try PathSafety.ownedFolder(".animations", in: dir)
     func renderingNow(_ name: String) -> Bool {
       guard name.hasPrefix(".rendering-") else { return false }
       let modified = (try? FileManager.default.attributesOfItem(atPath: folder.appendingPathComponent(name).path)[.modificationDate]) as? Date

@@ -91,6 +91,7 @@ cp "$P/plan.json" "$TMP/before-secrets.json"
 echo '{"scanned":[{"start":0,"end":1000}],"findings":[{"kind":"api key","masked":"sk-p… (32)","start":3,"end":5,"x":0.1,"y":0.1,"w":0.3,"h":0.05},
   {"kind":"email","masked":"jo… (15)","start":3,"end":5,"x":0.1,"y":0.5,"w":0.2,"h":0.03}]}' >"$P/secrets.json"
 check "describe warns about each unblurred secret" grep -q "WARNING: secret #1 (email" <<<"$("$DIRECTOR" describe "$P")"
+expect_error "the Claude box can't mark a secret safe to show" "only the user" env SD_ONLY_PROJECT="$P" "$DIRECTOR" secrets "$P" --allow email
 check "--allow email allows every email" grep -q "every email may show" <<<"$("$DIRECTOR" secrets "$P" --allow email)"
 check "secrets --blur adds a blur for the key only" grep -q "added 1 blur$" <<<"$("$DIRECTOR" secrets "$P" --blur)"
 check "then describe doesn't warn" bash -c "! '$DIRECTOR' describe '$P' | grep -q 'WARNING: secret'"
@@ -223,6 +224,9 @@ echo "// edited" >>"$P/animations/templates/storyboard.js"
 "$DIRECTOR" template "$P" save storyboard >/dev/null
 check "template save puts the video's copy in My Templates" grep -q "// edited" "$SD_SUPPORT_DIR/Animations/templates/storyboard.js"
 rm -rf "$SD_SUPPORT_DIR/Animations"
+echo "// keep" >"$TMP/keep.js"
+expect_error "template update refuses a name that's a path" "template name" "$DIRECTOR" template "$P" update "../../../../../../../../../..$TMP/keep"
+check "a refused template update deletes nothing" test -f "$TMP/keep.js"
 "$DIRECTOR" template "$P" update storyboard >/dev/null
 check "template update replaces the video's copy with the library's" sh -c "! grep -q '// edited' '$P/animations/templates/storyboard.js'"
 expect_error "template freeze of an unknown one lists the others" "hub" "$DIRECTOR" template "$P" freeze nope
@@ -270,6 +274,8 @@ check "still writes a frame inside the project ($(dims "$P/.checks/f30.png"))" t
 check "still --preset vertical makes a 9:16 frame ($(dims "$TMP/vertical.png"))" test "$(dims "$TMP/vertical.png")" = "1080x1920"
 check "the preset doesn't change the saved plan" plan_py "sys.exit(0 if plan['output']['width'] == 480 else 1)"
 expect_error "still refuses to write outside the project and temp" "refusing" "$DIRECTOR" still "$P" 30 "$HOME/sd-cli-test.png"
+expect_error "still never overwrites the recording" "refusing" "$DIRECTOR" still "$P" 30 "$P/screen.mp4"
+expect_error "in the project, stills go in .checks/" "refusing" "$DIRECTOR" still "$P" 30 "$P/frame.png"
 ln -s "$TMP/elsewhere.png" "$P/.checks/link.png"
 expect_error "still refuses to write through a symlink" "symlink" "$DIRECTOR" still "$P" 30 "$P/.checks/link.png"
 expect_error "still without a frame number prints usage" "usage:" "$DIRECTOR" still "$P" x "$TMP/f.png"
@@ -383,6 +389,17 @@ sed -i '' 's/rgb(255, 0, 0)/rgb(255, 255, 255)/' "$TMP/site/index.html"
 "$DIRECTOR" capture "$P" "file://$TMP/site/index.html" --name "Acme White" >"$TMP/capture-white.txt" 2>&1 || fail "capture: $(cat "$TMP/capture-white.txt")"
 check "capture warns about a white logo" grep -q "drawn in white" "$TMP/capture-white.txt"
 expect_error "capture refuses a non-web URL" "usage" "$DIRECTOR" capture "$P" "ftp://example.com"
+# A page can't name a local file elsewhere as its logo and have it copied into the project.
+mkdir -p "$TMP/site2"
+"$DIRECTOR" still "$P" 30 "$TMP/secret.png" >/dev/null
+printf '<!doctype html><html><head><link rel="icon" sizes="512x512" href="file://%s/secret.png"></head><body><h1>Hi</h1></body></html>' "$TMP" >"$TMP/site2/index.html"
+"$DIRECTOR" capture "$P" "file://$TMP/site2/index.html" --name "Peek" >"$TMP/capture-peek.txt" 2>&1 || fail "capture: $(cat "$TMP/capture-peek.txt")"
+check "capture skips a logo that's a local file outside the page's folder" test ! -e "$P/animations/logos/peek.png"
+# A project someone sent may ship its logos folder as a symlink: capture writes nothing through it.
+mkdir -p "$TMP/elsewhere-logos" && mv "$P/animations/logos" "$TMP/logos-saved" && ln -s "$TMP/elsewhere-logos" "$P/animations/logos"
+expect_error "capture refuses a symlinked logos folder" "symlink" "$DIRECTOR" capture "$P" "file://$TMP/site/index.html" --name "Acme Co"
+check "nothing lands in the symlink's target" test -z "$(ls -A "$TMP/elsewhere-logos")"
+rm "$P/animations/logos" && mv "$TMP/logos-saved" "$P/animations/logos"
 
 [[ "$failures" == 0 ]] || { echo "$failures CLI check(s) failed" >&2; exit 1; }
 echo "CLI checks passed"

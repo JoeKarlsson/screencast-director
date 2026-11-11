@@ -76,6 +76,23 @@ enum Capture {
     return weight > 0 ? sum / weight : nil
   }
 
+  /// Whether capture may fetch a logo URL the page named: the page is someone else's, so only http(s),
+  /// and a local file only when the page itself is a local file and the logo sits beside it (else a
+  /// page could name file:///Users/you/... and have it copied into the project).
+  static func mayFetch(_ logo: URL, page: URL) -> Bool {
+    switch logo.scheme?.lowercased() {
+    case "http", "https": return true
+    case "file": return page.isFileURL && PathSafety.url(logo, isInside: page.deletingLastPathComponent())
+    default: return false
+    }
+  }
+
+  /// An HTTP response under 400, or a local file read (which has no status).
+  static func succeeded(_ response: URLResponse) -> Bool {
+    if let http = response as? HTTPURLResponse { return (200..<400).contains(http.statusCode) }
+    return response.url?.isFileURL == true
+  }
+
   @MainActor
   static func run(_ dir: URL, url: URL, name: String?, log: (String) -> Void) async throws {
     let page = Animate.Page(width: 1440, height: 900)
@@ -87,25 +104,26 @@ enum Capture {
     let logoName = name ?? Capture.name(for: url)
     let slug = logoName.lowercased().replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
 
-    let logosDir = AnimationSources.videoFolder(dir).appendingPathComponent("logos")
-    try FileManager.default.createDirectory(at: logosDir, withIntermediateDirectories: true)
+    // A project someone sent may ship these folders, or a logo file, as symlinks: never write through one.
+    let logosDir = try PathSafety.ownedFolder("animations/logos", in: dir)
     var saved: String?
     for logo in found.logos {
       if let svg = logo.svg {
         saved = "\(slug).svg"
-        try Data(svg.utf8).write(to: logosDir.appendingPathComponent(saved!))
+        try Data(svg.utf8).write(to: try PathSafety.ownedFile(logosDir.appendingPathComponent(saved!)))
         break
       }
-      guard let src = logo.url.flatMap(URL.init(string:)), let (data, response) = try? await URLSession.shared.data(from: src), !data.isEmpty,
-        (response as? HTTPURLResponse).map({ $0.statusCode < 400 }) ?? true, NSImage(data: data) != nil || src.pathExtension == "svg"
+      guard let src = logo.url.flatMap(URL.init(string:)), Capture.mayFetch(src, page: url),
+        let (data, response) = try? await URLSession.shared.data(from: src), !data.isEmpty,
+        Capture.succeeded(response), NSImage(data: data) != nil || src.pathExtension == "svg"
       else { continue }
       let ext = src.pathExtension.isEmpty ? "png" : src.pathExtension.lowercased()
       saved = "\(slug).\(ext)"
-      try data.write(to: logosDir.appendingPathComponent(saved!))
+      try data.write(to: try PathSafety.ownedFile(logosDir.appendingPathComponent(saved!)))
       break
     }
     if let saved {
-      let map = logosDir.appendingPathComponent("logos.json")
+      let map = try PathSafety.ownedFile(logosDir.appendingPathComponent("logos.json"))
       var names = FileManager.default.fileExists(atPath: map.path) ? try JSONDecoder().decode([String: String].self, from: Data(contentsOf: map)) : [:]
       names[logoName] = saved
       let enc = JSONEncoder()
@@ -119,9 +137,7 @@ enum Capture {
       log("no logo found on \(url.absoluteString)")
     }
 
-    let broll = dir.appendingPathComponent("broll")
-    try FileManager.default.createDirectory(at: broll, withIntermediateDirectories: true)
-    let shot = broll.appendingPathComponent("\(slug)-site.png")
+    let shot = try PathSafety.ownedFile(PathSafety.ownedFolder("broll", in: dir).appendingPathComponent("\(slug)-site.png"))
     try Publish.writePNG(try await page.snapshot(), to: shot)
     log("screenshot: broll/\(shot.lastPathComponent)")
     if let theme = found.theme { log("theme color: \(theme)") }

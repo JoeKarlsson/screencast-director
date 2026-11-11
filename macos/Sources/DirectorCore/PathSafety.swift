@@ -36,6 +36,43 @@ public enum PathSafety: Sendable {
     Self.url(resolvePath(path, in: project), isInside: project)
   }
 
+  /// A name that's one plain path component (letters, digits, - and _): template and effect names,
+  /// which become file and folder names, so "../x" or "a/b" must never pass.
+  public static func isPlainName(_ name: String) -> Bool {
+    !name.isEmpty && name.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+  }
+
+  /// Whether `path` is a symlink itself (not followed).
+  static func isSymlink(_ path: String) -> Bool {
+    ((try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType) == .typeSymbolicLink
+  }
+
+  /// A folder of the project the app writes or deletes in (`.animations`, `broll`, `animations/logos`),
+  /// created if missing. A project someone sent can ship one as a symlink to any folder, and every
+  /// write or cleanup would then land there, so each part of `relative` must be a real folder (not a
+  /// symlink) that stays inside the project; throws otherwise.
+  @discardableResult
+  public static func ownedFolder(_ relative: String, in project: URL) throws -> URL {
+    var folder = project
+    for part in relative.split(separator: "/").map(String.init) {
+      guard part != "..", part != "." else { throw DirectorError("\(relative) isn't a folder inside the project") }
+      folder.appendPathComponent(part)
+      if isSymlink(folder.path) {
+        throw DirectorError("\(folder.path) is a symlink; a project's own folders must be real folders, so nothing is written or deleted through it")
+      }
+    }
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    guard url(folder, isInside: project) else { throw DirectorError("\(folder.path) leads outside the project") }
+    return folder
+  }
+
+  /// `file` in one of the project's owned folders, checked before a write: refuses a file that is a
+  /// symlink (the write would land on its target).
+  public static func ownedFile(_ file: URL) throws -> URL {
+    if isSymlink(file.path) { throw DirectorError("refusing to write through the symlink \(file.path)") }
+    return file
+  }
+
   /// `new` with every file path that changed from `previous` and leaves the project put back to
   /// the previous value (or dropped when there was none). Returns the plan and the fields reverted.
   /// Paths into `library` (the user's own support folder: profiles' fonts and logos, sounds, music)
@@ -98,6 +135,19 @@ public enum PathSafety: Sendable {
       }
     }
     if droppedSound { reverted.append("sound.file") }
+    // A clip's logo becomes its export's watermark (Plan.trimmed), so it's a file the plan reads too.
+    if let clips = plan.clips {
+      let known = Set((previous.clips ?? []).compactMap(\.logo))
+      var dropped = false
+      plan.clips = clips.map { c in
+        guard let logo = c.logo, !known.contains(logo), !allowed(logo) else { return c }
+        dropped = true
+        var c = c
+        c.logo = previous.clips?.first { $0.name == c.name }?.logo
+        return c
+      }
+      if dropped { reverted.append("clips.logo") }
+    }
     if !safe(plan.intro?.logo, previous.intro?.logo, "intro.logo") { plan.intro?.logo = previous.intro?.logo }
     if !safe(plan.outro?.logo, previous.outro?.logo, "outro.logo") { plan.outro?.logo = previous.outro?.logo }
     if plan.look != nil {

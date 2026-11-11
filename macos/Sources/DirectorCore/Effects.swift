@@ -83,10 +83,6 @@ public struct EffectSources: Sendable {
 
   public static func videoFolder(_ project: URL) -> URL { project.appendingPathComponent("effects") }
 
-  public static func isValidName(_ name: String) -> Bool {
-    !name.isEmpty && name.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
-  }
-
   /// The effects you can use: the video's frozen ones and the personal library's, by name.
   public func available() -> [String] {
     let candidates = (project.map { [EffectSources.videoFolder($0)] } ?? []) + [personal]
@@ -102,7 +98,7 @@ public struct EffectSources: Sendable {
 
   /// The folder an effect loads from, or nil when no folder has it.
   public func folder(_ name: String) -> URL? {
-    guard EffectSources.isValidName(name) else { return nil }
+    guard PathSafety.isPlainName(name) else { return nil }
     let candidates = (project.map { [EffectSources.videoFolder($0)] } ?? []) + [personal]
     return candidates.map { $0.appendingPathComponent(name) }.first {
       FileManager.default.fileExists(atPath: $0.appendingPathComponent("effect.metal").path)
@@ -113,14 +109,16 @@ public struct EffectSources: Sendable {
   /// library later never changes a finished video. Returns whether it copied.
   @discardableResult
   public func freeze(_ name: String) throws -> Bool {
-    guard let project, EffectSources.isValidName(name) else { return false }
+    guard let project, PathSafety.isPlainName(name) else { return false }
     let fm = FileManager.default
     let dst = EffectSources.videoFolder(project).appendingPathComponent(name)
     let src = personal.appendingPathComponent(name)
     guard !fm.fileExists(atPath: dst.appendingPathComponent("effect.metal").path),
       fm.fileExists(atPath: src.appendingPathComponent("effect.metal").path)
     else { return false }
-    try fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+    // effects/ must be the project's own folder, and a symlink where the effect goes is replaced, not
+    // followed (a project someone sent may ship either).
+    try PathSafety.ownedFolder("effects", in: project)
     try? fm.removeItem(at: dst)
     try fm.copyItem(at: src, to: dst)
     return true
@@ -306,7 +304,7 @@ public enum Effects: Sendable {
     guard !uses.isEmpty else { return [] }
     guard let device = MTLCreateSystemDefaultDevice() else { throw DirectorError("Effects need a Metal GPU, and this Mac has none.") }
     return try uses.map { use in
-      guard EffectSources.isValidName(use.name) else {
+      guard PathSafety.isPlainName(use.name) else {
         throw DirectorError("Effect name \"\(use.name)\" can only use letters, digits, - and _.")
       }
       try sources.freeze(use.name)

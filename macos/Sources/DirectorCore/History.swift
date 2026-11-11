@@ -25,8 +25,8 @@ public enum PlanHistory: Sendable {
   /// Saves `data` (a plan.json's bytes) as a version, unless it matches the newest one.
   /// Throws when .history can't be written, so undo history never stops without a word.
   public static func snapshot(_ data: Data, planURL: URL, keep: Int = keep, now: Date = Date()) throws {
-    let dir = directory(for: planURL)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    // A project someone sent may ship .history as a symlink; snapshots and pruning stay out of it.
+    let dir = try PathSafety.ownedFolder(".history", in: planURL.deletingLastPathComponent())
     if let newest = list(planURL: planURL).first, (try? Data(contentsOf: newest.url)) == data { return }
     var name = "plan-\(stamp.string(from: now)).json"
     var n = 1

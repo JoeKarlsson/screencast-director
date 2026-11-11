@@ -8,7 +8,8 @@ public enum ClaudeEdit {
   /// freeze/update, which copy from the user's library, and the segment edits, which keep every
   /// timed item with its clip, where a hand edit of `segments` easily leaves them behind). Not `add`
   /// (it would copy any file on disk into the project, where Read reaches it) or `template save` (it
-  /// writes the library other videos use). `secrets` writes only secrets.json and blurs into the plan,
+  /// writes the library other videos use). `secrets` writes only secrets.json and blurs into the plan (its `--allow` refuses to run
+  /// under SD_ONLY_PROJECT: showing a secret is the user's call),
   /// `animate-choose` only the plan. `stock` searches and downloads B-roll and GIFs into this
   /// project's broll/ (not `get-sound`, which writes the shared sound library). `lottie . list` only
   /// reads (not `lottie . add`, which copies any file in, like `add`).

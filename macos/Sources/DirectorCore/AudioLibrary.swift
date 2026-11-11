@@ -145,8 +145,8 @@ public struct AudioLibrary: Sendable {
     let target = project.appendingPathComponent(path)
     let fm = FileManager.default
     if !fm.fileExists(atPath: target.path) {
-      try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-      try fm.copyItem(at: entry.url, to: target)
+      try PathSafety.ownedFolder(kind.planFolder, in: project)
+      try fm.copyItem(at: entry.url, to: try PathSafety.ownedFile(target))
     }
     return path
   }

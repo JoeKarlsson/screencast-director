@@ -182,10 +182,15 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     retakeCount += 1
   }
 
-  /// Stops and throws the recording away.
+  /// Stops and moves the recording to the Trash: discard and restart can come from a link, so a take
+  /// is never deleted outright.
   func cancel() async {
     guard let dir = try? await stop(discard: true) else { return }
-    try? FileManager.default.removeItem(at: dir)
+    do {
+      try FileManager.default.trashItem(at: dir, resultingItemURL: nil)
+    } catch {
+      Notices.shared.show("The discarded recording is still at \(dir.path): it couldn't go in the Trash (\(error.localizedDescription)).", error: true)
+    }
   }
 
   /// Stops everything, writes source.json, and returns the project folder. With `discard`, it

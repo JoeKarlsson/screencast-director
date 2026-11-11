@@ -123,18 +123,24 @@ func printWarnings(_ built: BuiltComposition) {
   for w in built.warnings { FileHandle.standardError.write(Data("warning: \(w)\n".utf8)) }
 }
 
-/// Where `still` and `contact-sheet` may write. Headless Claude may run them: only into the project
-/// (e.g. .checks/) or a temp folder, and never through a symlink.
-func checkedImageOutput(_ path: String) throws -> URL {
+/// Where `still`, `contact-sheet` and `animate-test` may write. Headless Claude may run them, so: a
+/// .png (animate-test's clip an .mp4), in the project's own .checks/ folder or a temp folder, never
+/// through a symlink. (Anywhere in the project once let `still . 0 screen.mp4` overwrite the recording.)
+func checkedImageOutput(_ path: String, ext: String = "png") throws -> URL {
   let out = URL(fileURLWithPath: path)
-  let roots = [dir, URL(fileURLWithPath: NSTemporaryDirectory()), URL(fileURLWithPath: "/tmp")]
-  guard roots.contains(where: { PathSafety.url(out, isInside: $0) }) else {
-    fail("refusing to write \(out.path): stills go in the project folder or a temp folder")
+  guard out.pathExtension.lowercased() == ext else { fail("refusing to write \(out.path): this writes a .\(ext) file") }
+  if PathSafety.url(out, isInside: dir) {
+    guard PathSafety.url(out, isInside: try PathSafety.ownedFolder(".checks", in: dir)) else {
+      fail("refusing to write \(out.path): in the project, stills go in .checks/")
+    }
+  } else {
+    let temps = [URL(fileURLWithPath: NSTemporaryDirectory()), URL(fileURLWithPath: "/tmp")]
+    guard temps.contains(where: { PathSafety.url(out, isInside: $0) }) else {
+      fail("refusing to write \(out.path): stills go in the project's .checks/ folder or a temp folder")
+    }
   }
   if (try? FileManager.default.destinationOfSymbolicLink(atPath: out.path)) != nil { fail("refusing to overwrite the symlink \(out.path)") }
-  if PathSafety.url(out, isInside: dir) {
-    try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
-  }
+  try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
   return out
 }
 
@@ -158,6 +164,10 @@ do {
     var plan = try Plan.load(project.planURL)
     if let i = args.firstIndex(of: "--allow") {
       guard i + 1 < args.count else { fail(usage) }
+      // Showing a secret is the user's call: a prompt-injected edit in the Claude box mustn't make one.
+      if ProcessInfo.processInfo.environment["SD_ONLY_PROJECT"] != nil {
+        fail("only the user can mark a secret safe to show: ask them to run `director secrets <folder> --allow` themselves")
+      }
       let what = args[i + 1]
       guard var saved = try Secrets.load(dir) else { fail("no scan yet; run `director secrets \(dir.path)` first") }
       if let n = Int(what) {
@@ -255,6 +265,7 @@ do {
     _ = try Project.load(dir)
     let sources = AnimationSources(project: dir, builtIn: Animate.resources)
     let name = positional[3]
+    guard PathSafety.isPlainName(name) else { fail("a template name can only use letters, digits, - and _, not \(name.debugDescription)") }
     let videoCopy = AnimationSources.videoFolder(dir).appendingPathComponent("templates/\(name).js")
     switch positional[2] {
     case "freeze":
@@ -450,13 +461,13 @@ do {
   case "animate-test":
     guard positional.count >= 4, positional.count <= 5, let index = Int(positional[2]), let at = Double(positional[3]) else { fail(usage) }
     let project = try Project.load(dir)
-    let out = try checkedImageOutput(positional.count == 5 ? positional[4] : dir.appendingPathComponent(".checks/animation-\(index)-test.mp4").path)
+    let out = try checkedImageOutput(positional.count == 5 ? positional[4] : dir.appendingPathComponent(".checks/animation-\(index)-test.mp4").path, ext: "mp4")
     let started = Date()
     let sheet = try await Animate.renderTest(dir, try planFor(project), index: index, at: at, to: out)
     print(String(format: "%@\n%@\n(%.1fs)", out.path, sheet.path, Date().timeIntervalSince(started)))
   case "animate-variants":
     guard positional.count == 3, let index = Int(positional[2]) else { fail(usage) }
-    let sheet = try await Animate.renderVariants(dir, try planFor(try Project.load(dir)), index: index, folder: dir.appendingPathComponent(".checks")) {
+    let sheet = try await Animate.renderVariants(dir, try planFor(try Project.load(dir)), index: index) {
       print($0)
     }
     print(sheet.path)

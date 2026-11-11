@@ -148,8 +148,7 @@ extension Analyzer {
     let cache = project.dir.appendingPathComponent("loudness.json")
     // A cache that can't be read is measured again (and rewritten) rather than failing.
     if let cached = try? SampleSeries.read(cache) { return cached }
-    let wav = project.dir.appendingPathComponent(".render/loudness.wav")
-    try FileManager.default.createDirectory(at: wav.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let wav = try PathSafety.ownedFolder(".render", in: project.dir).appendingPathComponent("loudness.wav")
     guard try await extractAudio(project.dir.appendingPathComponent(video), to: wav) else { return [] }
     let data = try Data(contentsOf: wav)
     try? FileManager.default.removeItem(at: wav)

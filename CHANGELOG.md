@@ -4,6 +4,26 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Security
+- A project folder someone sends you can no longer reach outside itself:
+  - The app and `director` refuse to write or delete through a project folder that's a symlink: `.animations`, `broll`, `animations/` and its `logos`, `templates` and `lottie` folders, `effects`, `.render`, `.history`, `.checks`, `publish`, `sfx` and `music`. Before, a `.animations` symlink made opening the project empty the folder it pointed to.
+  - Animations render in a page that reads only the app's own animation files and has no network. Logos and fonts reach it through a list made for each render, so a template that came with a project can't load other files on your Mac or send anything out.
+  - Its `logos.json` can only name files in its own logos folder.
+- `still`, `contact-sheet` and `animate-test` write only into the project's `.checks/` folder or a temp folder, as a `.png` (`animate-test` as an `.mp4`). Before, `still . 0 screen.mp4` could overwrite the recording.
+- Template names can only use letters, digits, `-` and `_`. Before, `template update` with a `../` name could delete any `.js` file.
+- `director capture` fetches a page's logo only over http(s), or as a local file beside a local page, and only on a successful response. It writes nothing through a symlink.
+- Stock and Openverse downloads:
+  - The file name made from an empty title is cleaned the same as a title.
+  - A license record is never appended through a symlink.
+  - ffmpeg reads only local files.
+- An AI edit can't point a clip's logo outside the project: PathSafety now covers `clips[].logo`.
+- `look.accent` reaches the animation page only as a hex color.
+- The Claude box can't mark a secret safe to show: `director secrets --allow` refuses to run under `SD_ONLY_PROJECT`.
+- Links:
+  - A `screencastdirector://` discard or restart moves the take to the Trash instead of deleting it.
+  - `open?project=` for a folder outside the projects folder asks before opening it.
+- `sd import` only accepts a video whose extension is letters and digits, and ffprobe reads only local files.
+
 ### Claude box
 - Rewind to before any ask: the ↺ beside an ask in the Claude box puts the plan back to how it was before it, undoing that ask and every edit after it in one step (⌘Z brings them back). Rewound asks are dimmed, and Claude starts a fresh conversation. Agents do the same with `director asks <dir>` and `director asks <dir> rewind <n>`. Asks from before this version can't be rewound to.
 - Each finished ask keeps the steps it took in a folded line ("8 steps · 1 failed · 42 s"), which opens to every step with ✓ or ✗ and how long it ran, so you can see what failed. While it runs, a step that fails shows ✗ right away.

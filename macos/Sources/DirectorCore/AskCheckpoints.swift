@@ -13,7 +13,7 @@ public enum AskCheckpoints {
   /// Saves plan.json as it is now as ask `id`'s checkpoint.
   public static func save(planURL: URL, id: UUID) throws {
     let dest = url(id, planURL: planURL)
-    try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try PathSafety.ownedFolder(".history/asks", in: planURL.deletingLastPathComponent())
     try Data(contentsOf: planURL).write(to: dest, options: .atomic)
   }
 
@@ -26,6 +26,7 @@ public enum AskCheckpoints {
   public static func prune(keeping ids: Set<UUID>, planURL: URL) throws {
     let dir = PlanHistory.directory(for: planURL).appendingPathComponent("asks")
     guard FileManager.default.fileExists(atPath: dir.path) else { return }
+    try PathSafety.ownedFolder(".history/asks", in: planURL.deletingLastPathComponent())
     for file in try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
       guard let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent), !ids.contains(id) else { continue }
       try FileManager.default.removeItem(at: file)

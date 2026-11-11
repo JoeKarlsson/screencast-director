@@ -491,6 +491,42 @@ struct Checks {
     let (withProfile, profileReverted) = PathSafety.sanitize(profiled, previous: prior, project: proj, library: library)
     expect(withProfile.music == profiled.music && withProfile.look?.fontFiles == [profiled.look!.fontFiles![0]],
       "a profile's library assets are kept, other paths still reverted (\(profileReverted))")
+    // A clip's logo becomes its export's watermark, so it's a plan file path like the rest.
+    var clipEvil = prior
+    clipEvil.clips = [Clip(name: "c", start: 0, end: 1, logo: "/tmp/sd-outside/marker.png"), Clip(name: "d", start: 1, end: 2, logo: "logos/ok.png")]
+    let (clipCleaned, clipReverted) = PathSafety.sanitize(clipEvil, previous: prior, project: proj)
+    expect(clipCleaned.clips?.map(\.logo) == [nil, "logos/ok.png"] && clipReverted == ["clips.logo"], "a clip logo outside the project is reverted (\(clipReverted))")
+
+    // A project someone sent can ship its working folders as symlinks: nothing is written or deleted through one.
+    let victim = proj.deletingLastPathComponent().appendingPathComponent("sd-victim-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: victim.appendingPathComponent("dir"), withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: victim) }
+    try? Data("keep".utf8).write(to: victim.appendingPathComponent("a.txt"))
+    try? Data("keep".utf8).write(to: victim.appendingPathComponent("dir/b.txt"))
+    try? FileManager.default.createSymbolicLink(atPath: proj.appendingPathComponent(".animations").path, withDestinationPath: "../" + victim.lastPathComponent)
+    var cleanupThrew = false
+    do { _ = try prior.removeUnusedAnimationClips(dir: proj) } catch { cleanupThrew = true }
+    expect(cleanupThrew, "the clip cleanup refuses a symlinked .animations")
+    expect(FileManager.default.fileExists(atPath: victim.appendingPathComponent("dir/b.txt").path), "nothing in the symlink's target is deleted")
+    expect((try? PathSafety.ownedFolder(".animations", in: proj)) == nil && (try? PathSafety.ownedFolder("../x", in: proj)) == nil,
+      "ownedFolder refuses a symlink and a parent path")
+    expect((try? PathSafety.ownedFolder("animations/logos", in: proj)).map { PathSafety.url($0, isInside: proj) } == true, "ownedFolder makes a real folder")
+    try? FileManager.default.createSymbolicLink(atPath: proj.appendingPathComponent("broll").path, withDestinationPath: victim.path)
+    let pick = victim.appendingPathComponent("a.txt")
+    expect((try? Project.importFile(pick, into: "broll", dir: proj)) == nil, "an import refuses a symlinked broll/")
+    try? FileManager.default.createSymbolicLink(atPath: proj.appendingPathComponent("animations/logos/x.svg").path, withDestinationPath: pick.path)
+    expect((try? PathSafety.ownedFile(proj.appendingPathComponent("animations/logos/x.svg"))) == nil, "ownedFile refuses a symlink")
+    // Template names become file names: "../" in one once let `template update` delete any .js file.
+    expect(PathSafety.isPlainName("storyboard") && PathSafety.isPlainName("my_hub-2") && !PathSafety.isPlainName("../x") && !PathSafety.isPlainName("a/b")
+      && !PathSafety.isPlainName(""), "plain names")
+    let templateLib = proj.appendingPathComponent("lib")
+    try? FileManager.default.createDirectory(at: templateLib.appendingPathComponent("templates"), withIntermediateDirectories: true)
+    try? Data("//".utf8).write(to: victim.appendingPathComponent("keep.js"))
+    let sources = AnimationSources(project: proj, builtIn: templateLib, personal: templateLib)
+    let traversal = String(repeating: "../", count: 30) + victim.appendingPathComponent("keep").path.dropFirst()
+    expect(sources.libraryFolder(for: traversal) == nil && sources.script(traversal) == nil, "a ../ template name finds nothing")
+    expect((try? sources.updateFromLibrary(traversal)) != nil && FileManager.default.fileExists(atPath: victim.appendingPathComponent("keep.js").path),
+      "updating a ../ template name deletes nothing")
 
     // Motion: easing curves, eased steps and the camera's zoom path.
     for name in Ease.names {

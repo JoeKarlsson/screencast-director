@@ -2,6 +2,7 @@ import AVFoundation
 import AppKit
 import VideoToolbox
 import DirectorCore
+import UniformTypeIdentifiers
 import WebKit
 
 /// Renders the plan's animations to their cached clips with an offscreen WKWebView: the bundled
@@ -183,8 +184,7 @@ enum Animate {
     for name in Set(plan.animationList.compactMap(\.lottieFile)) where try sources.freezeLottie(name) {
       log("copied the Lottie file \(name) into animations/lottie/")
     }
-    let folder = dir.appendingPathComponent(".animations")
-    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try PathSafety.ownedFolder(".animations", in: dir)
     if try plan.removeUnusedAnimationClips(dir: dir) == nil {
       log("plan.json doesn't load right now, so unused animation clips are kept")
     }
@@ -239,15 +239,15 @@ enum Animate {
   }
 
   /// Every version of animation `index` (it and its alternates) rendered in full to
-  /// `<folder>/animation-<index>-v<k>.mp4`, and one sheet beside them with a row per version at the
+  /// `.checks/animation-<index>-v<k>.mp4`, and one sheet beside them with a row per version at the
   /// same moments, so they compare at a glance. Returns the sheet.
   @MainActor
-  static func renderVariants(_ dir: URL, _ plan: Plan, index: Int, folder: URL, log: (String) -> Void) async throws -> URL {
+  static func renderVariants(_ dir: URL, _ plan: Plan, index: Int, log: (String) -> Void) async throws -> URL {
     let list = plan.animationList
     guard list.indices.contains(index) else { throw DirectorError("no animation #\(index) (the plan has \(list.count))") }
     let versions = list[index].versions
     guard versions.count > 1 else { throw DirectorError("animation #\(index) has no alternates to compare") }
-    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let folder = try PathSafety.ownedFolder(".checks", in: dir)
     let size = plan.animationOutput(list[index])
     let columns = ContactSheet.layout(frameWidth: size.width, frameHeight: size.height).columns
     let frameCount = Int((list[index].end - list[index].start) * Double(fps))
@@ -274,9 +274,64 @@ enum Animate {
     return sheet
   }
 
+  /// Serves the files an animation page may load beyond the app's own (logos and fonts, from the video,
+  /// the personal library or a profile) as `sd-asset://` URLs, from a list made for that page. The page
+  /// runs a template that can come with a video someone sent, so it gets no file:// reach past the
+  /// app's animation folder and no network (`Page.offline`).
+  final class Assets: NSObject, WKURLSchemeHandler, @unchecked Sendable {
+    nonisolated static let scheme = "sd-asset"
+    nonisolated(unsafe) private var files: [String] = []  // guarded by lock
+    private let lock = NSLock()
+
+    /// The URL the page uses for `file`.
+    nonisolated func url(for file: URL) -> String {
+      lock.lock()
+      defer { lock.unlock() }
+      files.append(file.path)
+      let name = file.lastPathComponent.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "file"
+      return "\(Assets.scheme)://asset/\(files.count - 1)/\(name)"
+    }
+
+    nonisolated private func file(_ url: URL?) -> URL? {
+      guard let url, url.scheme == Assets.scheme, url.pathComponents.count >= 2, let i = Int(url.pathComponents[1]) else { return nil }
+      lock.lock()
+      defer { lock.unlock() }
+      return files.indices.contains(i) ? URL(fileURLWithPath: files[i]) : nil
+    }
+
+    func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
+      guard let url = task.request.url, let file = file(url), let data = try? Data(contentsOf: file) else {
+        task.didFailWithError(URLError(.fileDoesNotExist))
+        return
+      }
+      let type = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+      let headers = ["Content-Type": type, "Content-Length": "\(data.count)", "Access-Control-Allow-Origin": "*"]
+      task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
+      task.didReceive(data)
+      task.didFinish()
+    }
+
+    func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {}
+  }
+
+  /// A content rule blocking every network load, compiled once.
+  @MainActor static var noNetwork: WKContentRuleList?
+  @MainActor static func noNetworkRules() async throws -> WKContentRuleList {
+    if let noNetwork { return noNetwork }
+    // Content rules take no "|", so one rule per scheme.
+    let rules = "[" + ["^https?:", "^wss?:", "^ftp:"].map { #"{"trigger":{"url-filter":"\#($0)"},"action":{"type":"block"}}"# }.joined(separator: ",") + "]"
+    guard let list = try await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "sd-animation-offline", encodedContentRuleList: rules)
+    else { throw DirectorError("WebKit couldn't compile the animation page's no-network rule") }
+    noNetwork = list
+    return list
+  }
+
   @MainActor
   final class Page: NSObject, WKNavigationDelegate {
     let web: WKWebView
+    /// An animation page: no network, and files beyond the app's animation folder only through `assets`.
+    let offline: Bool
+    let assets = Assets()
     let window: NSWindow
     let width: Int
     /// A sticker's clip is cut to its content's height once the template has laid it out.
@@ -288,16 +343,22 @@ enum Animate {
     /// The page for animation `a` in `plan`: its clip's size, transparent for an overlay.
     convenience init(_ plan: Plan, _ a: Animation) {
       let size = plan.animationOutput(a)
-      self.init(width: size.width, height: size.height, transparent: a.isOverlay)
+      self.init(width: size.width, height: size.height, transparent: a.isOverlay, offline: true)
     }
 
-    init(width: Int, height: Int, transparent: Bool = false) {
+    init(width: Int, height: Int, transparent: Bool = false, offline: Bool = false) {
       self.width = width
       self.height = height
       self.transparent = transparent
+      self.offline = offline
       _ = NSApplication.shared
       let rect = NSRect(x: 0, y: 0, width: width, height: height)
-      web = WKWebView(frame: rect, configuration: WKWebViewConfiguration())
+      let configuration = WKWebViewConfiguration()
+      if offline {
+        configuration.setURLSchemeHandler(assets, forURLScheme: Assets.scheme)
+        configuration.websiteDataStore = .nonPersistent()
+      }
+      web = WKWebView(frame: rect, configuration: configuration)
       // Without this WebKit fills the view white before the page paints, so a snapshot has no alpha.
       if transparent { web.setValue(false, forKey: "drawsBackground") }
       // Off screen but in a window, so WebKit lays out and paints.
@@ -306,6 +367,13 @@ enum Animate {
       window.contentView = web
       window.orderBack(nil)
       web.navigationDelegate = self
+    }
+
+    /// An animation page never navigates: only its own animation.html loads.
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+      guard offline else { return decisionHandler(.allow) }
+      let page = Animate.resources.appendingPathComponent("animation.html").standardizedFileURL
+      decisionHandler(action.request.url?.standardizedFileURL == page ? .allow : .cancel)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { finishLoading(nil) }
@@ -324,10 +392,12 @@ enum Animate {
       _ a: Animation, index: Int, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
       onFrame: ((Int, CGImage) throws -> Void)? = nil
     ) async throws -> (pops: [Int], overlaps: [String]) {
-      // A fresh page per animation, so one template's nodes never leak into the next. Read access to
-      // the whole disk: fonts come from profile folders, templates and logos from the video, the
-      // personal library or the bundle.
-      try await open(Animate.resources.appendingPathComponent("animation.html"), readAccess: URL(fileURLWithPath: "/"))
+      // A fresh page per animation, so one template's nodes never leak into the next. The template may
+      // have come with a video someone sent, so the page reads only the app's animation folder and
+      // has no network; logos and fonts come through `assets`.
+      web.configuration.userContentController.removeAllContentRuleLists()
+      web.configuration.userContentController.add(try await Animate.noNetworkRules())
+      try await open(Animate.resources.appendingPathComponent("animation.html"), readAccess: Animate.resources)
       guard let scriptURL = sources.script(a.template) else {
         throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
@@ -338,7 +408,7 @@ enum Animate {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
       do {
-        let config = try Animate.config(a, plan: plan, sources: sources)
+        let config = try Animate.config(a, plan: plan, sources: sources, assets: assets)
         _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
         throw DirectorError("the \(a.template) template didn't start: \(error)")
@@ -513,18 +583,19 @@ enum Animate {
   }
 
   /// What the page's init() gets: the template, its data and cues, and the plan's brand look.
-  static func config(_ a: Animation, plan: Plan, sources: AnimationSources) throws -> [String: Any] {
+  static func config(_ a: Animation, plan: Plan, sources: AnimationSources, assets: Assets) throws -> [String: Any] {
     let files = try sources.logos()
     let data = try JSONSerialization.jsonObject(with: JSONEncoder().encode(a.data), options: [.fragmentsAllowed])
-    let logos = files.mapValues(\.absoluteString)
+    let logos = files.mapValues { assets.url(for: $0) }
     let look = plan.look
     let fonts: [[String: String]] = (look?.fontFiles ?? []).map { path in
-      ["family": ((path as NSString).lastPathComponent as NSString).deletingPathExtension, "url": URL(fileURLWithPath: path).absoluteString]
+      ["family": ((path as NSString).lastPathComponent as NSString).deletingPathExtension, "url": assets.url(for: sources.project.map { resolvePath(path, in: $0) } ?? URL(fileURLWithPath: path))]
     }
     var config: [String: Any] = [
       "template": a.template, "data": data, "cues": a.localCues, "duration": a.end - a.start,
       "width": plan.animationOutput(a).width, "height": plan.animationOutput(a).height, "fonts": fonts, "logos": logos,
-      "accent": look?.accent ?? "#FFE500",
+      // Only a real color reaches the page's CSS: "url(https://...)" would make the renderer fetch it.
+      "accent": look?.accent.flatMap { Look.isHexColor($0) ? $0 : nil } ?? "#FFE500",
     ]
     if let f = look?.titleFont { config["titleFont"] = f }
     if let f = look?.captionFont { config["bodyFont"] = f }

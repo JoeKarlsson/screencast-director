@@ -24,11 +24,21 @@ director() { "${DIRECTOR:-$ROOT/bin/director}" "$@"; }
 project_dir() { [ -n "${1:-}" ] || die "missing project name"; echo "$PROJECTS/$1"; }
 need_project() { [ -f "$1/source.json" ] || die "no project at $1 (record it in the app, or sd import)"; }
 
+# A media file's extension, from its name only: letters and digits, since it lands in source.json
+# (a quote in a downloaded file's name would otherwise end the JSON string).
+media_ext() {
+  local base; base=$(basename "$1")
+  local ext="${base##*.}"
+  [[ "$base" == *.* && "$ext" =~ ^[A-Za-z0-9]+$ ]] || die "can't tell the video type of $base: rename it to end in .mp4 or .mov"
+  printf '%s' "$ext"
+}
+
 write_source() { # dir video [cameraVideo cameraOffset]
   local dir=$1 video=$2 cam=${3:-} off=${4:-0}
   local w h d
-  IFS=, read -r w h < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$dir/$video")
-  d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dir/$video")
+  # Only local files: a playlist named like a video mustn't make ffprobe open others.
+  IFS=, read -r w h < <(ffprobe -v error -protocol_whitelist file -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$dir/$video")
+  d=$(ffprobe -v error -protocol_whitelist file -show_entries format=duration -of csv=p=0 "$dir/$video")
   {
     printf '{\n  "video": "%s",\n  "width": %s,\n  "height": %s,\n  "duration": %s' "$video" "$w" "$h" "$d"
     [ -n "$cam" ] && printf ',\n  "camera": { "video": "%s", "offset": %s }' "$cam" "$off"
@@ -47,14 +57,16 @@ cmd_import() {
     esac
   done
   [ -f "$video" ] || die "no such file: $video"
+  [[ "$off" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] || die "--camera-offset takes seconds, like 0.25"
+  local ext camext=""; ext=$(media_ext "$video")
+  [ -n "$cam" ] && camext=$(media_ext "$cam")
   local dir; dir=$(project_dir "$name")
   [ -e "$dir" ] && die "$dir already exists"
   mkdir -p "$dir"
-  local ext="${video##*.}"
   cp -c "$video" "$dir/screen.$ext" 2>/dev/null || cp "$video" "$dir/screen.$ext"
   if [ -n "$cam" ]; then
-    cp -c "$cam" "$dir/camera.${cam##*.}" 2>/dev/null || cp "$cam" "$dir/camera.${cam##*.}"
-    write_source "$dir" "screen.$ext" "camera.${cam##*.}" "$off"
+    cp -c "$cam" "$dir/camera.$camext" 2>/dev/null || cp "$cam" "$dir/camera.$camext"
+    write_source "$dir" "screen.$ext" "camera.$camext" "$off"
   else
     write_source "$dir" "screen.$ext"
   fi

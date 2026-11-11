@@ -47,8 +47,7 @@ public enum Tools: Sendable {
 public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) async throws {
   let source = try JSONDecoder().decode(Project.Source.self, from: Data(contentsOf: dir.appendingPathComponent("source.json")))
   let video = dir.appendingPathComponent(source.video)
-  let work = dir.appendingPathComponent(".render")
-  try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+  let work = try PathSafety.ownedFolder(".render", in: dir)
 
   let wav = work.appendingPathComponent("audio.wav")
   let hasAudio = try await Analyzer.extractAudio(video, to: wav)

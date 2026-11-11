@@ -84,8 +84,7 @@ public enum WordCheck {
 
   /// Transcribes `export` and compares it with the plan's kept words.
   public static func run(_ project: Project, _ plan: Plan, export: URL) async throws -> [Finding] {
-    let work = project.dir.appendingPathComponent(".render")
-    try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    let work = try PathSafety.ownedFolder(".render", in: project.dir)
     let wav = work.appendingPathComponent("check-words.wav"), json = work.appendingPathComponent("check-words.json")
     guard try await Analyzer.extractAudio(export, to: wav) else { throw DirectorError("\(export.lastPathComponent) has no audio") }
     guard let cli = Tools.whisperCLI, let model = Tools.model else { throw AnalyzerError.whisperMissing }

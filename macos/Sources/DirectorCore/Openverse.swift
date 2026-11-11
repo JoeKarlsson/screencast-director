@@ -78,11 +78,9 @@ public enum Openverse {
   /// The file name to save it as: "Openverse - <title>" for a sound (" (CC BY)" flags one that needs
   /// credit), the title for a picture. Characters file names and plan paths can't hold become spaces.
   public static func fileName(_ item: Item, _ media: Media) -> String {
-    let title = ((item.title ?? "") as NSString).deletingPathExtension
-    var name = String(title.map { "/:?\\\"*<>|".contains($0) || $0.isNewline ? " " : $0 })
-      .split(separator: " ").joined(separator: " ")
-    name = String(name.prefix(80)).trimmingCharacters(in: .whitespaces)
-    if name.isEmpty { name = String(item.id.prefix(8)) }
+    var name = fileSafe(((item.title ?? "") as NSString).deletingPathExtension, limit: 80)
+    if name.isEmpty { name = fileSafe(String(item.id.prefix(8)), limit: 8) }
+    if name.isEmpty { name = "download" }
     if media == .sounds {
       name = "Openverse - \(name)"
       if item.needsCredit { name += " (CC BY)" }
@@ -119,12 +117,26 @@ public enum Openverse {
     let file = temp.appendingPathComponent(fileName(item, .images))
     try await get(URL(string: item.url)!).write(to: file)
     let path = try Project.importFile(file, into: "broll", dir: dir)
-    try record(item, file: (path as NSString).lastPathComponent, in: dir.appendingPathComponent("broll"))
+    try record(item, file: (path as NSString).lastPathComponent, in: try PathSafety.ownedFolder("broll", in: dir))
     return path
   }
 
   static let licenseFile = "openverse-licenses.csv"
   static let licenseHeader = "file,id,title,creator,license,source page,attribution,downloaded\n"
+
+  /// Text from an API (a title, an id) as one file name: characters paths can't hold become spaces,
+  /// at most `limit` characters, and never a name that's only dots. "" when nothing's left.
+  static func fileSafe(_ text: String, limit: Int) -> String {
+    let name = String(String(text.map { "/:?\\\"*<>|".contains($0) || $0.isNewline ? " " : $0 }).split(separator: " ").joined(separator: " ").prefix(limit))
+      .trimmingCharacters(in: .whitespaces)
+    return name.allSatisfy { $0 == "." } ? "" : name
+  }
+
+  /// A license record to append to: the folder's CSV, refused when it's a symlink (a project someone
+  /// sent could point it at ~/.zshrc, and the row would land there).
+  static func licenseRecord(_ name: String, in folder: URL) throws -> URL {
+    try PathSafety.ownedFile(folder.appendingPathComponent(name))
+  }
 
   /// One quoted CSV row.
   static func csvRow(_ fields: [String]) -> String {
@@ -134,7 +146,7 @@ public enum Openverse {
   /// Appends the item's license to the folder's openverse-licenses.csv: the proof for a claim, and
   /// the credit line for a CC BY one.
   static func record(_ item: Item, file: String, in folder: URL) throws {
-    let csv = folder.appendingPathComponent(licenseFile)
+    let csv = try licenseRecord(licenseFile, in: folder)
     let license = [item.license.uppercased(), item.license_version].compactMap { $0 }.joined(separator: " ")
     let row = csvRow([file, item.id, item.title ?? "", item.creator ?? "", license, item.foreign_landing_url ?? "", item.attribution ?? "",
                       ISO8601DateFormatter().string(from: Date())])
@@ -153,7 +165,8 @@ public enum Openverse {
     guard let text = try? String(contentsOf: folder.appendingPathComponent(file), encoding: .utf8) else { return nil }
     for line in text.split(separator: "\n") {
       let fields = line.split(separator: "\"", omittingEmptySubsequences: false)
-      if fields.count > 3, fields[3] == id { return String(fields[1]) }
+      // A received project's CSV could name "../../x": only a plain file in this folder counts.
+      if fields.count > 3, fields[3] == id, !fields[1].contains("/"), !fields[1].hasPrefix(".") { return String(fields[1]) }
     }
     return nil
   }
