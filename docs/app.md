@@ -116,7 +116,7 @@ The API providers send the timeline, transcript and plan in one request and get 
 Exports and GIFs land in `publish/` in the recording's folder, and **Publish…** in the editor writes the rest of what you post beside them:
 
 - `captions.srt`, timed to the edited video
-- `chapters.txt`, from your titles (YouTube needs at least three, each at least 10 s long)
+- `chapters.txt`, from your chapter titles, or your titles when there are no chapter titles; never lower thirds or slates (YouTube needs at least three, each at least 10 s long)
 - `transcript.txt` with timestamps
 - `description.md`: title options, a description, chapters and tags, drafted by your AI provider
 - `thumbnail-N.png`: the clearest smiling camera frames, with you cut out of the background next to the screen and the title in your profile's style

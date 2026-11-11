@@ -26,13 +26,13 @@ Its `RETENTION` lines check the parts of this table the plan can measure. Each l
 | `still` | the screen is what you watch and nothing new happens on it for longer than | 6 s | 20 s | 36 s | 45 s | 60 s |
 | `hold` | the screen cuts away (to the face, B-roll or a full-frame animation) within 0.5 s of a click or the end of typing | all | all | all | all | all |
 | `tail` | the video runs on after the last spoken word, not counting the outro card, by more than | 3 s | 15 s | 20 s | 25 s | 30 s |
-| `chapters` | the titles make fewer than 3 YouTube chapters, or a chapter runs longer than | | | 2 min | 5 min | 10 min |
+| `chapters` | the chapter titles make fewer than 3 YouTube chapters, or a chapter runs longer than | | | 2 min | 5 min | 10 min |
 
 "Something new" for `still` is a cut, zoom, layout change, title, annotation, B-roll, sticker, punch-in, click, keystroke, screen motion, an animation playing or a sped-up stretch. A face filling the frame (camera or side layout, or the split in vertical) counts as something happening, because a talking face is change. The limits live in `EngagementTargets` (`macos/Sources/DirectorCore/Retention.swift`).
 
 ## YouTube's rules
 
-- Chapters need at least 3, the first at 0:00, each at least 10 s. `publish` writes them from the plan's titles.
+- Chapters need at least 3, the first at 0:00, each at least 10 s. `publish` writes them from the plan's chapter titles (or its plain titles when it has none; never lower thirds or slates).
 - End screens use the last 5 to 20 s, on a video of at least 25 s.
 - The Intro moment in YouTube's analytics is the share still watching at 30 s.
 - Shorts and Reels run up to 3 min. A square or vertical upload of 3 min or less becomes a Short.

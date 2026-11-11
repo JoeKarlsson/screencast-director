@@ -30,8 +30,9 @@ extension Publish {
     }.joined(separator: "\n")
   }
 
-  /// YouTube chapters from the plan's titles: "0:00 Intro" plus one line per title. YouTube needs
-  /// at least three, starting at 0:00, each at least 10 s long; returns nil when that can't be met.
+  /// YouTube chapters from the plan's chapter titles (or its plain titles, when it has no chapter
+  /// titles; never lower thirds or slates): "0:00 Intro" plus one line per title. YouTube needs at
+  /// least three, starting at 0:00, each at least 10 s long; returns nil when that can't be met.
   public static func chapters(_ scene: Scene) -> String? {
     let marks = chapterMarks(scene)
     guard marks.count >= 3 else { return nil }
@@ -42,7 +43,9 @@ extension Publish {
   static func chapterMarks(_ scene: Scene) -> [(Double, String)] {
     let fps = Double(scene.fps)
     var marks: [(Double, String)] = [(0, "Intro")]
-    let placed = scene.plan.callouts.compactMap { c in srcToOut(scene.mapped, c.start, fps: scene.fps).map { ($0, c) } }
+    let chapterTitles = scene.plan.callouts.filter { $0.style == "chapter" }
+    let sections = chapterTitles.isEmpty ? scene.plan.callouts.filter { ($0.style ?? "title") == "title" } : chapterTitles
+    let placed = sections.compactMap { c in srcToOut(scene.mapped, c.start, fps: scene.fps).map { ($0, c) } }
     for (f, c) in placed.sorted(by: { $0.0 < $1.0 }) {
       let t = f / fps
       if t - (marks.last?.0 ?? 0) >= 10 { marks.append((t, c.text)) } else if t < 10 { marks[0].1 = c.text }

@@ -60,6 +60,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - Cut pauses keep a breath where a sentence ends: about 0.45 s between sentences and 0.7 s when you pause longer to move on to a new thought (at the normal pause level; gentle keeps more, tight less), with the breath after your last word. Pauses in the middle of a sentence are cut as tight as before, so the rhythm sounds like you rather than a string of jump cuts. New drafts and `director pauses` use it.
 
 ### Fixes
+- YouTube chapters come from your chapter titles only (or from your titles, when a video has no chapter titles), so a lower third like "Try it free" or a one-off title no longer shows up as a chapter.
 - A transition of 0 switches between full camera and the split as a hard cut: it used to leave one half-way frame at each switch, which showed as a flash.
 - On macOS 26 the scribble burst behind a storyboard node erases instead of flashing back for a frame, and the zine look's marks erase the same way.
 - B-roll shot on a phone held sideways or upside down plays upright, instead of turned 90° and cropped.

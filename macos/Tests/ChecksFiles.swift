@@ -464,6 +464,14 @@ private func publishHelperChecks() {
   ]
   let chapters = Publish.chapters(Scene(plan: plan, words: [], clicks: [], shortcuts: []))
   expect(chapters == "0:00 Setup\n0:20 Details\n0:35 Part two", "chapters (\(chapters ?? "nil"))")
+  // With chapter titles, only they make chapters: not a plain title, a lower third or a slate.
+  plan.callouts = [
+    Callout(start: 5, end: 8, text: "Setup", style: "chapter"), Callout(start: 15, end: 18, text: "DROP TABLE production;"),
+    Callout(start: 20, end: 23, text: "Details", style: "chapter"), Callout(start: 45, end: 48, text: "Try it free", style: "lower-third"),
+    Callout(start: 55, end: 58, text: "Part two", style: "chapter"),
+  ]
+  let fromChapters = Publish.chapters(Scene(plan: plan, words: [], clicks: [], shortcuts: []))
+  expect(fromChapters == "0:00 Setup\n0:20 Details\n0:45 Part two", "only chapter titles make chapters (\(fromChapters ?? "nil"))")
   plan.callouts = [Callout(start: 20, end: 22, text: "Only one")]
   expect(Publish.chapters(Scene(plan: plan, words: [], clicks: [], shortcuts: [])) == nil, "too few titles, no chapters")
 

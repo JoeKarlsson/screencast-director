@@ -183,7 +183,7 @@ public enum Retention {
     ]
   }
 
-  /// YouTube chapters (from the titles, as `publish` writes them) for 5 minutes and up: at least
+  /// YouTube chapters (from the chapter titles, as `publish` writes them) for 5 minutes and up: at least
   /// three, and none longer than the bucket's gap.
   static func chapters(_ scene: Scene, _ target: EngagementTargets) -> [PolishNote] {
     guard let maxGap = target.maxChapterGap else { return [] }
@@ -192,7 +192,7 @@ public enum Retention {
       return [
         PolishNote(
           kind: "chapters", outSeconds: 0,
-          text: "the titles make \(marks.count) YouTube chapter(s); a \(target.name) video needs at least 3 (YouTube's minimum, the first at 0:00). Add a chapter title at each section change")
+          text: "the chapter titles make \(marks.count) YouTube chapter(s); a \(target.name) video needs at least 3 (YouTube's minimum, the first at 0:00). Add a chapter title at each section change")
       ]
     }
     let end = Double(scene.frameCount) / Double(scene.fps)
