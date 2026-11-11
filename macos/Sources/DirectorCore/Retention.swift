@@ -81,14 +81,14 @@ public enum Retention {
     ]
   }
 
-  /// Vertical: the first frame has to say what this is, sound off. A title, an overlay or captions
-  /// on a word that starts at once.
+  /// Vertical: the first frame has to say what this is, sound off. A title, a sticker or overlay, or
+  /// captions on a word that starts at once.
   static func hook(_ scene: Scene, _ plan: Plan, _ spoken: [(s: Double, e: Double)]) -> [PolishNote] {
     // An intro card has its own note (`intro`).
     guard Aspect.of(plan.output) == .vertical, cardFrames(plan).intro == 0 else { return [] }
     let soon = 0.5 * Double(scene.fps)
     let titled = scene.callouts.contains { $0.s <= soon } || scene.inserts.contains { $0.a.isOverlay && $0.s <= soon }
-      || plan.animationList.contains { $0.isOverlay && (srcToOut(scene.mapped, $0.start, fps: scene.fps) ?? .infinity) <= soon }
+      || plan.animationList.contains { $0.floats && (srcToOut(scene.mapped, $0.start, fps: scene.fps) ?? .infinity) <= soon }
     let captioned = plan.captions.enabled && (spoken.first?.s ?? .infinity) <= 0.5
     guard !titled && !captioned else { return [] }
     return [

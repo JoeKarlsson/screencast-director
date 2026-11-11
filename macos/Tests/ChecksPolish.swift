@@ -306,6 +306,11 @@ func retentionChecks() {
   let short = stride(from: 2.0, to: 58, by: 1).map { Word(text: " w", start: $0, end: $0 + 0.5) }
   var vertical = plan(project(60, words: short), vertical: true)
   expect(Retention.notes(project(60, words: short), vertical).contains { $0.kind == "hook" }, "a vertical video opening on nothing")
+  var noted = vertical
+  var note = Animation(start: 0, end: 3, template: "note", data: .object(["text": .string("Dragon Ball scanner")]))
+  note.sticker = Animation.Sticker(x: 0.3, y: 0.5)
+  noted.animationList = [note]
+  expect(!Retention.notes(project(60, words: short), noted).contains { $0.kind == "hook" }, "a sticker note at 0:00 is a hook")
   vertical.callouts = [Callout(start: 0, end: 3, text: "My desk runs on one cable", style: "title")]
   expect(!Retention.notes(project(60, words: short), vertical).contains { $0.kind == "hook" }, "a hook title at 0:00")
   // Clips are checked at their own length and format, named: this one opens 1.4 s before its first word.
