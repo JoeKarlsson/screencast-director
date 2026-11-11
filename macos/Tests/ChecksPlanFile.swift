@@ -41,6 +41,13 @@ func planFileChecks() {
   expect(minimal?.captions.enabled == false && minimal?.captions.maxWords == 7, "an empty captions object is off, 7 words a page")
   expect(minimal?.zooms == [] && minimal?.layouts == [] && minimal?.callouts == [] && minimal?.defaultLayout == .screen, "missing lists are empty")
 
+  // music.off is optional: an older music object loads without it and saves without the key.
+  let oldMusic = try? JSONDecoder().decode(Music.self, from: Data(#"{"file": "music/bed.m4a", "volumeDB": -16}"#.utf8))
+  expect(oldMusic == Music(file: "music/bed.m4a", volumeDB: -16), "music without off loads with no off ranges")
+  expect(oldMusic.flatMap { try? enc.encode($0) }.map { String(decoding: $0, as: UTF8.self).contains("off") } == false, "and saves without an off key")
+  let offMusic = try? JSONDecoder().decode(Music.self, from: Data(#"{"file": "m.m4a", "off": [{"start": 12.5, "end": 40, "note": "terminal"}]}"#.utf8))
+  expect(offMusic?.off == [MusicOff(start: 12.5, end: 40, note: "terminal")], "music.off loads its ranges")
+
   // Bold and social captions share their big-word rules (Scene, the overlay drawing and the inspector).
   var caps = Plan.Captions(enabled: true, maxWords: 7)
   expect(!caps.isBold, "pill captions aren't bold")
@@ -64,6 +71,14 @@ func planFileChecks() {
   fullProfile.apply(to: &fresh)
   expect(fresh.music == branded.music && fresh.audio?.warm == true && fresh.camera?.bubbleShape == "rounded" && fresh.effects == branded.effects,
     "applying a full profile brings back its music, voice, camera and effects")
+  // Music off ranges belong to one video: a profile doesn't save them, and applying one keeps the video's.
+  var offBranded = branded
+  offBranded.music?.off = [MusicOff(start: 4, end: 9)]
+  let offProfile = Profile.saved(from: offBranded, name: "Off", extras: [.music])
+  expect(offProfile.music?.off == nil, "a saved profile leaves out the music's off ranges")
+  var offFresh = offBranded
+  offProfile.apply(to: &offFresh)
+  expect(offFresh.music?.off == [MusicOff(start: 4, end: 9)], "applying a profile keeps the video's music off ranges")
   expect(Profile.saved(from: plan, name: "Screen", extras: []).defaultLayout == nil, "a screen-only video's profile sets no layout")
 
   // A clip made from the in/out range: vertical, with the first free "Clip N" name.

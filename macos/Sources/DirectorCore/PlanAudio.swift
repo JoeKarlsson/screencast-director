@@ -27,10 +27,26 @@ public struct Music: Codable, Equatable, Sendable {
   public var volumeDB: Double?
   /// How far the music drops while the voice is talking, in dB. Default -18.
   public var duckDB: Double?
-  public init(file: String, volumeDB: Double? = nil, duckDB: Double? = nil) {
+  /// Stretches with no music (source seconds), e.g. while code or terminal output is on screen.
+  public var off: [MusicOff]?
+  public init(file: String, volumeDB: Double? = nil, duckDB: Double? = nil, off: [MusicOff]? = nil) {
     self.file = file
     self.volumeDB = volumeDB
     self.duckDB = duckDB
+    self.off = off
+  }
+}
+
+/// A stretch of source time with the music silent: it fades out over the 0.3 s before `start` and
+/// back in over the 0.6 s after `end` (the ducking ramps). A part that's cut from the edit does nothing.
+public struct MusicOff: Codable, Equatable, Sendable {
+  public var start: Double
+  public var end: Double
+  public var note: String?
+  public init(start: Double, end: Double, note: String? = nil) {
+    self.start = start
+    self.end = end
+    self.note = note
   }
 }
 

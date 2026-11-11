@@ -23,6 +23,11 @@ func planCheckExtraChecks() {
   }
   let sound = PlanCheck.check(plan, project: project, templates: nil, raw: clean).problems
   expect(sound.isEmpty, "a sound plan, as encoded, has no problems (\(sound))")
+  var offPlan = plan
+  offPlan.music = Music(file: "/tmp/track.m4a", off: [MusicOff(start: 5, end: 8), MusicOff(start: 9, end: 7), MusicOff(start: 40, end: 45)])
+  let offProblems = PlanCheck.check(offPlan, project: project, templates: nil).problems.filter { $0.hasPrefix("music.off") }
+  expect(offProblems.count == 2 && offProblems[0].hasPrefix("music.off[1]: start 9") && offProblems[1].hasPrefix("music.off[2]: starts at 40"),
+    "validate flags a music.off range that ends before it starts or lies outside the recording (\(offProblems))")
 
   // A misspelled key decodes to nothing; validate names it, and suggests the near one it knows.
   callout["styl"] = "slate"

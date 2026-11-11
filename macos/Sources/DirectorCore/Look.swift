@@ -182,7 +182,7 @@ public struct Profile: Codable, Equatable, Sendable {
       // A screen-only video's layout says nothing about where a camera should go.
       defaultLayout: plan.camera != nil ? plan.defaultLayout : nil)
     p.effects = plan.effects
-    if extras.contains(.music) { p.music = plan.music }
+    if extras.contains(.music) { p.music = plan.music; p.music?.off = nil }  // off ranges belong to one video
     if extras.contains(.voice) { p.audio = plan.audio }
     if extras.contains(.camera), let cam = plan.camera {
       p.camera = CameraDefaults(grade: cam.grade, bubbleSize: cam.bubbleSize, bubbleShape: cam.bubbleShape, bubbleBorder: cam.bubbleBorder, bubbleShadow: cam.bubbleShadow)
@@ -223,7 +223,7 @@ public struct Profile: Codable, Equatable, Sendable {
       plan.captions.maxWords = captions.maxWords
       if let style = captions.style { plan.captions.style = style }
     }
-    if let music { plan.music = music }
+    if let music { plan.music = Music(file: music.file, volumeDB: music.volumeDB, duckDB: music.duckDB, off: plan.music?.off) }
     if let audio {
       var a = plan.audioSettings
       if let v = audio.normalize { a.normalize = v }

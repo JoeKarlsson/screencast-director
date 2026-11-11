@@ -125,6 +125,7 @@ public enum PlanCheck {
     }
 
     for (i, ins) in plan.insertList.enumerated() { span("inserts[\(i)]", ins.start, ins.end) }
+    for (i, r) in (plan.music?.off ?? []).enumerated() { span("music.off[\(i)]", r.start, r.end) }
     report.problems = (raw.map { ignoredKeys(raw: $0, plan: plan) } ?? []) + out + assetProblems(plan, project: project)
       + presentationProblems(plan) + timelineWarnings(project, plan)
     return report

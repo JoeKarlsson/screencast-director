@@ -290,6 +290,10 @@ private struct Describer: Sendable {
       let missing = workOnly.contains(music.file) ? " WORK ONLY (this video's profile isn't a work profile)"
         : inProject(music.file) || (try? musicLibrary.entry(forPlanPath: music.file)) != nil ? "" : " MISSING FILE"
       out.append("## Music: \(music.file)" + missing)
+      for (i, r) in (music.off ?? []).enumerated() {
+        let at = srcRangeToOut(mapped, r.start, r.end, fps: fps).map { "out \(fmtTime($0.startF / Double(fps)))-\(fmtTime($0.endF / Double(fps)))" }
+        out.append(line("  off #\(i) src \(fmtTime(r.start))-\(fmtTime(r.end))", at.isEmpty ? "CUT (no effect)" : at.joined(separator: ", "), r.note ?? ""))
+      }
     }
   }
 

@@ -159,6 +159,32 @@ private func musicDuckChecks() {
   let quiet = ramps(Music(file: "m.m4a"), speech: [], total: 10)
   expect(near(volumeRamp(quiet, at: 0.05), (0, up, 0, 0.15)) && near(volumeRamp(quiet, at: 9.9), (up, 0, 9.85, 10)), "with no talking only the start and stop ramps")
   expect(near(volumeRamp(quiet, at: 5), (up, 0, 9.85, 10)), "and the music holds its level between (the next ramp is the stop)")
+
+  // Music off from 8 to 12 s of output: down to nothing over the 0.3 s before, silent, back over 0.6 s after.
+  let off = AVMutableAudioMixInputParameters()
+  MusicDuck.apply(Music(file: "m.m4a"), to: off, speech: [], off: [(8, 12)], total: 20)
+  expect(near(volumeRamp(off, at: 7.8), (up, 0, 7.7, 8)), "music fades out over the 0.3 s before an off range (\(String(describing: volumeRamp(off, at: 7.8))))")
+  expect(near(volumeRamp(off, at: 10), (0, up, 12, 12.6)), "and stays silent through it (the next ramp is the way back)")
+  expect(near(volumeRamp(off, at: 12.3), (0, up, 12, 12.6)), "and comes back over 0.6 s after it (\(String(describing: volumeRamp(off, at: 12.3))))")
+  expect(near(volumeRamp(off, at: 15), (up, 0, 19.85, 20)), "then holds its normal level to the stop")
+  // Talking inside an off range doesn't bring the music back for the duck.
+  let talkOff = AVMutableAudioMixInputParameters()
+  MusicDuck.apply(Music(file: "m.m4a"), to: talkOff, speech: [(9, 11)], off: [(8, 12)], total: 20)
+  expect(!stride(from: 8.0, to: 12.0, by: 0.05).contains { t in
+    volumeRamp(talkOff, at: t).map { $0.2 < 12 && $0.3 > 8 && ($0.0 > 0 || $0.1 > 0) } ?? false
+  }, "no ramp inside an off range rises above silence")
+  expect(near(volumeRamp(talkOff, at: 12.3), (0, up, 12, 12.6)), "after it the music comes back to full (the voice stopped at 11)")
+
+  // Off ranges are source seconds: a part that's cut does nothing, a range across a cut joins up in output.
+  let cutMap = mapSegments([Segment(start: 0, end: 5, speed: 1), Segment(start: 10, end: 20, speed: 1)], fps: 30)
+  let inCut = MusicDuck.offSpans(Music(file: "m.m4a", off: [MusicOff(start: 6, end: 9)]), mapped: cutMap, fps: 30)
+  expect(inCut.isEmpty, "a range inside a cut has no output span (\(inCut))")
+  let cutParams = AVMutableAudioMixInputParameters()
+  MusicDuck.apply(Music(file: "m.m4a"), to: cutParams, speech: [], off: inCut, total: 15)
+  expect(near(volumeRamp(cutParams, at: 7.5), (up, 0, 14.85, 15)), "so the music plays on as if it weren't there")
+  let spans = MusicDuck.offSpans(Music(file: "m.m4a", off: [MusicOff(start: 3, end: 11), MusicOff(start: 13, end: 14)]), mapped: cutMap, fps: 30)
+  expect(spans.count == 2 && abs(spans[0].0 - 3) < 1e-6 && abs(spans[0].1 - 6) < 1e-6 && abs(spans[1].0 - 8) < 1e-6 && abs(spans[1].1 - 9) < 1e-6,
+    "source 3-11 across the 5-10 cut plays as output 3-6, and 13-14 as 8-9 (\(spans))")
 }
 
 private func gainTapChecks() {

@@ -315,7 +315,7 @@ func videoOrientation(_ t: CGAffineTransform) -> CGImagePropertyOrientation? {
   }
 }
 
-/// The plan's music, looped to `total` and ducked under the voice. Returns its mix parameters and
+/// The plan's music, looped to `total`, ducked under the voice and silent in `music.off`. Returns its mix parameters and
 /// the asset, which must outlive the composition's inserts (nil for both without music).
 private func addMusic(
   _ plan: Plan, project: Project, scene: Scene, voiceLevels: [(Double, Double)], total: CMTime, to comp: AVMutableComposition
@@ -334,7 +334,8 @@ private func addMusic(
     at = CMTimeAdd(at, range.duration)
   }
   let params = AVMutableAudioMixInputParameters(track: track)
-  MusicDuck.apply(music, to: params, speech: MusicDuck.speech(levels: voiceLevels, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+  MusicDuck.apply(music, to: params, speech: MusicDuck.speech(levels: voiceLevels, mapped: scene.mapped, fps: scene.fps),
+    off: MusicDuck.offSpans(music, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
   return (params, asset)
 }
 
