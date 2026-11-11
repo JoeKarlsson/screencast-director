@@ -272,6 +272,16 @@ func retentionChecks() {
   expect(has("chapters", "at least 3"), "a 5 min video with no titles needs chapters")
   expect(has("still", "for 300 s"), "a static screen with nothing added is one long still stretch")
   expect(!has("hook"), "the hook check is for vertical video only")
+  // The same stretch with the face filling the frame, or 40 s of B-roll footage, isn't a still screen.
+  var face = bare
+  face.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  face.defaultLayout = .camera
+  expect(!Retention.notes(project(300, words: late), face).contains { $0.kind == "still" }, "a talking face counts as something happening")
+  var footage = bare
+  footage.insertList = [Insert(start: 50, end: 90, file: "broll/drive.mp4", placement: "full")]
+  let footageStill = Retention.notes(project(300, words: late), footage).filter { $0.kind == "still" }
+  expect(!footageStill.contains { $0.text.contains("from out 0:50") } && footageStill.contains { $0.text.contains("from out 1:30") },
+    "B-roll footage counts for its whole span (\(footageStill.map(\.text)))")
 
   // The same video edited well: talking at once, chapters every minute, a zoom every 20 s, ends on the last word.
   let prompt = stride(from: 0.2, to: 295, by: 2).map { Word(text: " w", start: $0, end: $0 + 0.5) }

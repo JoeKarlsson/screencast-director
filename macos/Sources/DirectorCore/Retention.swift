@@ -100,8 +100,8 @@ public enum Retention {
   }
 
   /// The longest stretches where the viewer watches the screen and nothing new happens on it: no cut,
-  /// zoom, layout change, title, annotation, B-roll, punch-in, click, keystroke or screen motion.
-  /// A face filling the frame or a full-frame animation is something happening.
+  /// zoom, layout change, title, annotation, picture, punch-in, click, keystroke or screen motion.
+  /// A face filling the frame, B-roll footage or an animation playing is something happening.
   static func still(_ scene: Scene, _ plan: Plan, _ project: Project, _ target: EngagementTargets) -> [PolishNote] {
     let fps = Double(scene.fps), m = scene.mapped
     let n = scene.outroStart
@@ -117,7 +117,8 @@ public enum Retention {
     scene.zooms.forEach { mark($0.startF); mark($0.endF) }
     scene.callouts.forEach { mark($0.s) }
     scene.annotations.forEach { mark($0.s) }
-    scene.inserts.forEach { mark($0.s) }
+    // B-roll footage moves the whole time it plays; a picture is new only as it lands.
+    scene.inserts.forEach { $0.a.isImage ? mark($0.s) : span($0.s, $0.e) }
     plan.animationList.flatMap { srcRangeToOut(m, $0.start, $0.end, fps: scene.fps) }.forEach { span($0.startF, $0.endF) }
     (project.events.filter { $0.type == .click || $0.type == .key }.map(\.t)
       + project.motion.filter { $0.1 > Rules.motionThreshold }.map(\.0)).compactMap { srcToOut(m, $0, fps: scene.fps) }.forEach(mark)
@@ -154,7 +155,7 @@ public enum Retention {
     let fps = Double(scene.fps)
     let hidden = Polish.screenHidden(scene, plan)
     let keys = project.events.filter { $0.type == .key }.map(\.t).sorted()
-    let typingEnds = zip(keys, keys.dropFirst().map { $0 } + [.infinity]).filter { $1 - $0 > typingGap }.map(\.0)
+    let typingEnds = zip(keys, Array(keys.dropFirst()) + [.infinity]).filter { $1 - $0 > typingGap }.map(\.0)
     var out: [PolishNote] = []
     var last = -Double.infinity
     for (t, what) in (project.clicks.map { ($0.t, "click") } + typingEnds.map { ($0, "typing") }).sorted(by: { $0.0 < $1.0 }) {
