@@ -45,6 +45,8 @@ final class ProjectModel: ObservableObject {
   @Published var status = ""
   @Published var busy = false
   @Published private(set) var previewReady = false
+  /// The scene the preview plays, for where its handles go (annotations follow zooms).
+  @Published private(set) var previewScene: DirectorCore.Scene?
   @Published var instruction = ""
   /// What you've asked the AI to do in this session, and what it said back.
   @Published var asks: [Ask] = []
@@ -221,6 +223,7 @@ final class ProjectModel: ObservableObject {
         let built = try await buildComposition(project: project, plan: plan)
         guard generation == previewGeneration else { return }
         self.project = project
+        previewScene = built.scene
         let time = player.currentTime()
         let item = built.playerItem()
         itemObserver = item.observe(\.status) { [weak self] item, _ in

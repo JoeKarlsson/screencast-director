@@ -18,10 +18,20 @@ struct CaptionDragger: View {
         let center = captionCenter(plan)
         let d = drag.offset ?? .zero
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let size = plan.captions.size ?? 1
+        let k = (drag.scale ?? 1) * size
         shape
           .fill(Color.white.opacity(0.001))
-          .overlay(shape.strokeBorder(Color.white.opacity(drag.offset == nil ? 0 : 0.9), style: StrokeStyle(lineWidth: 2, dash: [6, 4])))
-          .frame(width: geo.size.width * 0.7, height: geo.size.height * (plan.output.height > plan.output.width ? 0.09 : 0.12))
+          .overlay(shape.strokeBorder(Color.white.opacity(drag.active ? 0.9 : 0), style: StrokeStyle(lineWidth: 2, dash: [6, 4])))
+          .overlay(alignment: .bottomTrailing) {
+            if drag.active {
+              SizeKnob(drag: drag, center: CGPoint(x: center.x * geo.size.width, y: center.y * geo.size.height)) { factor in
+                project.apply { $0.captions.size = (min(2, max(0.5, size * factor)) * 20).rounded() / 20 }
+              }
+            }
+          }
+          .frame(width: min(geo.size.width, geo.size.width * 0.7 * k), height: geo.size.height * (plan.output.height > plan.output.width ? 0.09 : 0.12) * k)
+          .onHover { drag.hovered = $0 }
           .position(x: center.x * geo.size.width + d.width, y: center.y * geo.size.height + d.height)
           .pointerStyle(.grabIdle)
           .gesture(
@@ -37,9 +47,10 @@ struct CaptionDragger: View {
                 }
               }
           )
-          .help("Drag to move the captions")
+          .help("Drag to move the captions, or the corner to size them")
       }
     }
+    .coordinateSpace(.named("draggers"))
   }
 
   /// Where the captions are centered now, as fractions of the frame: the dragged place, else about
@@ -57,6 +68,36 @@ struct CaptionDragger: View {
 
 final class BubbleDragUI: ObservableObject {
   @Published var offset: CGSize?
+  /// How much bigger the size knob would make it, until the drag ends.
+  @Published var scale: Double?
+  @Published var hovered = false
+  /// Outlined, with its size knob: under the pointer or being dragged.
+  var active: Bool { hovered || offset != nil || scale != nil }
+}
+
+/// The bottom-right knob on the captions and the bubble: drag away from `center` (the preview's
+/// coordinates) to grow it, toward it to shrink it. `save` gets the factor when the drag ends.
+struct SizeKnob: View {
+  @ObservedObject var drag: BubbleDragUI
+  let center: CGPoint
+  let save: (Double) -> Void
+
+  var body: some View {
+    Circle().fill(Color.white).frame(width: 14, height: 14).shadow(color: .black.opacity(0.4), radius: 2)
+      .offset(x: 7, y: 7)
+      .pointerStyle(.frameResize(position: .bottomTrailing))
+      .gesture(
+        DragGesture(minimumDistance: 2, coordinateSpace: .named("draggers"))
+          .onChanged { v in
+            drag.scale = hypot(v.location.x - center.x, v.location.y - center.y) / max(1, hypot(v.startLocation.x - center.x, v.startLocation.y - center.y))
+          }
+          .onEnded { _ in
+            if let scale = drag.scale { save(scale) }
+            drag.scale = nil
+          }
+      )
+      .help("Drag to size it")
+  }
 }
 
 /// Over the preview: a handle on the camera bubble while the bubble is showing, to drag it anywhere.
@@ -72,11 +113,21 @@ struct BubbleDragger: View {
         let k = geo.size.width / Double(plan.output.width)
         let b = layoutBoxes(.pip, plan: plan).cam
         let d = drag.offset ?? .zero
-        let shape = RoundedRectangle(cornerRadius: min(b.r, b.w / 2) * k, style: .continuous)
+        let s = drag.scale ?? 1
+        let shape = RoundedRectangle(cornerRadius: min(b.r, b.w / 2) * k * s, style: .continuous)
         shape
           .fill(Color.white.opacity(0.001))
-          .overlay(shape.strokeBorder(Color.white.opacity(drag.offset == nil ? 0 : 0.9), style: StrokeStyle(lineWidth: 2, dash: [6, 4])))
-          .frame(width: b.w * k, height: b.h * k)
+          .overlay(shape.strokeBorder(Color.white.opacity(drag.active ? 0.9 : 0), style: StrokeStyle(lineWidth: 2, dash: [6, 4])))
+          .overlay(alignment: .bottomTrailing) {
+            if drag.active {
+              SizeKnob(drag: drag, center: CGPoint(x: (b.x + b.w / 2) * k, y: (b.y + b.h / 2) * k)) { factor in
+                let size = plan.camera?.bubbleSize ?? Plan.Camera.defaultBubbleSize
+                project.apply { $0.camera?.bubbleSize = (min(0.6, max(0.12, size * factor)) * 100).rounded() / 100 }
+              }
+            }
+          }
+          .frame(width: b.w * k * s, height: b.h * k * s)
+          .onHover { drag.hovered = $0 }
           .position(x: (b.x + b.w / 2) * k + d.width, y: (b.y + b.h / 2) * k + d.height)
           .pointerStyle(.grabIdle)
           .gesture(
@@ -93,9 +144,10 @@ struct BubbleDragger: View {
                 }
               }
           )
-          .help("Drag to move the camera bubble")
+          .help("Drag to move the camera bubble, or the corner to size it")
       }
     }
+    .coordinateSpace(.named("draggers"))
   }
 
   /// Whether the layout at the playhead shows the bubble.

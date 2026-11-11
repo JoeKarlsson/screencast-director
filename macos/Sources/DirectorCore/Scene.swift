@@ -323,13 +323,7 @@ public final class Scene: @unchecked Sendable {
     }
     let base = cameraBase
     let cam = cameraState(f, base: base)
-    let boxes: LayoutBoxes
-    if let layoutSteps {
-      let v = layoutSteps.at(Double(f))
-      boxes = LayoutBoxes(screen: Box(v[0..<6]), cam: Box(v[6..<12]))
-    } else {
-      boxes = layoutAt(f, plan: plan, ranges: layouts, halfWidth: half)
-    }
+    let boxes = boxes(atFrame: f)
     var image = background()
 
     let b = boxes.screen
@@ -507,6 +501,15 @@ public final class Scene: @unchecked Sendable {
     guard cropsScreen(plan) else { return nil }
     let clicks = focusClicks
     return { frame in clicks.last(where: { $0.f <= Double(frame) }).map { ($0.x, $0.y) } ?? (0.5, 0.5) }
+  }
+
+  /// Where the screen card and camera are at output frame `f`.
+  func boxes(atFrame f: Int) -> LayoutBoxes {
+    if let layoutSteps {
+      let v = layoutSteps.at(Double(f))
+      return LayoutBoxes(screen: Box(v[0..<6]), cam: Box(v[6..<12]))
+    }
+    return layoutAt(f, plan: plan, ranges: layouts, halfWidth: half)
   }
 
   func cameraState(_ f: Int, base: ((Int) -> (Double, Double))?) -> CameraState {

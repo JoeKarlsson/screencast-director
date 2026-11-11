@@ -283,6 +283,18 @@ extension Scene {
   }
 
   func drawWatermark(_ ctx: CGContext, _ img: CGImage, _ w: Look.Watermark) {
+    let r = watermarkRect(img, w)
+    ctx.saveGState()
+    ctx.setAlpha(w.opacity ?? 0.9)
+    // The context is flipped to top-left; flip back locally so the image isn't upside down.
+    ctx.translateBy(x: r.minX, y: r.maxY)
+    ctx.scaleBy(x: 1, y: -1)
+    ctx.draw(img, in: CGRect(x: 0, y: 0, width: r.width, height: r.height))
+    ctx.restoreGState()
+  }
+
+  /// Where the watermark sits (top-left coordinates) in `w`'s corner at `w`'s height.
+  func watermarkRect(_ img: CGImage, _ w: Look.Watermark) -> CGRect {
     let h = (w.height ?? 0.035) * min(W, H)
     let width = h * Double(img.width) / Double(img.height)
     let ins = insets(plan)
@@ -290,19 +302,11 @@ extension Scene {
       // Same inset as every other overlay, in the chosen corner.
       let corner = w.corner ?? "topLeft"
       let x = corner == "top" || corner == "bottom" ? (W - width) / 2 : corner.hasSuffix("Left") ? ins.safe : W - ins.safe - width
-      // Portrait: below the top tenth, where TikTok and Reels lay their own tabs over the video.
-      var x2 = x, y = corner.hasPrefix("top") ? ins.safe : H - ins.safe - h
+      let y = corner.hasPrefix("top") ? ins.safe : H - ins.safe - h
       // Vertical: inside the part the apps' own tabs and buttons don't cover.
-      let move = SafeArea.shift(CGRect(x: x2, y: y, width: width, height: h), plan: plan)
-      x2 += move.width
-      y += move.height
-      ctx.saveGState()
-      ctx.setAlpha(w.opacity ?? 0.9)
-      ctx.translateBy(x: x2, y: y + h)
-      ctx.scaleBy(x: 1, y: -1)
-      ctx.draw(img, in: CGRect(x: 0, y: 0, width: width, height: h))
-      ctx.restoreGState()
-      return
+      let r = CGRect(x: x, y: y, width: width, height: h)
+      let move = SafeArea.shift(r, plan: plan)
+      return r.offsetBy(dx: move.width, dy: move.height)
     }
     // Sit in the margin outside the screen (and its brackets), lined up with the screen's edge.
     let pad = plan.style.padding * min(W, H)
@@ -311,13 +315,7 @@ extension Scene {
     let corner = w.corner ?? "bottomRight"
     let x = corner.hasSuffix("Left") ? pad : W - pad - width
     let y = corner.hasPrefix("top") ? (band - h) / 2 : H - band / 2 - h / 2
-    ctx.saveGState()
-    ctx.setAlpha(w.opacity ?? 0.9)
-    // The context is flipped to top-left; flip back locally so the image isn't upside down.
-    ctx.translateBy(x: x, y: y + h)
-    ctx.scaleBy(x: 1, y: -1)
-    ctx.draw(img, in: CGRect(x: 0, y: 0, width: width, height: h))
-    ctx.restoreGState()
+    return CGRect(x: x, y: y, width: width, height: h)
   }
 
   /// Black or white, whichever reads better on `hex`.

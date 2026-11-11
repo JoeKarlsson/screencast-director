@@ -199,6 +199,46 @@ extension Scene {
     return out
   }
 
+  /// A title's text, wrap width and box (top-left coordinates), where its style puts it.
+  func titleLayout(_ c: Callout) -> (text: NSAttributedString, maxWidth: Double, rect: CGRect) {
+    // Portrait titles are hooks: big, wrapped, under the logo.
+    let portrait = socialTop(plan) != nil
+    let s = Scene.text(
+      c.text, size: (portrait ? 80 : look.titleFont == nil ? 40 : 46) * u, weight: .bold, font: look.titleFont, color: look.titleText ?? "#ffffff")
+    // Portrait keeps clear of the platforms' tabs up top and buttons down the right edge.
+    let maxW = portrait ? W * 0.76 : W
+    let size = Scene.measure(s, maxWidth: maxW)
+    let padX = 28 * u, padY = 14 * u
+    let top = portrait ? H * 0.14 : insets(plan).fullBleed ? insets(plan).safe : H * 0.06
+    return (s, maxW, CGRect(x: W / 2 - size.width / 2 - padX, y: top, width: size.width + 2 * padX, height: size.height + 2 * padY))
+  }
+
+  /// A lower third's title and subtitle, their sizes, and its box, where its style puts it.
+  func lowerThirdLayout(_ c: Callout) -> (title: NSAttributedString, sub: NSAttributedString?, ts: CGSize, ss: CGSize, rect: CGRect) {
+    let titleColor = look.titleText ?? "#ffffff"
+    let title = Scene.text(c.text, size: 46 * u, weight: .bold, font: look.titleFont, color: titleColor, align: .left)
+    let sub = c.subtitle.map { Scene.text($0, size: 30 * u, weight: .semibold, alpha: 0.8, font: look.captionFont, color: titleColor, align: .left) }
+    let maxW = W * 0.6
+    let ts = Scene.measure(title, maxWidth: maxW)
+    let ss = sub.map { Scene.measure($0, maxWidth: maxW) } ?? .zero
+    let bar = 8 * u, padX = 28 * u, padY = 18 * u, gap = sub == nil ? 0 : 6 * u
+    let w = max(ts.width, ss.width) + 2 * padX + bar
+    let h = ts.height + ss.height + gap + 2 * padY
+    let ins = insets(plan)
+    let x = ins.fullBleed ? ins.safe : max(ins.safe, plan.style.padding * min(W, H) + 24 * u)
+    return (title, sub, ts, ss, CGRect(x: x, y: H * 0.74 - h, width: w, height: h))
+  }
+
+  /// `pose` for a title or lower third dragged somewhere else or sized: moved so its box centers on
+  /// its `x`, `y` and scaled by its `size`, about the box the style gives it (`rect`).
+  func placedPose(_ c: Callout, _ pose: OverlayPose, _ rect: CGRect) -> OverlayPose {
+    var p = pose
+    p.scale *= c.size ?? 1
+    if let x = c.x { p.dx += (x * W - rect.midX) / max(rect.width, 1) }
+    if let y = c.y { p.dy += (y * H - rect.midY) / max(rect.height, 1) }
+    return p
+  }
+
   func drawCallout(_ ctx: CGContext, _ c: Callout, pose: OverlayPose, insets ins: Insets, screen b: Box, blurred: inout [CIImage]) {
     let preset = c.enter?.preset ?? motion.enter.preset
     let byWord = preset == "words"
@@ -209,17 +249,9 @@ extension Scene {
     let titleColor = look.titleText ?? "#ffffff"
     switch c.style ?? "title" {
     case "lower-third":
-      let title = Scene.text(c.text, size: 46 * u, weight: .bold, font: look.titleFont, color: titleColor, align: .left)
-      let sub = c.subtitle.map { Scene.text($0, size: 30 * u, weight: .semibold, alpha: 0.8, font: look.captionFont, color: titleColor, align: .left) }
-      let maxW = W * 0.6
-      let ts = Scene.measure(title, maxWidth: maxW)
-      let ss = sub.map { Scene.measure($0, maxWidth: maxW) } ?? .zero
+      let (title, sub, ts, ss, rect) = lowerThirdLayout(c)
       let bar = 8 * u, padX = 28 * u, padY = 18 * u, gap = sub == nil ? 0 : 6 * u
-      let w = max(ts.width, ss.width) + 2 * padX + bar
-      let h = ts.height + ss.height + gap + 2 * padY
-      let x = ins.fullBleed ? ins.safe : max(ins.safe, plan.style.padding * min(W, H) + 24 * u)
-      let rect = CGRect(x: x, y: H * 0.74 - h, width: w, height: h)
-      animated(ctx, rect, pose, blurred: &blurred) { g in
+      animated(ctx, rect, placedPose(c, pose, rect), keepSafe: !c.isPlaced, blurred: &blurred) { g in
         g.setFillColor(panel)
         g.addPath(CGPath(roundedRect: rect, cornerWidth: 12 * self.u, cornerHeight: 12 * self.u, transform: nil))
         g.fillPath()
@@ -299,16 +331,9 @@ extension Scene {
         }
       }
     default:
-      // Portrait titles are hooks: big, wrapped, under the logo.
-      let portrait = socialTop(plan) != nil
-      let s = Scene.text(c.text, size: (portrait ? 80 : look.titleFont == nil ? 40 : 46) * u, weight: .bold, font: look.titleFont, color: titleColor)
-      // Portrait keeps clear of the platforms' tabs up top and buttons down the right edge.
-      let maxW = portrait ? W * 0.76 : W
-      let size = Scene.measure(s, maxWidth: maxW)
-      let padX = 28 * u, padY = 14 * u
-      let top = portrait ? H * 0.14 : ins.fullBleed ? ins.safe : H * 0.06
-      let rect = CGRect(x: W / 2 - size.width / 2 - padX, y: top, width: size.width + 2 * padX, height: size.height + 2 * padY)
-      animated(ctx, rect, pose, blurred: &blurred) { g in
+      let (s, maxW, rect) = titleLayout(c)
+      let padX = 28 * u, padY = 14 * u, top = rect.minY
+      animated(ctx, rect, placedPose(c, pose, rect), keepSafe: !c.isPlaced, blurred: &blurred) { g in
         self.pill(g, reveal(s), centerX: self.W / 2, top: top, padX: padX, padY: padY, radius: 14 * self.u, fill: panel, maxWidth: maxW)
       }
     }

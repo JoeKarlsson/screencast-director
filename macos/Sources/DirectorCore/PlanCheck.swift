@@ -89,6 +89,9 @@ public enum PlanCheck {
     for (i, c) in plan.callouts.enumerated() {
       span("callouts[\(i)]", c.start, c.end)
       oneOf("callouts[\(i)].style", c.style, ["title", "lower-third", "slate", "chapter"])
+      if let x = c.x { unit("callouts[\(i)].x", x) }
+      if let y = c.y { unit("callouts[\(i)].y", y) }
+      if let size = c.size, !Callout.sizes.contains(size) { out.append("callouts[\(i)].size is \(fmt(size)); use 0.4 to 3") }
     }
     for (i, a) in plan.annotationList.enumerated() {
       span("annotations[\(i)]", a.start, a.end)

@@ -1,4 +1,5 @@
 import CoreImage
+import ImageIO
 import Foundation
 import JavaScriptCore
 
@@ -979,6 +980,44 @@ struct Checks {
     (backToFull.x, backToFull.y, backToFull.w, backToFull.rotation) = (0.5, 0.5, 1, 0)
     overPlan.place(backToFull)
     expect(overPlan.inserts![0].x == nil && overPlan.inserts![0].rotation == nil, "an overlay put back over the whole frame drops its place")
+
+    // The preview's other handles: annotations follow the zoom, titles move and size, the watermark snaps to a corner.
+    var handled = seam
+    handled.inserts = nil
+    handled.annotations = [Annotation(start: 0, end: 4, kind: "box", x: 0.2, y: 0.2, w: 0.1, h: 0.1)]
+    handled.callouts = [Callout(start: 0, end: 4, text: "Hello there")]
+    let hs = Scene(plan: handled, words: [], clicks: [], shortcuts: [])
+    let markRect = hs.annotationRect(handled.annotations![0], frame: 60)!
+    expect(hs.annotation(handled.annotations![0], covering: markRect, frame: 60) == handled.annotations![0], "an annotation's box saves back to the same place")
+    var zoomedMark = handled
+    zoomedMark.zooms = [Zoom(start: 0, end: 4, x: 0.25, y: 0.25, scale: 2)]
+    let zs = Scene(plan: zoomedMark, words: [], clicks: [], shortcuts: [])
+    let zoomedRect = zs.annotationRect(handled.annotations![0], frame: 60)!
+    expect(abs(zoomedRect.width - 2 * markRect.width) < 1, "an annotation's box follows the zoom (\(markRect.width) → \(zoomedRect.width))")
+    let movedMark = zs.annotation(handled.annotations![0], covering: zoomedRect.offsetBy(dx: zoomedRect.width, dy: 0), frame: 60)
+    expect(abs(movedMark.x - 0.3) < 0.001 && movedMark.w == 0.1, "dragging a box one width over in a 2x zoom moves it one width on the recording (\(movedMark))")
+    let titleBox = hs.calloutRect(handled.callouts[0])!
+    expect(abs(titleBox.midX - hs.W / 2) < 0.5, "a title's box starts where its style centers it")
+    let wanted = CGRect(x: 100, y: hs.H * 0.6, width: titleBox.width * 1.5, height: titleBox.height * 1.5)
+    let placedTitle = hs.callout(handled.callouts[0], covering: wanted)
+    expect(placedTitle.size == 1.5 && hs.calloutRect(placedTitle).map { abs($0.midX - wanted.midX) < 1 && abs($0.midY - wanted.midY) < 1 } == true,
+      "a dragged and sized title saves where it was dropped (\(placedTitle))")
+    let titlePose = hs.placedPose(placedTitle, .full, titleBox)
+    expect(abs(titleBox.midX + titlePose.dx * titleBox.width - wanted.midX) < 1 && titlePose.scale == 1.5, "the renderer draws the title where its handle is")
+    let markDir = FileManager.default.temporaryDirectory.appendingPathComponent("handles-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: markDir, withIntermediateDirectories: true)
+    if let logo = Scene.context(40, 20)?.makeImage(), let dest = CGImageDestinationCreateWithURL(markDir.appendingPathComponent("logo.png") as CFURL, "public.png" as CFString, 1, nil) {
+      CGImageDestinationAddImage(dest, logo, nil)
+      CGImageDestinationFinalize(dest)
+    }
+    var logoPlan = handled
+    logoPlan.look = Look()
+    logoPlan.look?.watermark = Look.Watermark(image: "logo.png", corner: "topLeft")
+    let ls = Scene(plan: logoPlan, words: [], clicks: [], shortcuts: [], dir: markDir)
+    let logoBox = ls.watermarkRect(frame: 60)!
+    let dropped = ls.watermark(covering: CGRect(x: ls.W - 300, y: ls.H - 200, width: logoBox.width * 2, height: logoBox.height * 2))!
+    expect(dropped.corner == "bottomRight" && abs(dropped.height! - 2 * logoBox.height / min(ls.W, ls.H)) < 0.002, "the watermark snaps to the corner it's dropped near, at its new size (\(dropped))")
+    try? FileManager.default.removeItem(at: markDir)
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam

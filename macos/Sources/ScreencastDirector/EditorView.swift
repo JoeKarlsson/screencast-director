@@ -77,6 +77,7 @@ struct EditorView: View {
       PlayerView(player: project.player)
         .aspectRatio(aspect, contentMode: .fit)
         .overlay { if loading { loadingCover.transition(.opacity) } }
+        .overlay { if !loading { PreviewHandles(project: project, playhead: project.playhead, drag: editor.handleDrag) } }
         .overlay { if !loading { BubbleDragger(project: project, playhead: project.playhead, drag: editor.bubbleDrag) } }
         .overlay { if !loading { CaptionDragger(project: project, playhead: project.playhead, drag: editor.captionDrag) } }
         .overlay { if !loading { PlacementDragger(project: project, playhead: project.playhead, drag: editor.placeDrag) } }

@@ -81,6 +81,11 @@ public struct Callout: Codable, Equatable, Sendable {
   public var exit: Motion?
   /// Plays as it appears, and moves with it.
   public var sound: Sound?
+  /// Titles and lower thirds: where the box is centered, as fractions of the frame (nil keeps the
+  /// style's place), and how big it is (1 is the style's own; nil is 1). Set by dragging it in the preview.
+  public var x: Double?
+  public var y: Double?
+  public var size: Double?
   public init(start: Double, end: Double, text: String, style: String? = nil, subtitle: String? = nil, enter: Motion? = nil, exit: Motion? = nil) {
     self.start = start
     self.end = end
@@ -94,6 +99,11 @@ public struct Callout: Codable, Equatable, Sendable {
   public static let styles: [(name: String, label: String)] = [
     ("title", "Title"), ("lower-third", "Lower Third"), ("slate", "Slate"), ("chapter", "Chapter"),
   ]
+
+  /// Titles and lower thirds sit in a box that can be moved and sized; slates and chapters fill the frame.
+  public var placeable: Bool { style == nil || style == "title" || style == "lower-third" }
+  public var isPlaced: Bool { x != nil || y != nil }
+  public static let sizes = 0.4...3.0
 }
 
 /// B-roll: a video clip or picture shown over part of the recording, inside the screen card or
