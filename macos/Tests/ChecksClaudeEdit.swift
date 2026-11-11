@@ -37,12 +37,52 @@ func claudeEditChecks() {
   expect(ClaudeEdit.events(failed, director: "/d/director") == [.result(id: "t1", failed: true)], "a failed tool result marks its step failed")
   expect(ClaudeEdit.events(worked, director: "/d/director") == [.result(id: "t2", failed: false)], "a tool result without is_error worked")
   expect(ClaudeEdit.events(#"{"type":"user","message":{"content":[{"type":"text","text":"the prompt"}]}}"#, director: "") == [], "the user's own text isn't the AI's reply")
+  askCheckpointChecks()
   editPromptCoverageChecks()
 }
 
 /// The Claude box only knows the plan fields its prompt names, so a new field must be added there
 /// (Resources/edit-prompt.md): every top-level field in backticks, and every field of the timed
 /// items on that item's line.
+/// Rewinding to before an ask: the plan saved when it started comes back, it and later asks are
+/// marked rewound, other asks' keys are kept, and old asks without a saved plan say so.
+func askCheckpointChecks() {
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-asks-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: dir) }
+  let planURL = dir.appendingPathComponent("plan.json")
+  let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 12, captureStart: nil, camera: nil)
+  var plan = buildPlan(Project(dir: dir, source: src))
+  plan.segments = [Segment(start: 0, end: 12, speed: 1)]
+  try? plan.write(to: planURL)
+  let first = UUID(), second = UUID(), gone = UUID()
+  try? AskCheckpoints.save(planURL: planURL, id: first)
+  plan.cut(range: 2..<4)
+  try? plan.write(to: planURL)
+  try? AskCheckpoints.save(planURL: planURL, id: second)
+  try? AskCheckpoints.save(planURL: planURL, id: gone)
+  plan.cut(range: 6..<8)
+  try? plan.write(to: planURL)
+  let asks: [[String: Any]] = [
+    ["instruction": "from before rewinding", "reply": "ok"],
+    ["id": first.uuidString, "instruction": "cut the intro", "reply": "done", "seconds": 4],
+    ["id": second.uuidString, "instruction": "tighten", "reply": "done"],
+  ]
+  try? JSONSerialization.data(withJSONObject: asks).write(to: AskCheckpoints.asksURL(planURL: planURL))
+
+  try? AskCheckpoints.prune(keeping: [first, second], planURL: planURL)
+  expect(!AskCheckpoints.exists(before: gone, planURL: planURL) && AskCheckpoints.exists(before: first, planURL: planURL), "pruning drops only asks no longer kept")
+  expect((try? AskCheckpoints.rewind(to: 0, planURL: planURL)) == nil, "an ask from before rewinding existed can't be rewound to")
+  expect((try? AskCheckpoints.rewind(to: 5, planURL: planURL)) == nil, "a missing ask number is an error")
+  expect((try? AskCheckpoints.rewind(to: 2, planURL: planURL)) == "tighten", "rewind names the ask")
+  expect((try? Plan.load(planURL))?.segments.map(\.start) == [0, 4], "the plan is back to before that ask")
+  expect((try? AskCheckpoints.rewind(to: 1, planURL: planURL)) == "cut the intro", "rewinding further back works")
+  expect((try? Plan.load(planURL))?.segments.map(\.start) == [0], "the plan is back to before the first ask")
+  let saved = (try? AskCheckpoints.asks(planURL: planURL)) ?? []
+  expect(saved.map { $0["rewound"] as? Bool == true } == [false, true, true], "that ask and later ones are marked rewound")
+  expect(saved[1]["seconds"] as? Int == 4 && saved[1]["reply"] as? String == "done", "the asks' other keys are kept")
+}
+
 func editPromptCoverageChecks() {
   guard let prompt = try? String(contentsOfFile: "Resources/edit-prompt.md", encoding: .utf8) else {
     expect(false, "Resources/edit-prompt.md is readable from macos/")

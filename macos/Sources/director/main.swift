@@ -39,6 +39,7 @@ let usage = """
     director screentext <dir>                        read the text around each click (screentext.json)
     director secrets  <dir> [--blur] [--allow n|kind]   find keys, passwords and emails in what the edit keeps; --blur covers them, --allow n (or email) may show
     director cut      <dir> <start> <end>           cut a source-time range (seconds) from the edit
+    director asks     <dir> [rewind <n>]            the Claude box's asks, numbered; rewind puts plan.json back to before ask n
     director restore  <dir> <start> <end>           put a cut source-time range back at 1x
     director move     <dir> <start> <end> [--before <t>]   play a source-time range first (a cold open), or just before source time t
     director repeat   <dir> <start> <end> [--before <t>]   play a source-time range again first (or before t), keeping it in its place too
@@ -528,6 +529,18 @@ do {
     plan.camera?.offset = sync.offset
     try plan.write(to: project.planURL)
     print(summary)
+  case "asks":
+    let planURL = dir.appendingPathComponent("plan.json")
+    if positional.count == 4, positional[2] == "rewind", let n = Int(positional[3]), n >= 1 {
+      let instruction = try AskCheckpoints.rewind(to: n - 1, planURL: planURL)
+      print("rewound to before ask \(n): \(instruction)")
+    } else if positional.count == 2 {
+      for (i, ask) in try AskCheckpoints.asks(planURL: planURL).enumerated() {
+        print("\(i + 1)\(ask["rewound"] as? Bool == true ? " (rewound)" : "")  \(ask["instruction"] as? String ?? "")")
+      }
+    } else {
+      fail(usage)
+    }
   case "cut", "restore":
     guard positional.count == 4, let a = Double(positional[2]), let b = Double(positional[3]), b > a else { fail(usage) }
     let project = try Project.load(dir)

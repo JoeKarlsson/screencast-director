@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Claude box
+- Rewind to before any ask: the ↺ beside an ask in the Claude box puts the plan back to how it was before it, undoing that ask and every edit after it in one step (⌘Z brings them back). Rewound asks are dimmed, and Claude starts a fresh conversation. Agents do the same with `director asks <dir>` and `director asks <dir> rewind <n>`. Asks from before this version can't be rewound to.
 - Each finished ask keeps the steps it took in a folded line ("8 steps · 1 failed · 42 s"), which opens to every step with ✓ or ✗ and how long it ran, so you can see what failed. While it runs, a step that fails shows ✗ right away.
 
 ### Cursor, zooms and cuts

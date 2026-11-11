@@ -99,6 +99,17 @@ struct ClaudeBar: View {
             VStack(alignment: .leading, spacing: 4) {
               HStack {
                 Spacer(minLength: 40)
+                if ask.rewound {
+                  Text("Rewound").font(.caption).foregroundStyle(.secondary)
+                } else if !ask.running && !project.busy && project.canRewind(ask.id) {
+                  Button { project.rewind(to: ask.id) } label: {
+                    Image(systemName: "arrow.counterclockwise").font(.caption)
+                  }
+                  .buttonStyle(.plain)
+                  .foregroundStyle(.tertiary)
+                  .help("Rewind to before this ask")
+                  .accessibilityLabel("Rewind to before this ask")
+                }
                 Text(ask.instruction)
                   .padding(.horizontal, 10).padding(.vertical, 6)
                   .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.accent.opacity(0.2)))
@@ -147,6 +158,7 @@ struct ClaudeBar: View {
               if !ask.changes.isEmpty { changeList(ask) }
             }
             .font(.callout)
+            .opacity(ask.rewound ? 0.45 : 1)
             .id(ask.id)
           }
         }

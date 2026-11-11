@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 /// One request to the AI editor and its reply (streamed in while it runs), the steps it took,
 /// and what it changed (each can be undone on its own until accepted).
 struct Ask: Identifiable {
-  let id = UUID()
+  var id = UUID()
   let instruction: String
   var reply = ""
   var running = true
@@ -19,6 +19,8 @@ struct Ask: Identifiable {
   var started = Date()
   /// How long it took, once it's over.
   var seconds: Double?
+  /// The plan was rewound to before this ask or an earlier one, undoing it.
+  var rewound = false
 }
 
 /// One thing the AI did while editing (a tool call), whether it failed, and how long it took.
@@ -33,11 +35,13 @@ struct AskStep: Codable {
 /// What's kept of an ask in .history/asks.json. `steps` is the plain text older versions saved;
 /// `log` has each step's outcome too.
 struct SavedAsk: Codable {
+  var id: UUID?
   var instruction: String
   var reply: String
   var steps: [String]?
   var log: [AskStep]?
   var seconds: Double?
+  var rewound: Bool?
 }
 
 extension ProjectModel {
@@ -57,6 +61,11 @@ extension ProjectModel {
     // that lands after another request has started must not end up on it.
     let n = asks.count - 1
     planBeforeAsk = plan
+    do {
+      try AskCheckpoints.save(planURL: planURL, id: asks[n].id)
+    } catch {
+      Notices.shared.show(error, "Couldn't save the plan to rewind this ask to")
+    }
     let ai = AISettings.shared
     let request = "\(text)\n\n(Where I am in the editor, for words like \"here\" or \"this\":\n\(askContext()))"
     if ai.provider != .claudeCode {
@@ -210,17 +219,55 @@ extension ProjectModel {
       // finished, which then looked stuck forever.
       let lost = s.reply.hasSuffix(" is editing…")
       return Ask(
-        instruction: s.instruction, reply: lost ? "This edit didn't finish, and its reply was lost. Ask again if the change isn't there." : s.reply,
-        running: false, steps: s.log ?? (s.steps ?? []).map { AskStep(text: $0) }, seconds: s.seconds)
+        id: s.id ?? UUID(), instruction: s.instruction, reply: lost ? "This edit didn't finish, and its reply was lost. Ask again if the change isn't there." : s.reply,
+        running: false, steps: s.log ?? (s.steps ?? []).map { AskStep(text: $0) }, seconds: s.seconds, rewound: s.rewound ?? false)
     }
   }
 
   /// Keeps the last 50 asks with the project, so the history survives switching recordings.
   private func saveAsks() {
     let saved = asks.filter { !$0.running }.suffix(50).map {
-      SavedAsk(instruction: $0.instruction, reply: $0.reply, log: $0.steps, seconds: $0.seconds)
+      SavedAsk(id: $0.id, instruction: $0.instruction, reply: $0.reply, log: $0.steps, seconds: $0.seconds, rewound: $0.rewound ? true : nil)
     }
     try? FileManager.default.createDirectory(at: asksURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? JSONEncoder().encode(Array(saved)).write(to: asksURL, options: .atomic)
+    // Every ask in memory keeps its checkpoint, including one that's running and not saved yet.
+    do {
+      try AskCheckpoints.prune(keeping: Set(asks.map(\.id)), planURL: planURL)
+    } catch {
+      Notices.shared.show(error, "Couldn't tidy the saved rewind points")
+    }
+  }
+
+  /// Whether ask `id` can be rewound to (asks from before rewinding existed have no saved plan).
+  func canRewind(_ id: UUID) -> Bool { AskCheckpoints.exists(before: id, planURL: planURL) }
+
+  /// Puts the plan back to how it was before ask `id`, as one undo step, once you confirm. That ask
+  /// and the ones after it are marked rewound, and Claude starts a new conversation, since the edits
+  /// it remembers are gone.
+  func rewind(to id: UUID) {
+    guard !busy, let i = asks.firstIndex(where: { $0.id == id }) else { return }
+    let alert = NSAlert()
+    alert.messageText = "Rewind to before this ask?"
+    alert.informativeText =
+      "The plan goes back to how it was before “\(asks[i].instruction)”. Edits made after it, Claude's and yours, are undone. ⌘Z brings them back."
+    alert.addButton(withTitle: "Rewind")
+    alert.addButton(withTitle: "Cancel")
+    presentAlert(alert) { [self] response in
+      guard response == .alertFirstButtonReturn, asks.indices.contains(i), asks[i].id == id else { return }
+      do {
+        let before = try AskCheckpoints.plan(before: id, planURL: planURL)
+        apply { $0 = before }
+        for j in i..<asks.count {
+          asks[j].rewound = true
+          asks[j].changes = []
+        }
+        claudeSession = nil
+        saveAsks()
+        status = "Rewound to before “\(asks[i].instruction)”. ⌘Z brings the edits back."
+      } catch {
+        Notices.shared.show(error, "Couldn't rewind")
+      }
+    }
   }
 }

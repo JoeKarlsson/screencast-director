@@ -30,6 +30,7 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 |---|---|
 | Timeline, inspector, transcript and Claude box edits | edit `plan.json`, then `director validate <dir>`; `director cut`, `restore`, `move`, `repeat`, `pauses` |
 | Start Over from a Fresh Draft | `director draft <dir> --force` |
+| Claude box › Rewind to before this ask | `director asks <dir>` (numbered), `director asks <dir> rewind <n>` |
 | Camera › Center on face, Lip sync | `director frame-camera`, `sync-camera` |
 | Apply a profile, Save This Look as a Profile | `director profile <dir> <name>`, `profile-save <dir> <name> [--music] [--voice] [--camera]`, `profiles` |
 | Add B-roll, Choose LUT, Music File, logo, font | `director add <dir> broll\|lut\|music\|logo\|font <file>`, then use the printed path in `plan.json` |

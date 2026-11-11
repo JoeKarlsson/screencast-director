@@ -115,6 +115,18 @@ check "restore puts it back ($(output_seconds))" near "$before" "$(output_second
 expect_error "cut with end before start prints usage" "usage:" "$DIRECTOR" cut "$P" 5 2
 expect_error "cut with a non-number prints usage" "usage:" "$DIRECTOR" cut "$P" a 2
 
+# --- asks: rewind to the plan saved when a Claude box ask started (written here as the app would)
+ask_id=$(uuidgen)
+mkdir -p "$P/.history/asks"
+cp "$P/plan.json" "$P/.history/asks/$ask_id.json"
+printf '[{"id":"%s","instruction":"cut a second","reply":"done"}]' "$ask_id" >"$P/.history/asks.json"
+"$DIRECTOR" cut "$P" 1 2 >/dev/null
+check "asks lists the ask" grep -q "^1  cut a second" <<<"$("$DIRECTOR" asks "$P")"
+check "asks rewind names the ask" grep -q "rewound to before ask 1: cut a second" <<<"$("$DIRECTOR" asks "$P" rewind 1)"
+check "the plan is back to before the ask ($(output_seconds))" near "$before" "$(output_seconds)" 0.01
+check "asks marks it rewound" grep -q "^1 (rewound)" <<<"$("$DIRECTOR" asks "$P")"
+expect_error "rewinding a missing ask says so" "there's no ask 2" "$DIRECTOR" asks "$P" rewind 2
+
 # --- pauses (measures loudness from the audio track)
 "$DIRECTOR" pauses "$P" tight >/dev/null
 check "pauses tight is saved in the plan" plan_py "sys.exit(0 if plan.get('pauses') == 'tight' else 1)"
