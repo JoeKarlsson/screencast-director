@@ -46,6 +46,8 @@ PY
 if grep -q "pops for one frame" "$TMP/animate.log"; then echo "FAIL: a template pops for one frame (above)" >&2; exit 1; fi
 # Their text reads against what's behind it (the text probe's contrast check).
 if grep -q "hard to read\|nothing behind it" "$TMP/animate.log"; then echo "FAIL: a template's text is hard to read (above)" >&2; exit 1; fi
+# No sticker's crayon mark runs through its own text (the mark probe).
+if grep -q "crosses the text" "$TMP/animate.log"; then echo "FAIL: a template's mark crosses its text (above)" >&2; exit 1; fi
 templates=$(find Resources/animations/templates -name '*.json' | wc -l | tr -d ' ')
 clips=$(find "$PROJECT/.animations" -name '*.mp4' | wc -l | tr -d ' ')
 [[ "$clips" == "$templates" ]] || { echo "FAIL: $templates templates but $clips clips" >&2; exit 1; }
@@ -192,4 +194,42 @@ changed = sum(1 for i in range(0, len(over), 3) if max(abs(over[i + k] - under[i
 if changed < 0.02: sys.exit(f"FAIL: the overlay drew almost nothing ({changed:.1%} of the frame changed)")
 print(f"ok: the overlay draws over {changed:.0%} of the frame and the video shows through at the corners")
 PY
+# A sticker's crayon mark never runs through its text: the note lays its lines out clear of the mark
+# (a squiggle under a long word, with a line under that, crossed it), in the zine theme too, and the
+# mark probe names a mark that does cross text, here a video's own template that strikes its line out.
+mkdir -p "$PROJECT/animations/templates"
+cat > "$PROJECT/animations/templates/crossed.js" <<'JS'
+TEMPLATES.crossed = function () {
+  const card = document.createElement("div");
+  card.id = "sticker"; card.className = "note";
+  card.innerHTML = '<div class="line"><span class="big marked">Big</span></div><div class="small">struck out</div>';
+  document.body.appendChild(card);
+  const small = card.querySelector(".small"), svg = document.createElementNS(NS, "svg"), p = document.createElementNS(NS, "path");
+  const y = small.offsetTop + small.offsetHeight / 2;
+  svg.setAttribute("class", "mark"); svg.setAttribute("width", card.offsetWidth); svg.setAttribute("height", card.offsetHeight);
+  p.setAttribute("d", `M0,${y} L${card.offsetWidth},${y}`); p.setAttribute("stroke-width", 6);
+  svg.appendChild(p); card.appendChild(svg);
+  return () => {};
+};
+JS
+echo '{"name": "crossed", "title": "Crossed", "summary": "A mark through its text.", "length": 2, "fields": [], "cues": [], "data": {}}' \
+  > "$PROJECT/animations/templates/crossed.json"
+python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["look"] = {"animationTheme": "zine"}
+sticker = {"x": 0.5, "y": 0.3, "w": 0.6}
+def note(start, data): return {"start": start, "end": start + 1, "template": "note", "sticker": sticker, "cues": {"mark": start + 0.2}, "data": data}
+plan["animations"] = [
+    {"start": 1, "end": 2, "template": "crossed", "sticker": sticker, "data": {}, "cues": {}},
+    note(2.5, {"big": "self-hosted", "small": "my models, my permissions", "mark": "underline"}),
+    note(4, {"big": "13", "text": "sec later", "small": "and it answered", "mark": "oval"}),
+    note(5.5, {"big": "9000", "text": "power", "small": "and rising", "mark": "burst"}),
+]
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" animate "$PROJECT" > "$TMP/marks.log" 2>&1 || { cat "$TMP/marks.log" >&2; echo "FAIL: the mark stickers didn't render" >&2; exit 1; }
+grep -q 'the mark on "Big" crosses the text "struck out"' "$TMP/marks.log" \
+  || { echo "FAIL: a mark through a sticker's text wasn't reported: $(cat "$TMP/marks.log")" >&2; exit 1; }
+if grep -q '(note).*crosses the text' "$TMP/marks.log"; then echo "FAIL: a note's mark crosses its text: $(cat "$TMP/marks.log")" >&2; exit 1; fi
 echo "animation checks passed"

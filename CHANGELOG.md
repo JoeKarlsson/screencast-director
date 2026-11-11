@@ -5,6 +5,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Animations
+- A Sticker Note's crayon mark never runs through its text: the line under the word, the word beside it and the logo above move out of the scribble's way (a squiggle under a long word crossed the line under it), and `director animate` and `animate-test` warn about any sticker whose mark crosses its text.
 - `director capture <dir> <url>` pulls a website's logo into the video's animation logos (named so an animation can use it), saves a screenshot of the page into broll/ and prints the site's theme color, so explainers use the real logo instead of a drawn one. It warns when the logo is white (made for a dark header), which wouldn't show on a white sticker.
 - Two new animation templates, adapted from HyperFrames' catalog: Chart (bars rise one by one or a line draws through its points as you talk, then one value gets the accent and a tag counting up to it), drawn in the paper, zine and terminal looks.
 - Stickers (meme GIFs and sticker animations) move out of the captions' way: one placed over them sits just above them instead, or below when there's no room above.

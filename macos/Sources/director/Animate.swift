@@ -68,6 +68,35 @@ enum Animate {
     }
     """
 
+  /// Defines markProbe(): a sticker's crayon marks (`#sticker .mark` paths, once they start drawing)
+  /// that cross a run of its text, other than the word the mark is for (`.marked`): the pen running
+  /// through a line under the word. Returns ["mark", marked word, crossed text, share of the text's box] rows.
+  static let markProbe = """
+    function markProbe() {
+      const out = [], card = document.getElementById("sticker");
+      if (!card) return out;
+      const runs = [];
+      const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        if (!n.textContent.trim() || n.parentElement.closest(".marked, svg")) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const r of range.getClientRects()) if (r.width > 1 && r.height > 1) runs.push({ text: n.textContent.trim().replace(/\\s+/g, " ").slice(0, 32), r });
+      }
+      const marked = card.querySelector(".marked");
+      const name = marked ? marked.textContent.trim().slice(0, 32) : "?";
+      for (const p of card.querySelectorAll(".mark path")) {
+        if (parseFloat(getComputedStyle(p).strokeDashoffset) >= .999) continue;
+        const b = p.getBoundingClientRect(), w = (parseFloat(p.getAttribute("stroke-width")) || 0) / 2;
+        for (const { text, r } of runs) {
+          const ix = Math.min(b.right + w, r.right) - Math.max(b.left - w, r.left), iy = Math.min(b.bottom + w, r.bottom) - Math.max(b.top - w, r.top);
+          if (ix > 1 && iy > 1) out.push(["mark", name, text, ix * iy / (r.width * r.height)]);
+        }
+      }
+      return out;
+    }
+    """
+
   /// Defines textProbe(): each run of text fully on screen and not mid-fade, as [name, x, y, w, h,
   /// r, g, b, large] in clip pixels, its color 0-1 and large 1 for 24 px text (19 px bold) at 1080p.
   /// It's named by the piece it belongs to (a heading's words are one heading).
@@ -124,6 +153,7 @@ enum Animate {
       case "overlap": return "\(head) \(f.p) and \(f.q) overlap \(Int((f.share * 100).rounded()))% \(when); move one (x/y) or space their cues"
       case "captions": return "\(head) \(f.p) reaches into where the captions sit \(when); move it out of their way"
       case "edge": return "\(head) \(f.p) runs off the edge of the frame \(when); move it in"
+      case "mark": return "\(head) the mark on \"\(f.p)\" crosses the text \"\(f.q)\" \(when); give that text room"
       case _ where f.end - f.start < 2 * step: return nil
       case "bare": return "\(head) text \"\(f.p)\" sits straight on the video with nothing behind it \(when); put it on a card, chip or tag"
       default:
@@ -302,7 +332,7 @@ enum Animate {
         throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
       }
       do {
-        let probes = [Animate.motionProbe, Animate.overlapProbe, Animate.textProbe].joined(separator: "\n;")
+        let probes = [Animate.motionProbe, Animate.overlapProbe, Animate.markProbe, Animate.textProbe].joined(separator: "\n;")
         _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + probes + "\n;0")
       } catch {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
@@ -391,7 +421,7 @@ enum Animate {
         if let onFrame { try onFrame(f, try image(pixels)) }
         // Overlaps on every frame, mid-move included: a piece flying through a label is as wrong as one parked on it.
         let at = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 1)[0]
-        if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band.top), \(band.bottom), \(a.isOverlay))") as? [[Any]], !rows.isEmpty {
+        if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band.top), \(band.bottom), \(a.isOverlay)).concat(markProbe())") as? [[Any]], !rows.isEmpty {
           overlaps.append((Double(f) / Double(Animate.fps), rows))
         }
         if f % Animate.textProbeEvery == 0, let rows = try await web.evaluateJavaScript("textProbe()") as? [[Any]] {
