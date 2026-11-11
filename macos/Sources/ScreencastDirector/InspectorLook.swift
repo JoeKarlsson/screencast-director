@@ -276,6 +276,9 @@ extension InspectorView {
     InspectorSection("Cursor", detail: project.project?.source.cursorHidden == true
       ? "Drawn from your mouse moves, so it glides instead of jittering."
       : "This recording has the system cursor baked in. Record with the cursor hidden to restyle and smooth it.") {
+      if project.project?.source.cursorHidden != true {
+        hint("This recording has the system cursor baked in. Record with the cursor hidden to restyle and smooth it.")
+      }
       if project.project?.source.cursorHidden == true {
         toggle("Show cursor", bind(nil, { !($0.cursorSettings.hidden ?? false) }, { $0.cursorSettings.hidden = $1 ? nil : true }))
       }

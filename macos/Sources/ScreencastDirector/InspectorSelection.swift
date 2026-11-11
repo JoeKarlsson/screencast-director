@@ -136,6 +136,7 @@ extension InspectorView {
     }
     InspectorSection("Order",
       detail: "Clip \(i + 1) of \(plan.segments.count). Move it to play somewhere else, like a cold open. Its zooms, titles and captions move with it.") {
+      hint("Clip \(i + 1) of \(plan.segments.count). Its zooms, titles and captions move with it.")
       if plan.segments.count > 1 {
         HStack(spacing: Theme.Space.s) {
           Button { project.moveSelectedClip(to: 0) } label: { Label("First", systemImage: "arrow.left.to.line") }
@@ -195,6 +196,7 @@ extension InspectorView {
       slider("Scale", bindItem("zoomScale\(i)", \.zooms, i, \.scale) { ($0 * 10).rounded() / 10 }, 1.1...3, "\(z.scale.formatted())×")
     }
     InspectorSection("Focus", detail: "Drag on the frame to aim the zoom. The box is what stays in view.") {
+      hint("Drag on the frame to aim the zoom. The box is what stays in view.")
       FocusPicker(project: project, ui: ui, index: i, zoom: z)
       Button {
         let f = zoomFocus(at: z.start + 0.5, clicks: project.project?.clicks ?? [])
@@ -561,8 +563,7 @@ extension InspectorView {
           }
         }
       } else {
-        Text("This recording has no camera. Turn on \"Record camera\" in Settings to use split screen and the camera bubble.")
-          .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        hint("This recording has no camera. Turn on \"Record camera\" in Settings to use split screen and the camera bubble.")
       }
     }
   }

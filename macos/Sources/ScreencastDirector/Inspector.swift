@@ -193,6 +193,12 @@ struct InspectorView: View {
     .help(detail)
   }
 
+  /// A line of help that stays visible, for the few settings whose labels don't say enough
+  /// (the rest keep theirs in tooltips).
+  func hint(_ text: String) -> some View {
+    Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+  }
+
   func emptyState(_ icon: String, _ title: String, _ detail: String) -> some View {
     VStack(spacing: Theme.Space.s) {
       Image(systemName: icon)
