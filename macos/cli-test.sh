@@ -214,6 +214,12 @@ rm -rf "$SD_SUPPORT_DIR/Animations"
 "$DIRECTOR" template "$P" update storyboard >/dev/null
 check "template update replaces the video's copy with the library's" sh -c "! grep -q '// edited' '$P/animations/templates/storyboard.js'"
 expect_error "template freeze of an unknown one lists the others" "hub" "$DIRECTOR" template "$P" freeze nope
+check "lottie list shows the built-in overlays" grep -q "circle.json .*plays once  \[builtIn\]" <<<"$("$DIRECTOR" lottie "$P" list)"
+cp Resources/animations/lottie/check.json "$TMP/tick.json"
+"$DIRECTOR" lottie "$P" add "$TMP/tick.json" >/dev/null
+check "lottie add copies it into the video" grep -q "^tick.json .*\[video\]" <<<"$("$DIRECTOR" lottie "$P" list)"
+printf '{"op": 30}\n' >"$TMP/not-lottie.json"
+expect_error "lottie add refuses a file that isn't a Lottie" "isn't a Lottie" "$DIRECTOR" lottie "$P" add "$TMP/not-lottie.json"
 printf 'not a lut\n' >"$TMP/bad.cube"
 expect_error "add refuses a LUT that doesn't load" "cube" "$DIRECTOR" add "$P" lut "$TMP/bad.cube"
 cp "$P/screen.mp4" "$TMP/clip.mp4"

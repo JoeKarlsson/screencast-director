@@ -36,6 +36,7 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 | More sound effects and pictures from Openverse | `director stock <dir> sounds\|images <query> [--credit-ok]`, then `stock <dir> get-sound\|get-image <id>...`; sounds land in My Sounds › Openverse, pictures in `broll/`, each logged in `openverse-licenses.csv` |
 | Video B-roll and GIFs | `director stock <dir> videos <query> [--credit-ok] [--source nasa,commons,archive]` or `stock <dir> gifs <query>` (KLIPY reaction GIFs in personal videos only), then `stock <dir> get-video\|get-gif <id>...`; MP4s land in `broll/`, each logged in `broll/stock-licenses.csv`. KLIPY's key: Settings > Stock in the app (Keychain), or `KLIPY_API_KEY` (`bin/director` loads the repo's `.env.local`) |
 | Animation template: freeze, Update Template, Save to My Templates | `director template <dir> freeze\|update\|save <name>` |
+| Lottie picker, Import Lottie File… | `director lottie <dir> list`, `director lottie <dir> add <file.json>... [--library]` |
 | Export, clips, GIF, captions and thumbnails | `director render [--preset id\|--clip name\|--clips]`, `gif`, `publish` |
 | Upload and Copy Link | `director upload <file>` (uses Settings › Sharing; macOS asks once to let it read the keys) |
 | Join Recordings, Import Video | `director join`, `sd import` |

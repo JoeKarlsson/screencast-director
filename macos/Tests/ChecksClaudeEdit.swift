@@ -8,7 +8,8 @@ func claudeEditChecks() {
   expect(Array(fresh.prefix(2)) == ["-p", "cut the intro"], "the instruction is the prompt")
   expect(!fresh.contains("--resume"), "a first ask starts a new session")
   expect(fresh.contains("Bash('/A/director' validate:*)"), "the edit may run director validate")
-  expect(!fresh.contains { $0.contains(" add") || $0.contains("template . save") }, "the edit may not run add or template save")
+  expect(!fresh.contains { $0.contains(" add") || $0.contains("template . save") }, "the edit may not run add, lottie add or template save")
+  expect(fresh.contains("Bash('/A/director' lottie . list)"), "the edit may list the Lottie files it can play")
   for command in ["cut", "restore", "move", "repeat", "pauses"] {
     expect(fresh.contains("Bash('/A/director' \(command) .:*)"), "the edit may run director \(command) on its own project")
   }

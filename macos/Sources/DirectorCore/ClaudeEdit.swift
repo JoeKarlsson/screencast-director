@@ -10,9 +10,11 @@ public enum ClaudeEdit {
   /// (it would copy any file on disk into the project, where Read reaches it) or `template save` (it
   /// writes the library other videos use). `secrets` writes only secrets.json and blurs into the plan,
   /// `animate-choose` only the plan. `stock` searches and downloads B-roll and GIFs into this
-  /// project's broll/ (not `get-sound`, which writes the shared sound library).
+  /// project's broll/ (not `get-sound`, which writes the shared sound library). `lottie . list` only
+  /// reads (not `lottie . add`, which copies any file in, like `add`).
   public static let directorCommands = [
     "describe:*", "still:*", "review:*", "validate:*", "profiles", "profile .:*", "template . freeze:*", "template . update:*",
+    "lottie . list",
     "cut .:*", "restore .:*", "move .:*", "repeat .:*", "pauses .:*", "secrets .:*", "animate-choose .:*",
     "stock . videos:*", "stock . gifs:*", "stock . images:*", "stock . get-video:*", "stock . get-gif:*", "stock . get-image:*",
   ]

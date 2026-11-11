@@ -65,6 +65,65 @@ public struct AnimationSources: Sendable {
     return folders.map { $0.1.appendingPathComponent("lottie/\(name)") }.first { FileManager.default.fileExists(atPath: $0.path) }
   }
 
+  /// A Lottie file on offer: its name (what `data.lottie` takes), where it comes from, and what it's
+  /// for (`meta.d`, else its own name), length and whether it plays once (a top-level `"loop": false`).
+  public struct Lottie: Equatable, Sendable {
+    public var name: String
+    public var origin: Origin
+    public var about: String
+    public var seconds: Double
+    public var loops: Bool
+
+    /// Reads a Lottie, throwing when the file isn't one (no frame rate, frames, size or layers).
+    public init(_ url: URL, origin: Origin) throws {
+      let json = try? JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+      guard let json, let fr = json["fr"] as? Double, fr > 0, let op = json["op"] as? Double, json["w"] is Double,
+        json["h"] is Double, json["layers"] is [Any]
+      else { throw DirectorError("\(url.lastPathComponent) isn't a Lottie animation (a Bodymovin .json with fr, op, w, h and layers)") }
+      name = url.lastPathComponent
+      self.origin = origin
+      about = (json["meta"] as? [String: Any])?["d"] as? String ?? (json["nm"] as? String ?? name)
+      seconds = (op - (json["ip"] as? Double ?? 0)) / fr
+      loops = json["loop"] as? Bool ?? true
+    }
+  }
+
+  /// Every Lottie file, by name, each from the first folder that has it; files that aren't Lotties are left out.
+  public func lotties() -> [Lottie] {
+    var seen = Set<String>()
+    var out: [Lottie] = []
+    for (origin, folder) in folders {
+      let dir = folder.appendingPathComponent("lottie")
+      let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+      for file in files where file.pathExtension == "json" && !seen.contains(file.lastPathComponent) {
+        if let lottie = try? Lottie(file, origin: origin) {
+          seen.insert(lottie.name)
+          out.append(lottie)
+        }
+      }
+    }
+    return out.sorted { $0.name < $1.name }
+  }
+
+  /// Copies a Lottie file from anywhere into the video's `animations/lottie/` (or the personal library's),
+  /// after checking it is one. Refuses to replace a different file of the same name, which a finished video may play.
+  @discardableResult
+  public func addLottie(_ file: URL, toLibrary: Bool = false) throws -> Lottie {
+    guard let folder = toLibrary ? personal : project.map(AnimationSources.videoFolder) else { throw DirectorError("no video to add the Lottie to") }
+    let lottie = try Lottie(file, origin: toLibrary ? .personal : .video)
+    let dst = folder.appendingPathComponent("lottie/\(lottie.name)")
+    let fm = FileManager.default
+    if fm.fileExists(atPath: dst.path) {
+      guard try Data(contentsOf: dst) == Data(contentsOf: file) else {
+        throw DirectorError("there's already a different \(lottie.name) in \(dst.deletingLastPathComponent().path); rename the new one")
+      }
+      return lottie
+    }
+    try fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fm.copyItem(at: file, to: dst)
+    return lottie
+  }
+
   /// Copies a Lottie file into the video's folder unless it's already there, like a template, so the
   /// clip's name follows the video's copy. Returns whether it copied.
   @discardableResult

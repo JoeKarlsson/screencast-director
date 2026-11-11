@@ -27,6 +27,8 @@ let usage = """
     director profiles                               list saved profiles (* is the default for new recordings)
     director capture  <dir> <url> [--name <logo name>]   a website's logo into animations/logos/ (as a logo animations can use) and a screenshot into broll/
     director template <dir> freeze|update|save <name>   copy an animation template into the video, refresh it from the library, or save the video's copy to My Templates
+    director lottie   <dir> list                    the Lottie animations the lottie template can play (this video's, the personal library's, built in)
+    director lottie   <dir> add <file.json>... [--library]   copy Lottie files into the video's animations/lottie/ (or the personal library's)
     director add      <dir> broll|lut|music|logo|font <file>   copy a file into the project; prints the path to use in plan.json
     director settings [get <key> | set <key> <value>]   the app's settings (no arguments lists them)
     director status   [--wait <state>] [--timeout <s>]   what the app's recorder is doing, as JSON; --wait blocks until that state (default 600 s)
@@ -267,6 +269,25 @@ do {
       guard FileManager.default.fileExists(atPath: videoCopy.path) else { fail("this video has no copy of \(name) (animations/templates/\(name).js)") }
       try sources.saveToPersonal(name)
       print("saved \(name) to \(sources.personal.appendingPathComponent("templates").path)")
+    default:
+      fail(usage)
+    }
+  case "lottie":
+    guard positional.count >= 3 else { fail(usage) }
+    _ = try Project.load(dir)
+    let sources = AnimationSources(project: dir, builtIn: Animate.resources)
+    switch positional[2] {
+    case "list":
+      for l in sources.lotties() {
+        print("\(l.name)  \(String(format: "%.1f", l.seconds)) s, \(l.loops ? "loops" : "plays once")  [\(l.origin.rawValue)]  \(l.about)")
+      }
+    case "add":
+      let files = positional.dropFirst(3).filter { $0 != "--library" }
+      guard !files.isEmpty else { fail(usage) }
+      for file in files {
+        let l = try sources.addLottie(URL(fileURLWithPath: file), toLibrary: args.contains("--library"))
+        print("added \(l.name): play it with \"template\": \"lottie\", \"data\": {\"lottie\": \"\(l.name)\"}")
+      }
     default:
       fail(usage)
     }

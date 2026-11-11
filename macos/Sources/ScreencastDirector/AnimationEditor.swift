@@ -1,3 +1,4 @@
+import AppKit
 import DirectorCore
 import SwiftUI
 
@@ -31,6 +32,10 @@ struct AnimationEditor: View {
           }
           .labelsHidden()
           templateOrigin(a.template, found?.origin)
+          if a.sticker == nil {
+            Toggle("Over the video (transparent)", isOn: Binding(get: { a.isOverlay }, set: { on in project.editAnimation(i) { $0.overlay = on ? true : nil } }))
+              .help("Float the graphics over the screen and camera instead of filling the frame with paper")
+          }
           Button {
             project.fillAnimationFromTranscript(i)
           } label: {
@@ -111,6 +116,8 @@ struct AnimationEditor: View {
         in: 0...(field.max ?? 99))
     case "logo":
       logoPicker(field.label, textBinding(field.key))
+    case "lottie":
+      lottiePicker(field, a)
     case "texts":
       let lines = a.data[path: field.key]?.strings ?? []
       VStack(alignment: .leading, spacing: 4) {
@@ -134,6 +141,39 @@ struct AnimationEditor: View {
     Picker(label, selection: value) {
       Text("None").tag("")
       ForEach(AnimationLibrary.logoNames(project.dir), id: \.self) { name in Text(name).tag(name) }
+    }
+  }
+
+  /// The Lottie files on offer (the video's, the library's, built in), and Import for one from anywhere.
+  private func lottiePicker(_ field: AnimationTemplate.Field, _ a: DirectorCore.Animation) -> some View {
+    let lotties = sources.lotties()
+    let current = a.data[path: field.key]?.string ?? ""
+    return VStack(alignment: .leading, spacing: 4) {
+      Picker(field.label, selection: textBinding(field.key)) {
+        if !lotties.contains(where: { $0.name == current }) { Text(current.isEmpty ? "None" : "\(current) (missing)").tag(current) }
+        ForEach(lotties, id: \.name) { l in Text((l.name as NSString).deletingPathExtension).tag(l.name) }
+      }
+      if let l = lotties.first(where: { $0.name == current }) {
+        Text("\(l.about). \(String(format: "%.1f", l.seconds)) s, \(l.loops ? "loops" : "plays once").").font(.caption).foregroundStyle(.secondary)
+      }
+      Button("Import Lottie File…") { importLottie(field.key) }
+        .controlSize(.small)
+        .help("Add a Lottie .json (an After Effects export, e.g. from LottieFiles) to this video")
+    }
+  }
+
+  private func importLottie(_ key: String) {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.json]
+    panel.allowsMultipleSelection = false
+    panel.message = "Choose a Lottie animation (.json)"
+    presentPanel(panel) { response in
+      guard response == .OK, let file = panel.url else { return }
+      do {
+        set(key, .string(try sources.addLottie(file).name))
+      } catch {
+        Notices.shared.show(error, "Couldn't add \(file.lastPathComponent)")
+      }
     }
   }
 

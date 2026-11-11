@@ -645,6 +645,25 @@ struct Checks {
     let lottieClip = playing.clipPath(out1080, dir: lottieRoot)
     try? Data("{\"op\": 90}".utf8).write(to: lottieVideo.appendingPathComponent("a.json"))
     expect(playing.clipPath(out1080, dir: lottieRoot) != lottieClip, "editing the video's Lottie file renders a new clip")
+    // Listing reads only real Lotties, the video's copy first; adding one checks it and never replaces a different file.
+    let lottieLibrary = lottieRoot.appendingPathComponent("library")
+    let real = lottieRoot.appendingPathComponent("wave.json")
+    try? Data(#"{"fr": 30, "ip": 0, "op": 45, "w": 100, "h": 100, "layers": [], "loop": false, "meta": {"d": "A wave"}}"#.utf8).write(to: real)
+    let libSources = AnimationSources(project: lottieRoot, builtIn: lottieRoot, personal: lottieLibrary)
+    expect(libSources.lotties().isEmpty, "a .json that isn't a Lottie isn't listed")
+    let toLibrary = try? libSources.addLottie(real, toLibrary: true)
+    expect(toLibrary?.origin == .personal && libSources.lotties().first?.origin == .personal, "a Lottie added to the library lists from there")
+    let added = try? libSources.addLottie(real)
+    expect(
+      added.map { [$0.name, $0.about, "\($0.seconds)", "\($0.loops)"] } == ["wave.json", "A wave", "1.5", "false"]
+        && libSources.lotties().map(\.origin) == [.video],
+      "an added Lottie lists from the video first, with its description, length and loop (\(String(describing: added)))")
+    expect((try? libSources.addLottie(lottieVideo.appendingPathComponent("a.json"))) == nil, "a file that isn't a Lottie is refused")
+    try? Data(#"{"fr": 30, "op": 90, "w": 100, "h": 100, "layers": []}"#.utf8).write(to: real)
+    expect((try? libSources.addLottie(real)) == nil, "a different file never replaces the video's Lottie of that name")
+    let bundledTemplates = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Resources/animations/templates")
+    expect(AnimationTemplate.all(in: bundledTemplates).first { $0.name == "lottie" }?.make(start: 0, end: 2).overlay == true,
+      "a new Lottie animation floats over the video")
     try? FileManager.default.removeItem(at: lottieRoot)
     // Text contrast: WCAG ratios, and the backdrop is what's around the text, even when its glyphs fill its box.
     expect(abs(TextContrast.ratio([0, 0, 0], [1, 1, 1]) - 21) < 0.01 && abs(TextContrast.ratio([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]) - 1) < 0.01, "contrast runs 1:1 to 21:1")

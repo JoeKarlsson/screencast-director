@@ -171,9 +171,17 @@ func laterChecks() {
   }
   // The lottie template shows the Lottie frame for each moment, looping or holding the last one.
   let lottieAt = templateScripts.evaluateScript("""
-    (() => { lottieFrames = []; TEMPLATES.lottie({}, {play: 1}, 5)(3.5); TEMPLATES.lottie({loop: false}, {}, 5)(4); return lottieFrames; })()
+    (() => { lottieFrames = []; TEMPLATES.lottie({}, {play: 1}, 5)(3.5); TEMPLATES.lottie({loop: false}, {}, 5)(4);
+      LOTTIE.loop = false; TEMPLATES.lottie({}, {}, 5)(4); TEMPLATES.lottie({loop: true}, {}, 5)(4); delete LOTTIE.loop; return lottieFrames; })()
     """)?.toArray() as? [Double] ?? []
-  expect(lottieAt == [15, 59], "a Lottie plays from its cue, loops at its end, or holds its last frame (\(lottieAt))")
+  expect(lottieAt == [15, 59, 59, 0], "a Lottie plays from its cue, loops at its end, or holds its last frame, as the file or the data says (\(lottieAt))")
+  // It boils like the site's scribbles: a new wobble frame every sixth of a second.
+  let boils = templateScripts.evaluateScript("""
+    (() => { const svg = fake(), realEl = el; el = (c, h) => { const d = realEl(c, h); d.querySelector = () => svg; return d; };
+      const seek = TEMPLATES.lottie({}, {}, 5); el = realEl;
+      return [0, .1, .2, .35, .5].map(t => { seek(t); return svg.style.filter; }); })()
+    """)?.toArray() as? [String] ?? []
+  expect(boils == ["url(#boil-1)", "url(#boil-1)", "url(#boil-2)", "url(#boil-3)", "url(#boil-1)"], "a Lottie boils (\(boils))")
   // CSS animations and element.animate() are pinned to the frame's time, paused.
   let pinned = templateScripts.evaluateScript("""
     (() => { const a = { pause() { this.paused = true; } }; document.getAnimations = () => [a]; pinAnimations(1.5);
