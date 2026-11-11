@@ -968,6 +968,14 @@ struct Checks {
     expect(beforeEnd == splitVec, "it holds the split until the animation's last 1.1 s")
     expect(atEnd == camVec, "and is back to full frame as the animation ends")
 
+    // A transition of 0 switches layouts on the edge's frame, with no half-way frame in between.
+    var hard = portrait
+    hard.animations = []
+    hard.style.transition = 0
+    let hardSteps = Scene.layoutSteps(hard, [OutLayout(startF: 100, endF: 200, mode: .pip)], frames: 600, style: MotionStyle.named("snappy"))
+    expect(hardSteps.at(99) == camVec && hardSteps.at(100) == splitVec, "a 0 transition cuts straight to the split")
+    expect(hardSteps.at(199) == splitVec && hardSteps.at(200) == camVec, "and straight back")
+
     // Full camera over a demo is flagged.
     var hide = p
     hide.source.camera = nil

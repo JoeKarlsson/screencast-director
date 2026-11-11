@@ -240,6 +240,9 @@ public final class Scene: @unchecked Sendable {
         changes.append(.init(at: f, to: boxes[m]!, frames: animDur, ease: animEase))
       } else if animated.contains(where: { abs($0.endF - f) < 0.5 }) {
         changes.append(.init(at: f - animDur, to: boxes[m]!, frames: animDur, ease: animEase))
+      } else if plan.style.transition * Double(plan.output.fps) < 1 {
+        // A transition under a frame is a hard cut: a one-frame ease left a half-way frame, a flash.
+        changes.append(.init(at: f, to: boxes[m]!, frames: 0, ease: style.ease))
       } else {
         changes.append(.init(at: f - dur / 2, to: boxes[m]!, frames: dur, ease: style.ease))
       }
