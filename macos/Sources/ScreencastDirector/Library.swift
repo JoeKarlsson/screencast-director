@@ -147,7 +147,7 @@ final class Library: ObservableObject {
     let source = (try? Data(contentsOf: url.appendingPathComponent("source.json"))).flatMap { try? JSONDecoder().decode(Project.Source.self, from: $0) }
     let files = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
     let stage: Stage =
-      files.contains { isExportFile($0, project: url.lastPathComponent) } ? .exported : files.contains("plan.json") ? .edited : .new
+      !exportFiles(project: url).isEmpty ? .exported : files.contains("plan.json") ? .edited : .new
     let date = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
     let edited = (try? fm.attributesOfItem(atPath: url.appendingPathComponent("plan.json").path))?[.modificationDate] as? Date
     let i = Info(duration: source?.duration ?? 0, date: date, edited: edited ?? date, stage: stage)

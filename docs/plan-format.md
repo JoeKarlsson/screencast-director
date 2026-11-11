@@ -32,4 +32,4 @@ The full schema is in `macos/Sources/DirectorCore/Plan.swift` (the plan itself),
 | `motion.json` | Frame-to-frame screen motion |
 | `plan.json` | The edit |
 | `voice-clean.m4a` | The cleaned voice, when Clean up voice is on (rendered on demand) |
-| `out.mp4` | The render |
+| `publish/` | Exports (`<name> <width>x<height>.mp4`, clips, GIFs) and the publish kit (captions, chapters, transcript, description, thumbnails) |

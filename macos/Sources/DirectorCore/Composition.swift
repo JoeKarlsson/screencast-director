@@ -381,6 +381,7 @@ private func addSoundEffects(_ plan: Plan, project: Project, scene: Scene, total
 
 /// Renders the plan to an MP4. `progress` gets 0...1.
 public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws {
+  try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
   try? FileManager.default.removeItem(at: url)
   // AVAssetExportSession isn't marked Sendable, but cancelExport is meant to be called from anywhere.
   guard let made = AVAssetExportSession(asset: built.asset, presetName: AVAssetExportPresetHighestQuality) else {

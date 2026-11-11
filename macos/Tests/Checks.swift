@@ -783,6 +783,13 @@ struct Checks {
     FileManager.default.createFile(atPath: inside.appendingPathComponent("rec 1920x1080.mp4").path, contents: Data())
     FileManager.default.createFile(atPath: inside.appendingPathComponent("notes.mp4").path, contents: Data())
     expect(thumbnailVideo(project: inside, source: "screen.mp4").lastPathComponent == "rec 1920x1080.mp4", "a thumbnail shows the export, not other videos")
+    // New exports go in publish/; older ones loose in the project folder still count.
+    let published = exportURL(dir: inside)
+    try? FileManager.default.createDirectory(at: published.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: published.path, contents: Data())
+    expect(published.deletingLastPathComponent().lastPathComponent == "publish", "exports go in the publish folder")
+    expect(Set(exportFiles(project: inside).map(\.lastPathComponent)) == ["rec 1920x1080.mp4", "rec.mp4"], "exports are found in publish/ and the project folder")
+    expect(thumbnailVideo(project: inside, source: "screen.mp4").standardizedFileURL == published.standardizedFileURL, "a thumbnail shows the newest export in publish/")
     try? FileManager.default.removeItem(at: libRoot)
 
     // A thumbnail montage spreads its frames across the video, clear of the ends.

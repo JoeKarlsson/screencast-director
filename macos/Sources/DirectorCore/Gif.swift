@@ -45,6 +45,7 @@ public enum GIF: Sendable {
       return CMTime(value: CMTimeValue(min(frame, scene.frameCount - 1)), timescale: CMTimeScale(scene.fps))
     }
 
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? FileManager.default.removeItem(at: url)
     guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, count, nil) else {
       throw DirectorError("Can't write \(url.path)")

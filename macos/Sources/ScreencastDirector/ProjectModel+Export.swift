@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 extension ProjectModel {
   // MARK: Publishing
 
-  var publishDir: URL { dir.appendingPathComponent("publish") }
+  var publishDir: URL { publishFolder(dir) }
 
   func openPublish() {
     if publishTitle.isEmpty { publishTitle = plan?.callouts.first?.text ?? name }

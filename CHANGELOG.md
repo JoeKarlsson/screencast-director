@@ -34,6 +34,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `director secrets <dir>` reads what the edit keeps for API keys, tokens, passwords in connection strings and config, private keys and email addresses, and `--blur` covers each one the edit shows with a blur that cuts in and out with no fade. Until they're covered, `director describe` and `validate` warn about them, and about any stretch put back into the edit since the scan; `--allow <n>` marks one as fine to show, `--allow email` every email. It reads only the parts the edit keeps, and only where the screen changed, so 10 minutes of edit take about a minute however much footage was imported.
 
 ### Exports
+- Exports and GIFs go in the recording's publish/ folder, beside the captions, chapters, description and thumbnails, so everything you post is in one place (`sd render` and `director render` and `gif` too). Exports from before stay where they are and still count for the library's badge and thumbnail.
 - Every export carries what made it: the app version, the date and the exact plan it rendered, inside the MP4. `director provenance <video>` prints them and what `plan.json` has changed since, and `--plan` prints the plan, so you can tell which edit an upload was.
 
 ### Motion

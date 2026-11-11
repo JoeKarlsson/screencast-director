@@ -13,7 +13,7 @@ public enum Publish: Sendable {
   /// publish/thumbnail-N.png. Returns the files written.
   /// `coverAt`: source seconds to make the covers from, instead of the best-scoring faces.
   public static func run(project: Project, plan: Plan, title: String, coverAt: [Double]? = nil, log: (String) -> Void = { _ in }) async throws -> [URL] {
-    let out = project.dir.appendingPathComponent("publish")
+    let out = publishFolder(project.dir)
     try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     let scene = Scene(plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts)
     var files: [URL] = []

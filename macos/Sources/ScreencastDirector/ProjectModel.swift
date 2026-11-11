@@ -108,7 +108,6 @@ final class ProjectModel: ObservableObject {
 
   var name: String { dir.lastPathComponent }
   var planURL: URL { dir.appendingPathComponent("plan.json") }
-  var outURL: URL { exportURL(dir: dir, size: plan?.output) }
   var hasPlan: Bool { plan != nil }
   var fps: Int { plan?.output.fps ?? 30 }
   /// The plan's segments in output frames, kept in step with the plan.

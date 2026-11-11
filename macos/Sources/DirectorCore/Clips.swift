@@ -85,15 +85,27 @@ func fileSafe(_ name: String) -> String {
   name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-").trimmingCharacters(in: .whitespaces)
 }
 
-/// Where an export goes, named after the project folder and ending in its resolution when given:
+/// A project's publish/ folder: its exports, GIFs, captions, chapters, transcript, description and thumbnails.
+public func publishFolder(_ dir: URL) -> URL { dir.appendingPathComponent("publish") }
+
+/// Where an export goes (publish/), named after the project folder and ending in its resolution when given:
 /// "Name 2160x3840.mp4", "Name (4K) 3840x2160.mp4" for a preset, "Name - Hook 1080x1920.mp4" for a clip.
 public func exportURL(dir: URL, preset: ExportPreset? = nil, clip: Clip? = nil, size: Plan.Output? = nil) -> URL {
   let project = dir.lastPathComponent
   let name = clip.map { "\(project) - \(fileSafe($0.name))" } ?? project + (preset.map { " (\($0.fileLabel))" } ?? "")
-  return dir.appendingPathComponent(name + (size.map { " \($0.width)x\($0.height)" } ?? "") + ".mp4")
+  return publishFolder(dir).appendingPathComponent(name + (size.map { " \($0.width)x\($0.height)" } ?? "") + ".mp4")
 }
 
 /// Whether a file in a project folder is an export: named after the project, or an older out*.mp4.
 public func isExportFile(_ file: String, project: String) -> Bool {
   file.hasSuffix(".mp4") && (file.hasPrefix(project) || file.hasPrefix("out"))
+}
+
+/// A project's exports: in publish/, or loose in the project folder from before exports went there.
+public func exportFiles(project dir: URL) -> [URL] {
+  [publishFolder(dir), dir].flatMap { folder in
+    ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+      .filter { isExportFile($0, project: dir.lastPathComponent) }
+      .map { folder.appendingPathComponent($0) }
+  }
 }

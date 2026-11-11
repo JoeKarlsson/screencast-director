@@ -119,7 +119,7 @@ extension ProjectModel {
   }
 
   private func makeGIF(plan: Plan, from a: Double, to b: Double, width px: Int) {
-    let url = dir.appendingPathComponent(String(format: "%@ %.1f-%.1f.gif", name, a, b))
+    let url = publishDir.appendingPathComponent(String(format: "%@ %.1f-%.1f.gif", name, a, b))
     let project = self.project
     run("Making a GIF…") { [self] in
       guard let project else { return }
@@ -133,7 +133,7 @@ extension ProjectModel {
     }
   }
 
-  /// Export > Upload and Copy Link: picks a file from the recording's folder (an export, a GIF,
+  /// Export > Upload and Copy Link: picks a file from the recording's publish/ folder (an export, a GIF,
   /// a thumbnail), uploads it to the Sharing bucket and puts the public link on the clipboard.
   func uploadAndCopyLink() {
     guard let config = SharingSettings.shared.config else {
@@ -143,7 +143,7 @@ extension ProjectModel {
       return
     }
     let panel = NSOpenPanel()
-    panel.directoryURL = FileManager.default.fileExists(atPath: outURL.path) ? outURL : dir
+    panel.directoryURL = FileManager.default.fileExists(atPath: publishDir.path) ? publishDir : dir
     panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .gif, .png, .jpeg]
     panel.message = "Choose a file to upload and share"
     let chosen: (NSApplication.ModalResponse) -> Void = { [self] response in

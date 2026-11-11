@@ -556,7 +556,7 @@ do {
     print("repeat \(fmtTime(a))-\(fmtTime(b)): plays again, \(fmtTime(planSeconds(plan))) total")
   case "gif":
     let project = try Project.load(dir)
-    let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : dir.appendingPathComponent("out.gif")
+    let out = positional.count > 2 ? URL(fileURLWithPath: positional[2]) : publishFolder(dir).appendingPathComponent("out.gif")
     let plan = try planFor(project)
     _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     let built = try await buildComposition(project: project, plan: plan)

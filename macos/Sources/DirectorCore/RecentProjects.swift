@@ -35,9 +35,7 @@ public func libraryProjects(folder: URL, opened: [String: Double]) -> [URL] {
 /// recording itself (`source`, a file in the project) before anything was exported.
 public func thumbnailVideo(project dir: URL, source: String) -> URL {
   let fm = FileManager.default
-  let exports = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
-    .filter { isExportFile($0, project: dir.lastPathComponent) }
-    .map { dir.appendingPathComponent($0) }
+  let exports = exportFiles(project: dir)
   func modified(_ url: URL) -> Date { ((try? fm.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date) ?? .distantPast }
   return exports.max { modified($0) < modified($1) } ?? dir.appendingPathComponent(source)
 }

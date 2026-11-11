@@ -113,7 +113,7 @@ The API providers send the timeline, transcript and plan in one request and get 
 
 ![Opening Publish and making captions, chapters and thumbnails from the clearest smiling camera frames](media/ui-publish.gif)
 
-**Publish…** in the editor writes into `publish/` in the recording's folder:
+Exports and GIFs land in `publish/` in the recording's folder, and **Publish…** in the editor writes the rest of what you post beside them:
 
 - `captions.srt`, timed to the edited video
 - `chapters.txt`, from your titles (YouTube needs at least three, each at least 10 s long)

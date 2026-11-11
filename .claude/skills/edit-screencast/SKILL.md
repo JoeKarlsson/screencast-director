@@ -73,9 +73,9 @@ What gives an edit away as made by a template, and what a pro editor does instea
 
 ## 4. Render and report
 
-- `bin/sd render <name>` writes `projects/<name>/<name> <width>x<height>.mp4`. For a quick look, open the project in the Screencast Director app.
-- Scan the export: `bin/director scan "projects/<name>/<export>.mp4"`. Fix each short shot (a flash), each black stretch, and each hitch outside an animation. A hitch "with a steady cadence" is a source's frame rate (usually the camera), not the edit; say so.
-- Hear the export: `bin/director check-words projects/<name> "projects/<name>/<export>.mp4"` transcribes it and lists kept words that didn't make it (a cut clipping a word: move the edge into the gap) and extra words at a cut (a false start riding along: cut it). Render first if it says the export is older than plan.json.
+- `bin/sd render <name>` writes `projects/<name>/publish/<name> <width>x<height>.mp4`. For a quick look, open the project in the Screencast Director app.
+- Scan the export: `bin/director scan "projects/<name>/publish/<export>.mp4"`. Fix each short shot (a flash), each black stretch, and each hitch outside an animation. A hitch "with a steady cadence" is a source's frame rate (usually the camera), not the edit; say so.
+- Hear the export: `bin/director check-words projects/<name> "projects/<name>/publish/<export>.mp4"` transcribes it and lists kept words that didn't make it (a cut clipping a word: move the edge into the gap) and extra words at a cut (a false start riding along: cut it). Render first if it says the export is older than plan.json.
 - For an edit the user will publish, get a second opinion from the `video-critic` agent: give it `.checks/before.png` (and any `before-2.png`...) and the new contact sheets, and act on what it says the new one does worse. It compares them both ways round, so trust a verdict only when both orders agree.
 - Every export carries the plan it rendered: `bin/director provenance "<export>.mp4"` says when it was made and what the plan has changed since.
 - Report the source and output length, and list what you changed in a few lines, with output timestamps so the user can jump to them.
