@@ -74,13 +74,16 @@ struct PublishView: View {
           HStack {
             Text(url.lastPathComponent).font(.system(.body, design: .monospaced))
             Spacer()
-            Button("Copy") {
-              do {
-                let text = try String(contentsOf: url, encoding: .utf8)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-              } catch {
-                Notices.shared.show("Couldn't read \(url.lastPathComponent): \(error.localizedDescription)", error: true)
+            // Videos and GIFs sit here too (exports go in publish/); only text copies.
+            if ["srt", "txt", "md"].contains(url.pathExtension) {
+              Button("Copy") {
+                do {
+                  let text = try String(contentsOf: url, encoding: .utf8)
+                  NSPasteboard.general.clearContents()
+                  NSPasteboard.general.setString(text, forType: .string)
+                } catch {
+                  Notices.shared.show("Couldn't read \(url.lastPathComponent): \(error.localizedDescription)", error: true)
+                }
               }
             }
             Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
