@@ -22,6 +22,8 @@ final class EditorUI: ObservableObject {
   let bubbleDrag = BubbleDragUI()
   /// How far the captions have been dragged in the preview, until the drag ends.
   let captionDrag = BubbleDragUI()
+  /// The sticker or overlay being moved, sized or turned in the preview, until the drag ends.
+  let placeDrag = PlaceDragUI()
 }
 
 struct MainView: View {

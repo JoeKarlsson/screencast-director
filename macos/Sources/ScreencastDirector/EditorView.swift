@@ -79,6 +79,7 @@ struct EditorView: View {
         .overlay { if loading { loadingCover.transition(.opacity) } }
         .overlay { if !loading { BubbleDragger(project: project, playhead: project.playhead, drag: editor.bubbleDrag) } }
         .overlay { if !loading { CaptionDragger(project: project, playhead: project.playhead, drag: editor.captionDrag) } }
+        .overlay { if !loading { PlacementDragger(project: project, playhead: project.playhead, drag: editor.placeDrag) } }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
         .padding(20)

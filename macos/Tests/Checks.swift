@@ -948,6 +948,36 @@ struct Checks {
       return st.sticker(square, level, pose: .full).extent
     }()
     expect(tilted.width > flat.width + 10, "a sticker is tilted by default and sits square with rotation 0 (\(tilted.width) vs \(flat.width))")
+    // The preview's handles: a sticker's box is the one drawn, and moving, sizing and turning write its place.
+    var placedPlan = stuck
+    let handle = placedPlan.placedItems(dir: nil)
+    expect(handle.count == 1 && handle[0].selection == .insert(0) && handle[0].isSticker && handle[0].rotation == Insert.stickerTilt, "a sticker gets handles at its tilt")
+    let handleBox = handle[0].box(in: placedPlan, mediaSize: CGSize(width: 400, height: 400))!
+    expect(abs(handleBox.center.x - stickerBox.midX) < 0.5 && abs(handleBox.size.width - stickerBox.width - 2 * st.stickerBorder) < 0.5,
+      "the handles' box sits on the drawn sticker, border and all (\(handleBox), \(stickerBox))")
+    placedPlan.place(handle[0].moved(by: CGSize(width: -st.W / 2, height: 0), from: handleBox, in: placedPlan).sized(by: 1.5, from: handleBox, in: placedPlan))
+    let movedMeme = placedPlan.inserts![0]
+    expect(abs(movedMeme.x! - (stickerBox.midX / st.W - 0.5)) < 0.001 && movedMeme.w == 0.48, "dragging moves the sticker from where it's drawn, and the corner sizes it (\(movedMeme))")
+    expect(handle[0].turned(to: 2, from: handleBox, in: placedPlan).rotation == 0 && handle[0].turned(to: 370, from: handleBox, in: placedPlan).rotation == 10,
+      "turning snaps square near 0 and wraps a full turn")
+    // An overlay's layer is scaled and turned about its content's center (a Lottie's box), where the renderer draws it.
+    var overPlan = seam
+    overPlan.inserts = [Insert(start: 2, end: 4, file: "a.png", placement: "overlay")]
+    expect(overPlan.inserts![0].overlayTransform(W: st.W, H: st.H) == nil, "an unplaced overlay fills the frame")
+    var over = overPlan.placedItems(dir: nil)[0]
+    over.content = CGRect(x: 100, y: 100, width: 200, height: 100)
+    let overBox = over.box(in: overPlan, mediaSize: nil)!
+    let small = over.sized(by: 0.5, from: overBox, in: overPlan)
+    let turned = small.turned(to: 30, from: small.box(in: overPlan, mediaSize: nil)!, in: overPlan)
+    let turnedBox = turned.box(in: overPlan, mediaSize: nil)!
+    expect(hypot(turnedBox.center.x - 200, turnedBox.center.y - 150) < 3 && abs(turnedBox.size.width - 100) < 0.5, "sizing and turning an overlay keep its content in place (\(turnedBox))")
+    overPlan.place(turned)
+    let drawnCenter = CGPoint(x: 200, y: st.H - 150).applying(overPlan.inserts![0].overlayTransform(W: st.W, H: st.H)!)
+    expect(abs(drawnCenter.x - turnedBox.center.x) < 0.5 && abs(st.H - drawnCenter.y - turnedBox.center.y) < 0.5, "the renderer draws the overlay where its handles are (\(drawnCenter))")
+    var backToFull = turned
+    (backToFull.x, backToFull.y, backToFull.w, backToFull.rotation) = (0.5, 0.5, 1, 0)
+    overPlan.place(backToFull)
+    expect(overPlan.inserts![0].x == nil && overPlan.inserts![0].rotation == nil, "an overlay put back over the whole frame drops its place")
 
     // An end card that runs past the last segment holds to the final frame instead of fading out.
     var ending = seam

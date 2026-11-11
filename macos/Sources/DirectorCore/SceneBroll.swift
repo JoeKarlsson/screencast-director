@@ -79,33 +79,24 @@ extension Scene {
           .concatenating(CGAffineTransform(translationX: rect.midX + pose.dx * rect.width, y: rect.midY - pose.dy * rect.height))
         placed = placed.transformed(by: t)
       }
-      let shown = masked(placed, rect, radius: radius, opacity: min(1, pose.opacity))
-      out = pose.lines < 0.999 ? interlaced(shown, over: out, in: rect, share: pose.lines) : shown.composited(over: out)
+      var shown = masked(placed, rect, radius: radius, opacity: min(1, pose.opacity))
+      var area = rect
+      if overlay, let t = ins.a.overlayTransform(W: W, H: H) {
+        shown = shown.transformed(by: t)
+        area = rect.applying(t)
+      }
+      out = pose.lines < 0.999 ? interlaced(shown, over: out, in: area, share: pose.lines) : shown.composited(over: out)
     }
     return out
   }
 
-  /// Where a sticker sits (Core Image coordinates): `w` of the frame's width at the clip's shape, no
-  /// taller than 80% of the frame, centered on `x`, `y` but kept, border and all, 4% of the frame's
-  /// height from its edges.
+  /// Where a sticker sits (Core Image coordinates): `Plan.stickerFrame` flipped.
   func stickerRect(_ a: Insert, imageSize s: CGSize) -> CGRect {
-    let edge = stickerBorder + H * 0.04
-    var w = W * (a.w ?? 0.32), h = w * s.height / s.width
-    if h > H * 0.8 { (w, h) = (H * 0.8 * s.width / s.height, H * 0.8) }
-    let cx = min(max(W * (a.x ?? 0.74), w / 2 + edge), W - w / 2 - edge)
-    var cy = min(max(H * (a.y ?? 0.3), h / 2 + edge), H - h / 2 - edge)
-    // Clear of the captions too: moved above them, or below when there's no room above.
-    if let band = plan.captionShares, cy + h / 2 + stickerBorder > H * band.top, cy - h / 2 - stickerBorder < H * band.bottom {
-      if H * band.top - edge - h / 2 >= h / 2 + edge {
-        cy = H * band.top - edge - h / 2
-      } else if H * band.bottom + edge + h / 2 <= H - h / 2 - edge {
-        cy = H * band.bottom + edge + h / 2
-      }
-    }
-    return CGRect(x: cx - w / 2, y: H - cy - h / 2, width: w, height: h)
+    let r = plan.stickerFrame(a, imageSize: s)
+    return CGRect(x: r.minX, y: H - r.maxY, width: r.width, height: r.height)
   }
 
-  var stickerBorder: Double { 10 * u }
+  var stickerBorder: Double { plan.stickerBorder }
 
   /// A sticker: the clip or picture in a white border with a soft drop shadow and its meme text,
   /// posed as one piece about its center.

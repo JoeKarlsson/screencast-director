@@ -40,6 +40,11 @@ public struct Animation: Codable, Equatable, Sendable {
     }
   }
 
+  /// Where an overlay sits ({x, y, w, rotation}, as on an overlay insert): its frame-sized layer
+  /// scaled by `w` and turned `rotation` degrees clockwise about the frame's center, which moves to
+  /// `x`, `y`. Unset, it fills the frame. Placing it never re-renders the clip.
+  public var place: Sticker?
+
   /// Over the video without covering or splitting it: an overlay or a sticker.
   public var floats: Bool { isOverlay || sticker != nil }
 
@@ -69,6 +74,7 @@ public struct Animation: Codable, Equatable, Sendable {
       var a = Animation(start: start, end: end, template: $0.template, data: $0.data, cues: $0.cues, note: $0.note)
       a.overlay = overlay
       a.sticker = sticker
+      a.place = place
       return a
     }
   }
@@ -83,7 +89,7 @@ public struct Animation: Codable, Equatable, Sendable {
   }
 
   /// A sticker's width when it doesn't say, as a share of the frame's: a meme sticker's default.
-  public static let stickerWidth = 0.32
+  public static let stickerWidth = Insert.stickerWidth
 
   /// Bump when the templates or the engine change how a clip looks, so cached clips re-render.
   public static let engineVersion = 11
@@ -259,7 +265,11 @@ extension Plan {
       var ins = Insert(
         start: a.start, end: a.end, file: path, from: animationSeek(a), placement: a.sticker != nil ? "sticker" : a.isOverlay ? "overlay" : placement,
         fit: "fill", note: a.note)
-      if let s = a.sticker { (ins.x, ins.y, ins.w, ins.rotation) = (s.x, s.y, s.w ?? Animation.stickerWidth, s.rotation) }
+      if let s = a.sticker {
+        (ins.x, ins.y, ins.w, ins.rotation) = (s.x, s.y, s.w ?? Animation.stickerWidth, s.rotation)
+      } else if a.isOverlay, let p = a.place {
+        (ins.x, ins.y, ins.w, ins.rotation) = (p.x, p.y, p.w, p.rotation)
+      }
       return ins
     }
   }

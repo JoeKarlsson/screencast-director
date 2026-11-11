@@ -116,7 +116,9 @@ public struct Insert: Codable, Equatable, Sendable {
   /// video B-roll follows the camera's room and images stay as they are.
   public var room: String?
   /// A sticker's center (fractions of the frame from its top left; default upper right) and width
-  /// (a fraction of the frame's width, default 0.32). Its height follows the clip's shape.
+  /// (a fraction of the frame's width, default 0.32). Its height follows the clip's shape. On an
+  /// overlay they place its frame-sized layer: scaled by `w` (default 1) and turned `rotation`
+  /// degrees clockwise about the frame's center (default 0), which moves to `x`, `y` (default 0.5).
   public var x: Double?
   public var y: Double?
   public var w: Double?
@@ -124,6 +126,7 @@ public struct Insert: Codable, Equatable, Sendable {
   public var topText: String?
   public var bottomText: String?
   /// A sticker's tilt in degrees, clockwise (default `stickerTilt`, counterclockwise); 0 sits square.
+  /// An overlay's turn (default 0).
   public var rotation: Double?
   public var note: String?
   public init(
