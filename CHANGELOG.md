@@ -4,6 +4,9 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Claude box
+- Each finished ask keeps the steps it took in a folded line ("8 steps · 1 failed · 42 s"), which opens to every step with ✓ or ✗ and how long it ran, so you can see what failed. While it runs, a step that fails shows ✗ right away.
+
 ### Cursor, zooms and cuts
 - The drawn cursor lands exactly on every click: heavy smoothing used to leave the tip beside the button it clicked, so it now eases onto the click's own point a quarter second before, holds, and eases back after.
 - The drawn cursor fades out after resting 1.5 s and fades back in just before it moves, so a still pointer doesn't sit on the screen while you talk. Cursor & Overlays > Hide when still turns it off (`cursor.idleHide: false`); screen effects that follow the pointer still follow it.

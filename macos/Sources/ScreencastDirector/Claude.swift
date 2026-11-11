@@ -41,45 +41,6 @@ enum Claude {
     return (try? String(contentsOf: src, encoding: .utf8)) ?? ""
   }
 
-  /// What a running edit reports: a step it's taking (tool use), or what it says.
-  enum Event {
-    case step(String)
-    case text(String)
-  }
-
-  /// Turns one line of `--output-format stream-json` into events (none for lines it doesn't show).
-  static func events(_ line: String, director: String) -> [Event] {
-    guard let data = line.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      obj["type"] as? String == "assistant", let msg = obj["message"] as? [String: Any],
-      let content = msg["content"] as? [[String: Any]]
-    else { return [] }
-    return content.compactMap { c in
-      switch c["type"] as? String {
-      case "text": return (c["text"] as? String).map { .text($0) }
-      case "tool_use":
-        let input = c["input"] as? [String: Any] ?? [:]
-        switch c["name"] as? String {
-        case "Read": return .step("Reading \(((input["file_path"] as? String) ?? "a file").split(separator: "/").last ?? "")")
-        case "Edit": return .step("Editing the plan")
-        case "Bash":
-          let cmd = (input["command"] as? String ?? "").replacingOccurrences(of: director, with: "director")
-          if cmd.contains("director describe") { return .step("Reading the timeline") }
-          if cmd.contains("director review") { return .step("Reviewing zooms and cuts") }
-          if cmd.contains("director validate") { return .step("Checking the plan") }
-          if cmd.contains("director still") {
-            let frame = cmd.split(separator: " ").dropFirst(3).first.map(String.init) ?? ""
-            return .step("Checking frame \(frame)")
-          }
-          let first = cmd.split(separator: "\n").first.map(String.init) ?? cmd
-          return .step("Running \(first.prefix(48))")
-        case let name?: return .step(name)
-        case nil: return nil
-        }
-      default: return nil
-      }
-    }
-  }
-
   /// How an edit ended: Claude Code's exit status, the end of what it wrote to stderr (why it
   /// stopped, when it fails before saying anything: not signed in, rate limited, a crash), and the
   /// session it ran in, for the next ask to resume.
@@ -97,7 +58,7 @@ enum Claude {
 
   /// Runs the edit, reporting steps and text as it goes, continuing session `resume` when given.
   /// Cancelling the calling task stops Claude.
-  static func edit(project: URL, instruction: String, resume: String?, onEvent: @escaping @Sendable (Event) -> Void) async throws -> Outcome {
+  static func edit(project: URL, instruction: String, resume: String?, onEvent: @escaping @Sendable (ClaudeEdit.Event) -> Void) async throws -> Outcome {
     guard let claude = executable else {
       throw NSError(
         domain: "Claude", code: 1, userInfo: [NSLocalizedDescriptionKey: "Claude Code isn't installed (no `claude` on your PATH)."])
@@ -127,7 +88,7 @@ enum Claude {
       guard !data.isEmpty else { return }
       for line in buffer.append(data) {
         if let id = ClaudeEdit.sessionID(line) { session.set(id) }
-        for e in events(line, director: dir) { onEvent(e) }
+        for e in ClaudeEdit.events(line, director: dir) { onEvent(e) }
       }
     }
     let errors = TailBuffer(limit: 4000)

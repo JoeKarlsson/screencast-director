@@ -36,7 +36,7 @@ When you stop, the app transcribes with whisper.cpp, drafts a plan and opens a l
 
 ![Clicking a dashed cut and pressing Restore, then setting a clip to 2x so it turns striped](media/ui-timeline.gif)
 
-- **Ask the AI** in plain language. The preview reloads when `plan.json` changes.
+- **Ask the AI** in plain language. The preview reloads when `plan.json` changes. Under each finished ask, a folded line ("8 steps · 42 s") opens to every step it took, failed ones marked ✗, with how long each ran.
 - **Timeline tracks:** Clips (blue is real time, orange is sped up, dashed is cut; click a cut to restore it) and Audio always show, Words when there's a transcript, and Zoom, Layout, Punch-in, Titles, Marks, B-roll, Animations, Effects and Sound FX once they have something on them. Drag on the ruler to scrub. Select a bar and drag its handles to trim it; drag it to move it.
 - **Preview volume:** the speaker and slider under the preview set how loud it plays while you edit (click the speaker to mute). Exports keep the video's own levels.
 - **Inspector:** the Selection tab edits the selected item: a clip's speed, a zoom's level and focus (drag on a frame of the recording), a layout's mode, a title's text, and so on. Zooms, punch-ins, layouts, B-roll, animations and effect ranges have a **Label**, which their timeline bar shows and the AI reads. The other tabs are Background & Frame, Camera, Audio, Cursor & Overlays, Format and Transcript. Sections that don't apply to the video fold or hide: the bubble settings fold when no layout shows the bubble, caption settings hide while captions are off.

@@ -28,6 +28,15 @@ func claudeEditChecks() {
   expect(ClaudeEdit.sessionID(#"{"type":"result","session_id":"s-2","is_error":false}"#) == "s-2", "the result line names the session")
   expect(ClaudeEdit.sessionID(#"{"type":"assistant","session_id":"s-3"}"#) == nil, "other lines are ignored")
   expect(ClaudeEdit.sessionID("not json") == nil, "a partial line is ignored")
+
+  // The steps list: tool calls by id, and whether each failed (from the user line's tool_result).
+  let call = #"{"type":"assistant","message":{"content":[{"type":"text","text":"Looking."},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"/d/director validate ."}}]}}"#
+  expect(ClaudeEdit.events(call, director: "/d/director") == [.text("Looking."), .step(id: "t1", text: "Checking the plan")], "a tool call is a step with its id")
+  let failed = #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"exit 1"}]}}"#
+  let worked = #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]}}"#
+  expect(ClaudeEdit.events(failed, director: "/d/director") == [.result(id: "t1", failed: true)], "a failed tool result marks its step failed")
+  expect(ClaudeEdit.events(worked, director: "/d/director") == [.result(id: "t2", failed: false)], "a tool result without is_error worked")
+  expect(ClaudeEdit.events(#"{"type":"user","message":{"content":[{"type":"text","text":"the prompt"}]}}"#, director: "") == [], "the user's own text isn't the AI's reply")
   editPromptCoverageChecks()
 }
 

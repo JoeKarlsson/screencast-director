@@ -50,4 +50,53 @@ public enum ClaudeEdit {
     else { return nil }
     return id
   }
+
+  /// What a running edit reports: a step it starts (a tool call, by its id), how a step ended, or
+  /// what it says.
+  public enum Event: Equatable, Sendable {
+    case step(id: String?, text: String)
+    case result(id: String, failed: Bool)
+    case text(String)
+  }
+
+  /// Turns one line of `--output-format stream-json` into events (none for lines it doesn't show).
+  /// Tool calls come in `assistant` lines, and their results (with `is_error`) in `user` lines.
+  public static func events(_ line: String, director: String) -> [Event] {
+    guard let data = line.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let type = obj["type"] as? String, ["assistant", "user"].contains(type), let msg = obj["message"] as? [String: Any],
+      let content = msg["content"] as? [[String: Any]]
+    else { return [] }
+    return content.compactMap { c in
+      switch c["type"] as? String {
+      case "text" where type == "assistant": return (c["text"] as? String).map { .text($0) }
+      case "tool_result":
+        return (c["tool_use_id"] as? String).map { .result(id: $0, failed: c["is_error"] as? Bool ?? false) }
+      case "tool_use":
+        let input = c["input"] as? [String: Any] ?? [:]
+        return stepText(c["name"] as? String, input, director: director).map { .step(id: c["id"] as? String, text: $0) }
+      default: return nil
+      }
+    }
+  }
+
+  /// A tool call in words, for the steps list.
+  static func stepText(_ name: String?, _ input: [String: Any], director: String) -> String? {
+    switch name {
+    case "Read": return "Reading \(((input["file_path"] as? String) ?? "a file").split(separator: "/").last ?? "")"
+    case "Edit": return "Editing the plan"
+    case "Bash":
+      let cmd = (input["command"] as? String ?? "").replacingOccurrences(of: director, with: "director")
+      if cmd.contains("director describe") { return "Reading the timeline" }
+      if cmd.contains("director review") { return "Reviewing zooms and cuts" }
+      if cmd.contains("director validate") { return "Checking the plan" }
+      if cmd.contains("director still") {
+        let frame = cmd.split(separator: " ").dropFirst(3).first.map(String.init) ?? ""
+        return "Checking frame \(frame)"
+      }
+      let first = cmd.split(separator: "\n").first.map(String.init) ?? cmd
+      return "Running \(first.prefix(48))"
+    case let name?: return name
+    case nil: return nil
+    }
+  }
 }

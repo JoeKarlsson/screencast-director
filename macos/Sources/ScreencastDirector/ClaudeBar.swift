@@ -83,6 +83,14 @@ struct ClaudeBar: View {
     }
   }
 
+  /// "8 steps · 42 s", with how many failed.
+  private func stepsSummary(_ ask: Ask, failed: Int) -> String {
+    var parts = [ask.steps.count == 1 ? "1 step" : "\(ask.steps.count) steps"]
+    if failed > 0 { parts.append("\(failed) failed") }
+    if let s = ask.seconds { parts.append(String(format: "%.0f s", s)) }
+    return parts.joined(separator: " · ")
+  }
+
   private var history: some View {
     ScrollViewReader { scroll in
       ScrollView {
@@ -100,10 +108,31 @@ struct ClaudeBar: View {
                 VStack(alignment: .leading, spacing: 2) {
                   ForEach(Array(ask.steps.suffix(4).enumerated()), id: \.offset) { i, step in
                     let current = i == min(ask.steps.count, 4) - 1
-                    Label(step, systemImage: current ? "circle.dotted" : "checkmark")
-                      .font(.caption).foregroundStyle(current ? .primary : .secondary)
+                    Label(step.text, systemImage: step.failed == true ? "xmark" : current ? "circle.dotted" : "checkmark")
+                      .font(.caption).foregroundStyle(step.failed == true ? Theme.error : current ? .primary : .secondary)
                   }
                 }
+                .padding(.leading, 20)
+              } else if !ask.running, !ask.steps.isEmpty {
+                // Every step it took, folded: which ones failed and how long each ran.
+                DisclosureGroup {
+                  VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(ask.steps.enumerated()), id: \.offset) { _, step in
+                      HStack(spacing: 6) {
+                        Label(step.text, systemImage: step.failed == true ? "xmark" : "checkmark")
+                          .foregroundStyle(step.failed == true ? Theme.error : .secondary)
+                        Spacer()
+                        if let s = step.seconds { Text(String(format: "%.1f s", s)).monospacedDigit().foregroundStyle(.tertiary) }
+                      }
+                      .font(.caption)
+                    }
+                  }
+                } label: {
+                  let failed = ask.steps.filter { $0.failed == true }.count
+                  Text(stepsSummary(ask, failed: failed))
+                    .font(.caption).monospacedDigit().foregroundStyle(failed > 0 ? Theme.error : .secondary)
+                }
+                .help("The steps it took")
                 .padding(.leading, 20)
               }
               if !ask.reply.isEmpty || ask.running {

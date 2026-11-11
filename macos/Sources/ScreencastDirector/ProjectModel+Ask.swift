@@ -14,15 +14,30 @@ struct Ask: Identifiable {
   let instruction: String
   var reply = ""
   var running = true
-  var steps: [String] = []
+  var steps: [AskStep] = []
   var changes: [PlanChange] = []
+  var started = Date()
+  /// How long it took, once it's over.
+  var seconds: Double?
 }
 
-/// What's kept of an ask in .history/asks.json.
+/// One thing the AI did while editing (a tool call), whether it failed, and how long it took.
+struct AskStep: Codable {
+  var text: String
+  var id: String?
+  var failed: Bool?
+  var seconds: Double?
+  var started = Date()
+}
+
+/// What's kept of an ask in .history/asks.json. `steps` is the plain text older versions saved;
+/// `log` has each step's outcome too.
 struct SavedAsk: Codable {
   var instruction: String
   var reply: String
   var steps: [String]?
+  var log: [AskStep]?
+  var seconds: Double?
 }
 
 extension ProjectModel {
@@ -54,7 +69,7 @@ extension ProjectModel {
             outcome = "There was no plan to edit."
             return
           }
-          asks[n].steps.append("Sending the timeline to \(ai.provider.shortName)")
+          asks[n].steps.append(AskStep(text: "Sending the timeline to \(ai.provider.shortName)"))
           let (summary, newPlan) = try await APIEditor.edit(project: project, plan: plan, instruction: request, settings: ai)
           apply { $0 = newPlan }
           asks[n].reply = summary
@@ -77,7 +92,12 @@ extension ProjectModel {
           Task { @MainActor in
             guard self.asks.indices.contains(n) else { return }
             switch event {
-            case .step(let s): self.asks[n].steps.append(s)
+            case .step(let id, let text): self.asks[n].steps.append(AskStep(text: text, id: id))
+            case .result(let id, let failed):
+              if let i = self.asks[n].steps.lastIndex(where: { $0.id == id }) {
+                self.asks[n].steps[i].failed = failed
+                self.asks[n].steps[i].seconds = Date().timeIntervalSince(self.asks[n].steps[i].started)
+              }
             case .text(let t):
               let reply = self.asks[n].reply
               self.asks[n].reply = reply + (reply.isEmpty ? "" : "\n\n") + t
@@ -110,6 +130,7 @@ extension ProjectModel {
   private func finishAsk(_ n: Int, _ outcome: String) {
     guard asks.indices.contains(n) else { return }
     asks[n].running = false
+    asks[n].seconds = Date().timeIntervalSince(asks[n].started)
     asks[n].reply = closingReply(asks[n].reply, outcome: outcome)
     saveAsks()
     // Claude Code writes plan.json itself and the watcher picks it up within a second; compare then.
@@ -160,7 +181,7 @@ extension ProjectModel {
   /// timeline says what each click landed on.
   private func readScreenTextIfNeeded() async throws {
     guard project?.clicks.isEmpty == false, !FileManager.default.fileExists(atPath: ScreenText.url(dir).path) else { return }
-    if !asks.isEmpty { asks[asks.count - 1].steps.append("Reading text on screen") }
+    if !asks.isEmpty { asks[asks.count - 1].steps.append(AskStep(text: "Reading text on screen")) }
     try await readScreenText(dir)
   }
 
@@ -190,13 +211,15 @@ extension ProjectModel {
       let lost = s.reply.hasSuffix(" is editing…")
       return Ask(
         instruction: s.instruction, reply: lost ? "This edit didn't finish, and its reply was lost. Ask again if the change isn't there." : s.reply,
-        running: false, steps: s.steps ?? [])
+        running: false, steps: s.log ?? (s.steps ?? []).map { AskStep(text: $0) }, seconds: s.seconds)
     }
   }
 
   /// Keeps the last 50 asks with the project, so the history survives switching recordings.
   private func saveAsks() {
-    let saved = asks.filter { !$0.running }.suffix(50).map { SavedAsk(instruction: $0.instruction, reply: $0.reply, steps: $0.steps) }
+    let saved = asks.filter { !$0.running }.suffix(50).map {
+      SavedAsk(instruction: $0.instruction, reply: $0.reply, log: $0.steps, seconds: $0.seconds)
+    }
     try? FileManager.default.createDirectory(at: asksURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? JSONEncoder().encode(Array(saved)).write(to: asksURL, options: .atomic)
   }
