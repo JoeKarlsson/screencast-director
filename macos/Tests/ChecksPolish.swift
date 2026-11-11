@@ -89,8 +89,37 @@ func polishChecks() {
   func has(_ kind: String, _ text: String) -> Bool { notes.contains { $0.kind == kind && $0.text.contains(text) } }
   expect(has("camera", "click at out 0:05"), "a zoom that lands on its click is flagged (\(notes.map(\.text)))")
   expect(!notes.contains { $0.text.contains("click at out 0:3") }, "a zoom settled before its click isn't")
-  expect(has("reading", "\"Connect every app"), "a nine-word title up 1.5 s is too short to read")
-  expect(!has("reading", "\"Plugins\""), "a one-word title up 3 s is fine")
+  expect(!notes.contains { $0.kind == "reading" }, "titles' reading time is describe's WARNING now, not a polish note")
+
+  // Pop-ups and titles stay up 3 s, or 0.3 s a word plus half a second, in the output after cuts.
+  var popPlan = plan
+  func sticker(_ start: Double, _ end: Double, top: String? = nil) -> Insert {
+    var s = Insert(start: start, end: end, file: "broll/wow.gif", placement: "sticker")
+    s.topText = top
+    return s
+  }
+  popPlan.insertList = [
+    sticker(33, 35), sticker(8, 13), sticker(8.5, 12.5), sticker(40, 43.8, top: String(repeating: "word ", count: 12)),
+    Insert(start: 33, end: 34, file: "broll/clip.mp4", placement: "full"),
+  ]
+  var note = Animation(start: 40, end: 42.5, template: "note", data: .object(["big": .string("self-hosted"), "small": .string("my models, my permissions")]))
+  note.sticker = Animation.Sticker(x: 0.5, y: 0.2)
+  var title = Animation(start: 44, end: 47.2, template: "storyboard", data: .object(["title": .string("One button")]))
+  title.overlay = true
+  popPlan.animationList = [anim, note, title]
+  let short = PopUp.tooShort(popPlan)
+  func flagged(_ what: String) -> Bool { short.contains { $0.hasPrefix(what) } }
+  expect(flagged("callout #0 \"Connect every app"), "a nine-word title up 1.5 s is too short (\(short))")
+  expect(!flagged("callout #1"), "a one-word title up 3 s is fine")
+  expect(flagged("sticker #0"), "a GIF sticker up 2 s is under the 3 s floor")
+  expect(!flagged("sticker #1"), "a sticker across a cut counts both sides: 2 s before it and 1 s after")
+  expect(flagged("sticker #2"), "1.5 s before a cut and 0.5 s after is 2 s")
+  expect(flagged("sticker #3"), "twelve words of meme text need 4.1 s, more than 3.8 s")
+  expect(!flagged("sticker #4"), "full-frame B-roll isn't a pop-up")
+  expect(flagged("animation #1 (note) \"self-hosted my models, my permissions\""), "a note sticker up 2.5 s")
+  expect(!flagged("animation #0"), "a full-frame explainer isn't a pop-up")
+  expect(!flagged("animation #2"), "an overlay title up 3.2 s is fine")
+  expect(describe(project, popPlan).contains("WARNING: sticker #0 wow.gif at out"), "describe WARNs, so validate fails")
   expect(has("transitions", "two whip transitions in a row"), "the same transition twice in a row")
   expect(has("transitions", "2 of 3 cuts"), "styled transitions on most cuts")
   expect(has("sound", "4 sound effects in 10 s"), "four free sounds in four seconds is busy")

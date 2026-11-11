@@ -14,7 +14,7 @@ func planCheckExtraChecks() {
   plan.outro = nil
   plan.segments = [Segment(start: 0, end: 10, speed: 1), Segment(start: 12, end: 20, speed: 2)]
   plan.zooms = [Zoom(start: 2, end: 5, x: 0.5, y: 0.5, scale: 2)]
-  plan.callouts = [Callout(start: 3, end: 5, text: "Open Settings", style: "chapter")]
+  plan.callouts = [Callout(start: 3, end: 6, text: "Open Settings", style: "chapter")]
   guard let clean = try? JSONEncoder().encode(plan), var json = (try? JSONSerialization.jsonObject(with: clean)) as? [String: Any],
     var callout = (json["callouts"] as? [[String: Any]])?.first
   else {

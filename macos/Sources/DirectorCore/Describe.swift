@@ -62,6 +62,7 @@ private struct Describer: Sendable {
     )
     // Up top, so they can't be missed: they read as glitches.
     for f in flashes(plan, dir: project.dir) { out.append("WARNING: \(describeFlash(f, plan)); make it last a second or more, or cover it") }
+    for line in PopUp.tooShort(plan) { out.append("WARNING: \(line)") }
     do {
       if let scan = try Secrets.load(project.dir) {
         for (i, f) in Secrets.uncovered(scan.findings, plan: plan, allowedKinds: scan.allowedKinds) {

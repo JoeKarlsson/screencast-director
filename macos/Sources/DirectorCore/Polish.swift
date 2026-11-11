@@ -28,7 +28,7 @@ public enum Polish {
   public static let standardPan = 0.6
   /// A camera that stops for less than this between two moves reads as a stutter.
   public static let stutterGap = 0.3
-  /// Reading time for on-screen text: at least this, and a third of a second a word plus half a second.
+  /// Reading time for an annotation's label: at least this, and `PopUp`'s time a word.
   public static let minReadSeconds = 1.5
   /// More sounds than this in any 10 s of output reads as busy (top channels use under one).
   public static let maxSoundsPer10s = 3
@@ -176,24 +176,14 @@ public enum Polish {
 
   // MARK: Items
 
-  /// Titles and annotation labels on screen too briefly to read.
+  /// Annotation labels on screen too briefly to read. Titles and pop-ups too short are describe
+  /// WARNINGs (`PopUp.tooShort`).
   static func reading(_ scene: Scene, _ plan: Plan) -> [PolishNote] {
     let fps = Double(scene.fps)
     func need(_ text: String) -> Double {
-      let words = text.split(whereSeparator: \.isWhitespace).count
-      return max(minReadSeconds, Double(words) * 0.33 + 0.5)
+      max(minReadSeconds, Double(PopUp.words(text)) * PopUp.secondsPerWord + PopUp.extraSeconds)
     }
     var out: [PolishNote] = []
-    for c in scene.callouts {
-      let text = [c.c.text, c.c.subtitle ?? ""].joined(separator: " ")
-      let seconds = (c.e - c.s) / fps, needed = need(text)
-      if seconds < needed {
-        out.append(
-          PolishNote(
-            kind: "reading", outSeconds: c.s / fps,
-            text: "title \"\(c.c.text)\" at out \(fmtTime(c.s / fps)) is up \(fmtSeconds(seconds)) s; its words need \(fmtSeconds(needed)) s to read"))
-      }
-    }
     for a in scene.annotations {
       guard let text = a.a.text, !text.isEmpty else { continue }
       let seconds = (a.e - a.s) / fps, needed = need(text)
