@@ -6,6 +6,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### Cursor, zooms and cuts
 - The drawn cursor lands exactly on every click: heavy smoothing used to leave the tip beside the button it clicked, so it now eases onto the click's own point a quarter second before, holds, and eases back after.
+- Drafted zooms are steadier: the video opens wide for its first 2.5 s, the click that stops the recording gets no zoom, clicks that drift further than one zoomed view can show become two zooms, and two zooms less than 1.5 s apart pan from one to the next instead of zooming out and straight back in.
 
 ### Retention
 - `director review` checks an edit's structure against what hit videos of the same length do, in new `RETENTION` lines: talking too late (an intro card or warm-up before the first word), a vertical video with nothing on its first frame saying what it is, a static screen with nothing new for too long, cutting away from the screen right after a click or typing, running on after the last word, and missing or overlong chapters from 5 minutes up. The limits come from measuring 31 hit videos at five lengths (60 s, 3, 5, 20 and 60 minutes), and vertical video and each social clip are checked by the 60 s rules. `director review <dir> --retention` prints only these.

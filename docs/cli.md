@@ -14,7 +14,7 @@ The `sd` CLI runs the editing pipeline from the terminal on a recording made in 
    - speech at 1x, filler words ("um", "uh") cut
    - typing without narration at 3x, other mouse work at 1.5x, screen changes (builds, scrolling output) at 4x
    - nothing happening: cut
-   - zooms on clusters of clicks and typing, chained into pans when they're close together
+   - zooms on clusters of clicks and typing (as many as one zoomed view can show), chained into pans when they're within 1.5 s, none in the first 2.5 s and none for the click that stops the recording
 
    `sd draft` is the draft the app makes after recording: the plan above, then your default profile, pause level and voice polish (the app's settings), the camera centered on your face and lined up with your voice.
 4. **Edit**: ask Claude with the `/edit-screencast` skill in this repo, or edit `plan.json` yourself. `sd describe` prints the plan as a timeline with what was said in each part.

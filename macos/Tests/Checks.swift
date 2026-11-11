@@ -128,6 +128,24 @@ struct Checks {
     q.events = [InputEvent(t: 2, type: .click, x: 0.2, y: 0.2), InputEvent(t: 3, type: .click, x: 0.8, y: 0.8)]
     let zooms = buildZooms(q)
     expect(zooms.count == 2 && zooms[0].end == zooms[1].start && zooms[1].x == 0.8, "zooms hand off")
+    func clicks(_ list: [(Double, Double, Double)]) -> Project {
+      var z = Project(dir: URL(fileURLWithPath: "/tmp"), source: src)
+      z.events = list.map { InputEvent(t: $0.0, type: .click, x: $0.1, y: $0.2) }
+      return z
+    }
+    let stop = buildZooms(clicks([(5, 0.5, 0.5), (src.duration - 0.5, 0.9, 0.1)]))
+    expect(stop.count == 1 && stop[0].x == 0.5, "the click that stops the recording gets no zoom (\(stop))")
+    // Each step is within zoomDistance, but the walk ends up further than one 1.6x view can show.
+    let drift = buildZooms(clicks([(5, 0.1, 0.5), (5.5, 0.28, 0.5), (6, 0.46, 0.5), (6.5, 0.64, 0.5)]))
+    expect(drift.count == 2, "clicks that don't fit one zoom's view split into two zooms (\(drift.map(\.x)))")
+    let close = buildZooms(clicks([(4, 0.2, 0.2), (7.5, 0.8, 0.8)]))
+    expect(close.count == 2 && close[0].end == close[1].start, "zooms a moment apart pan instead of popping out and back (\(close))")
+    let apart = buildZooms(clicks([(4, 0.2, 0.2), (10, 0.8, 0.8)]))
+    expect(apart.count == 2 && apart[0].end < apart[1].start, "zooms far apart still go back to wide between them")
+    var opening = clicks([(0.5, 0.3, 0.3), (6, 0.7, 0.7)])
+    opening.source.duration = 12
+    let opened = buildPlan(opening).zooms
+    expect(opened.allSatisfy { $0.start >= 2.5 }, "the video opens wide: no zoom in its first 2.5 s (\(opened.map(\.start)))")
 
     // Manual edits.
     var plan = buildPlan(p)

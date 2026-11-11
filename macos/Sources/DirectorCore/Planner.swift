@@ -28,6 +28,15 @@ public enum Rules: Sendable {
   static let zoomLeadIn = 0.6
   static let zoomHold = 1.5
   static let minZoom = 1.5
+  /// Clicks and keys this close to the end are stopping the recording, not part of the demo.
+  static let zoomEndIgnore = 1.0
+  /// A zoom's clicks, plus this much of the frame as margin, must fit in its 1.6x view.
+  static let zoomMargin = 0.12
+  static let clickZoomScale = 1.6
+  /// The video stays wide for its first seconds, so viewers see where they are.
+  static let wideOpening = 2.5
+  /// Two zooms closer than this pan from one to the next instead of zooming out and back in.
+  static let minWide = 1.5
 
   public static func isFiller(_ text: String) -> Bool {
     text.range(of: #"^(um+|uh+|erm+|uhm+|ah+|hmm+)[.,!?]*$"#, options: [.regularExpression, .caseInsensitive]) != nil
@@ -165,10 +174,16 @@ public func buildZooms(_ p: Project) -> [Zoom] {
   }
 
   var clusters: [[Focus]] = []
+  func fits(_ c: [Focus]) -> Bool {
+    let xs = c.map(\.fx), ys = c.map(\.fy)
+    let view = 1 / Rules.clickZoomScale - Rules.zoomMargin
+    return xs.max()! - xs.min()! <= view && ys.max()! - ys.min()! <= view
+  }
   for f in focus {
     if f.fx < 0 || f.fx > 1 || f.fy < 0 || f.fy > 1 { continue }  // another display
-    if let prev = clusters.last?.last, f.e.t - prev.e.t <= Rules.zoomGap,
-      hypot(f.fx - prev.fx, f.fy - prev.fy) <= Rules.zoomDistance {
+    if f.e.t > p.source.duration - Rules.zoomEndIgnore { continue }
+    if let c = clusters.last, let prev = c.last, f.e.t - prev.e.t <= Rules.zoomGap,
+      hypot(f.fx - prev.fx, f.fy - prev.fy) <= Rules.zoomDistance, fits(c + [f]) {
       clusters[clusters.count - 1].append(f)
     } else {
       clusters.append([f])
@@ -184,11 +199,12 @@ public func buildZooms(_ p: Project) -> [Zoom] {
       start: roundTo(start, 2), end: roundTo(min(end, p.source.duration), 2),
       x: roundTo(c.map(\.fx).reduce(0, +) / Double(c.count), 3),
       y: roundTo(c.map(\.fy).reduce(0, +) / Double(c.count), 3),
-      scale: typing ? 2 : 1.6, note: typing ? "typing (\(c.count) keys)" : "\(c.count) click(s)")
+      scale: typing ? 2 : Rules.clickZoomScale, note: typing ? "typing (\(c.count) keys)" : "\(c.count) click(s)")
   }
-  // Overlapping zooms hand off: the earlier one ends where the next begins (renders as a pan).
+  // Overlapping or nearly touching zooms hand off: the earlier one ends where the next begins
+  // (renders as a pan), so the camera never pops out and straight back in.
   if zooms.count > 1 {
-    for i in 0..<(zooms.count - 1) where zooms[i].end > zooms[i + 1].start { zooms[i].end = zooms[i + 1].start }
+    for i in 0..<(zooms.count - 1) where zooms[i].end > zooms[i + 1].start - Rules.minWide { zooms[i].end = zooms[i + 1].start }
   }
   // Nor does a zoom: it ends where the next take starts.
   for j in p.source.joins ?? [] {
@@ -198,15 +214,30 @@ public func buildZooms(_ p: Project) -> [Zoom] {
 }
 
 public func buildPlan(_ p: Project) -> Plan {
-  Plan(
+  let segments = buildSegments(p)
+  return Plan(
     source: .init(video: p.source.video, width: p.source.width, height: p.source.height, duration: p.source.duration),
     camera: p.source.camera,
     output: .init(width: 1920, height: 1080, fps: 30),
     style: .standard,
-    segments: buildSegments(p), zooms: buildZooms(p),
+    segments: segments, zooms: openWide(buildZooms(p), segments),
     defaultLayout: p.source.camera != nil ? .pip : .screen, layouts: [],
     captions: .init(enabled: !p.words.isEmpty, maxWords: 7),
     clickRipples: true, shortcutChips: true, callouts: [])
+}
+
+/// Zooms starting in the edit's first `Rules.wideOpening` seconds start then instead (dropped when
+/// too little is left), so the video opens on the whole screen.
+private func openWide(_ zooms: [Zoom], _ segments: [Segment]) -> [Zoom] {
+  let fps = 30
+  let mapped = mapSegments(segments, fps: fps)
+  guard let opening = outToSrc(mapped, Rules.wideOpening * Double(fps), fps: fps) else { return [] }
+  return zooms.compactMap { z in
+    guard z.start < opening else { return z }
+    var z = z
+    z.start = roundTo(opening, 2)
+    return z.end - z.start >= Rules.minZoom ? z : nil
+  }
 }
 
 /// A clip under `Rules.minClip` that plays straight into a neighbor at another speed (the idle edge a
