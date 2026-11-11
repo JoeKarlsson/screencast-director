@@ -284,6 +284,23 @@ for _ in $(seq 1 150); do [[ "$(last_reply)" == *"Not signed in"* ]] && break; s
 [[ "$(last_reply)" == *"exit status 1"*"Not signed in"* ]] || fail "a failed edit didn't close out with Claude's error (reply: $(last_reply))"
 echo "ok: a failed edit closed out with Claude's error"
 
+# 8a. Rewind: the plan changes after that ask, ↺ beside it (confirmed in its sheet) puts plan.json
+# back to the copy saved when the ask started, and the ask is marked rewound.
+ask_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[-1]["id"])' "$PROJECT/.history/asks.json")"
+checkpoint_segments() { python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["segments"], sort_keys=True))' "$PROJECT/.history/asks/$ask_id.json"; }
+saved="$(checkpoint_segments)" || fail "no rewind point saved for the ask"
+python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); p["segments"][-1]["speed"]=2; json.dump(p,open(sys.argv[1],"w"),indent=2)' "$PROJECT/plan.json"
+[[ "$(segments)" != "$saved" ]] || fail "changing plan.json after the ask didn't change it"
+sleep 1.5
+[[ "$(press_help "Rewind to before this ask")" == pressed ]] || fail "no rewind button beside the finished ask"
+for _ in $(seq 1 25); do [[ "$(ax 'exists sheet 1 of window 1')" == true ]] && break; sleep 0.2; done
+ax 'click button "Rewind" of sheet 1 of window 1' >/dev/null || fail "no Rewind button in the confirmation sheet"
+for _ in $(seq 1 25); do [[ "$(segments)" == "$saved" ]] && break; sleep 0.2; done
+[[ "$(segments)" == "$saved" ]] || fail "rewinding didn't put plan.json back to the plan from before the ask"
+[[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[-1].get("rewound"))' "$PROJECT/.history/asks.json")" == True ]] ||
+  fail "the rewound ask isn't marked rewound"
+echo "ok: rewinding to before an ask restored its saved plan and marked it rewound"
+
 # 8b. The transport bar's speaker button mutes the preview and unmutes it again, so the defaults the
 # test instance shares with your installed copy end unmuted (it starts unmuted: -previewMuted NO).
 [[ "$(press_help "Mute the preview (the export isn't affected)")" == pressed ]] || fail "no mute button under the preview"
