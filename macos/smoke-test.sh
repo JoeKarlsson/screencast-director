@@ -99,7 +99,8 @@ front() {
   fail "couldn't bring the test instance to the front"
 }
 
-# 1. The editor appears with the project's timeline.
+# 1. The editor appears with the project's timeline: two clips and the click zoom (the typing zoom falls in the
+# opening 2.5 s, which stays wide).
 bars=0
 for _ in $(seq 1 60); do
   bars="$(ax "if (count of windows) = 0 then return 0
@@ -108,10 +109,10 @@ for _ in $(seq 1 60); do
       on error
         return 0
       end try" 2>/dev/null || echo 0)"
-  [[ "$bars" -ge 4 ]] && break
+  [[ "$bars" -ge 3 ]] && break
   sleep 0.5
 done
-[[ "$bars" -ge 4 ]] || fail "editor didn't show the timeline (found $bars bars)"
+[[ "$bars" -ge 3 ]] || fail "editor didn't show the timeline (found $bars bars)"
 echo "ok: editor open, $bars timeline bars"
 
 # 2. Pressing the 10.5-13.1 s clip selects it and the inspector shows it. Bars have no AX labels and
