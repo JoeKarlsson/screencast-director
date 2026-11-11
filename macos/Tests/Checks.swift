@@ -1117,6 +1117,7 @@ struct Checks {
     planFileChecks()
     planCheckExtraChecks()
     polishChecks()
+    faceCoverChecks()
     scanPolishChecks()
     wordCheckChecks()
     claudeEditChecks()

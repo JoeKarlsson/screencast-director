@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // `director review`'s polish notes (Polish.swift) and the camera timing they measure: moves timed
@@ -193,4 +194,46 @@ func wordCheckChecks() {
   // A clip that starts inside a word still expects it: that's the clipped word.
   plan.segments = [Segment(start: 1.2, end: 5, speed: 1)]
   expect(WordCheck.expected(plan, words: words).map(\.text) == ["hello"], "a word the clip's start cuts into is expected")
+}
+
+/// Pop-ups over the face (FaceCover): what a pop-up covers, and a clear spot for it. The Vision
+/// half, on a real face, is in Media.swift.
+func faceCoverChecks() {
+  // Two 400x400 frames; the second has a white square over x 0-200, y 100-300 (top-left).
+  func frame(_ square: CGRect?) -> CGImage {
+    let ctx = CGContext(
+      data: nil, width: 400, height: 400, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.setFillColor(CGColor(red: 0.2, green: 0.1, blue: 0.3, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+    if let s = square {
+      ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+      ctx.fill(CGRect(x: s.minX, y: 400 - s.maxY, width: s.width, height: s.height))
+    }
+    return ctx.makeImage()!
+  }
+  let under = frame(nil), over = frame(CGRect(x: 0, y: 100, width: 200, height: 200))
+  let half = FaceCover.covered(face: CGRect(x: 100, y: 100, width: 200, height: 200), under: under, over: over)
+  expect(abs(half.share - 0.5) < 0.05, "a square over half the face box covers half of it (\(half.share))")
+  expect(half.drawn.map { abs($0.minX) < 8 && abs($0.minY - 100) < 8 && abs($0.width - 200) < 8 } == true, "the drawn box is the square (\(String(describing: half.drawn)))")
+  let clear = FaceCover.covered(face: CGRect(x: 250, y: 0, width: 150, height: 150), under: under, over: over)
+  expect(clear.share == 0, "a square away from the face covers none of it")
+  expect(FaceCover.covered(face: nil, under: under, over: under).drawn == nil, "nothing drawn, nothing found")
+
+  // A clear spot in a vertical video: inside the apps' safe area, off the face and the captions.
+  let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 12, captureStart: nil, camera: nil)
+  var tall = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
+  tall.output = Plan.Output(width: 1080, height: 1920, fps: 30)
+  tall.captions.enabled = true
+  tall.captions.y = 0.7
+  let face = CGRect(x: 200, y: 500, width: 600, height: 700)
+  guard let spot = FaceCover.clearSpot(tall, face: face, shape: CGSize(width: 400, height: 300)), let safe = SafeArea.rect(tall),
+    let band = tall.captionShares
+  else {
+    expect(false, "a vertical frame with a face has a clear spot")
+    return
+  }
+  let captions = CGRect(x: 0, y: 1920 * band.top, width: 1080, height: 1920 * (band.bottom - band.top))
+  expect(safe.contains(spot) && !spot.intersects(face) && !spot.intersects(captions), "the clear spot avoids the face and captions (\(spot))")
+  expect(abs(spot.width / spot.height - 4.0 / 3) < 0.01, "the spot is the pop-up's shape")
 }

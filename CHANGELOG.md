@@ -40,6 +40,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - In vertical and square videos the camera pans to a click and parks on it before the click lands, instead of moving through the press.
 
 ### Editing
+- `director faces <dir>` finds your face under each sticker, sticker animation and title (rendered a moment after it lands, in its middle and just before it leaves) and says how much of it each covers, with a clear spot to move it to, off your face, the captions and the apps' buttons; `director review` lists each one covering more than a tenth of your face.
 - Pop-ups and titles stay up long enough to read: `describe` warns, and `director validate` fails, on any callout, meme or picture sticker, sticker animation (like a note) or overlay animation that's on screen under 3 s of the output, or under 0.3 s a word plus half a second when it has more to read. Review's reading-time note now covers only box and arrow labels.
 - Cut pauses keep a breath where a sentence ends: about 0.45 s between sentences and 0.7 s when you pause longer to move on to a new thought (at the normal pause level; gentle keeps more, tight less), with the breath after your last word. Pauses in the middle of a sentence are cut as tight as before, so the rhythm sounds like you rather than a string of jump cuts. New drafts and `director pauses` use it.
 

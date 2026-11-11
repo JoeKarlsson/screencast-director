@@ -18,6 +18,7 @@ let usage = """
     director animate-variants <dir> <index>          render animation #index and each of its alternates to .checks/, with one sheet comparing them (a row each)
     director animate-choose <dir> <index> <k>       play alternate k of animation #index, keeping the one it replaces as an alternate
     director review   <dir>                         what each zoom shows, cut edges inside words, frames to check
+    director faces    <dir>                         where the face is under each sticker and title, how much they cover, and a clear spot
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
     director contact-sheet <dir> <out.png> [--preset id | --clip name]   a labeled frame at each cut, item and animation beat (out-2.png... for long edits)
@@ -363,6 +364,17 @@ do {
     let project = try Project.load(dir)
     let plan = try Plan.load(project.planURL)
     print(editReview(project, plan, cameraFPS: await Polish.cameraFrameRate(project, plan)))
+    // Pop-ups over the face: rendered frames, so only with a camera to find a face in.
+    if plan.camera != nil {
+      let over = try await FaceCover.check(project, plan).filter(\.covers)
+      for s in over { print("POLISH face: \(FaceCover.describe(s, plan)); move it there or out of the face") }
+    }
+  case "faces":
+    let project = try Project.load(dir)
+    let plan = try Plan.load(project.planURL)
+    let samples = try await FaceCover.check(project, plan)
+    if samples.isEmpty { print("No stickers or titles over the video.") }
+    for s in samples { print((s.covers ? "COVERS FACE: " : "") + FaceCover.describe(s, plan)) }
   case "animate":
     let project = try Project.load(dir)
     let plan = try planFor(project)

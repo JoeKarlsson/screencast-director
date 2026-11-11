@@ -527,6 +527,28 @@ struct Media {
       expect(left(withPerson) != nil && left(withPerson) != left(without), "the person is drawn on the left of the thumbnail")
     }
 
+    // Pop-ups over the face: a sticker on the face is found in every frame with a face and gets
+    // a clear spot off it; one in the corner covers nothing.
+    var popped = plan
+    popped.captions.enabled = false
+    popped.layouts = [LayoutRange(start: 0, end: length, mode: .camera)]
+    let ctx = CGContext(data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.setFillColor(CGColor(red: 0.1, green: 0.9, blue: 0.2, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+    try FileManager.default.createDirectory(at: dir.appendingPathComponent("broll"), withIntermediateDirectories: true)
+    try Publish.writePNG(ctx.makeImage()!, to: dir.appendingPathComponent("broll/green.png"))
+    var onFace = Insert(start: 2, end: 6, file: "broll/green.png", placement: "sticker", note: "on the face")
+    (onFace.x, onFace.y, onFace.w, onFace.rotation) = (0.5, 0.45, 0.3, 0)
+    var corner = Insert(start: 10, end: 14, file: "broll/green.png", placement: "sticker", note: "in the corner")
+    (corner.x, corner.y, corner.w, corner.rotation) = (0.1, 0.14, 0.1, 0)
+    popped.insertList = [onFace, corner]
+    let samples = try await FaceCover.check(project, popped)
+    let first = samples.filter { $0.item.hasPrefix("sticker #0") }, second = samples.filter { $0.item.hasPrefix("sticker #1") }
+    expect(first.count == 3 && first.allSatisfy { $0.face != nil && $0.covers }, "a sticker on the face covers it at all three samples (\(samples.map { FaceCover.describe($0, popped) }))")
+    expect(first.allSatisfy { s in s.clear.map { !$0.intersects(s.face!) } == true }, "and gets a clear spot off the face")
+    expect(second.count == 3 && second.allSatisfy { $0.face != nil && !$0.covers && $0.drawn != nil }, "a corner sticker is drawn and covers nothing")
+
     // Lip sync: the clip's own camera (in sync) reads within 50 ms of 0 once lips leading the voice
     // is allowed for (it read -0.094 s before; its 10 s windows don't all agree, so it isn't
     // "confident"), and a camera file that starts 0.3 s into the same footage is found, confidently,
