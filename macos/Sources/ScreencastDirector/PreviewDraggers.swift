@@ -109,8 +109,9 @@ struct BubbleDragger: View {
 final class PlaceDragUI: ObservableObject {
   /// Where the sticker or overlay being dragged would land.
   @Published var live: PlacedItem?
-  /// It and its box when the drag began.
-  var start: (item: PlacedItem, box: PlacedItem.Box)?
+  /// It, its box and the pointer when the drag began (a drag cancelled before its end leaves
+  /// this behind, so a drag from another point starts afresh).
+  var start: (item: PlacedItem, box: PlacedItem.Box, at: CGPoint)?
   /// Pictures' and clips' sizes, by file, for stickers' boxes.
   @Published private var sizes: [String: CGSize] = [:]
   private var reading: Set<String> = []
@@ -150,12 +151,13 @@ struct PlacementDragger: View {
     .coordinateSpace(.named("placer"))
   }
 
-  /// Stickers on screen at the playhead, and the selected overlay when it is, each with its box.
+  /// Stickers on screen at the playhead, and the selected overlay when it is, each with its box;
+  /// none while playing.
   private func shown(_ plan: Plan) -> [(item: PlacedItem, box: PlacedItem.Box)] {
     _ = playhead.frame
-    let t = project.playheadSrc
-    return plan.placedItems(dir: project.dir).compactMap { found in
-      guard t >= found.start, t < found.end, found.isSticker || project.selection == found.selection else { return nil }
+    guard !project.isPlaying else { return [] }
+    return plan.placedItems(dir: project.dir, at: project.playheadSrc).compactMap { found in
+      guard found.isSticker || project.selection == found.selection else { return nil }
       let item = drag.live?.selection == found.selection ? drag.live! : found
       return item.box(in: plan, mediaSize: item.isSticker ? drag.size(item.file, dir: project.dir) : nil).map { (item, $0) }
     }
@@ -219,8 +221,8 @@ struct PlacementDragger: View {
   ) -> some Gesture {
     DragGesture(minimumDistance: 2, coordinateSpace: .named("placer"))
       .onChanged { v in
-        if drag.start == nil { drag.start = (item, box) }
-        if let start = drag.start { drag.live = place(start, v) }
+        if drag.start?.at != v.startLocation { drag.start = (item, box, v.startLocation) }
+        if let start = drag.start { drag.live = place((start.item, start.box), v) }
       }
       .onEnded { _ in
         if let live = drag.live {

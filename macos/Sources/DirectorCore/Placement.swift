@@ -168,11 +168,12 @@ extension Plan {
     return CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
   }
 
-  /// Every sticker and overlay, B-roll and animations alike, as the preview's handles move them.
+  /// Every sticker and overlay, B-roll and animations alike, as the preview's handles move them;
+  /// with `at`, only those on screen at that source time (an animation's clip name hashes files).
   /// An animation's `file` is its clip (which may not be rendered yet).
-  public func placedItems(dir: URL?) -> [PlacedItem] {
+  public func placedItems(dir: URL?, at t: Double? = nil) -> [PlacedItem] {
     var out: [PlacedItem] = []
-    for (i, a) in insertList.enumerated() where a.isOverlay {
+    for (i, a) in insertList.enumerated() where a.isOverlay && t.map({ $0 >= a.start && $0 < a.end }) != false {
       let s = a.isSticker
       out.append(
         PlacedItem(
@@ -180,7 +181,7 @@ extension Plan {
           y: a.y ?? (s ? Insert.stickerY : 0.5), w: a.w ?? (s ? Insert.stickerWidth : 1), rotation: a.rotation ?? (s ? Insert.stickerTilt : 0),
           file: a.file))
     }
-    for (i, a) in animationList.enumerated() where a.floats {
+    for (i, a) in animationList.enumerated() where a.floats && t.map({ $0 >= a.start && $0 < a.end }) != false {
       let s = a.sticker != nil
       let p = a.sticker ?? a.place
       out.append(

@@ -952,6 +952,7 @@ struct Checks {
     var placedPlan = stuck
     let handle = placedPlan.placedItems(dir: nil)
     expect(handle.count == 1 && handle[0].selection == .insert(0) && handle[0].isSticker && handle[0].rotation == Insert.stickerTilt, "a sticker gets handles at its tilt")
+    expect(placedPlan.placedItems(dir: nil, at: 3).count == 1 && placedPlan.placedItems(dir: nil, at: 4).isEmpty, "only what's on screen at the playhead gets handles")
     let handleBox = handle[0].box(in: placedPlan, mediaSize: CGSize(width: 400, height: 400))!
     expect(abs(handleBox.center.x - stickerBox.midX) < 0.5 && abs(handleBox.size.width - stickerBox.width - 2 * st.stickerBorder) < 0.5,
       "the handles' box sits on the drawn sticker, border and all (\(handleBox), \(stickerBox))")
