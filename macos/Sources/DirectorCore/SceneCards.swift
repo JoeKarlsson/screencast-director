@@ -251,9 +251,15 @@ extension Scene {
   /// over the 0.15 s before its next move. Never faded within 0.5 s of a click.
   func cursorAlpha(at t: Double) -> Double {
     if clickTimes.contains(where: { abs($0 - t) < 0.5 }) { return 1 }
-    let last = pointerMoves.last { $0 <= t } ?? pointer[0].t
+    // The first move after t (binary search: a long recording has ~100k moves, checked every frame).
+    var lo = 0, hi = pointerMoves.count
+    while lo < hi {
+      let mid = (lo + hi) / 2
+      if pointerMoves[mid] <= t { lo = mid + 1 } else { hi = mid }
+    }
+    let last = lo > 0 ? pointerMoves[lo - 1] : pointer[0].t
     let fadingOut = 1 - (t - last - 1.5) / 0.3
-    let fadingIn = pointerMoves.first { $0 > t }.map { 1 - ($0 - t) / 0.15 } ?? 0
+    let fadingIn = lo < pointerMoves.count ? 1 - (pointerMoves[lo] - t) / 0.15 : 0
     return min(1, max(0, fadingOut, fadingIn))
   }
 
