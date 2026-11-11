@@ -35,7 +35,7 @@ extension ProjectModel {
   }
 
   func cutTranscriptSelection() {
-    guard let r = transcriptRange else { return }
+    guard let r = transcriptSel.flatMap({ wordCutRange($0, in: words) }) else { return }
     apply { $0.cut(range: r) }
     status = "Cut \(fmtTime(r.upperBound - r.lowerBound)) of speech. ⌘Z puts it back."
     transcriptSel = nil
@@ -93,7 +93,7 @@ extension ProjectModel {
   }
 
   func restoreTranscriptSelection() {
-    guard let r = transcriptRange else { return }
+    guard let r = transcriptSel.flatMap({ wordCutRange($0, in: words) }) else { return }
     apply { $0.restore(range: r) }
     status = "Restored \(fmtTime(r.upperBound - r.lowerBound))."
     transcriptSel = nil

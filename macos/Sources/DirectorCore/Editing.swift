@@ -168,18 +168,20 @@ public func zoomFocus(at t: Double, clicks: [InputEvent]) -> (x: Double, y: Doub
 }
 
 extension Plan {
-  /// Cuts a source time range out of the edit, splitting clips as needed.
+  /// Cuts a source time range out of the edit, splitting clips as needed. A piece of a clip under
+  /// two frames left beside the cut goes too, since it would only flash by.
   public mutating func cut(range: Range<Double>) {
     guard range.upperBound > range.lowerBound else { return }
+    let sliver = 2 / Double(output.fps)
     segments = segments.flatMap { s -> [Segment] in
       if range.upperBound <= s.start || range.lowerBound >= s.end { return [s] }
       var parts: [Segment] = []
-      if range.lowerBound > s.start {
+      if range.lowerBound - s.start >= sliver {
         var left = s
         left.end = range.lowerBound
         parts.append(left)
       }
-      if range.upperBound < s.end {
+      if s.end - range.upperBound >= sliver {
         var right = s
         right.start = range.upperBound
         parts.append(right)

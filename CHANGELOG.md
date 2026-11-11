@@ -7,6 +7,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ### Cursor, zooms and cuts
 - The drawn cursor lands exactly on every click: heavy smoothing used to leave the tip beside the button it clicked, so it now eases onto the click's own point a quarter second before, holds, and eases back after.
 - The drawn cursor fades out after resting 1.5 s and fades back in just before it moves, so a still pointer doesn't sit on the screen while you talk. Cursor & Overlays > Hide when still turns it off (`cursor.idleHide: false`); screen effects that follow the pointer still follow it.
+- Cutting words in the transcript takes the pause after them too, up to 70 ms before the next word, so deleting a sentence leaves one natural pause instead of two. Any cut (the timeline, the transcript, `director cut`) also takes a leftover piece under two frames beside it, which would only flash by.
 - Drafted zooms are steadier: the video opens wide for its first 2.5 s, the click that stops the recording gets no zoom, clicks that drift further than one zoomed view can show become two zooms, and two zooms less than 1.5 s apart pan from one to the next instead of zooming out and straight back in.
 
 ### Retention

@@ -381,6 +381,14 @@ public func wordRange(_ sel: ClosedRange<Int>, in words: [Word]) -> Range<Double
   return b > a ? a..<b : nil
 }
 
+/// What cutting the selected words takes out: the words and the pause after them, up to 70 ms
+/// before the next word (never past the pause's middle), so a deletion leaves one pause, not two.
+public func wordCutRange(_ sel: ClosedRange<Int>, in words: [Word]) -> Range<Double>? {
+  guard let r = wordRange(sel, in: words), sel.upperBound + 1 < words.count else { return wordRange(sel, in: words) }
+  let gap = words[sel.upperBound + 1].start - r.upperBound
+  return gap > 0 ? r.lowerBound..<(r.upperBound + max(gap - 0.07, gap / 2)) : r
+}
+
 /// Whether every selected word is already cut (then the transcript's action is Restore).
 public func wordsAreCut(_ sel: ClosedRange<Int>, in words: [Word], plan: Plan) -> Bool {
   guard sel.upperBound < words.count else { return false }

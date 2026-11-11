@@ -118,6 +118,16 @@ func editorActionChecks() {
   expect(wordIndex(at: 1.3, in: words) == 1 && wordIndex(at: 1.1, in: words) == nil && wordIndex(at: 11, in: words) == 3 && wordIndex(at: 1, in: []) == nil,
     "word under the playhead")
   expect(wordRange(0...1, in: words) == 0.5..<1.6 && wordRange(2...4, in: words) == nil, "selected words' range")
+  let cutHello = wordCutRange(0...0, in: words)!
+  expect(cutHello.lowerBound == 0.5 && abs(cutHello.upperBound - 1.13) < 1e-9, "a word cut takes the pause after it, leaving 70 ms before the next word (\(cutHello))")
+  let tight = [Word(text: "a", start: 0, end: 1), Word(text: "b", start: 1.1, end: 2)]
+  expect(abs(wordCutRange(0...0, in: tight)!.upperBound - 1.05) < 1e-9, "a short pause is cut only to its middle")
+  expect(wordCutRange(3...3, in: words) == 11..<11.5, "the last word's cut ends with the word")
+  var slivered = base
+  slivered.segments = [Segment(start: 0, end: 10, speed: 1)]
+  slivered.cut(range: 2..<5)
+  slivered.cut(range: 5.05..<7)
+  expect(slivered.segments.map(\.start) == [0, 7], "a cut leaving a 2-frame sliver beside another cut takes the sliver too (\(slivered.segments))")
   expect(wordsAreCut(2...2, in: words, plan: base) && !wordsAreCut(1...2, in: words, plan: base), "Restore only when every selected word is cut")
   expect(extendWordSelection(1...1, by: 1, wordCount: 4) == 1...2 && extendWordSelection(1...3, by: 1, wordCount: 4) == 1...3, "⇧→ grows to the last word")
   expect(extendWordSelection(1...2, by: -5, wordCount: 4) == 1...1, "⇧← shrinks to the first word")
