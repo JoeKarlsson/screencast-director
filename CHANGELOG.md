@@ -2,7 +2,9 @@
 
 Each release lists what changed for people using the app or the CLI. The version lives in `VERSION`; `macos/release.sh` tags it and publishes the build.
 
-## Unreleased
+## 0.3.0 (2026-11-12)
+
+To install: download the zip below, unzip it and drag Screencast Director to Applications. This build isn't notarized by Apple yet, so the first time you open it, go to System Settings › Privacy & Security and click Open Anyway. Speech to text (whisper-cli) comes with the app; Getting Started gives you the command for the model. To use a look someone shared with you (a .sdpack file), install it with File › Install Pack….
 
 ### Packs and themes
 - Packs: one `.sdpack` file (or a folder) carries a look to another Mac: profiles with their fonts, logos, LUTs and music, animation themes, templates, logos, Lotties, effects, sounds, music and a work library. Install one with File › Install Pack… or by double-clicking it; the Profile menu's **Export Profiles as a Pack…** makes one. Files you already have are skipped, ones that differ are listed and replaced only when you say so, and nothing in a pack runs when it installs. Agents use `director pack install|export|list|remove`. See docs/packs.md.
