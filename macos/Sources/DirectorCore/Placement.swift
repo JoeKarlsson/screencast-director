@@ -248,10 +248,11 @@ public struct ClipOnFrame: Equatable, Sendable {
   }
 
   /// A drag of `d` output pixels on the frame as a layout move: shares of the clip's width, along
-  /// the clip's own (unturned) axes.
-  public func layoutMove(_ d: CGSize) -> (x: Double, y: Double) {
-    let t = -rotation * .pi / 180
-    return ((d.width * cos(t) - d.height * sin(t)) / rect.width, (d.width * sin(t) + d.height * cos(t)) / rect.width)
+  /// the clip's own (unturned) axes, for a piece the animation's camera magnifies `zoom` times now
+  /// (its move is drawn that much larger, so the piece lands under the pointer).
+  public func layoutMove(_ d: CGSize, zoom: Double = 1) -> (x: Double, y: Double) {
+    let t = -rotation * .pi / 180, span = rect.width * max(zoom, 0.01)
+    return ((d.width * cos(t) - d.height * sin(t)) / span, (d.width * sin(t) + d.height * cos(t)) / span)
   }
 }
 

@@ -1074,6 +1074,8 @@ struct Checks {
       "a sticker animation's clip sits inside its border, turned with it (\(wholeClip), \(stickerHandles))")
     let along = onFrame.layoutMove(CGSize(width: 50 * cos(Double.pi / 18), height: 50 * sin(Double.pi / 18)))
     expect(abs(along.x - 50 / onFrame.rect.width) < 1e-9 && abs(along.y) < 1e-9, "a drag along the turned clip moves a piece along its width (\(along))")
+    let pushedIn = onFrame.layoutMove(CGSize(width: 50 * cos(Double.pi / 18), height: 50 * sin(Double.pi / 18)), zoom: 2)
+    expect(abs(pushedIn.x - along.x / 2) < 1e-9, "under a 2x camera the same drag is half the layout move, so the piece stays under the pointer")
     expect(piecePlan.clipOnFrame(animation: 1, clipSize: CGSize(width: st.W, height: st.H), dir: nil)?.rect == CGRect(x: 0, y: 0, width: st.W, height: st.H),
       "a full-frame animation's clip covers the frame")
     // An overlay's layer is scaled and turned about its content's center (a Lottie's box), where the renderer draws it.

@@ -63,14 +63,14 @@ struct PieceDragger: View {
       {
         let k = geo.size.width / Double(plan.output.width)
         ForEach(shown.pieces.keys.sorted(), id: \.self) { name in
-          if let piece = shown.pieces[name] { handle(name, clip.box(piece), clip: clip, index: shown.index, k: k) }
+          if let piece = shown.pieces[name] { handle(name, clip.box(piece.box), zoom: piece.zoom, clip: clip, index: shown.index, k: k) }
         }
       }
     }
     .coordinateSpace(.named("pieces"))
   }
 
-  private func handle(_ name: String, _ box: PlacedItem.Box, clip: ClipOnFrame, index: Int, k: Double) -> some View {
+  private func handle(_ name: String, _ box: PlacedItem.Box, zoom: Double, clip: ClipOnFrame, index: Int, k: Double) -> some View {
     let dragging = drag.live?.name == name ? drag.live : nil
     let center = CGPoint(x: box.center.x * k, y: box.center.y * k)
     let factor = dragging?.factor ?? 1
@@ -87,7 +87,7 @@ struct PieceDragger: View {
                 let grown = hypot(v.location.x - center.x, v.location.y - center.y) / max(1, hypot(v.startLocation.x - center.x, v.startLocation.y - center.y))
                 drag.live = (name, .zero, grown)
               }
-              .onEnded { _ in commit(index, clip, k) }
+              .onEnded { _ in commit(index, clip, zoom, k) }
           )
           .help("Drag to size it")
       }
@@ -96,7 +96,7 @@ struct PieceDragger: View {
       .gesture(
         DragGesture(minimumDistance: 2, coordinateSpace: .named("pieces"))
           .onChanged { v in drag.live = (name, v.translation, 1) }
-          .onEnded { _ in commit(index, clip, k) }
+          .onEnded { _ in commit(index, clip, zoom, k) }
       )
       .help("Drag to move \(name)")
       .rotationEffect(.degrees(box.rotation))
@@ -104,10 +104,10 @@ struct PieceDragger: View {
   }
 
   /// Saves the drag as the piece's layout: the move in output pixels becomes shares of the clip's width.
-  private func commit(_ index: Int, _ clip: ClipOnFrame, _ k: Double) {
+  private func commit(_ index: Int, _ clip: ClipOnFrame, _ zoom: Double, _ k: Double) {
     guard let done = drag.live else { return }
     drag.live = nil
-    let move = clip.layoutMove(CGSize(width: done.move.width / k, height: done.move.height / k))
+    let move = clip.layoutMove(CGSize(width: done.move.width / k, height: done.move.height / k), zoom: zoom)
     project.apply { $0.movePiece(done.name, ofAnimation: index, by: move, sizedBy: done.factor) }
   }
 }

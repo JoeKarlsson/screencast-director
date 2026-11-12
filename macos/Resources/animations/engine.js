@@ -101,14 +101,15 @@ function applyLayout() {
     n.laidOut = n.style.transform;
   }
 }
-// Each named piece on screen now, {piece: [left, top, right, bottom]} in page pixels (a sticker's
-// clip is the page's top), for the app's handles.
+// Each named piece on screen now, {piece: [left, top, right, bottom, zoom]}: its box in page pixels
+// (a sticker's clip is the page's top) and how much the camera magnifies it now, so a drag in the
+// app moves it as far as the pointer went (a layout move is drawn `zoom` times as far).
 window.pieceBoxes = () => {
-  const out = {};
+  const out = {}, m = new DOMMatrix(getComputedStyle(cam).transform), camZoom = Math.hypot(m.a, m.b);
   for (const n of document.querySelectorAll("[data-piece]")) {
     const r = n.getBoundingClientRect();
     if (r.width < 1 || r.height < 1 || getComputedStyle(n).opacity === "0") continue;
-    out[n.getAttribute("data-piece")] = [r.left, r.top, r.right, r.bottom];
+    out[n.getAttribute("data-piece")] = [r.left, r.top, r.right, r.bottom, cam.contains(n) ? camZoom : 1];
   }
   return out;
 };

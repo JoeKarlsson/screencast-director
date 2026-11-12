@@ -177,6 +177,24 @@ if not {"big", "small"} <= set(pieces): sys.exit(f"FAIL: the Sticker Note's piec
 shift = after["pieces"]["small"][0] - pieces["small"][0]
 if abs(shift - 0.1) > 0.01: sys.exit(f"FAIL: a layout x of 0.1 moved the note's small line by {shift:.3f} of the clip")
 print("ok: animate-preview lists an animation's text pieces, and its layout moves them")
+# A piece the animation's camera has pushed in on reports that zoom, and a drag saved the way the app
+# saves it (the pointer's move divided by the zoom) lands the piece exactly where the pointer went.
+helper = subprocess.Popen([director, "animate-preview", project], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+zoomed = None
+for i, a in enumerate(plan["animations"]):
+    for t in (1.0, 2.0, 2.9):
+        for name, p in ask({"index": i, "t": t, "plan": plan}).get("pieces", {}).items():
+            if zoomed is None or p[4] > zoomed[3]: zoomed = (i, t, name, p[4], p[0])
+if zoomed is None or zoomed[3] < 1.02: sys.exit(f"FAIL: no template's camera zooms in on its text, so the zoom can't be checked ({zoomed})")
+i, t, name, zoom, left = zoomed
+dragged = json.loads(json.dumps(plan))
+# A drag the clip's whole width, so the camera's few percent are pixels apart, not rounding.
+dragged["animations"][i]["layout"] = {name: {"x": 1 / zoom}}
+moved = ask({"index": i, "t": t, "plan": dragged})["pieces"][name][0] - left
+helper.stdin.close()
+helper.wait()
+if abs(moved - 1) > (zoom - 1) / 3: sys.exit(f"FAIL: a drag of the clip's width moved {plan['animations'][i]['template']}'s {name} by {moved:.3f} of it under a {zoom:.2f}x camera")
+print(f"ok: a dragged piece lands under the pointer with the camera pushed in ({plan['animations'][i]['template']} {name}, {zoom:.2f}x)")
 PY
 # Versions: the second animation kept as an alternate of the first, both rendered, then swapped in.
 python3 - "$PROJECT/plan.json" <<'PY'

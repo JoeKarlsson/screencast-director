@@ -19,7 +19,13 @@ final class LiveAnimationPreview: ObservableObject {
   struct Shown: Equatable {
     let index: Int
     let clipSize: CGSize
-    let pieces: [String: CGRect]
+    let pieces: [String: Piece]
+  }
+
+  /// A text piece's box (shares of the clip) and how much the animation's camera magnifies it now.
+  struct Piece: Equatable {
+    let box: CGRect
+    let zoom: Double
   }
   /// Redraws the paused frame once a new live frame is in.
   var redraw: () -> Void = {}
@@ -126,7 +132,7 @@ final class LiveAnimationPreview: ObservableObject {
     guard let image, index == wanted else { return }
     lastError = nil
     let pieces = (fields["pieces"] as? [String: [Double]] ?? [:]).compactMapValues { b in
-      b.count == 4 ? CGRect(x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1]) : nil
+      b.count == 5 ? Piece(box: CGRect(x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1]), zoom: b[4]) : nil
     }
     let size = CGSize(width: fields["width"] as? Double ?? 0, height: fields["height"] as? Double ?? 0)
     let now = Shown(index: index, clipSize: size, pieces: pieces)
