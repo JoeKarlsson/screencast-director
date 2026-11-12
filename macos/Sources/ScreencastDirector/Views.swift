@@ -24,6 +24,8 @@ final class EditorUI: ObservableObject {
   let captionDrag = BubbleDragUI()
   /// The sticker or overlay being moved, sized or turned in the preview, until the drag ends.
   let placeDrag = PlaceDragUI()
+  /// The animation's text piece being moved or sized in the preview, until the drag ends.
+  let pieceDrag = PieceDragUI()
   /// The annotation, title or watermark being moved or sized in the preview, until the drag ends.
   let handleDrag = HandleDragUI()
 }

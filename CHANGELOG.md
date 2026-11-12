@@ -7,6 +7,7 @@ Each release lists what changed for people using the app or the CLI. The version
 ### Editor
 - Animations preview live: paused inside the selected animation, an edit shows in under a second, drawn where its clip will play, instead of disappearing until it re-renders. Scrubbing draws each frame as you go. Playback and export still use the rendered clip. Agents get the same frames from `director animate-preview`.
 - Motion sliders for animations: Pop length, Bounce and Stagger tune how an animation's pieces pop in and draw on, previewed live while paused. Reset Motion puts the design back. A video keeps its own copy of its templates, so a Sticker Note's scribble follows Pop length after Update Template. Agents set `tune` {pop, bounce, stagger} on the animation.
+- Arrange an animation's text by hand: in the animation inspector, Arrange Text, then drag a heading, label, tag or a Sticker Note's word, line or logo in the paused preview, or size it from its corner knob. Its mark follows the note's big word. Reset Text Placement puts it all back. A diagram's nodes stay put, since its lines run between them (a storyboard step has its own position). Agents set `layout` on the animation, by the piece names `director animate-preview` lists.
 
 ## 0.3.0 (2026-11-12)
 

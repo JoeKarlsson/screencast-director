@@ -85,6 +85,14 @@ TEMPLATES.note = function (data, cues, duration) {
   svg.setAttribute("class", "mark");
   svg.setAttribute("width", card.offsetWidth); svg.setAttribute("height", card.offsetHeight);
   card.appendChild(svg);
+  // Pieces the app can move by hand (the engine's applyLayout). The mark follows the word it rings,
+  // sized about that word's center.
+  const big = card.querySelector(".big");
+  for (const [name, node] of [["big", big], ["text", txt], ["small", small], ["logo", logo]]) if (node) node.setAttribute("data-piece", name);
+  if (target) {
+    svg.setAttribute("data-follows", target === big ? "big" : "text");
+    svg.style.transformOrigin = `${target.offsetLeft + target.offsetWidth / 2}px ${target.offsetTop + target.offsetHeight / 2}px`;
+  }
   const strokes = kind === "none" ? [] : markShape().strokes.map(([d, transform]) => {
     const p = document.createElementNS(NS, "path");
     // The pen keeps its width however the mark is stretched to fit the word.

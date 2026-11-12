@@ -814,6 +814,11 @@ struct Checks {
     expect(tuned.clipPath(out1080, dir: video) == frozen, "an empty tune keeps the clip's name")
     tuned.tune?.bounce = 0
     expect(tuned.clipPath(out1080, dir: video) != frozen, "tuning an animation's motion re-renders it")
+    var arranged = hubAnim
+    arranged.layout = [:]
+    expect(arranged.clipPath(out1080, dir: video) == frozen, "an empty layout keeps the clip's name")
+    arranged.layout = ["head-1": Animation.Piece(x: 0.1)]
+    expect(arranged.clipPath(out1080, dir: video) != frozen, "moving a text piece re-renders it")
     try? "// v2".write(to: builtInDir.appendingPathComponent("templates/hub.js"), atomically: true, encoding: .utf8)
     expect(animSrc.differsFromLibrary("hub") && hubAnim.clipPath(out1080, dir: video) == frozen, "a library change offers an update but doesn't touch the video")
     try? animSrc.updateFromLibrary("hub")
@@ -1055,6 +1060,22 @@ struct Checks {
     expect(abs(movedMeme.x! - (stickerBox.midX / st.W - 0.5)) < 0.001 && movedMeme.w == 0.48, "dragging moves the sticker from where it's drawn, and the corner sizes it (\(movedMeme))")
     expect(handle[0].turned(to: 2, from: handleBox, in: placedPlan).rotation == 0 && handle[0].turned(to: 370, from: handleBox, in: placedPlan).rotation == 10,
       "turning snaps square near 0 and wraps a full turn")
+    // An animation's text pieces get handles where the clip is drawn: a sticker's picture inside its
+    // border and turned with it, a full-frame clip over the frame; a drag along the turned clip is a
+    // move along its own width.
+    var piecePlan = seam
+    var noteAnim2 = Animation(start: 2, end: 4, template: "note", data: .object([:]))
+    noteAnim2.sticker = Animation.Sticker(x: 0.3, y: 0.4, w: 0.4, rotation: 10)
+    piecePlan.animations = [noteAnim2, Animation(start: 5, end: 7, template: "hub", data: .object([:]))]
+    let onFrame = piecePlan.clipOnFrame(animation: 0, clipSize: CGSize(width: 400, height: 300), dir: nil)!
+    let stickerHandles = piecePlan.placedItems(dir: nil)[0].box(in: piecePlan, mediaSize: CGSize(width: 400, height: 300))!
+    let wholeClip = onFrame.box(CGRect(x: 0, y: 0, width: 1, height: 1))
+    expect(wholeClip.center == stickerHandles.center && abs(wholeClip.size.width + 2 * piecePlan.stickerBorder - stickerHandles.size.width) < 0.01 && wholeClip.rotation == 10,
+      "a sticker animation's clip sits inside its border, turned with it (\(wholeClip), \(stickerHandles))")
+    let along = onFrame.layoutMove(CGSize(width: 50 * cos(Double.pi / 18), height: 50 * sin(Double.pi / 18)))
+    expect(abs(along.x - 50 / onFrame.rect.width) < 1e-9 && abs(along.y) < 1e-9, "a drag along the turned clip moves a piece along its width (\(along))")
+    expect(piecePlan.clipOnFrame(animation: 1, clipSize: CGSize(width: st.W, height: st.H), dir: nil)?.rect == CGRect(x: 0, y: 0, width: st.W, height: st.H),
+      "a full-frame animation's clip covers the frame")
     // An overlay's layer is scaled and turned about its content's center (a Lottie's box), where the renderer draws it.
     var overPlan = seam
     overPlan.inserts = [Insert(start: 2, end: 4, file: "a.png", placement: "overlay")]

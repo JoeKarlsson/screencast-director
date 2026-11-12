@@ -231,3 +231,45 @@ extension Plan {
     }
   }
 }
+
+/// Where an animation's clip is drawn on the frame, for the handles on its pieces: the clip's
+/// rectangle before the turn (output pixels from the top left) and the turn about its center.
+public struct ClipOnFrame: Equatable, Sendable {
+  public var rect: CGRect
+  public var rotation: Double
+
+  /// A piece of the clip (left, top, right, bottom in shares of the clip) as drawn on the frame.
+  public func box(_ piece: CGRect) -> PlacedItem.Box {
+    let t = rotation * .pi / 180
+    let dx = (piece.midX - 0.5) * rect.width, dy = (piece.midY - 0.5) * rect.height
+    return PlacedItem.Box(
+      center: CGPoint(x: rect.midX + dx * cos(t) - dy * sin(t), y: rect.midY + dx * sin(t) + dy * cos(t)),
+      size: CGSize(width: piece.width * rect.width, height: piece.height * rect.height), rotation: rotation)
+  }
+
+  /// A drag of `d` output pixels on the frame as a layout move: shares of the clip's width, along
+  /// the clip's own (unturned) axes.
+  public func layoutMove(_ d: CGSize) -> (x: Double, y: Double) {
+    let t = -rotation * .pi / 180
+    return ((d.width * cos(t) - d.height * sin(t)) / rect.width, (d.width * sin(t) + d.height * cos(t)) / rect.width)
+  }
+}
+
+extension Plan {
+  /// Where animation `i`'s clip (`clipSize` pixels) is drawn: a sticker's picture inside its border,
+  /// turned with it; an overlay's frame-sized layer as placed; a full-frame clip over the frame. nil
+  /// for one playing in a portrait video's screen card.
+  public func clipOnFrame(animation i: Int, clipSize: CGSize, dir: URL?) -> ClipOnFrame? {
+    guard animationList.indices.contains(i) else { return nil }
+    let a = animationList[i]
+    guard a.floats else { return socialTop(self) == nil ? ClipOnFrame(rect: CGRect(origin: .zero, size: frameSize), rotation: 0) : nil }
+    guard let item = placedItems(dir: dir).first(where: { $0.selection == .animation(i) }) else { return nil }
+    if item.isSticker {
+      var ins = Insert(start: a.start, end: a.end, file: item.file, placement: "sticker")
+      (ins.x, ins.y, ins.w) = (item.x, item.y, item.w)
+      return ClipOnFrame(rect: stickerFrame(ins, imageSize: clipSize), rotation: item.rotation)
+    }
+    let f = frameSize, w = f.width * item.w, h = f.height * item.w
+    return ClipOnFrame(rect: CGRect(x: item.x * f.width - w / 2, y: item.y * f.height - h / 2, width: w, height: h), rotation: item.rotation)
+  }
+}

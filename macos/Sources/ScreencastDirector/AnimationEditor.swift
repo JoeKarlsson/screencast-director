@@ -47,8 +47,9 @@ struct AnimationEditor: View {
             Label("Rendering the clip for playback. Paused here, the preview shows it live.", systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
           }
         }
-        // A Lottie's motion is in its file.
+        // A Lottie's motion and layout are in its file.
         if a.lottieFile == nil {
+          ArrangeTextSection(project: project, live: project.livePreview, index: i, placed: a.layout != nil)
           InspectorSection("Motion", detail: "How its pieces pop in and draw on. Pause inside it to see each change live.") {
             tuneSlider("Pop length", \.pop, default: 1, 0.25...3, "Longer is slower; 1× is as designed") { "\($0.formatted(.number.precision(.fractionLength(0...2))))×" }
             tuneSlider("Bounce", \.bounce, default: 0.4, 0...0.8, "How far a pop overshoots before it settles") { "\(Int(($0 * 100).rounded()))%" }

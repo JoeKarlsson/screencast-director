@@ -163,6 +163,20 @@ if saved["size"] != (480, 270): sys.exit(f"FAIL: animate-preview drew {saved['si
 if saved["png"] == sent["png"]: sys.exit("FAIL: animate-preview ignored the plan it was sent")
 if "no animation #99" not in bad.get("error", ""): sys.exit(f"FAIL: animate-preview answered a bad index with {bad}")
 print("ok: animate-preview draws a frame at the clip's size from the plan it's sent, and reports a bad index")
+# Its text pieces come back with each frame, and the animation's layout moves one by shares of the clip's width.
+note = next(i for i, a in enumerate(plan["animations"]) if a["template"] == "note")
+plan["animations"][note]["sticker"] = {"x": 0.5, "y": 0.5, "w": 0.4}
+helper = subprocess.Popen([director, "animate-preview", project], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+before = ask({"index": note, "t": 2.5, "plan": plan})
+plan["animations"][note]["layout"] = {"small": {"x": 0.1}}
+after = ask({"index": note, "t": 2.5, "plan": plan})
+helper.stdin.close()
+helper.wait()
+pieces = before.get("pieces", {})
+if not {"big", "small"} <= set(pieces): sys.exit(f"FAIL: the Sticker Note's pieces weren't listed: {before.get('error') or sorted(pieces)}")
+shift = after["pieces"]["small"][0] - pieces["small"][0]
+if abs(shift - 0.1) > 0.01: sys.exit(f"FAIL: a layout x of 0.1 moved the note's small line by {shift:.3f} of the clip")
+print("ok: animate-preview lists an animation's text pieces, and its layout moves them")
 PY
 # Versions: the second animation kept as an alternate of the first, both rendered, then swapped in.
 python3 - "$PROJECT/plan.json" <<'PY'

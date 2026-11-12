@@ -8,8 +8,19 @@ import ImageIO
 /// preview shows that frame where the clip goes, so an edit shows in a moment instead of after a
 /// render. WebKit stays in director, out of the app's process. The helper quits when the app does
 /// (its stdin closes).
-final class LiveAnimationPreview {
+final class LiveAnimationPreview: ObservableObject {
   let frames = LiveFrames()
+  /// The animation drawn live now: its clip's size and its text pieces (shares of the clip), for the
+  /// handles that move them by hand.
+  @Published private(set) var shown: Shown?
+  /// Dragging in the preview moves the shown animation's text pieces instead of the whole sticker.
+  @Published var arranging = false
+
+  struct Shown: Equatable {
+    let index: Int
+    let clipSize: CGSize
+    let pieces: [String: CGRect]
+  }
   /// Redraws the paused frame once a new live frame is in.
   var redraw: () -> Void = {}
   private let dir: URL
@@ -42,6 +53,7 @@ final class LiveAnimationPreview {
   func clear() {
     wanted = nil
     pending = nil
+    if shown != nil { shown = nil }
     guard !frames.isEmpty else { return }
     frames.show(nil, for: -1)
     redraw()
@@ -113,6 +125,12 @@ final class LiveAnimationPreview {
     try? FileManager.default.removeItem(at: url)
     guard let image, index == wanted else { return }
     lastError = nil
+    let pieces = (fields["pieces"] as? [String: [Double]] ?? [:]).compactMapValues { b in
+      b.count == 4 ? CGRect(x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1]) : nil
+    }
+    let size = CGSize(width: fields["width"] as? Double ?? 0, height: fields["height"] as? Double ?? 0)
+    let now = Shown(index: index, clipSize: size, pieces: pieces)
+    if shown != now { shown = now }
     frames.show(CIImage(cgImage: image), for: index)
     redraw()
   }

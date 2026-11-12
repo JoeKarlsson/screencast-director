@@ -50,6 +50,18 @@ public struct Animation: Codable, Equatable, Sendable {
   public var exit: Motion?
   /// Hand-tuned motion inside the animation, for every template (engine.js's `TUNE`). Unset moves as designed.
   public var tune: Tune?
+  /// Text pieces moved and sized by hand, by piece name ("head-1", the note's "big"), over where the
+  /// template puts them (engine.js's `applyLayout`). `director animate-preview` lists the pieces.
+  public var layout: [String: Piece]?
+
+  public struct Piece: Codable, Equatable, Sendable {
+    /// The move, in shares of the clip's width (down for `y`).
+    public var x: Double?
+    public var y: Double?
+    /// Its size, times the design's.
+    public var scale: Double?
+    public init(x: Double? = nil, y: Double? = nil, scale: Double? = nil) { (self.x, self.y, self.scale) = (x, y, scale) }
+  }
 
   public struct Tune: Codable, Equatable, Sendable {
     /// How long pop-ins and draw-ons take, times the design's (0.25 to 4).
@@ -204,6 +216,8 @@ public struct Animation: Codable, Equatable, Sendable {
       let sticker: Double?
       /// Hand-tuned motion (nil when untouched, so older clips keep their names).
       let tune: Tune?
+      /// Hand-placed pieces (nil when none).
+      let layout: [String: Piece]?
     }
     let enc = JSONEncoder()
     enc.outputFormatting = .sortedKeys
@@ -212,7 +226,8 @@ public struct Animation: Codable, Equatable, Sendable {
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps,
       brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) },
       top: safeTop > 0 ? safeTop : nil, overlay: isOverlay ? true : nil,
-      sticker: sticker.map { $0.w ?? Animation.stickerWidth }, tune: tune == Tune() ? nil : tune)
+      sticker: sticker.map { $0.w ?? Animation.stickerWidth }, tune: tune == Tune() ? nil : tune,
+      layout: layout?.isEmpty == false ? layout : nil)
     // Encoding plain values can only fail on a non-finite number; hash the key's description then,
     // so two different animations never share the empty-data name.
     let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data(String(reflecting: key).utf8))

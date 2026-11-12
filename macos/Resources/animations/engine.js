@@ -68,7 +68,50 @@ function popBlur() { return 0; }
 function rand(seed) { let s = Math.floor(seed) * 9301 + 49297; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
 
 // --- building blocks ---------------------------------------------------------
-function el(cls, html = "") { const d = document.createElement("div"); d.className = "abs " + cls; d.innerHTML = html; cam.appendChild(d); return d; }
+function el(cls, html = "") {
+  const d = document.createElement("div"); d.className = "abs " + cls; d.innerHTML = html; cam.appendChild(d);
+  const kind = cls.split(" ")[0];
+  if (MOVABLE.has(kind)) namePiece(d, kind);
+  return d;
+}
+
+// --- hand-placed pieces ----------------------------------------------------------
+// The animation's `layout` (config.layout): {piece: {x, y, scale}}, a move in shares of the clip's
+// width and a size times the design's, drawn over wherever the template puts the piece each frame.
+// Only text moves: a diagram's nodes keep their places, since its lines are routed between them (a
+// storyboard step has its own x and y). Pieces are named by kind and order, "head-1", "tag-2"; the
+// Sticker Note names its own ("big", which its mark follows, "text", "small", "logo").
+const MOVABLE = new Set(["head", "row", "tag", "label", "callout"]);
+let LAYOUT = {}, PIECE_PX = { stage: 1, page: 1 };
+const pieceCount = {};
+function namePiece(node, kind) {
+  pieceCount[kind] = (pieceCount[kind] || 0) + 1;
+  node.setAttribute("data-piece", `${kind}-${pieceCount[kind]}`);
+}
+// Moves and sizes each named piece, and anything that follows one (data-follows), over the transform
+// the template gave it this frame. A piece the template didn't touch this frame keeps the transform
+// it had before the last layout, so seeking twice never moves it twice.
+function applyLayout() {
+  for (const n of document.querySelectorAll("[data-piece], [data-follows]")) {
+    if (n.style.transform !== n.laidOut) n.base = n.style.transform;
+    const p = LAYOUT[n.getAttribute("data-piece") || n.getAttribute("data-follows")];
+    if (!p) continue;
+    const px = cam.contains(n) ? PIECE_PX.stage : PIECE_PX.page;
+    n.style.transform = `translate(${(p.x || 0) * px}px, ${(p.y || 0) * px}px) ${n.base || ""} scale(${p.scale ?? 1})`;
+    n.laidOut = n.style.transform;
+  }
+}
+// Each named piece on screen now, {piece: [left, top, right, bottom]} in page pixels (a sticker's
+// clip is the page's top), for the app's handles.
+window.pieceBoxes = () => {
+  const out = {};
+  for (const n of document.querySelectorAll("[data-piece]")) {
+    const r = n.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1 || getComputedStyle(n).opacity === "0") continue;
+    out[n.getAttribute("data-piece")] = [r.left, r.top, r.right, r.bottom];
+  }
+  return out;
+};
 const ICONS = {
   lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   shield: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
@@ -449,12 +492,17 @@ window.init = async function (config) {
   stage.style.width = `${STAGE.w}px`;
   stage.style.height = `${STAGE.h}px`;
   stage.style.transform = `translate(0px, ${top}px) ` + stageTransform(config.width, config.height - top, STAGE);
-  if (HOOKS.setup) HOOKS.setup({ stage, k: Math.min(config.width / STAGE.w, (config.height - top) / STAGE.h), config });
+  const k = Math.min(config.width / STAGE.w, (config.height - top) / STAGE.h);
+  if (HOOKS.setup) HOOKS.setup({ stage, k, config });
+  // A layout move is a share of the clip's width: page pixels for a sticker's card, stage pixels in the camera.
+  LAYOUT = config.layout || {};
+  PIECE_PX = { stage: config.width / k, page: config.width };
   if (THEME !== "terminal") setupPackets();
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
     pinAnimations(t);
     seekTemplate(t);
+    applyLayout();
     if (HOOKS.beforePackets) HOOKS.beforePackets(t);
     if (packetLayer) drawPackets(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";

@@ -228,7 +228,8 @@ enum Animate {
 
   /// `director animate-preview <dir>`: the app's live animation preview. Reads one request a line on
   /// stdin, {"index": animation, "t": seconds into it, "plan": the plan (default plan.json)}, draws
-  /// that frame to a PNG in a temp folder of its own and prints {"index", "t", "png": path} or
+  /// that frame to a PNG in a temp folder of its own and prints {"index", "t", "png": path, "width",
+  /// "height" (the clip's), "pieces": {name: [left, top, right, bottom] in shares of the clip}} or
   /// {"index", "error"}, a line each. The page stays loaded while the animation, its look and its
   /// size stay the same, so scrubbing costs a seek and a snapshot. Frames have no motion blur.
   @MainActor
@@ -265,7 +266,11 @@ enum Animate {
         count += 1
         let png = folder.appendingPathComponent("frame-\(count).png")
         try Publish.writePNG(try await page.snapshot(), to: png)
-        reply(["index": index, "t": t, "png": png.path])
+        // The text pieces on screen, in shares of the clip, for hand placement (the animation's `layout`).
+        let boxes = try await page.web.evaluateJavaScript("pieceBoxes()") as? [String: [Double]] ?? [:]
+        let w = Double(page.width), h = Double(page.height)
+        let pieces = boxes.mapValues { b in [b[0] / w, b[1] / h, b[2] / w, b[3] / h] }
+        reply(["index": index, "t": t, "png": png.path, "width": page.width, "height": page.height, "pieces": pieces])
       } catch {
         reply(["index": index, "error": error.localizedDescription])
       }
@@ -653,6 +658,7 @@ enum Animate {
     if a.isOverlay { config["overlay"] = true }
     if a.sticker != nil { config["sticker"] = true }
     if let tune = a.tune { config["tune"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(tune)) }
+    if let layout = a.layout { config["layout"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(layout)) }
     config["marks"] = (theme?.marks ?? MarkSet([:])).json
     if let css = theme?.css, !css.isEmpty { config["themeCSS"] = css }
     if let name = a.lottieFile {

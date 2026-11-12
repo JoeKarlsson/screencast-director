@@ -99,6 +99,27 @@ func laterChecks() {
   expect(pop("{ pop: 2 }", "popScale(.2, 0)") < pop("{}", "popScale(.2, 0)") - 0.1, "a longer pop is less far along at the same moment")
   expect(pop("{ bounce: 0 }", peakScale) <= 1.0001 && pop("{}", peakScale) > 1.05, "no bounce never overshoots; untouched, the pop springs past full size")
   expect(abs(pop("{ pop: 100, bounce: 5 }", "TUNE.pop * 10 + TUNE.bounce") - 40.8) < 1e-9, "tune knobs are clamped to their ranges")
+  // Hand-placed pieces (config.layout): a named piece moves and grows over the template's transform,
+  // seeking again doesn't move it twice, and the template moving it starts from its new place.
+  let laid = templateScripts.evaluateScript("""
+    (() => {
+      const node = { getAttribute: k => k === "data-piece" ? "head-1" : null, style: { transform: "translate(10px, 20px)" } };
+      const query = document.querySelectorAll, inCam = cam.contains;
+      document.querySelectorAll = () => [node];
+      cam.contains = () => true;
+      LAYOUT = { "head-1": { x: .1, scale: 2 } };
+      PIECE_PX = { stage: 1000, page: 500 };
+      const seen = [];
+      applyLayout(); seen.push(node.style.transform);
+      applyLayout(); seen.push(node.style.transform);
+      node.style.transform = "translate(30px, 20px)";
+      applyLayout(); seen.push(node.style.transform);
+      document.querySelectorAll = query; cam.contains = inCam; LAYOUT = {};
+      return seen.join("|");
+    })()
+    """).toString() ?? ""
+  let once = "translate(100px, 0px) translate(10px, 20px) scale(2)"
+  expect(laid == "\(once)|\(once)|translate(100px, 0px) translate(30px, 20px) scale(2)", "a hand-placed piece moves once per frame over the template's own move (\(laid))")
   // Flourishes: icons are hand-drawn strokes, a landing squashes on impact and settles round, and an
   // unknown icon draws nothing.
   expect(templateScripts.evaluateScript("(iconHTML('laptop').match(/<path/g) || []).length").toInt32() == 2, "the laptop icon is two strokes")

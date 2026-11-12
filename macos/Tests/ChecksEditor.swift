@@ -87,6 +87,15 @@ func editorActionChecks() {
   _ = typed.setTiming(.animation(0), start: 5)
   expect(typed.animationList[0].cues == ["lock": 6], "a typed start takes an animation's beats along")
   expect(typed.setTiming(.segment(0), start: 3) == nil, "clips aren't retimed by typed timing")
+  // Dragging an animation's text piece in the preview: moves add up, sizes multiply, and a piece
+  // dragged back where the template puts it drops out of the layout.
+  typed.movePiece("head-1", ofAnimation: 0, by: (0.1, -0.05))
+  typed.movePiece("head-1", ofAnimation: 0, by: (0.05, 0), sizedBy: 2)
+  expect(typed.animationList[0].layout == ["head-1": Animation.Piece(x: 0.15, y: -0.05, scale: 2)], "piece moves add up and sizes multiply (\(String(describing: typed.animationList[0].layout)))")
+  typed.movePiece("head-1", ofAnimation: 0, by: (-0.15, 0.05), sizedBy: 0.5)
+  expect(typed.animationList[0].layout == nil, "a piece back in place leaves no layout")
+  typed.movePiece("head-1", ofAnimation: 7, by: (0.1, 0))
+  expect(typed.animationList[0].layout == nil, "a stale animation index changes nothing")
   expect(parseTime("1:05.4") == 65.4 && parseTime(fmtTime(65.4)) == 65.4 && parseTime("12.5") == 12.5 && parseTime(" 3 s") == 3, "typed times read as m:ss.s or seconds")
   expect(parseTime("") == nil && parseTime("-2") == nil && parseTime("1:75") == nil && parseTime("a:10") == nil && parseTime("1:2:3") == nil, "bad typed times read as nothing")
   // Effect ranges are timeline bars too: selected, retimed, moved and deleted like B-roll; one

@@ -315,6 +315,19 @@ extension Plan {
     return retime(s, start: begin, end: begin + len)
   }
 
+  /// A text piece of animation `i` dragged in the preview: moved by `move` (shares of the clip's
+  /// width) and sized by `factor`. A piece back where the template puts it drops out of the layout.
+  public mutating func movePiece(_ name: String, ofAnimation i: Int, by move: (x: Double, y: Double) = (0, 0), sizedBy factor: Double = 1) {
+    guard animationList.indices.contains(i) else { return }
+    var layout = animationList[i].layout ?? [:]
+    let old = layout[name] ?? Animation.Piece()
+    func round4(_ v: Double) -> Double { (v * 10000).rounded() / 10000 }
+    let x = round4((old.x ?? 0) + move.x), y = round4((old.y ?? 0) + move.y), scale = round4(min(max((old.scale ?? 1) * factor, 0.2), 5))
+    let piece = Animation.Piece(x: x == 0 ? nil : x, y: y == 0 ? nil : y, scale: scale == 1 ? nil : scale)
+    layout[name] = piece == Animation.Piece() ? nil : piece
+    animationList[i].layout = layout.isEmpty ? nil : layout
+  }
+
   /// Switches effect range `i` to another effect. Its settings belong to the old effect (the new one
   /// may not have them, and a plan with an unknown param doesn't load), so they're cleared.
   public mutating func switchEffect(ofRange i: Int, to name: String) {
