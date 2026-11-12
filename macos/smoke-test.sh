@@ -326,6 +326,32 @@ for _ in $(seq 1 25); do [[ "$(frame_style)" == window ]] && break; sleep 0.2; d
 [[ "$(frame_style)" == window ]] || fail "choosing Window didn't set look.frame (it's \"$(frame_style)\")"
 echo "ok: the frame style's Window choice set look.frame"
 
+# 8e. Clicking into a title's Start and Length fields and out again changes nothing: the fields show
+# rounded times, and committing those used to nudge the title. It's added now, as an outside edit the
+# app picks up, with times that don't round to what the fields show (its start is in a cut).
+python3 - "$PROJECT/plan.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+plan = json.load(open(p))
+plan["callouts"] = [{"start": 3.33, "end": 5.07, "text": "Timing"}]
+json.dump(plan, open(p, "w"), indent=2)
+PY
+callouts() { python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["callouts"], sort_keys=True))' "$PROJECT/plan.json"; }
+sleep 2
+title_before="$(callouts)"
+for i in $(seq 1 "$(ax "return count of buttons of $TIMELINE")"); do
+  inspector="$(ax "perform action \"AXPress\" of button $i of $TIMELINE
+      delay 0.5
+      set AppleScript's text item delimiters to \" / \"
+      return (value of static texts of $INSPECTOR) as text")"
+  [[ "$inspector" == Title*Timing* ]] && break
+done
+[[ "$inspector" == Title*Timing* ]] || fail "no title with a Timing section in the inspector: $inspector"
+for f in Start Length Start; do [[ "$("$AXPRESS" "$PID" focus-field "$f")" == focused ]] || fail "no $f field"; sleep 0.4; done
+sleep 1
+[[ "$(callouts)" == "$title_before" ]] || fail "clicking through the Timing fields moved the title: $(callouts)"
+echo "ok: clicking through a title's Timing fields leaves it where it was"
+
 # 9. Quitting while Claude is still editing stops it and records that, then the test instance quits.
 echo hang >"$TMP/claude-mode"
 ask "tighten the intro"

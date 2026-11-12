@@ -460,6 +460,10 @@ final class ProjectModel: ObservableObject {
   /// The inspector's typed timing: `videoStart` in seconds of the edited video (what the ruler
   /// shows), `length` in seconds of the recording. A start inside a cut changes nothing.
   func setTiming(_ s: Selection, videoStart: Double? = nil, length: Double? = nil) {
+    // Leaving a field commits the rounded value it shows; that's no edit, and would nudge the item.
+    guard let (from, to) = timeRange(s) else { return }
+    if let v = videoStart, fmtTime(v) == fmtTime(videoTime(from)) { return }
+    if let l = length, abs(l - (to - from)) < 0.005 { return }
     var start: Double?
     if let v = videoStart {
       guard let src = outToSrc(mapped, v * Double(fps), fps: fps) else { return }
