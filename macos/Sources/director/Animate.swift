@@ -226,6 +226,53 @@ enum Animate {
     return sheet
   }
 
+  /// `director animate-preview <dir>`: the app's live animation preview. Reads one request a line on
+  /// stdin, {"index": animation, "t": seconds into it, "plan": the plan (default plan.json)}, draws
+  /// that frame to a PNG in a temp folder of its own and prints {"index", "t", "png": path} or
+  /// {"index", "error"}, a line each. The page stays loaded while the animation, its look and its
+  /// size stay the same, so scrubbing costs a seek and a snapshot. Frames have no motion blur.
+  @MainActor
+  static func preview(_ dir: URL) async throws {
+    struct Request: Decodable { let index: Int, t: Double, plan: Plan? }
+    struct Loaded: Encodable { let a: Animation, look: Look?, w: Int, h: Int, top: Int }
+    let sources = AnimationSources(project: dir, builtIn: resources)
+    let folder = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sd-animate-preview-\(getpid())")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    var page: Page?, loaded: Data?, count = 0
+    func reply(_ fields: [String: Any]) {
+      let line = (try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])) ?? Data()
+      FileHandle.standardOutput.write(line + Data("\n".utf8))
+    }
+    for try await line in FileHandle.standardInput.bytes.lines {
+      var index = -1
+      do {
+        let request = try JSONDecoder().decode(Request.self, from: Data(line.utf8))
+        index = request.index
+        let plan = try request.plan ?? Plan.load(dir.appendingPathComponent("plan.json"))
+        guard plan.animationList.indices.contains(index) else { throw DirectorError("no animation #\(index) (the plan has \(plan.animationList.count))") }
+        let a = plan.animationList[index]
+        let size = plan.animationOutput(a)
+        let key = try JSONEncoder().encode(Loaded(a: a, look: plan.look, w: size.width, h: size.height, top: plan.animationSafeTop(a)))
+        if key != loaded || page == nil {
+          loaded = nil
+          let fresh = Page(plan, a)
+          try await fresh.load(a, plan: plan, sources: sources)
+          (page, loaded) = (fresh, key)
+        }
+        guard let page else { continue }
+        let t = min(max(request.t, 0), max(0, a.end - a.start - 0.001))
+        _ = try await page.web.evaluateJavaScript("seek(\(t)); 0")
+        count += 1
+        let png = folder.appendingPathComponent("frame-\(count).png")
+        try Publish.writePNG(try await page.snapshot(), to: png)
+        reply(["index": index, "t": t, "png": png.path])
+      } catch {
+        reply(["index": index, "error": error.localizedDescription])
+      }
+    }
+    try? FileManager.default.removeItem(at: folder)
+  }
+
   /// "WARNING: animation #0 (storyboard) pops for one frame at src 0:12.3 (frame 41) ..."
   static func popWarning(index: Int, _ a: Animation, frame: Int) -> String {
     "WARNING: animation #\(index) (\(a.template)) pops for one frame at src \(fmtTime(a.start + Double(frame) / Double(fps))) (frame \(frame)): "
@@ -386,37 +433,7 @@ enum Animate {
       _ a: Animation, index: Int, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
       onFrame: ((Int, CGImage) throws -> Void)? = nil
     ) async throws -> (pops: [Int], overlaps: [String]) {
-      // A fresh page per animation, so one template's nodes never leak into the next. The template may
-      // have come with a video someone sent, so the page reads only the app's animation folder and
-      // has no network; logos and fonts come through `assets`.
-      web.configuration.userContentController.removeAllContentRuleLists()
-      web.configuration.userContentController.add(try await Animate.noNetworkRules())
-      try await open(Animate.resources.appendingPathComponent("animation.html"), readAccess: Animate.resources)
-      guard let scriptURL = sources.script(a.template) else {
-        throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
-      }
-      do {
-        let probes = [Animate.motionProbe, Animate.overlapProbe, Animate.markProbe, Animate.textProbe].joined(separator: "\n;")
-        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + probes + "\n;0")
-      } catch {
-        throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
-      }
-      let theme = try ThemeSources(project: sources.project).load(plan.look?.animationTheme)
-      try await Animate.runThemeScripts(theme, in: web)
-      do {
-        let config = try Animate.config(a, plan: plan, sources: sources, assets: assets, theme: theme)
-        _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
-      } catch {
-        throw DirectorError("the \(a.template) template didn't start: \(error)")
-      }
-      if a.sticker != nil {
-        // The sticker's clip is its content's size, so the border hugs it with no empty paper: the
-        // snapshots take the top of the page (resizing the view instead left them zoomed in).
-        guard let h = try await web.evaluateJavaScript("stickerHeight()") as? Double, h >= 2 else {
-          throw DirectorError("the \(a.template) template has nothing to show as a sticker (no #sticker element)")
-        }
-        height = min(width * 2, Int((h / 2).rounded(.up)) * 2)
-      }
+      try await load(a, plan: plan, sources: sources)
 
       // One temp file per process: the app and the CLI can render the same clip at once (same
       // contents, since the name is a hash of them), and each moves its own into place.
@@ -513,6 +530,42 @@ enum Animate {
         Animate.overlapWarnings(a, index: index, frames: overlaps)
           + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(Animate.fps))
       )
+    }
+
+    /// Loads the page and starts animation `a` on it (`init`), ready to `seek`. A sticker's page
+    /// height becomes its content's.
+    func load(_ a: Animation, plan: Plan, sources: AnimationSources) async throws {
+      // A fresh page per animation, so one template's nodes never leak into the next. The template may
+      // have come with a video someone sent, so the page reads only the app's animation folder and
+      // has no network; logos and fonts come through `assets`.
+      web.configuration.userContentController.removeAllContentRuleLists()
+      web.configuration.userContentController.add(try await Animate.noNetworkRules())
+      try await open(Animate.resources.appendingPathComponent("animation.html"), readAccess: Animate.resources)
+      guard let scriptURL = sources.script(a.template) else {
+        throw DirectorError("no template named \"\(a.template)\" in the video's animations folder, the personal library or the app")
+      }
+      do {
+        let probes = [Animate.motionProbe, Animate.overlapProbe, Animate.markProbe, Animate.textProbe].joined(separator: "\n;")
+        _ = try await web.evaluateJavaScript(try String(contentsOf: scriptURL, encoding: .utf8) + "\n;" + probes + "\n;0")
+      } catch {
+        throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
+      }
+      let theme = try ThemeSources(project: sources.project).load(plan.look?.animationTheme)
+      try await Animate.runThemeScripts(theme, in: web)
+      do {
+        let config = try Animate.config(a, plan: plan, sources: sources, assets: assets, theme: theme)
+        _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
+      } catch {
+        throw DirectorError("the \(a.template) template didn't start: \(error)")
+      }
+      if a.sticker != nil {
+        // The sticker's clip is its content's size, so the border hugs it with no empty paper: the
+        // snapshots take the top of the page (resizing the view instead left them zoomed in).
+        guard let h = try await web.evaluateJavaScript("stickerHeight()") as? Double, h >= 2 else {
+          throw DirectorError("the \(a.template) template has nothing to show as a sticker (no #sticker element)")
+        }
+        height = min(width * 2, Int((h / 2).rounded(.up)) * 2)
+      }
     }
 
     /// Loads `url` (a web page, or a local file with read access to `readAccess`, default its folder)

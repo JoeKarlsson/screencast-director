@@ -964,7 +964,7 @@ struct Checks {
     let noteClip = noteDir.appendingPathComponent(noteAnim.clipPath(in: notePlan, dir: noteDir))
     try? FileManager.default.createDirectory(at: noteClip.deletingLastPathComponent(), withIntermediateDirectories: true)
     FileManager.default.createFile(atPath: noteClip.path, contents: Data())
-    let noteIns = notePlan.animationInserts(dir: noteDir).first
+    let noteIns = notePlan.animationInserts(dir: noteDir).first?.insert
     expect(noteIns.map { $0.isSticker && $0.x == 0.2 && $0.y == 0.25 && $0.w == 0.4 && $0.rotation == 3 } == true, "a sticker animation plays as a sticker insert in its place")
     let ns = Scene(plan: notePlan, words: [], clicks: [], shortcuts: [], dir: noteDir)
     expect(ns.inserts.first.map { ns.insertPose($0, frame: $0.s).scale < 0.2 && ns.insertPose($0, frame: $0.s + 30).scale > 0.95 } == true,
@@ -974,6 +974,26 @@ struct Checks {
     expect(fadedIn.inserts.first.map { fadedIn.insertPose($0, frame: $0.s + 1).opacity < 0.6 && fadedIn.insertPose($0, frame: $0.s).scale == 1 } == true,
       "a sticker animation's own entrance replaces the stick-on")
     try? FileManager.default.removeItem(at: noteDir)
+    // The app's live preview draws an animation from the frame it's handed, before its clip exists;
+    // an export leaves the unrendered animation out.
+    let live = LiveFrames()
+    let livePreview = Scene(plan: notePlan, words: [], clicks: [], shortcuts: [], dir: noteDir, live: live)
+    expect(Scene(plan: notePlan, words: [], clicks: [], shortcuts: [], dir: noteDir).inserts.isEmpty, "an export leaves out an animation with no clip")
+    if let ins = livePreview.inserts.first {
+      let backdrop = CIImage(color: .blue).cropped(to: CGRect(x: 0, y: 0, width: livePreview.W, height: livePreview.H))
+      func drawn() -> CIImage {
+        livePreview.broll(backdrop, frame: ins.s + 20, full: false, overlay: true, box: Box(x: 0, y: 0, w: 1, h: 1, r: 0, opacity: 1), frames: [:])
+      }
+      let center = (x: 0.2 * livePreview.W, y: livePreview.H - 0.25 * livePreview.H)
+      expect(pixel(drawn(), x: center.x, y: center.y)[2] > 0.9, "an animation with no clip and no live frame draws nothing")
+      live.show(CIImage(color: .red).cropped(to: CGRect(x: 0, y: 0, width: 400, height: 300)), for: 0)
+      let red = pixel(drawn(), x: center.x, y: center.y)
+      expect(red[0] > 0.9 && red[2] < 0.2, "the live preview draws the animation's live frame where its sticker goes (\(red))")
+      live.show(CIImage(color: .red), for: 1)
+      expect(live.image(0) == nil, "only one animation has a live frame at a time")
+    } else {
+      expect(false, "the live preview has an insert for the unrendered animation")
+    }
     // A fitted overlay leaves the frame around it see-through instead of letterboxing it on black.
     var fitted = floatingOver
     fitted.inserts?[0].fit = "fit"

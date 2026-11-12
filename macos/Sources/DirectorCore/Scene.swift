@@ -24,6 +24,10 @@ public final class Scene: @unchecked Sendable {
   public let inserts: [(s: Double, e: Double, a: Insert, index: Int)]
   /// Pictures for picture inserts, loaded once.
   let insertImages: [Int: CIImage]
+  /// The app's live animation frames, drawn instead of a clip (nil in an export).
+  let live: LiveFrames?
+  /// The animation each animation insert shows, by insert index.
+  let liveAnimations: [Int: Int]
   /// The project folder, for files the plan names relative to it.
   public let dir: URL?
   /// The camera grade's LUT, read once here rather than on every frame. A LUT that can't be read
@@ -91,9 +95,11 @@ public final class Scene: @unchecked Sendable {
 
   public init(
     plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
-    effects: [LoadedEffect] = [], rangeEffects: [LoadedEffect] = [], tracking: Tracking? = nil, theme: Theme? = nil
+    effects: [LoadedEffect] = [], rangeEffects: [LoadedEffect] = [], tracking: Tracking? = nil, theme: Theme? = nil,
+    live: LiveFrames? = nil
   ) {
     self.plan = plan
+    self.live = live
     marks = theme?.marks.over(.builtIn) ?? .builtIn
     coverMarks = theme?.manifest.coverMarks == true
     self.effects = effects
@@ -169,7 +175,9 @@ public final class Scene: @unchecked Sendable {
       }
     }
     // A clip split by a move picks up where its previous piece left off.
-    inserts = (plan.insertList + plan.animationInserts(dir: dir)).enumerated().flatMap { i, a in
+    let animated = plan.animationInserts(dir: dir, unrendered: live != nil)
+    liveAnimations = Dictionary(uniqueKeysWithValues: animated.enumerated().map { (plan.insertList.count + $0.offset, $0.element.animation) })
+    inserts = (plan.insertList + animated.map(\.insert)).enumerated().flatMap { i, a in
       var played = 0.0
       return srcRangeToOut(m, a.start, a.end, fps: fps).map { r -> (s: Double, e: Double, a: Insert, index: Int) in
         var piece = a

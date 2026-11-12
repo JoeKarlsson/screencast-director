@@ -258,15 +258,16 @@ public enum JSONValue: Codable, Equatable, Sendable {
 }
 
 extension Plan {
-  /// Rendered animations as full-frame B-roll, for the renderer and the composition. An animation
-  /// that hasn't been rendered yet is left out (the app and `director render` render it first).
-  public func animationInserts(dir: URL?) -> [Insert] {
+  /// Rendered animations as full-frame B-roll, for the renderer and the composition, each with its
+  /// index in the animation list. An animation that hasn't been rendered yet is left out (the app
+  /// and `director render` render it first), unless `unrendered`: the app's live preview draws it.
+  public func animationInserts(dir: URL?, unrendered: Bool = false) -> [(animation: Int, insert: Insert)] {
     // In portrait an animation plays in the screen card, above the camera; elsewhere over the whole
     // frame. An overlay floats over everything, in any format.
     let placement = socialTop(self) == nil ? "full" : "screen"
-    return animationList.compactMap { a in
+    return animationList.enumerated().compactMap { i, a in
       let path = a.clipPath(in: self, dir: dir)
-      guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
+      guard let dir, unrendered || FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
       var ins = Insert(
         start: a.start, end: a.end, file: path, from: animationSeek(a), placement: a.sticker != nil ? "sticker" : a.isOverlay ? "overlay" : placement,
         fit: "fill", enter: a.enter, exit: a.exit, note: a.note)
@@ -275,7 +276,7 @@ extension Plan {
       } else if a.isOverlay, let p = a.place {
         (ins.x, ins.y, ins.w, ins.rotation) = (p.x, p.y, p.w, p.rotation)
       }
-      return ins
+      return (i, ins)
     }
   }
 

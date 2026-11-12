@@ -35,6 +35,7 @@ Edits are `plan.json` changes. The app checks the file every second, so an edit 
 | Apply a profile, Save This Look as a Profile | `director profile <dir> <name>`, `profile-save <dir> <name> [--music] [--voice] [--camera]`, `profiles` |
 | Install a Pack, Export Profiles as a Pack | `director pack install <folder or .sdpack> [--replace]`, `pack export <out[.sdpack]> --profile <name>... [--work]`, `pack list`, `pack remove <name>` |
 | The Animations theme choices | `director themes [dir]` |
+| An animation's live preview while paused | `director animate-preview <dir>`: one JSON request a line on stdin (`{"index", "t", "plan"?}`), a PNG of that frame per reply; `animate-test` for a clip and contact sheet |
 | Add B-roll, Choose LUT, Music File, logo, font | `director add <dir> broll\|lut\|music\|logo\|font <file>`, then use the printed path in `plan.json` |
 | More sound effects and pictures from Openverse | `director stock <dir> sounds\|images <query> [--credit-ok]`, then `stock <dir> get-sound\|get-image <id>...`; sounds land in My Sounds › Openverse, pictures in `broll/`, each logged in `openverse-licenses.csv` |
 | Video B-roll and GIFs | `director stock <dir> videos <query> [--credit-ok] [--source nasa,commons,archive]` or `stock <dir> gifs <query>` (KLIPY reaction GIFs in personal videos only), then `stock <dir> get-video\|get-gif <id>...`; MP4s land in `broll/`, each logged in `broll/stock-licenses.csv`. KLIPY's key: Settings > Stock in the app (Keychain), or `KLIPY_API_KEY` (`bin/director` loads the repo's `.env.local`) |

@@ -50,7 +50,7 @@ extension Scene {
   func broll(_ image: CIImage, frame f: Double, full: Bool, overlay: Bool = false, box b: Box, frames: [Int: CIImage]) -> CIImage {
     var out = image
     for ins in inserts where ins.a.isOverlay == overlay && (overlay || ins.a.isFull == full) && f >= ins.s && f < ins.e {
-      guard var src = insertImages[ins.index] ?? frames[ins.index] else { continue }
+      guard var src = liveAnimations[ins.index].flatMap({ live?.image($0) }) ?? insertImages[ins.index] ?? frames[ins.index] else { continue }
       let pose = insertPose(ins, frame: f)
       guard pose.visible else { continue }
       if ins.a.isSticker {

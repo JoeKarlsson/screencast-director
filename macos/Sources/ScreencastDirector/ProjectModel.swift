@@ -80,6 +80,9 @@ final class ProjectModel: ObservableObject {
   private var timeObserver: Any?
   private var rateObserver: NSKeyValueObservation?
   private var volumeObserver: AnyCancellable?
+  /// The selected animation drawn live at the playhead while paused (`LiveAnimationPreview`).
+  lazy var livePreview = LiveAnimationPreview(dir: dir)
+  private var livePreviewWatch: AnyCancellable?
   private var rebuildWork: DispatchWorkItem?
   var thumbnails: [Int: NSImage] = [:]
 
@@ -96,6 +99,11 @@ final class ProjectModel: ObservableObject {
       self?.player.volume = volume
       self?.player.isMuted = muted
     }
+    livePreview.redraw = { [weak self] in self?.redrawPausedFrame() }
+    // Throttled on the main run loop, so the sink reads the model after the change has landed.
+    livePreviewWatch = $plan.combineLatest($selection, $isPlaying, playhead.$frame)
+      .throttle(for: .milliseconds(40), scheduler: RunLoop.main, latest: true)
+      .sink { [weak self] _ in self?.updateLivePreview() }
     loadFromDisk()
     watchPlan()
     loadAsks()
@@ -219,7 +227,7 @@ final class ProjectModel: ObservableObject {
     Task { @MainActor in
       do {
         let project = try Project.load(dir)
-        let built = try await buildComposition(project: project, plan: plan)
+        let built = try await buildComposition(project: project, plan: plan, live: livePreview.frames)
         guard generation == previewGeneration else { return }
         self.project = project
         previewScene = built.scene
@@ -251,6 +259,23 @@ final class ProjectModel: ObservableObject {
         Notices.shared.show(error, "Couldn't load the plan")
       }
     }
+  }
+
+  /// While paused inside the selected animation, asks for its live frame at the playhead; otherwise
+  /// the preview plays the rendered clips.
+  private func updateLivePreview() {
+    guard let plan, !isPlaying, case .animation(let i)? = selection, plan.animationList.indices.contains(i) else { return livePreview.clear() }
+    let a = plan.animationList[i], t = playheadSrc
+    guard t >= a.start, t < a.end else { return livePreview.clear() }
+    livePreview.show(i, at: t - a.start, plan: plan)
+  }
+
+  /// Draws the paused frame again (a new live frame) by handing the item a copy of its composition.
+  /// Not a seek: right after a rebuild swaps the item, its current time reads 0 until the rebuild's
+  /// own seek lands, and seeking there sent the playhead to the start.
+  private func redrawPausedFrame() {
+    guard !isPlaying, let item = player.currentItem, let composition = item.videoComposition?.mutableCopy() as? AVVideoComposition else { return }
+    item.videoComposition = composition
   }
 
   /// Animations whose clip hasn't been rendered yet show nothing in the preview, so render them

@@ -138,6 +138,32 @@ python3 -c "import sys; sys.exit(0 if abs(float(sys.argv[1]) - 1) < 0.1 else 1)"
 if "$DIRECTOR" animate-test "$PROJECT" 0 30 "$TMP/late.mp4" 2>"$TMP/err"; then echo "FAIL: animate-test outside the animation succeeded" >&2; exit 1; fi
 grep -q "isn't in it" "$TMP/err" || { echo "FAIL: animate-test outside the animation said: $(cat "$TMP/err")" >&2; exit 1; }
 echo "ok: animate-test renders 1 s and its sheet, and refuses a moment outside the animation"
+# The app's live preview: animate-preview draws one frame per request at the clip's size, from the
+# plan it's sent (an edit shows without saving or rendering), and answers a bad request with an error.
+python3 - "$DIRECTOR" "$PROJECT" <<'PY'
+import json, struct, subprocess, sys
+director, project = sys.argv[1], sys.argv[2]
+plan = json.load(open(project + "/plan.json"))
+edited = json.loads(json.dumps(plan))
+last, first = edited["animations"][-1], edited["animations"][0]
+first.update(template=last["template"], data=last["data"], cues={k: v - last["start"] + first["start"] for k, v in last.get("cues", {}).items()})
+helper = subprocess.Popen([director, "animate-preview", project], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+def ask(request):
+    helper.stdin.write(json.dumps(request) + "\n")
+    helper.stdin.flush()
+    reply = json.loads(helper.stdout.readline())
+    if "png" not in reply: return reply
+    png = open(reply["png"], "rb").read()
+    return dict(reply, size=struct.unpack(">II", png[16:24]), png=png)
+saved, sent, bad = ask({"index": 0, "t": 2.5}), ask({"index": 0, "t": 2.5, "plan": edited}), ask({"index": 99, "t": 0})
+helper.stdin.close()
+helper.wait()
+if "error" in saved or "error" in sent: sys.exit(f"FAIL: animate-preview didn't draw: {saved.get('error')} {sent.get('error')}")
+if saved["size"] != (480, 270): sys.exit(f"FAIL: animate-preview drew {saved['size']}, not the clip's 480x270")
+if saved["png"] == sent["png"]: sys.exit("FAIL: animate-preview ignored the plan it was sent")
+if "no animation #99" not in bad.get("error", ""): sys.exit(f"FAIL: animate-preview answered a bad index with {bad}")
+print("ok: animate-preview draws a frame at the clip's size from the plan it's sent, and reports a bad index")
+PY
 # Versions: the second animation kept as an alternate of the first, both rendered, then swapped in.
 python3 - "$PROJECT/plan.json" <<'PY'
 import json, sys

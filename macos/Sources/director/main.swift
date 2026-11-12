@@ -15,6 +15,7 @@ let usage = """
     director validate <dir>                         each problem in plan.json with its JSON path (typo'd keys, bad values, overlaps, flashes); exits 1 on any
     director animate  <dir> [--force] [--preset id | --clip name]   render the plan's animations to .animations/ (render, still and gif do this first)
     director animate-test <dir> <index> <source-second> [out.mp4]   one second of animation #index from that moment, plus a contact sheet of its frames (default .checks/animation-<index>-test.mp4)
+    director animate-preview <dir>   live preview for the app: reads {"index", "t" (seconds into it), "plan"?} a line on stdin, prints {"png": path} or {"error"} a line each
     director animate-variants <dir> <index>          render animation #index and each of its alternates to .checks/, with one sheet comparing them (a row each)
     director animate-choose <dir> <index> <k>       play alternate k of animation #index, keeping the one it replaces as an alternate
     director review   <dir> [--retention]           what each zoom shows, cut edges inside words, polish and retention notes (--retention: only the retention notes, fast)
@@ -487,6 +488,8 @@ do {
     _ = try await Animate.renderMissing(dir, plan) { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     try await stillFrame(project, plan, frame: frame, to: out)
     print(positional[3])
+  case "animate-preview":
+    try await Animate.preview(dir)
   case "animate-test":
     guard positional.count >= 4, positional.count <= 5, let index = Int(positional[2]), let at = Double(positional[3]) else { fail(usage) }
     let project = try Project.load(dir)

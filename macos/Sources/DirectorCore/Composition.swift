@@ -53,7 +53,8 @@ private func insert(_ track: AVMutableCompositionTrack, _ range: CMTimeRange, of
   }
 }
 
-public func buildComposition(project: Project, plan: Plan) async throws -> BuiltComposition {
+/// `live` is the app's live animation preview: animations are drawn from it before their clips exist.
+public func buildComposition(project: Project, plan: Plan, live: LiveFrames? = nil) async throws -> BuiltComposition {
   let loadedEffects = try Effects.load(plan.effects ?? [], sources: EffectSources(project: project.dir))
   let rangeEffects = try Effects.load(plan.effectRangeList.map(\.use), sources: EffectSources(project: project.dir))
   var tracking: Tracking?
@@ -63,7 +64,7 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   let theme = try ThemeSources(project: project.dir).forVideo(plan.look?.animationTheme)
   let scene = Scene(
     plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts, cursorPath: project.cursorPath,
-    dir: project.dir, effects: loadedEffects, rangeEffects: rangeEffects, tracking: tracking, theme: theme)
+    dir: project.dir, effects: loadedEffects, rangeEffects: rangeEffects, tracking: tracking, theme: theme, live: live)
   let fps = Int32(plan.output.fps)
   let comp = AVMutableComposition()
 
@@ -291,6 +292,8 @@ private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableCompos
   var assets: [AVURLAsset] = []
   for ins in scene.inserts where !ins.a.isImage {
     guard let url = Scene.fileURL(ins.a.file, dir: project.dir), FileManager.default.fileExists(atPath: url.path) else {
+      // An animation not rendered yet shows its live frame in the app's preview.
+      if scene.live != nil, scene.liveAnimations[ins.index] != nil { continue }
       throw CompositionError.missingFile(ins.a.file)
     }
     let asset = AVURLAsset(url: url)
