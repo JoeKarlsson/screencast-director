@@ -96,8 +96,8 @@ TEMPLATES.note = function (data, cues, duration) {
   const start = cue(cues, "mark", .45);
 
   return t => {
-    // Drawn on stroke after stroke over half a second, like a pen going round.
-    const p = clamp((t - start) / .5) * strokes.length;
+    // Drawn on stroke after stroke over half a second (times the hand-tuned pop length), like a pen going round.
+    const p = clamp((t - start) / (.5 * TUNE.pop)) * strokes.length;
     strokes.forEach((s, i) => { s.style.strokeDashoffset = 1 - clamp(p - i); });
   };
 };

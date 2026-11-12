@@ -48,6 +48,18 @@ public struct Animation: Codable, Equatable, Sendable {
   /// sticker's stick-on and shrink-away, else the B-roll default). Never re-renders the clip.
   public var enter: Motion?
   public var exit: Motion?
+  /// Hand-tuned motion inside the animation, for every template (engine.js's `TUNE`). Unset moves as designed.
+  public var tune: Tune?
+
+  public struct Tune: Codable, Equatable, Sendable {
+    /// How long pop-ins and draw-ons take, times the design's (0.25 to 4).
+    public var pop: Double?
+    /// How far a pop overshoots: 0 none, 0.4 the house spring, up to 0.8.
+    public var bounce: Double?
+    /// The gaps between words and strokes, times the design's (0 to 4).
+    public var stagger: Double?
+    public init(pop: Double? = nil, bounce: Double? = nil, stagger: Double? = nil) { (self.pop, self.bounce, self.stagger) = (pop, bounce, stagger) }
+  }
 
   /// Over the video without covering or splitting it: an overlay or a sticker.
   public var floats: Bool { isOverlay || sticker != nil }
@@ -190,6 +202,8 @@ public struct Animation: Codable, Equatable, Sendable {
       let overlay: Bool?
       /// A sticker's width share, which sets its resolution (nil when not a sticker).
       let sticker: Double?
+      /// Hand-tuned motion (nil when untouched, so older clips keep their names).
+      let tune: Tune?
     }
     let enc = JSONEncoder()
     enc.outputFormatting = .sortedKeys
@@ -198,7 +212,7 @@ public struct Animation: Codable, Equatable, Sendable {
       duration: ((end - start) * 1000).rounded() / 1000, w: width, h: height, fps: fps,
       brand: look.map { Brand(theme: $0.animationTheme, accent: $0.accent, titleFont: $0.titleFont, bodyFont: $0.captionFont) },
       top: safeTop > 0 ? safeTop : nil, overlay: isOverlay ? true : nil,
-      sticker: sticker.map { $0.w ?? Animation.stickerWidth })
+      sticker: sticker.map { $0.w ?? Animation.stickerWidth }, tune: tune == Tune() ? nil : tune)
     // Encoding plain values can only fail on a non-finite number; hash the key's description then,
     // so two different animations never share the empty-data name.
     let digest = SHA256.hash(data: (try? enc.encode(key)) ?? Data(String(reflecting: key).utf8))

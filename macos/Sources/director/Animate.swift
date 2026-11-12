@@ -652,6 +652,7 @@ enum Animate {
     if plan.animationSafeTop(a) > 0 { config["safeTop"] = plan.animationSafeTop(a) }
     if a.isOverlay { config["overlay"] = true }
     if a.sticker != nil { config["sticker"] = true }
+    if let tune = a.tune { config["tune"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(tune)) }
     config["marks"] = (theme?.marks ?? MarkSet([:])).json
     if let css = theme?.css, !css.isEmpty { config["themeCSS"] = css }
     if let name = a.lottieFile {

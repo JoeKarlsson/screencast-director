@@ -90,6 +90,15 @@ func laterChecks() {
   // Animation scripts run in JavaScriptCore: every template's frames draw without throwing, and the
   // hub's background field shows its own apps, each once before any repeats, never the grid's.
   let templateScripts = animationScripts(templateDir.deletingLastPathComponent())
+  // Hand-tuned motion (config.tune): a longer pop is less far along, no bounce never overshoots, and
+  // untouched it moves as designed (the house spring overshoots); out-of-range knobs are clamped.
+  func pop(_ tune: String, _ expression: String) -> Double {
+    templateScripts.evaluateScript("(() => { applyTune(\(tune)); const r = \(expression); applyTune(); return r; })()").toDouble()
+  }
+  let peakScale = "Math.max(...Array.from({ length: 60 }, (_, i) => popScale(i / 60, 0)))"
+  expect(pop("{ pop: 2 }", "popScale(.2, 0)") < pop("{}", "popScale(.2, 0)") - 0.1, "a longer pop is less far along at the same moment")
+  expect(pop("{ bounce: 0 }", peakScale) <= 1.0001 && pop("{}", peakScale) > 1.05, "no bounce never overshoots; untouched, the pop springs past full size")
+  expect(abs(pop("{ pop: 100, bounce: 5 }", "TUNE.pop * 10 + TUNE.bounce") - 40.8) < 1e-9, "tune knobs are clamped to their ranges")
   // Flourishes: icons are hand-drawn strokes, a landing squashes on impact and settles round, and an
   // unknown icon draws nothing.
   expect(templateScripts.evaluateScript("(iconHTML('laptop').match(/<path/g) || []).length").toInt32() == 2, "the laptop icon is two strokes")

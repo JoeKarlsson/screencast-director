@@ -44,12 +44,23 @@ const frameStart = t => Math.floor(t * 12 + 1e-4) / 12;
 // Accelerating away, for things leaving: a decelerating exit covers most of its distance before the eye can follow.
 const easeIn = x => clamp(x) ** 2;
 const easeInOut = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+// Hand-tuning from the plan (config.tune): `pop` scales how long pop-ins and draw-ons take, `bounce`
+// is how far a pop overshoots (0 none, .4 the house spring), `stagger` scales the gaps between words
+// and strokes. Unset, everything moves as designed.
+let TUNE = { pop: 1, bounce: .4, stagger: 1 };
+function applyTune(tune = {}) {
+  TUNE = {
+    pop: clamp(tune.pop ?? 1, .25, 4),
+    bounce: clamp(tune.bounce ?? .4, 0, .8),
+    stagger: clamp(tune.stagger ?? 1, 0, 4),
+  };
+}
 // A sticker slapped down: springs past full size (about 9%) and settles.
 function popScale(t, start, dur = .42) {
   if (t < start) return 0;
   // Terminal: no bounce; it flickers on like a screen element, then holds.
   if (THEME === "terminal") return t - start < .2 ? Math.floor((t - start) * 24) % 2 === 0 ? 1 : 0 : 1;
-  return spring((t - start) / dur, .6);
+  return spring((t - start) / (dur * TUNE.pop), 1 - TUNE.bounce);
 }
 // Pop-ins used to blur here in place of motion blur. The renderer now averages subframes for real
 // motion blur, so this stays only for templates frozen into videos before that.
@@ -177,7 +188,7 @@ function iconHTML(name) {
 function drawIcons(node, t, start) {
   node.querySelectorAll("svg.drawn path").forEach((p, i) => {
     p.style.strokeDasharray = 1;
-    p.style.strokeDashoffset = THEME === "terminal" ? (t >= start ? 0 : 1) : 1 - easeOut((t - start - i * .07) / .3);
+    p.style.strokeDashoffset = THEME === "terminal" ? (t >= start ? 0 : 1) : 1 - easeOut((t - start - i * .07 * TUNE.stagger) / (.3 * TUNE.pop));
   });
 }
 // A sticker slammed down: springs in, squashed on impact and stretched on the rebound. Terminal
@@ -190,7 +201,7 @@ function land(node, x, y, t, start, size = 1, rot = 0, opacity = 1) {
   node.style.opacity = s <= .001 ? 0 : opacity;
   node.style.filter = "";
   // In the air its shadow falls wider and softer; it settles under the card as it lands.
-  node.style.setProperty("--lift", u > 0 ? 1 - easeOut(u / .3) : 1);
+  node.style.setProperty("--lift", u > 0 ? 1 - easeOut(u / (.3 * TUNE.pop)) : 1);
 }
 // The burst mark, in the accent, flaring behind a node as it lands and erasing.
 function burstMark(behind) {
@@ -217,7 +228,8 @@ function drawBurst(b, x, y, t, start, size = 1, rot = 0) {
 // Heading words rise out of a mask line, 60 ms apart (heading() wraps each word).
 function revealHeading(h, t, start) {
   h.node.querySelectorAll(".rw > span").forEach((w, i) => {
-    const p = THEME === "terminal" ? (t >= start + i * .06 ? 1 : 0) : spring((t - start - i * .06) / .5, .75);
+    const gap = .06 * TUNE.stagger;
+    const p = THEME === "terminal" ? (t >= start + i * gap ? 1 : 0) : spring((t - start - i * gap) / (.5 * TUNE.pop), .75);
     w.style.transform = `translateY(${(1 - p) * 110}%)`;
   });
 }
@@ -414,6 +426,7 @@ window.init = async function (config) {
     document.head.appendChild(style);
   }
   OVERLAY = config.overlay === true;
+  applyTune(config.tune);
   // A sticker (config.sticker): the template builds #sticker, a card the page's width shown in a
   // sticker border over the video; the stage isn't shown.
   // ("sticker-page": the storyboard's .sticker class is a node's.)

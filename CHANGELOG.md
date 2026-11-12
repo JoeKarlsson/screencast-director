@@ -2,6 +2,12 @@
 
 Each release lists what changed for people using the app or the CLI. The version lives in `VERSION`; `macos/release.sh` tags it and publishes the build.
 
+## Unreleased
+
+### Editor
+- Animations preview live: paused inside the selected animation, an edit shows in under a second, drawn where its clip will play, instead of disappearing until it re-renders. Scrubbing draws each frame as you go. Playback and export still use the rendered clip. Agents get the same frames from `director animate-preview`.
+- Motion sliders for animations: Pop length, Bounce and Stagger tune how an animation's pieces pop in and draw on, previewed live while paused. Reset Motion puts the design back. A video keeps its own copy of its templates, so a Sticker Note's scribble follows Pop length after Update Template. Agents set `tune` {pop, bounce, stagger} on the animation.
+
 ## 0.3.0 (2026-11-12)
 
 To install: download the zip below, unzip it and drag Screencast Director to Applications. This build isn't notarized by Apple yet, so the first time you open it, go to System Settings › Privacy & Security and click Open Anyway. Speech to text (whisper-cli) comes with the app; Getting Started gives you the command for the model. To use a look someone shared with you (a .sdpack file), install it with File › Install Pack….
@@ -49,7 +55,6 @@ To install: download the zip below, unzip it and drag Screencast Director to App
   - An item's own entrance or exit has a Length slider (0.05 to 2 s). Its ease is a curve whose two handles you drag, or a Bounce slider for a spring.
   - B-roll can be made a sticker or an overlay. A sticker gets meme top and bottom text, size and tilt.
   - Sticker and overlay animations can set how they pop on and off, without re-rendering (`enter`/`exit` on the animation).
-- Animations preview live: paused inside the selected animation, an edit shows in under a second, drawn where its clip will play, instead of disappearing until it re-renders. Scrubbing draws each frame as you go. Playback and export still use the rendered clip. Agents get the same frames from `director animate-preview`.
 - Settings with a few options show them all as a row of choices instead of a menu or segmented control: frame style, animation theme, chapter style, shape, resolution, frame rate, screen crop, camera shape and room, pauses, effect layers, the logo's corner and B-roll placement. Cursor smoothing picks Off, Light, Medium or Strong (a value set between them shows as Custom).
 - The inspector is quieter: the explanations under settings moved into their tooltips, and controls that can't apply right now are hidden instead of greyed out (nudging items that can't move, reordering a single clip, Repeat at Playhead with the playhead inside the clip, layouts without a camera).
 - The timeline shows the selected bar with a halo in its own color, shows a dragged edge's in and out times above it, and outlines how far a clip can grow while you trim it (in recording time).

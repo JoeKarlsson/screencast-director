@@ -44,7 +44,19 @@ struct AnimationEditor: View {
           .disabled(project.busy)
           .help("Claude writes the content in your words and cues each beat to the word that names it")
           if project.animating, project.plan?.animationsToRender(dir: project.dir).contains(where: { $0.index == i }) == true {
-            Label("Rendering… it shows in the preview when it's done.", systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
+            Label("Rendering the clip for playback. Paused here, the preview shows it live.", systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
+          }
+        }
+        // A Lottie's motion is in its file.
+        if a.lottieFile == nil {
+          InspectorSection("Motion", detail: "How its pieces pop in and draw on. Pause inside it to see each change live.") {
+            tuneSlider("Pop length", \.pop, default: 1, 0.25...3, "Longer is slower; 1× is as designed") { "\($0.formatted(.number.precision(.fractionLength(0...2))))×" }
+            tuneSlider("Bounce", \.bounce, default: 0.4, 0...0.8, "How far a pop overshoots before it settles") { "\(Int(($0 * 100).rounded()))%" }
+            tuneSlider("Stagger", \.stagger, default: 1, 0...3, "The gap between words and strokes; 0 brings them in together") { "\($0.formatted(.number.precision(.fractionLength(0...2))))×" }
+            if a.tune != nil {
+              Button("Reset Motion") { project.editAnimation(i) { $0.tune = nil } }
+                .help("Move as the template was designed")
+            }
           }
         }
         if a.floats, let plan = project.plan {
@@ -73,6 +85,34 @@ struct AnimationEditor: View {
         }
       }
     }
+  }
+
+  // MARK: Motion
+
+  /// A slider for one of the animation's `tune` knobs. A drag is one undo step; moving it back to
+  /// the design's value clears the knob, and clearing the last one clears `tune`.
+  private func tuneSlider(
+    _ title: String, _ knob: WritableKeyPath<DirectorCore.Animation.Tune, Double?>, default design: Double, _ range: ClosedRange<Double>,
+    _ help: String, label: @escaping (Double) -> String
+  ) -> some View {
+    let value = item?.tune?[keyPath: knob] ?? design
+    return LabeledContent(title) {
+      Slider(
+        value: Binding(
+          get: { value },
+          set: { v in
+            let snapped = (v * 20).rounded() / 20
+            project.editAnimation(i, coalesce: "tune\(title)\(i)") { a in
+              var tune = a.tune ?? .init()
+              tune[keyPath: knob] = abs(snapped - design) < 0.001 ? nil : snapped
+              a.tune = tune == .init() ? nil : tune
+            }
+          }), in: range
+      )
+      .controlSize(.small)
+      Text(label(value)).font(.callout).monospacedDigit().foregroundStyle(.secondary).frame(width: 54, alignment: .trailing)
+    }
+    .help(help)
   }
 
   // MARK: Where the template comes from

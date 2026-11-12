@@ -809,6 +809,11 @@ struct Checks {
     expect(animSrc.template("hub")?.origin == .video && !animSrc.differsFromLibrary("hub"), "the frozen copy is used and matches the library")
     let frozen = hubAnim.clipPath(out1080, dir: video)
     expect(frozen != unfrozen, "freezing names the clip after the frozen copy")
+    var tuned = hubAnim
+    tuned.tune = Animation.Tune()
+    expect(tuned.clipPath(out1080, dir: video) == frozen, "an empty tune keeps the clip's name")
+    tuned.tune?.bounce = 0
+    expect(tuned.clipPath(out1080, dir: video) != frozen, "tuning an animation's motion re-renders it")
     try? "// v2".write(to: builtInDir.appendingPathComponent("templates/hub.js"), atomically: true, encoding: .utf8)
     expect(animSrc.differsFromLibrary("hub") && hubAnim.clipPath(out1080, dir: video) == frozen, "a library change offers an update but doesn't touch the video")
     try? animSrc.updateFromLibrary("hub")
