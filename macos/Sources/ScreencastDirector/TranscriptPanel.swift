@@ -86,7 +86,7 @@ struct TranscriptView: View {
         .contentShape(Rectangle())
         .simultaneousGesture(dragSelect)
         .onChange(of: ui.hit) { _, _ in
-          if found.indices.contains(ui.hit) { withAnimation { scroll.scrollTo(found[ui.hit], anchor: .center) } }
+          if found.indices.contains(ui.hit) { withAnimation(Theme.Motion.move) { scroll.scrollTo(found[ui.hit], anchor: .center) } }
         }
         .onChange(of: playhead.word) { _, w in
           // Keep the spoken word in view while playing.

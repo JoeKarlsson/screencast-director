@@ -61,9 +61,9 @@ struct EditorToolbar: ToolbarContent {
           .disabled(project.busy)
           .help("Transcribe, measure motion and draft the edit")
       }
-      Button { withAnimation(.snappy) { editor.showTranscript.toggle() } } label: { Label("Transcript", systemImage: "text.quote") }
+      Button { withAnimation(Theme.Motion.move) { editor.showTranscript.toggle() } } label: { Label("Transcript", systemImage: "text.quote") }
         .help("Edit by text: select words to cut them or add a zoom, title or annotation (⌥⌘T)")
-      Button { withAnimation(.snappy) { editor.showInspector.toggle() } } label: { Label("Inspector", systemImage: "sidebar.right") }
+      Button { withAnimation(Theme.Motion.move) { editor.showInspector.toggle() } } label: { Label("Inspector", systemImage: "sidebar.right") }
         .help("Show or hide the inspector (⌥⌘I)")
     }
   }

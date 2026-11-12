@@ -118,13 +118,22 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     model.startClock()
     panel.alphaValue = 0
     panel.orderFrontRegardless()
-    NSAnimationContext.runAnimationGroup { $0.duration = 0.2; panel.animator().alphaValue = 1 }
+    NSAnimationContext.runAnimationGroup {
+      $0.duration = Theme.Motion.reduce ? 0 : Theme.Motion.enterDuration
+      $0.timingFunction = Theme.Motion.enterCurve
+      panel.animator().alphaValue = 1
+    }
   }
 
   func hide() {
     model.stopClock()
     guard let panel else { return }
-    NSAnimationContext.runAnimationGroup({ $0.duration = 0.15; panel.animator().alphaValue = 0 }, completionHandler: { panel.orderOut(nil) })
+    NSAnimationContext.runAnimationGroup(
+      {
+        $0.duration = Theme.Motion.reduce ? 0 : Theme.Motion.exitDuration
+        $0.timingFunction = Theme.Motion.exitCurve
+        panel.animator().alphaValue = 0
+      }, completionHandler: { panel.orderOut(nil) })
   }
 
   func windowDidMove(_ notification: Notification) {
@@ -168,9 +177,9 @@ struct RecordingHUDView: View {
     .padding(.trailing, Theme.Space.s)
     .padding(.vertical, Theme.Space.m)
     .glassCard(cornerRadius: 30)
-    .animation(.snappy, value: recorder.retakeCount)
-    .animation(.snappy, value: recorder.isPaused)
-    .animation(.snappy, value: model.confirming)
+    .animation(Theme.Motion.move, value: recorder.retakeCount)
+    .animation(Theme.Motion.move, value: recorder.isPaused)
+    .animation(Theme.Motion.move, value: model.confirming)
     .fixedSize()
   }
 
@@ -191,7 +200,7 @@ struct RecordingHUDView: View {
           .foregroundStyle(.orange)
           .help("Retakes marked (⌃⌥⌘M): the line before each one is cut from the draft")
           .id(recorder.retakeCount)
-          .transition(.scale.combined(with: .opacity))
+          .transition(.scale(scale: 0.95).combined(with: .opacity))
       }
       if !recorder.loggingInput {
         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
@@ -246,14 +255,14 @@ struct RecordingHUDView: View {
   }
 }
 
-/// The red recording dot, breathing.
+/// The red recording dot, breathing (still under Reduce Motion).
 struct PulsingDot: View {
   var body: some View {
-    SwiftUI.TimelineView(.animation(minimumInterval: 1 / 30)) { ctx in
-      let phase = (sin(ctx.date.timeIntervalSinceReferenceDate * 3) + 1) / 2
+    let still = Theme.Motion.reduce
+    SwiftUI.TimelineView(.animation(minimumInterval: 1 / 30, paused: still)) { ctx in
+      let phase = still ? 1 : (sin(ctx.date.timeIntervalSinceReferenceDate * 3) + 1) / 2
       Circle().fill(Theme.recording)
         .frame(width: 11, height: 11)
-        .shadow(color: Theme.recording.opacity(0.7), radius: 2 + 4 * phase)
         .opacity(0.65 + 0.35 * phase)
     }
     .frame(width: 14, height: 14)
@@ -275,6 +284,8 @@ struct MicMeter: View {
       }
     }
     .frame(height: 22)
+    // A level meter follows the signal, so it stays linear and on under Reduce Motion.
+    // swiftlint:disable:next motion_tokens
     .animation(.linear(duration: 0.08), value: level)
   }
 
@@ -361,7 +372,7 @@ struct CountdownView: View {
     }
     .frame(width: 170, height: 170)
     .glassCard(cornerRadius: 85)
-    .animation(.snappy, value: countdown.remaining)
+    .animation(Theme.Motion.enter, value: countdown.remaining)
     .frame(width: 220, height: 220)
   }
 }

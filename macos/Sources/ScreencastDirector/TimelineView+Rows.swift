@@ -150,7 +150,6 @@ extension TimelineView {
         .offset(y: 2)
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
     }
-    .shadow(color: Self.playheadColor.opacity(0.5), radius: 3)
     .frame(width: 12, height: rows.total, alignment: .top)
     .modifier(
       PlayheadOffset(project: project, playhead: project.playhead, ui: ui, pxPerSec: ui.pxPerSec, mapped: project.mapped, outputTime: ui.outputTime))

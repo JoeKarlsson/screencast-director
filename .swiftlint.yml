@@ -45,3 +45,12 @@ custom_rules:
     regex: '\.system\(size:'
     message: "Use Theme.font(...) or Theme.glyph(...) instead of a hard-coded font size"
     severity: error
+  # UI motion comes from Theme.Motion (enter, exit, move, allowed), which drops springs and turns
+  # every animation off under Reduce Motion.
+  motion_tokens:
+    name: "Motion tokens"
+    included: "macos/Sources/ScreencastDirector/.*\\.swift"
+    excluded: "macos/Sources/ScreencastDirector/Theme\\.swift"
+    regex: 'withAnimation\s*(\{|\(\.)|\.animation\(\.|\.(snappy|bouncy|spring)\b'
+    message: "Use Theme.Motion.enter/exit/move or Theme.Motion.allowed(...) so Reduce Motion is respected"
+    severity: error

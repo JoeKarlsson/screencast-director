@@ -29,9 +29,6 @@ struct HomeView: View {
       .frame(maxWidth: 1100, alignment: .leading)
       .frame(maxWidth: .infinity)
     }
-    .background(
-      LinearGradient(colors: [Theme.accent.opacity(0.10), .clear], startPoint: .top, endPoint: .center)
-        .ignoresSafeArea())
   }
 
   // MARK: Hero
@@ -39,7 +36,6 @@ struct HomeView: View {
   private var hero: some View {
     HStack(alignment: .center, spacing: 24) {
       Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
-        .shadow(color: Theme.accent.opacity(0.35), radius: 16, y: 6)
       VStack(alignment: .leading, spacing: 6) {
         Text("Screencast Director").font(Theme.glyph(30, .bold, design: .rounded))
         Text("Record your screen, then edit it by hand or by telling Claude what you want.")
@@ -136,7 +132,7 @@ struct HomeView: View {
   private func setupCard(expanded: Bool) -> some View {
     VStack(alignment: .leading, spacing: 10) {
       Button {
-        withAnimation(.snappy) { ui.showSetup.toggle() }
+        withAnimation(Theme.Motion.move) { ui.showSetup.toggle() }
       } label: {
         HStack {
           Image(systemName: setup.allRequiredOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
@@ -243,16 +239,14 @@ struct RecordingCard: View {
       .overlay(
         RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
           .strokeBorder(hovered ? Theme.accent : Color.primary.opacity(0.1), lineWidth: hovered ? 2 : 1))
-      .elevation(hovered ? .pop : .card)
       VStack(alignment: .leading, spacing: 2) {
         Text(url.lastPathComponent).font(.body.weight(.medium)).lineLimit(2, reservesSpace: true)
         Text(info.date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
       }
       .padding(.horizontal, 2)
     }
-    .animation(.easeInOut(duration: 0.25), value: poster)
-    .scaleEffect(hovered ? 1.02 : 1)
-    .animation(.snappy(duration: 0.2), value: hovered)
+    .animation(Theme.Motion.move, value: poster)
+    .animation(Theme.Motion.enter, value: hovered)
     .contentShape(Rectangle())
   }
 }

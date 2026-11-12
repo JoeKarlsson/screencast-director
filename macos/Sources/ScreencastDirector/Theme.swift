@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The editor's shared look: one color per kind of timeline item (the timeline bars, the
@@ -60,15 +61,29 @@ enum Theme {
     .system(size: size, weight: weight, design: design)
   }
 
-  /// How far something floats: a card at rest, or something popped over the rest (a banner, a hovered card).
-  enum Elevation { case card, pop }
+  /// UI motion, one place to retime it: things arriving decelerate, things leaving accelerate
+  /// away and finish sooner, things that stay but move (panels, folds, scrolls) ease both ends.
+  /// No springs: nothing in the editor overshoots. With Reduce Motion on, every change is instant.
+  enum Motion {
+    static var reduce: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    static let enterCurve = CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+    static let exitCurve = CAMediaTimingFunction(controlPoints: 0.3, 0, 0.6, 0.6)
+    static let enterDuration = 0.22
+    static let exitDuration = 0.175
+
+    static var enter: Animation? { allowed(.timingCurve(0.22, 1, 0.36, 1, duration: enterDuration)) }
+    static var exit: Animation? { allowed(.timingCurve(0.3, 0, 0.6, 0.6, duration: exitDuration)) }
+    static var move: Animation? { allowed(.easeInOut(duration: enterDuration)) }
+
+    /// `animation`, or none under Reduce Motion.
+    static func allowed(_ animation: Animation) -> Animation? { reduce ? nil : animation }
+  }
 }
 
 extension View {
-  /// The two shadow levels (`Theme.Elevation`).
-  func elevation(_ level: Theme.Elevation) -> some View {
-    let pop = level == .pop
-    return shadow(color: .black.opacity(pop ? 0.22 : 0.1), radius: pop ? 14 : 6, y: pop ? 8 : 3)
+  /// The one shadow: for something that floats over the rest (a banner).
+  func floatingShadow() -> some View {
+    shadow(color: .black.opacity(0.22), radius: 14, y: 8)
   }
 
   /// Liquid Glass on macOS 26 and later, a thin material before that.
@@ -96,7 +111,5 @@ extension View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
         RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous).fill(Color.primary.opacity(0.045)))
-      .overlay(
-        RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
   }
 }

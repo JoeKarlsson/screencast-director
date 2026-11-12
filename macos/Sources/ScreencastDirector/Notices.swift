@@ -61,14 +61,16 @@ struct NoticeBanner: View {
         .padding(.vertical, 10)
         .frame(maxWidth: 560)
         .glassCard(cornerRadius: 14)
-        .elevation(.pop)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .floatingShadow()
+        .transition(.asymmetric(
+          insertion: .move(edge: .top).combined(with: .opacity).animation(Theme.Motion.enter),
+          removal: .move(edge: .top).combined(with: .opacity).animation(Theme.Motion.exit)))
         .id(n.id)
       }
       Spacer()
     }
     .padding(.top, 10)
-    .animation(.snappy, value: notices.current?.id)
+    .animation(Theme.Motion.move, value: notices.current?.id)
   }
 }
 

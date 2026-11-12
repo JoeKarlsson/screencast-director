@@ -73,7 +73,7 @@ struct TimelineView: View {
     }
   }
 
-  /// Show the AI edit's ranges at full glow, scroll the first into view, then fade out.
+  /// Highlight the AI edit's ranges, scroll the first into view, then fade out.
   func flash(_ ranges: [(Double, Double)], _ proxy: ScrollViewProxy) {
     ui.flashRanges = ranges
     ui.flashOpacity = 1
@@ -81,16 +81,18 @@ struct TimelineView: View {
       if let first = ranges.min(by: { $0.0 < $1.0 }) {
         let v = ui.viewport.visible
         if x(first.0) < v.minX || x(first.1) > v.maxX {
-          withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(Self.flashAnchor, anchor: .center) }
+          withAnimation(Theme.Motion.allowed(.easeInOut(duration: 0.35))) { proxy.scrollTo(Self.flashAnchor, anchor: .center) }
         }
       }
+      // An opacity-only highlight that fades on its own; under Reduce Motion it would vanish unseen.
+      // swiftlint:disable:next motion_tokens
       withAnimation(.easeOut(duration: 2)) { ui.flashOpacity = 0 }
     }
   }
 
   static let flashAnchor = "aiFlash"
 
-  /// A glow over every track at each range the last AI edit changed. Fades on its own.
+  /// A highlight over every track at each range the last AI edit changed. Fades on its own.
   var aiFlash: some View {
     let first = ui.flashRanges.min(by: { $0.0 < $1.0 })
     return ZStack(alignment: .topLeading) {
@@ -105,7 +107,6 @@ struct TimelineView: View {
         let shape = RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
         shape.fill(Theme.ai.opacity(0.22))
           .overlay(shape.strokeBorder(Theme.ai, lineWidth: 1.5))
-          .shadow(color: Theme.ai.opacity(0.9), radius: 8)
           .frame(width: max(4, x(r.1) - x(r.0)), height: rows.total)
           .offset(x: x(r.0))
       }

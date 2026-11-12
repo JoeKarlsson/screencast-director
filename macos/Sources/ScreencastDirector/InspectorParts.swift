@@ -108,7 +108,7 @@ struct InspectorSection<Content: View>: View {
     VStack(alignment: .leading, spacing: Theme.Space.m) {
       if let isOpen {
         Button {
-          withAnimation(.easeInOut(duration: 0.15)) { isOpen.wrappedValue.toggle() }
+          withAnimation(Theme.Motion.move) { isOpen.wrappedValue.toggle() }
         } label: {
           HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
             header

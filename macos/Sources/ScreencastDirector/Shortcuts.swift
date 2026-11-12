@@ -62,7 +62,7 @@ struct Shortcut {
       p.transcriptSel = nil
     },
     .init(group: "Project", keys: "⌥⌘T", title: "Show or hide the transcript", key: .char("t"), modifiers: [.command, .option]) { _, e in
-      withAnimation(.snappy) { e.showTranscript.toggle() }
+      withAnimation(Theme.Motion.move) { e.showTranscript.toggle() }
     },
     // Zooms
     .init(group: "Zoom", keys: "Z", title: "Add zoom at playhead", key: .char("z"), modifiers: []) { p, _ in p.addZoom() },

@@ -73,7 +73,7 @@ struct EditorView: View {
     let h = project.plan.map { Double($0.output.height) } ?? project.project?.source.height ?? 9
     let aspect = CGFloat(w) / CGFloat(max(h, 1))
     return ZStack {
-      LinearGradient(colors: [Color(white: 0.11), Color(white: 0.06)], startPoint: .top, endPoint: .bottom)
+      Color(white: 0.08)
       PlayerView(player: project.player)
         .aspectRatio(aspect, contentMode: .fit)
         .overlay { if loading { loadingCover.transition(.opacity) } }
@@ -82,10 +82,9 @@ struct EditorView: View {
         .overlay { if !loading { CaptionDragger(project: project, playhead: project.playhead, drag: editor.captionDrag) } }
         .overlay { if !loading { PlacementDragger(project: project, playhead: project.playhead, drag: editor.placeDrag) } }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
         .padding(20)
         .onTapGesture(perform: project.togglePlay)
-        .animation(.easeOut(duration: 0.3), value: loading)
+        .animation(Theme.Motion.exit, value: loading)
       if project.busy && !loading {
         VStack {
           HStack(spacing: 8) {

@@ -86,7 +86,7 @@ struct AppCommands: Commands {
       Picker("Sort Recordings By", selection: $library.sort) {
         ForEach(Library.Sort.allCases) { Text($0.label).tag($0) }
       }
-      Button(editor.showInspector ? "Hide Inspector" : "Show Inspector") { withAnimation(.snappy) { editor.showInspector.toggle() } }
+      Button(editor.showInspector ? "Hide Inspector" : "Show Inspector") { withAnimation(Theme.Motion.move) { editor.showInspector.toggle() } }
         .keyboardShortcut("i", modifiers: [.command, .option])
         .disabled(library.current == nil)
     }

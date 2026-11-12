@@ -46,11 +46,9 @@ extension TimelineView {
           ZStack {
             film
             shape.fill(color.opacity(selected ? 0.3 : hovered ? 0.4 : 0.5))
-            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
           }
         }
       }
-      .overlay(shape.fill(LinearGradient(colors: [.white.opacity(0.2), .clear], startPoint: .top, endPoint: .center)))
       .overlay {
         if striped { Hatch(spacing: 7).stroke(Color.white.opacity(0.22), lineWidth: 2).clipShape(shape) }
       }
