@@ -440,8 +440,8 @@ public final class Scene: @unchecked Sendable {
   func background() -> CIImage {
     // Portrait sets the screen card on ink, like a phone's dark stage.
     if socialTop(plan) != nil { return CIImage(color: CIColor(cgColor: Scene.color("#15151C"))).cropped(to: CGRect(x: 0, y: 0, width: W, height: H)) }
-    let c0 = Scene.color(plan.style.background.first ?? "#1d2b64")
-    let c1 = Scene.color(plan.style.background.last ?? "#f8cdda")
+    let c0 = Scene.color(plan.style.background.first ?? "#15151C")
+    let c1 = Scene.color(plan.style.background.last ?? "#15151C")
     let g = CIFilter(
       name: "CILinearGradient",
       parameters: [

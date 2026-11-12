@@ -22,13 +22,13 @@ extension InspectorView {
       }
       .onAppear { ProfileStore.shared.refresh() }
     }
-    InspectorSection("Background", detail: "A gradient behind the screen.") {
+    InspectorSection("Background", detail: "The color behind the screen.") {
       LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Space.s), count: 4), spacing: Theme.Space.s) {
         ForEach(BackgroundPreset.all, id: \.name) { p in
           Button {
             project.apply { $0.style.background = p.colors }
           } label: {
-            GradientSwatch(colors: p.colors.map(hexColor), selected: plan.style.background == p.colors)
+            ColorSwatch(color: hexColor(p.colors[0]), selected: plan.style.background == p.colors)
           }
           .buttonStyle(.plain)
           .help(p.name)
@@ -36,13 +36,9 @@ extension InspectorView {
         }
       }
       LabeledContent("Custom") {
-        ColorPicker("From", selection: bind("bg0", { hexColor($0.style.background.first ?? "#000000") }, { $0.style.background[0] = hexString($1) }))
+        ColorPicker("Color", selection: bind("bg0", { hexColor($0.style.background.first ?? "#000000") }, { $0.style.background = [hexString($1)] }))
           .labelsHidden()
-          .help("Top-left color")
-        Image(systemName: "arrow.right").font(.caption).foregroundStyle(.tertiary)
-        ColorPicker("To", selection: bind("bg1", { hexColor($0.style.background.last ?? "#000000") }, { $0.style.background[$0.style.background.count - 1] = hexString($1) }))
-          .labelsHidden()
-          .help("Bottom-right color")
+          .help("Background color")
       }
     }
     InspectorSection("Frame", detail: "Space around the screen and how round its corners are.") {

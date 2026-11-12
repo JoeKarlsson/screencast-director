@@ -125,6 +125,8 @@ func scribbleChecks() {
   plan.zooms = []
   plan.clickRipples = false
   plan.shortcutChips = false
+  // The corner check below needs a background lighter than the black block; the default ink is too close.
+  plan.style.background = ["#1d2b64", "#f8cdda"]
   var look = Look()
   look.chapterStyle = "big"
   plan.look = look

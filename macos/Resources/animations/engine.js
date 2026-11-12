@@ -30,6 +30,8 @@ const easeOut = x => clamp(spring(clamp(x)) / spring(1));
 // The start of the 12 fps frame t falls in: a number counting up shows one value a frame, so motion
 // blur's snapshots (spread inside the frame) never average two numbers into a smear.
 const frameStart = t => Math.floor(t * 12 + 1e-4) / 12;
+// Accelerating away, for things leaving: a decelerating exit covers most of its distance before the eye can follow.
+const easeIn = x => clamp(x) ** 2;
 const easeInOut = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
 // A sticker slapped down: springs past full size (about 9%) and settles.
 function popScale(t, start, dur = .42) {

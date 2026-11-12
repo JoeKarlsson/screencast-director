@@ -10,7 +10,7 @@ Each project folder holds the recording and a `plan.json` that describes the edi
   "layouts": [{ "start": 0, "end": 4, "mode": "camera" }],
   "callouts": [{ "start": 10, "end": 11.5, "text": "Open Settings" }],
   "captions": { "enabled": true, "maxWords": 7 },
-  "style": { "background": ["#1d2b64", "#f8cdda"], "padding": 0.06, "radius": 14, "transition": 0.8 }
+  "style": { "background": ["#15151C"], "padding": 0.06, "radius": 14, "transition": 0.8 }
 }
 ```
 

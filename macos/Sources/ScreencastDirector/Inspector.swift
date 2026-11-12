@@ -52,14 +52,14 @@ struct BackgroundPreset {
   let name: String
   let colors: [String]
   static let all = [
-    BackgroundPreset(name: "Dusk", colors: ["#1d2b64", "#f8cdda"]),
-    BackgroundPreset(name: "Ocean", colors: ["#0f2027", "#2c7da0"]),
-    BackgroundPreset(name: "Sunset", colors: ["#ee9ca7", "#ffdde1"]),
-    BackgroundPreset(name: "Forest", colors: ["#134e5e", "#71b280"]),
-    BackgroundPreset(name: "Ember", colors: ["#3a1c71", "#ffaf7b"]),
-    BackgroundPreset(name: "Graphite", colors: ["#232526", "#5b5f63"]),
-    BackgroundPreset(name: "Snow", colors: ["#e6e9f0", "#eef1f5"]),
-    BackgroundPreset(name: "Lime", colors: ["#1e3c2b", "#c6ea8d"]),
+    BackgroundPreset(name: "Ink", colors: ["#15151C"]),
+    BackgroundPreset(name: "Black", colors: ["#000000"]),
+    BackgroundPreset(name: "Graphite", colors: ["#3A3D40"]),
+    BackgroundPreset(name: "Navy", colors: ["#1D2B64"]),
+    BackgroundPreset(name: "Ocean", colors: ["#2C7DA0"]),
+    BackgroundPreset(name: "Forest", colors: ["#134E5E"]),
+    BackgroundPreset(name: "Blush", colors: ["#F8CDDA"]),
+    BackgroundPreset(name: "Paper", colors: ["#F2F0EB"]),
   ]
 }
 

@@ -39,6 +39,8 @@ func sceneDrawingChecks() {
   let screen = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
   let src = Project.Source(video: "screen.mp4", width: 1920, height: 1080, duration: 12, captureStart: nil, camera: nil)
   var base = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
+  // The counts below call anything darker than 0.3 a caption or title pixel; the default ink background would count.
+  base.style.background = ["#1d2b64", "#f8cdda"]
   base.segments = [Segment(start: 0, end: 12, speed: 1)]
   base.zooms = []
   base.clickRipples = false

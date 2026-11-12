@@ -187,14 +187,14 @@ struct KindChip: View {
   }
 }
 
-/// A gradient background preset; the selected one gets an accent ring.
-struct GradientSwatch: View {
-  let colors: [Color]
+/// A background color preset; the selected one gets an accent ring.
+struct ColorSwatch: View {
+  let color: Color
   let selected: Bool
 
   var body: some View {
     RoundedRectangle(cornerRadius: Theme.controlCorner, style: .continuous)
-      .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+      .fill(color)
       .overlay(RoundedRectangle(cornerRadius: Theme.controlCorner, style: .continuous).strokeBorder(Color.primary.opacity(0.12)))
       .frame(height: 34)
       .padding(3)

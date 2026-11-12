@@ -105,7 +105,7 @@ public struct Plan: Codable, Equatable, Sendable {
     public var brollMotion: Motion?
 
     /// The built-in look a new plan starts with.
-    public static let standard = Style(background: ["#1d2b64", "#f8cdda"], padding: 0.06, radius: 14, transition: 0.8)
+    public static let standard = Style(background: ["#15151C"], padding: 0.06, radius: 14, transition: 0.8)
   }
   public struct Captions: Codable, Equatable, Sendable {
     @Defaulted<Fallback.False> public var enabled: Bool

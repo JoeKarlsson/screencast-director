@@ -108,7 +108,7 @@ TEMPLATES.storyboard = function (data, cues, duration) {
   const clears = steps.filter(s => s.do === "clear");
 
   // How far a board has left (1 = gone), for its exit when the next board starts.
-  const gone = (board, t) => easeOut((t - boards[board].end) / .35);
+  const gone = (board, t) => easeIn((t - boards[board].end) / .3);
   const tangleOf = (board, t) => Math.max(0, ...tangles.filter(s => s.board === board).map(s => easeInOut((t - s.t) / 1.6)));
   const at = n => n.s.px;
 

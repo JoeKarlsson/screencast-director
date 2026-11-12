@@ -23,7 +23,7 @@ public struct ProfileLibrary: Sendable {
     guard !FileManager.default.fileExists(atPath: personal.path) else { return }
     try? FileManager.default.createDirectory(at: personal.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? Data(
-      ##"{"name": "Personal", "style": {"background": ["#1d2b64", "#f8cdda"], "padding": 0, "radius": 14, "transition": 0.8}, "look": {}}"##.utf8
+      ##"{"name": "Personal", "style": {"background": ["#15151C"], "padding": 0, "radius": 14, "transition": 0.8}, "look": {}}"##.utf8
     ).write(to: personal)
   }
 

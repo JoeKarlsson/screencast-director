@@ -22,8 +22,8 @@ extension Publish {
     else { return nil }
 
     // Background (y-up coordinates in this function).
-    let c0 = Scene.color(scene.plan.style.background.first ?? "#1d2b64")
-    let c1 = Scene.color(scene.plan.style.background.last ?? "#f8cdda")
+    let c0 = Scene.color(scene.plan.style.background.first ?? "#15151C")
+    let c1 = Scene.color(scene.plan.style.background.last ?? "#15151C")
     let grad = CGGradient(colorsSpace: Scene.srgb, colors: [c0, c1] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(grad, start: CGPoint(x: 0, y: H), end: CGPoint(x: W, y: 0), options: [])
 
