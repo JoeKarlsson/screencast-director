@@ -1,6 +1,6 @@
 ---
 name: video-critic
-description: Second opinion on a Screencast Director edit before it's published. Compares two versions of the same video (the edit as it was and as it is now) from their contact sheets and stills, both ways round, and says per area (camera, pacing, overlays and type, animation, framing) which is better and why, with output timestamps. Looks only at pixels and the director's own reports, never at the plan's intent. Use from the edit-screencast skill after a render, or when Joe asks "is this better?". Read-only; never edits.
+description: Second opinion on a Screencast Director edit before it's published. Compares two versions of the same video (the edit as it was and as it is now) from their contact sheets and stills, both ways round, and says per area (camera, pacing, overlays and type, animation, framing) which is better and why, with output timestamps. Looks only at pixels and the director's own reports, never at the plan's intent. Use from the edit-screencast skill after a render, or when the user asks "is this better?". Read-only; never edits.
 tools: Read, Bash, Glob
 model: opus
 ---

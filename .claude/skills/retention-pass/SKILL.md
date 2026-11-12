@@ -1,6 +1,6 @@
 ---
 name: retention-pass
-description: Check a Screencast Director edit's structure against what hit videos of the same length do (opening, re-hooks, stretches with nothing new, ending, chapters, asks), write the findings to .checks/retention.md with output timestamps and the plan edit for each, then make the edits Joe approves. Uses `director review`'s RETENTION lines, the transcript and a read-only second opinion. Use when Joe says /retention-pass, "retention pass", "will people watch this", "tighten the hook", "fix the opening/ending", or from edit-screencast's quality pass on an edit that will be published.
+description: Check a Screencast Director edit's structure against what hit videos of the same length do (opening, re-hooks, stretches with nothing new, ending, chapters, asks), write the findings to .checks/retention.md with output timestamps and the plan edit for each, then make the edits the user approves. Uses `director review`'s RETENTION lines, the transcript and a read-only second opinion. Use when the user says /retention-pass, "retention pass", "will people watch this", "tighten the hook", "fix the opening/ending", or from edit-screencast's quality pass on an edit that will be published.
 ---
 
 # Retention pass
@@ -20,7 +20,7 @@ Read by-length.md every time, and the others for the findings you write up.
 
 1. `bin/director describe <p>`: output length, the timeline with what's said in each kept range and its output time, and the titles.
 2. `bin/director review <p> --retention`: the `RETENTION` lines. The header names the length bucket (vertical goes by the 60 s rules at any length; each social clip is checked at its own length).
-3. Read `script.md` if there is one, and the title if Joe gave one (or `publish/`). The title is the promise the opening has to keep.
+3. Read `script.md` if there is one, and the title if the user gave one (or `publish/`). The title is the promise the opening has to keep.
 4. Save a "before" contact sheet for the second opinion: `bin/director contact-sheet <p> <p>/.checks/before.png`.
 
 ## 2. Judge
@@ -32,7 +32,7 @@ Go through these in order. Each finding gets an output timestamp, the rule ID fr
 3. **Screen** (R4, V2, V4, V5). Each `still` and `hold` line, with the tool from retention-beats.md that fits what's being said there. Waits played at 1x, and decisive moments sped up.
 4. **Middle** (M1, M3). `chapters` lines, chapter titles that give away a reveal, and an ask or sponsor in the wrong place.
 5. **Ending** (E1 to E4). Find the payoff. Everything after it is tail: list recap and wrap-up lines with their times. On vertical, look for a loop seam.
-6. **Talks and streams** (T1, T2, T4, T5), when it is one. Ask Joe what to do with Q&A; don't decide it.
+6. **Talks and streams** (T1, T2, T4, T5), when it is one. Ask the user what to do with Q&A; don't decide it.
 
 Then ask the `cut-retention-reviewer` agent for a read that isn't anchored on yours. Give it the project path, the bucket and the title, not your findings. Merge what it finds that you missed; where you disagree, keep both and say so.
 
@@ -49,7 +49,7 @@ Promise: <one line>. Proved at <out time> (target: <bucket window>).
 |---|---|---|---|---|
 | 1 | 0:00 | O1 | 4 s greeting before the point | `bin/director cut <p> 1.5 5.6` |
 
-## Lines Joe could record
+## Lines the user could record
 - <only when the footage has no line to fix a finding; quote the gap, suggest one sentence>
 
 ## Left alone
@@ -60,6 +60,6 @@ Most important first: opening, then ending, then the rest. Keep it to what chang
 
 ## 4. Edit
 
-Show Joe the table and ask which to make, unless he already said "go ahead" or "fix them". Then make those edits with the `director` commands and plan edits named, and run the edit skill's checks on what changed: `validate`, `describe` to see that every cut lands between sentences, `review --retention` to see that the lines it fired on are gone, and stills at the moments you changed. Never invent a spoken line, and never cut the payoff to meet a length.
+Show the user the table and ask which to make, unless they already said "go ahead" or "fix them". Then make those edits with the `director` commands and plan edits named, and run the edit skill's checks on what changed: `validate`, `describe` to see that every cut lands between sentences, `review --retention` to see that the lines it fired on are gone, and stills at the moments you changed. Never invent a spoken line, and never cut the payoff to meet a length.
 
-Report the edits made with output timestamps, the RETENTION lines still standing and why, and the lines Joe could record.
+Report the edits made with output timestamps, the RETENTION lines still standing and why, and the lines the user could record.

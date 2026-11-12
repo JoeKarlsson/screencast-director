@@ -1,6 +1,6 @@
 # Sources
 
-Every rule in this folder comes from third-party sources read in November 2026, plus measurements of 31 hit videos by other creators. None of it comes from Joe's own videos or scripts.
+Every rule in this folder comes from third-party sources read in November 2026, plus measurements of 31 hit videos by other creators. None of it comes from the repo owner's own videos or scripts.
 
 Tiers, as the research rated them:
 

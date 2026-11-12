@@ -35,3 +35,5 @@ CI runs all of these except the smoke test. Lint errors fail the build; SwiftLin
 ## Releasing
 
 Move the Unreleased notes under a new version heading, set `VERSION` to match, commit and push, then run `macos/release.sh`. It builds the app, tags the version and publishes a GitHub release with the zipped app and those notes.
+
+Signing depends on two environment variables. With `DEVELOPER_ID` (a "Developer ID Application: ..." identity) and `NOTARY_PROFILE` (a keychain profile from `xcrun notarytool store-credentials`) both set, the app is signed, notarized and stapled before it's zipped. `DEVELOPER_ID` alone signs without notarizing. With neither, the zip holds an app signed with a local identity (or ad-hoc), so people who download it have to allow it once in System Settings > Privacy & Security > Open Anyway.

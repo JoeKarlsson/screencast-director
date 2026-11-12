@@ -8,7 +8,7 @@ The first seconds decide most of a video's audience. YouTube's own analytics cal
 
 Cut these when they come before the point:
 
-- "Hey everyone", "Hi, I'm Joe", "Welcome back to the channel"
+- "Hey everyone", "Hi, I'm Sam", "Welcome back to the channel"
 - "In this video I'm going to show you", "Today we're going to", "So, um"
 - "Before we start, make sure to subscribe"
 - an `intro` card (set `intro.enabled` false) or a title card that only names the video
@@ -37,4 +37,4 @@ Cut these when they come before the point:
 6. **Label it** if it needs one: a `title` callout on the first words that names what the viewer gets, not the sentence being said (V2). On vertical this is also O2's hook title.
 7. **Check the seam.** Play the cold open into the real start in `describe`: the jump back should be obvious (a cut back to the start reads as "here's how we got there"). The renderer marks it as a jump back, so effects that react to cuts treat it as one.
 
-If no moment in the footage proves the title, don't invent one. Say so, and suggest a line Joe could record (a one-sentence claim of the result) or a title change.
+If no moment in the footage proves the title, don't invent one. Say so, and suggest a line the user could record (a one-sentence claim of the result) or a title change.

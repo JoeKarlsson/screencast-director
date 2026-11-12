@@ -4,10 +4,11 @@
 
 ## Install
 
+Download the zip from [GitHub Releases](https://github.com/JoeKarlsson/screencast-director/releases) and drag the app to Applications (the [README](../README.md#install) covers the first-launch warning). To build it yourself:
+
 ```sh
 brew install whisper-cpp        # or bundle your own: macos/build-whisper.sh (needs cmake)
 macos/build.sh --install        # builds /Applications/Screencast Director.app
-macos/test.sh                   # Swift checks for the timeline math and planner
 ```
 
 The app also needs a Whisper model. The Setup window shows the download command, or run:
@@ -67,8 +68,8 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 
 ![Clicking through background swatches and dragging the padding and corner sliders](media/ui-profiles.gif)
 
-- **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed); turn on **Fill the frame** (`style.fill`) to crop a screen that isn't the frame's shape so no background shows around it, panning to follow zooms and clicks, and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Background & Frame tab, choose a default in Settings, or save any video's look as a profile. The same tab sets the look piece by piece: frame style (plain, brackets or window), accent color, **Logo** (corner, size and opacity), **Titles & chips** (fonts, colors, the camera border, and **Add Font File…**), always-on **Effects**, and the animation theme (paper collage, terminal or zine) under Motion. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos.
-- **Make your own profile:** the app starts with one, Personal. Style a video the way you like and use **Save This Look as a Profile**, or make a folder in Profiles (**Open Profiles Folder** in the inspector's Background & Frame tab) with a `profile.json`. Paths are relative to that folder, and every `look` field is optional:
+- **Profiles** set a branded look: background, a corner-bracket frame, fonts, caption and title colors, and a logo. With padding at 0 the screen and camera fill the frame (full bleed); turn on **Fill the frame** (`style.fill`) to crop a screen that isn't the frame's shape so no background shows around it, panning to follow zooms and clicks, and the logo, camera bubble, titles and captions all sit at one consistent margin. Pick one per video in the Background & Frame tab, choose a default in Settings, or save any video's look as a profile. The same tab sets the look piece by piece: frame style (plain, brackets or window), accent color, **Logo** (corner, size and opacity), **Titles & chips** (fonts, colors, the camera border, and **Add Font File…**), always-on **Effects**, and the animation theme (paper collage or terminal, plus any that installed packs add) under Motion. Profiles live in `~/Library/Application Support/Screencast Director/Profiles/<name>/` with their fonts and logos. Profiles someone sends you come as a pack: **File > Install Pack…** adds them (see [packs.md](packs.md)).
+- **Make your own profile:** the app starts with one plain profile. Style a video the way you like and use **Save This Look as a Profile**, or make a folder in Profiles (**Open Profiles Folder** in the inspector's Background & Frame tab) with a `profile.json`. Paths are relative to that folder, and every `look` field is optional:
 
   ```json
   {
@@ -95,7 +96,7 @@ Search the sidebar by name or by anything said in a recording. Right-click a rec
 - **Vertical safe area:** TikTok, Instagram Reels and YouTube Shorts lay their own tabs over the top of a vertical video, the caption and buttons over the bottom, and the like and share buttons down the right. In a vertical video every title, chip, caption and the logo stays inside the part they leave uncovered (the top 12%, bottom 22% and right 12% are kept clear), and animations lay out below the top band.
 - **Social clips:** mark a range with I and O and press the clip button among the range actions on the timeline. **Format › Clips** names each clip and sets its format (vertical by default), a hook title for its first seconds, how tightly its pauses are cut, and a logo. Export them from the Export menu; each renders from the main edit, so fixes there show up in it.
 - **GIF (for docs)** in the Export menu renders the selected clip, zoom or title (or any range you type, in output seconds) as a 720, 640 or 480 px GIF at 12 fps, from the same compositor as the video, and saves it next to the recording.
-- **Upload and Copy Link** (grayed out until Settings > Sharing is set up) puts a file from the recording's folder (an export, a GIF, a thumbnail) in an S3-compatible bucket and copies its public link. Set it up in **Settings > Sharing**: endpoint (for example a MinIO server such as `http://192.168.0.202:9000`), region, bucket, access and secret keys (stored in the Keychain), and the public URL the bucket is served from. Uploads are SigV4-signed PUTs, so AWS S3, MinIO, Cloudflare R2 and Backblaze B2 all work. `director upload <file>` does the same with `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and optional `S3_REGION` / `S3_PUBLIC_BASE`.
+- **Upload and Copy Link** (grayed out until Settings > Sharing is set up) puts a file from the recording's folder (an export, a GIF, a thumbnail) in an S3-compatible bucket and copies its public link. Set it up in **Settings > Sharing**: endpoint (for example a MinIO server such as `http://minio.local:9000`), region, bucket, access and secret keys (stored in the Keychain), and the public URL the bucket is served from. Uploads are SigV4-signed PUTs, so AWS S3, MinIO, Cloudflare R2 and Backblaze B2 all work. `director upload <file>` does the same with `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and optional `S3_REGION` / `S3_PUBLIC_BASE`.
 - **Export** renders the current format or any preset (YouTube 4K and 1080p; Shorts, Reels and TikTok; Square; Feed) to its own file without changing the plan. Exports run in the background, one at a time, so you can keep editing: each renders the edit as it was when you queued it. The button next to Export shows the queue, with progress and Cancel.
 
 ## AI editing (Settings > AI editing)

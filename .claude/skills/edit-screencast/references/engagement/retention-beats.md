@@ -4,7 +4,7 @@ What keeps a viewer between the opening and the ending: spoken re-hooks at each 
 
 ## Shoulder taps
 
-"Shoulder tap" is Joe's word; no source defines it. It covers the devices that sources do define:
+"Shoulder tap" is this repo's word; no source defines it. It covers the devices that sources do define:
 
 - **Pull forward at a section's end** (Adam Ivy's "nudge"): close the question this section asked and open the next one. "That's the connection working. But it can only see one app, so..."
 - **A new hook early** (DiGiovanni's "new hook", about 15 s in): once the opening's promise is made, a second reason to stay.
@@ -20,7 +20,7 @@ The common advice to re-hook at the 30% and 50% marks has no source behind it be
 - move the next section's question up to the cut ("but here's the catch")
 - put a title or sticker on the line that opens the next question
 
-If no line pulls forward, suggest one Joe could record. The wording is a script job.
+If no line pulls forward, suggest one the user could record. The wording is a script job.
 
 **R2. Re-hook spacing grows with length** (medium, skill). Median gaps between spoken re-hooks in hits: 11 s at 60 s, 21 s at 3 min, 39 s at 5 min, 58 s at 20 min, and every chapter change (2 to 6 min) in hour-long videos. Report the longest stretch with no pull-forward line; there's no fixed percentage to hit.
 

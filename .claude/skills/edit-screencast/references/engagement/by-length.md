@@ -45,9 +45,9 @@ Its `RETENTION` lines check the parts of this table the plan can measure. Each l
 
 **Talking-head explainers.** Hits ranged from 0 to 25 cuts a minute; cut rate doesn't predict anything. Use the face for the hook, the transitions and the opinions, and go screen-only or small picture-in-picture during dense steps (V3).
 
-**Vertical Shorts.** The first frame carries the hook and makes sense muted: a hook title or a caption from the first word (O2). End on the payoff (E1), and if the last line leads back into the first, let it loop (E3). A clip cut from a longer video must stand alone (E4, `video-clips`).
+**Vertical Shorts.** The first frame carries the hook and makes sense muted: a hook title or a caption from the first word (O2). End on the payoff (E1), and if the last line leads back into the first, let it loop (E3). A clip cut from a longer video must stand alone (E4; the `video-clips` skill, if installed).
 
-**Talks and streams.** Cut host intros, mic checks and room or date housekeeping (T1). Show slides full frame when they're dense or being pointed at, picture-in-picture only over empty slide space, and avoid a 50/50 split at 1080p (T2; low confidence, so offer it rather than impose it). In live coding keep the errors that teach and cut typos and dead ends; silence over 30 s loses viewers (T4). TV is the most-used screen for YouTube in the US, and long videos are where it shows, so chapter titles and on-screen type must read from the couch (T5). Ask Joe what to do with Q&A each time.
+**Talks and streams.** Cut host intros, mic checks and room or date housekeeping (T1). Show slides full frame when they're dense or being pointed at, picture-in-picture only over empty slide space, and avoid a 50/50 split at 1080p (T2; low confidence, so offer it rather than impose it). In live coding keep the errors that teach and cut typos and dead ends; silence over 30 s loses viewers (T4). TV is the most-used screen for YouTube in the US, and long videos are where it shows, so chapter titles and on-screen type must read from the couch (T5). Ask the user what to do with Q&A each time.
 
 ## Confidence
 

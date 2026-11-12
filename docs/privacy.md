@@ -26,12 +26,16 @@ Speech is transcribed on your Mac with whisper.cpp. Your audio is never sent any
 
 ## What can leave your Mac
 
-Only two things, and only when you ask for them:
+There's no telemetry, no crash reporting and no update check. This is every network call the app and `director` make, and what starts each one:
 
 1. **AI edits and writing help.** When you ask the AI to change an edit, or to write a title, description or chapters, the request goes to the provider you chose in Settings: Claude Code (your Claude login), the Anthropic API, or an OpenAI-compatible endpoint (which can be a local one, such as Ollama). The request contains your instruction, the transcript, a text timeline of the edit and `plan.json`. Claude Code can also render still frames of the edit and look at them, which sends those images to Anthropic. Video and audio files are never sent. API keys are stored in your macOS Keychain.
-2. **Uploads you start.** **Upload and Copy Link** sends the one file you pick to the S3-compatible bucket set in Settings > Sharing (its keys are in your Keychain), and nothing else goes with it.
+2. **Automatic names.** With **Name them from what you said** on (Settings, on by default), each new recording's transcript (up to its first 6,000 characters) goes to the same AI provider once, to suggest a name. Turn it off and transcripts only leave when you ask the AI for something.
+3. **Uploads you start.** **Upload and Copy Link** (or `director upload`) sends the one file you pick to the S3-compatible bucket set in Settings > Sharing (its keys are in your Keychain), and nothing else goes with it.
+4. **Stock searches and downloads.** `director stock`, run by you or by Claude in the Claude box when an edit needs B-roll, a sound or a GIF, sends the search words to Openverse, NASA's image library, Wikimedia Commons and the Internet Archive (archive.org). KLIPY is searched only when you've added your own key in Settings > Stock (kept in the Keychain) or set `KLIPY_API_KEY`. Downloading a result fetches the file from where that source says it's hosted.
+5. **Capturing a website.** `director capture <dir> <url>` opens that page in an offscreen web view, the way a browser would (including the page's own scripts and requests), and downloads its logo.
+6. **The Whisper model.** Getting Started gives you a `curl` command that downloads the model from Hugging Face. You run it; the app doesn't fetch it on its own.
 
-Nothing is sent in the background.
+Animations render on a page with no network access, and installing a pack makes no network calls.
 
 ## Deleting a recording
 

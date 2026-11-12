@@ -16,7 +16,7 @@ Lines to flag in the last stretch: "so to recap", "in summary", "that's about it
 
 **E3. Loop endings on Shorts** (medium, skill). When the last line leads back into the first, cut so the end flows into the start. Replays count as views but not as engaged views, so a loop helps reach more than revenue. Flag a candidate seam; don't build one by cutting mid-thought.
 
-**E4. Clips stand alone** (high, existing: `video-clips`). No opening pronoun that needs missing setup ("so this is why it..."), a hook title, and an end on the payoff.
+**E4. Clips stand alone** (high, existing: the `video-clips` skill, if installed). No opening pronoun that needs missing setup ("so this is why it..."), a hook title, and an end on the payoff.
 
 ## Asks by length
 
@@ -34,5 +34,5 @@ No hit video asked for a subscribe mid-video.
 
 - Find the payoff: the last line that delivers what the title promised. Everything after it is tail.
 - `director cut` the recap or wrap-up lines after it, keeping the closing beat (about half a second) after the payoff's last word.
-- No fade to black and no end card over 1.4 s unless Joe asks (already in the edit skill). For YouTube end-screen room on a long video, the outro card or a held final shot of 5 to 20 s is the exception, and only when Joe will add an end screen.
+- No fade to black and no end card over 1.4 s unless the user asks (already in the edit skill). For YouTube end-screen room on a long video, the outro card or a held final shot of 5 to 20 s is the exception, and only when the user will add an end screen.
 - A lower-third or title for a link goes on the word that names it.
