@@ -47,6 +47,16 @@ struct AnimationEditor: View {
             Label("Rendering… it shows in the preview when it's done.", systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
           }
         }
+        if a.floats, let plan = project.plan {
+          InspectorSection("Pop On and Off", detail: "How it appears over the video. Changing it doesn't re-render.") {
+            MotionPicker(
+              title: "In", motion: Binding(get: { item?.enter }, set: { m in project.editAnimation(i, coalesce: "animIn\(i)") { $0.enter = m } }),
+              fallback: plan.defaultEnter(sticker: a.sticker != nil))
+            MotionPicker(
+              title: "Out", motion: Binding(get: { item?.exit }, set: { m in project.editAnimation(i, coalesce: "animOut\(i)") { $0.exit = m } }),
+              fallback: plan.defaultExit(sticker: a.sticker != nil))
+          }
+        }
         if let template {
           InspectorSection("Content") {
             ForEach(template.fields.filter { $0.type != "steps" }, id: \.key) { field in fieldView(field, a) }

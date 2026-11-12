@@ -27,6 +27,26 @@ extension InspectorView {
 
   func range(_ start: Double, _ end: Double) -> String { "\(fmtTime(start))–\(fmtTime(end))" }
 
+  /// Start and length typed by hand, for a pop-up's bar on the timeline. Return or leaving the field applies it.
+  func timingSection(_ s: Selection, _ start: Double, _ end: Double) -> some View {
+    InspectorSection("Timing", detail: "Start is the time in the edited video, like the ruler; it moves the whole item. Length moves its end.") {
+      LabeledContent("Start") {
+        TextField("Start", value: Binding(get: { project.videoTime(start) }, set: { project.setTiming(s, videoStart: $0) }), format: TimeFormat())
+          .textFieldStyle(.roundedBorder).monospacedDigit()
+          .help("When it appears in the edited video: m:ss.s or seconds")
+      }
+      LabeledContent("Length") {
+        TextField(
+          "Length", value: Binding(get: { end - start }, set: { project.setTiming(s, length: $0) }),
+          format: .number.precision(.fractionLength(0...2))
+        )
+        .textFieldStyle(.roundedBorder).monospacedDigit()
+        .help("How long it's on screen, in seconds")
+        Text("s").foregroundStyle(.secondary)
+      }
+    }
+  }
+
   func removeButton(_ title: String = "Remove") -> some View {
     Button(role: .destructive, action: project.deleteSelection) {
       Label(title, systemImage: "trash").frame(maxWidth: .infinity)
@@ -275,6 +295,7 @@ extension InspectorView {
     let c = plan.callouts[i]
     let motion = MotionStyle.named(plan.style.motion)
     itemHeader("Title", "textformat", Theme.title, range(c.start, c.end))
+    timingSection(.callout(i), c.start, c.end)
     InspectorSection("Style") {
       ChoiceTiles(choices: ChoiceTiles.calloutStyles, selected: c.style ?? "title") { style in
         project.apply {
@@ -306,8 +327,14 @@ extension InspectorView {
   func brollPane(_ plan: Plan, _ i: Int) -> some View {
     let c = plan.insertList[i]
     itemHeader("B-roll", "photo.on.rectangle", Theme.broll, range(c.start, c.end))
+    timingSection(.insert(i), c.start, c.end)
     InspectorSection((c.file as NSString).lastPathComponent, detail: c.isImage ? "A picture." : "A clip, played at real time and muted.") {
-      ChoiceRow([(String?.none, "In the screen"), (String?.some("full"), "Full frame")], selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement))
+      ChoiceRow(
+        [
+          (String?.none, "Screen", "In the screen card"), (String?.some("full"), "Full", "Over the whole frame, under captions"),
+          (String?.some("sticker"), "Sticker", "A pop-up in a white border over the video"),
+          (String?.some("overlay"), "Overlay", "Floats over everything, for a clip or picture with transparency"),
+        ], selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement))
       ChoiceRow([(String?.none, "Fill"), (String?.some("fit"), "Show all")], selection: bindItem("insertFit\(i)", \.insertList, i, \.fit))
       if !c.isImage {
         slider(
@@ -315,9 +342,18 @@ extension InspectorView {
           bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 }, 0...30, "\((c.from ?? 0).formatted()) s")
       }
     }
+    if c.isSticker {
+      InspectorSection("Sticker", detail: "Drag it in the preview to move it. Meme text runs along its top and bottom.") {
+        TextField("Top text", text: bindItem("insertTop\(i)", \.insertList, i, \.topText, or: "", store: emptyAsNil)).textFieldStyle(.roundedBorder)
+        TextField("Bottom text", text: bindItem("insertBottom\(i)", \.insertList, i, \.bottomText, or: "", store: emptyAsNil)).textFieldStyle(.roundedBorder)
+        let w = c.w ?? Insert.stickerWidth, tilt = c.rotation ?? Insert.stickerTilt
+        slider("Size", bindItem("insertW\(i)", \.insertList, i, \.w, or: Insert.stickerWidth) { ($0 * 100).rounded() / 100 }, 0.1...0.8, "\(Int((w * 100).rounded()))%")
+        slider("Tilt", bindItem("insertTilt\(i)", \.insertList, i, \.rotation, or: Insert.stickerTilt) { $0.rounded() }, -20...20, "\(Int(tilt))°")
+      }
+    }
     InspectorSection("Animation") {
-      MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: plan.brollDefaultMotion)
-      MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: plan.brollDefaultMotion)
+      MotionPicker(title: "In", motion: bindItem("insertIn\(i)", \.insertList, i, \.enter), fallback: plan.defaultEnter(sticker: c.isSticker))
+      MotionPicker(title: "Out", motion: bindItem("insertOut\(i)", \.insertList, i, \.exit), fallback: plan.defaultExit(sticker: c.isSticker))
       previewButton(c.start)
     }
     noteSection(bindItem("insertNote\(i)", \.insertList, i, \.note, or: "", store: emptyAsNil))
@@ -328,6 +364,7 @@ extension InspectorView {
   func animationPane(_ plan: Plan, _ i: Int) -> some View {
     let a = plan.animationList[i]
     itemHeader(a.note ?? "Animation", "sparkles", Theme.animation, range(a.start, a.end))
+    timingSection(.animation(i), a.start, a.end)
     AnimationEditor(project: project, ui: ui, i: i)
     previewButton(a.start)
     noteSection(bindItem("animationNote\(i)", \.animationList, i, \.note, or: "", store: emptyAsNil))
@@ -394,6 +431,7 @@ extension InspectorView {
     let a = plan.annotationList[i]
     let motion = MotionStyle.named(plan.style.motion)
     itemHeader("Annotation", "scribble", Theme.mark, range(a.start, a.end))
+    timingSection(.annotation(i), a.start, a.end)
     InspectorSection("Kind") {
       ChoiceTiles(choices: ChoiceTiles.annotationKinds, selected: a.kind, pick: { kind in
         project.apply {

@@ -42,6 +42,11 @@ Each release lists what changed for people using the app or the CLI. The version
 - Drafted zooms are steadier: the video opens wide for its first 2.5 s, the click that stops the recording gets no zoom, clicks that drift further than one zoomed view can show become two zooms, and two zooms less than 1.5 s apart pan from one to the next instead of zooming out and straight back in.
 
 ### Editor
+- Tune pop-ups by hand in the inspector:
+  - Titles, annotations, B-roll and animations have Start and Length fields. Start is a time in the edited video, like the ruler, and moving it takes an animation's beats along.
+  - An item's own entrance or exit has a Length slider (0.05 to 2 s). Its ease is a curve whose two handles you drag, or a Bounce slider for a spring.
+  - B-roll can be made a sticker or an overlay. A sticker gets meme top and bottom text, size and tilt.
+  - Sticker and overlay animations can set how they pop on and off, without re-rendering (`enter`/`exit` on the animation).
 - Settings with a few options show them all as a row of choices instead of a menu or segmented control: frame style, animation theme, chapter style, shape, resolution, frame rate, screen crop, camera shape and room, pauses, effect layers, the logo's corner and B-roll placement. Cursor smoothing picks Off, Light, Medium or Strong (a value set between them shows as Custom).
 - The inspector is quieter: the explanations under settings moved into their tooltips, and controls that can't apply right now are hidden instead of greyed out (nudging items that can't move, reordering a single clip, Repeat at Playhead with the playhead inside the clip, layouts without a camera).
 - The timeline shows the selected bar with a halo in its own color, shows a dragged edge's in and out times above it, and outlines how far a clip can grow while you trim it (in recording time).

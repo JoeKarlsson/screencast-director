@@ -234,4 +234,8 @@ public struct CursorSettings: Codable, Equatable, Sendable {
 extension Plan {
   /// How B-roll without its own `enter`/`exit` comes and goes: the style's `brollMotion`, else a hard cut.
   public var brollDefaultMotion: Motion { style.brollMotion ?? Motion(preset: "none") }
+  /// How B-roll enters when it doesn't say: a sticker springs on from nothing, whatever the B-roll default.
+  public func defaultEnter(sticker: Bool) -> Motion { sticker ? Motion(preset: "stick", seconds: 0.45, ease: "bouncy") : brollDefaultMotion }
+  /// How B-roll leaves when it doesn't say: a sticker shrinks away.
+  public func defaultExit(sticker: Bool) -> Motion { sticker ? Motion(preset: "stick", seconds: 0.3, ease: "ease-in") : brollDefaultMotion }
 }

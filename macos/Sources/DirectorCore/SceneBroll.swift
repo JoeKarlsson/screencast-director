@@ -9,10 +9,8 @@ extension Scene {
   /// How an insert enters and leaves: a hard cut unless the insert asks for a motion. Fades by default
   /// half-dissolved B-roll over the face at every edge, which read as glitches.
   func insertPose(_ ins: (s: Double, e: Double, a: Insert, index: Int), frame f: Double) -> OverlayPose {
-    let fallback = plan.brollDefaultMotion
-    // A sticker springs on from nothing and shrinks away, whatever the B-roll default.
-    let enter = ins.a.enter ?? (ins.a.isSticker ? Motion(preset: "stick", seconds: 0.45, ease: "bouncy") : fallback)
-    let exit = ins.a.exit ?? (ins.a.isSticker ? Motion(preset: "stick", seconds: 0.3, ease: "ease-in") : fallback)
+    let enter = ins.a.enter ?? plan.defaultEnter(sticker: ins.a.isSticker)
+    let exit = ins.a.exit ?? plan.defaultExit(sticker: ins.a.isSticker)
     return Motion.pose(frame: f, start: ins.s, end: ins.e, fps: plan.output.fps, enter: enter, exit: exit, style: motion)
   }
 

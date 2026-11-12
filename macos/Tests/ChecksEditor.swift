@@ -74,6 +74,21 @@ func editorActionChecks() {
   expect(dragged.animationList[0].cues == ["lock": 7], "dragging an animation takes its beats along")
   _ = dragged.retime(.animation(0), start: 6, end: 9)
   expect(dragged.animationList[0].end == 9 && dragged.animationList[0].cues == ["lock": 7], "trimming an animation leaves its beats")
+  // Typed timing in the inspector: a start moves the bar, a length moves its end, both kept in the recording.
+  var typed = base
+  expect(typed.setTiming(.callout(0), start: 10) == .callout(0) && typed.callouts[0].start == 10 && typed.callouts[0].end == 12, "a typed start moves a title")
+  _ = typed.setTiming(.callout(0), length: 3.5)
+  expect(typed.callouts[0].end == 13.5, "a typed length moves its end")
+  _ = typed.setTiming(.callout(0), start: 19)
+  expect(typed.callouts[0].start == 16.5 && typed.callouts[0].end == 20, "a start past the end stops at the recording's end")
+  _ = typed.setTiming(.callout(0), length: 0.1)
+  expect(typed.callouts[0].end - typed.callouts[0].start == PlanCheck.shortestItem, "a typed length is at least the shortest item")
+  typed.animationList = [Animation(start: 2, end: 4, template: "hub", data: .null, cues: ["lock": 3])]
+  _ = typed.setTiming(.animation(0), start: 5)
+  expect(typed.animationList[0].cues == ["lock": 6], "a typed start takes an animation's beats along")
+  expect(typed.setTiming(.segment(0), start: 3) == nil, "clips aren't retimed by typed timing")
+  expect(parseTime("1:05.4") == 65.4 && parseTime(fmtTime(65.4)) == 65.4 && parseTime("12.5") == 12.5 && parseTime(" 3 s") == 3, "typed times read as m:ss.s or seconds")
+  expect(parseTime("") == nil && parseTime("-2") == nil && parseTime("1:75") == nil && parseTime("a:10") == nil && parseTime("1:2:3") == nil, "bad typed times read as nothing")
   // Effect ranges are timeline bars too: selected, retimed, moved and deleted like B-roll; one
   // left under 0.2 s or past the recording is trimmed or dropped.
   var ranged = base

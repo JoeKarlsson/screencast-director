@@ -969,6 +969,10 @@ struct Checks {
     let ns = Scene(plan: notePlan, words: [], clicks: [], shortcuts: [], dir: noteDir)
     expect(ns.inserts.first.map { ns.insertPose($0, frame: $0.s).scale < 0.2 && ns.insertPose($0, frame: $0.s + 30).scale > 0.95 } == true,
       "a sticker animation springs on like a meme sticker")
+    notePlan.animations?[0].enter = Motion(preset: "fade", seconds: 0.2)
+    let fadedIn = Scene(plan: notePlan, words: [], clicks: [], shortcuts: [], dir: noteDir)
+    expect(fadedIn.inserts.first.map { fadedIn.insertPose($0, frame: $0.s + 1).opacity < 0.6 && fadedIn.insertPose($0, frame: $0.s).scale == 1 } == true,
+      "a sticker animation's own entrance replaces the stick-on")
     try? FileManager.default.removeItem(at: noteDir)
     // A fitted overlay leaves the frame around it see-through instead of letterboxing it on black.
     var fitted = floatingOver

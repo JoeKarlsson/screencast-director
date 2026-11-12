@@ -123,6 +123,88 @@ struct MotionPicker: View {
       .fixedSize()
       Spacer(minLength: 0)
     }
+    if let own = motion {
+      MotionTuner(motion: Binding(get: { motion ?? own }, set: { motion = $0 }), fallback: fallback)
+    }
+  }
+}
+
+/// Hand-tuning for an item's own entrance or exit: any length, and its curve, dragged by its two
+/// cubic-bezier handles, or for a spring, how much it bounces.
+struct MotionTuner: View {
+  @Binding var motion: Motion
+  let fallback: Motion
+
+  var body: some View {
+    let seconds = motion.seconds ?? fallback.seconds ?? 0.35
+    LabeledContent("Length") {
+      Slider(value: Binding(get: { seconds }, set: { motion.seconds = ($0 * 100).rounded() / 100 }), in: 0.05...2).controlSize(.small)
+      Text("\(seconds.formatted()) s").font(.callout).monospacedDigit().foregroundStyle(.secondary).frame(width: 54, alignment: .trailing)
+    }
+    switch Ease.named(motion.ease ?? fallback.ease) ?? .linear {
+    // The plan's easing curve, not a UI animation.
+    // swiftlint:disable:next motion_tokens
+    case .spring(let zeta):
+      LabeledContent("Bounce") {
+        Slider(value: Binding(get: { 1 - zeta }, set: { motion.ease = "spring(\(((1 - $0) * 100).rounded() / 100))" }), in: 0...0.8).controlSize(.small)
+        Text("\(Int(((1 - zeta) * 100).rounded()))%").font(.callout).monospacedDigit().foregroundStyle(.secondary).frame(width: 54, alignment: .trailing)
+      }
+    case .cubic(let x1, let y1, let x2, let y2):
+      BezierEditor(points: (x1, y1, x2, y2)) { motion.ease = $0 }
+    case .linear:
+      BezierEditor(points: (0, 0, 1, 1)) { motion.ease = $0 }
+    }
+  }
+}
+
+/// An easing curve with its two cubic-bezier handles to drag. `set` gets the new curve as
+/// "cubic-bezier(x1, y1, x2, y2)"; handles go above 1 and below 0 for overshoot and anticipation.
+struct BezierEditor: View {
+  let points: (Double, Double, Double, Double)
+  let set: (String) -> Void
+  /// The value range drawn top to bottom, so overshooting handles stay on the canvas.
+  static let yRange = (lo: -0.5, hi: 1.5)
+
+  var body: some View {
+    GeometryReader { geo in editor(geo.size) }
+      .frame(height: 96)
+      .help("Drag the two dots to shape how it eases")
+      .accessibilityLabel("Easing curve")
+  }
+
+  private func editor(_ size: CGSize) -> some View {
+    let w = Double(size.width), h = Double(size.height)
+    let span = Self.yRange.hi - Self.yRange.lo
+    func at(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x * w, y: h * (Self.yRange.hi - y) / span) }
+    let (x1, y1, x2, y2) = points
+    let ease = Ease.cubic(x1, y1, x2, y2)
+    func r(_ d: Double) -> String { ((d * 100).rounded() / 100).formatted() }
+    // Each handle has its own drag, in the editor's coordinates, so moving one never picks up the other.
+    func handle(_ p: CGPoint, _ moved: @escaping (Double, Double) -> (Double, Double, Double, Double)) -> some View {
+      Circle().fill(Theme.accent).frame(width: 12, height: 12).padding(6).contentShape(Circle()).position(p)
+        .gesture(
+          DragGesture(minimumDistance: 0, coordinateSpace: .named("bezier")).onChanged { v in
+            let x = min(max(Double(v.location.x) / w, 0), 1)
+            let y = min(max(Self.yRange.hi - Double(v.location.y) / h * span, Self.yRange.lo), Self.yRange.hi)
+            let c = moved(x, y)
+            set("cubic-bezier(\(r(c.0)), \(r(c.1)), \(r(c.2)), \(r(c.3)))")
+          })
+    }
+    return ZStack {
+      Canvas { ctx, _ in
+        for y in [0.0, 1.0] {
+          ctx.stroke(Path { $0.move(to: at(0, y)); $0.addLine(to: at(1, y)) }, with: .color(.secondary.opacity(0.25)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+        }
+        ctx.stroke(Path { $0.move(to: at(0, 0)); $0.addLine(to: at(x1, y1)); $0.move(to: at(1, 1)); $0.addLine(to: at(x2, y2)) }, with: .color(.secondary), lineWidth: 1)
+        var curve = Path()
+        curve.move(to: at(0, 0))
+        for i in 1...64 { let t = Double(i) / 64; curve.addLine(to: at(t, ease.at(t))) }
+        ctx.stroke(curve, with: .color(Theme.accent), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+      }
+      handle(at(x1, y1)) { x, y in (x, y, x2, y2) }
+      handle(at(x2, y2)) { x, y in (x1, y1, x, y) }
+    }
+    .coordinateSpace(name: "bezier")
   }
 }
 

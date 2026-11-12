@@ -1,4 +1,5 @@
 import SwiftUI
+import DirectorCore
 
 // Building blocks for the inspector: the icon tab bar, titled cards, value rows, keycaps and
 // swatches. Plain structs with no view state (no @State without macro plugins).
@@ -211,4 +212,16 @@ struct ColorSwatch: View {
       }
       .contentShape(Rectangle())
   }
+}
+
+/// A text field's format for times typed by hand: shows m:ss.s, reads that or plain seconds.
+struct TimeFormat: ParseableFormatStyle {
+  struct Strategy: ParseStrategy {
+    func parse(_ value: String) throws -> Double {
+      guard let t = parseTime(value) else { throw CocoaError(.formatting) }
+      return t
+    }
+  }
+  var parseStrategy: Strategy { Strategy() }
+  func format(_ value: Double) -> String { fmtTime(value) }
 }

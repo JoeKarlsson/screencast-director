@@ -123,6 +123,18 @@ public func fmtTime(_ t: Double) -> String {
   return String(format: "%d:%04.1f", tenths / 600, Double(tenths % 600) / 10)
 }
 
+/// Reads a time typed by hand: "1:05.4" (what `fmtTime` writes), "65.4" or "65.4 s". nil for
+/// anything else, including negative times and seconds past 59 after a minute.
+public func parseTime(_ text: String) -> Double? {
+  var s = text.trimmingCharacters(in: .whitespaces).lowercased()
+  if s.hasSuffix("s") { s = String(s.dropLast()).trimmingCharacters(in: .whitespaces) }
+  let parts = s.split(separator: ":", omittingEmptySubsequences: false)
+  guard (1...2).contains(parts.count), let seconds = Double(parts.last!), seconds >= 0, seconds.isFinite else { return nil }
+  guard parts.count == 2 else { return seconds }
+  guard let minutes = Int(parts[0]), minutes >= 0, seconds < 60 else { return nil }
+  return Double(minutes) * 60 + seconds
+}
+
 extension Project {
   /// Silences measured from the cached loudness (loudness.json), for re-cutting pauses without
   /// measuring again; nil when the project hasn't been measured.

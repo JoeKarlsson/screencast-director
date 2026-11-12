@@ -457,6 +457,22 @@ final class ProjectModel: ObservableObject {
     if let moved { select(moved, adding: false) }
   }
 
+  /// The inspector's typed timing: `videoStart` in seconds of the edited video (what the ruler
+  /// shows), `length` in seconds of the recording. A start inside a cut changes nothing.
+  func setTiming(_ s: Selection, videoStart: Double? = nil, length: Double? = nil) {
+    var start: Double?
+    if let v = videoStart {
+      guard let src = outToSrc(mapped, v * Double(fps), fps: fps) else { return }
+      start = src
+    }
+    var moved: Selection?
+    apply { moved = $0.setTiming(s, start: start, length: length) }
+    if let moved { select(moved, adding: false) }
+  }
+
+  /// Where source time `t` plays in the edited video, in seconds (the next kept moment if it's cut).
+  func videoTime(_ t: Double) -> Double { srcToOutClamped(mapped, t, fps: fps) / Double(fps) }
+
   /// Moves every selected zoom, layout, title, annotation and marker by `delta` seconds, as far as
   /// the group can go without leaving the recording, and keeps them selected.
   func moveSelected(by delta: Double, coalesce: String? = nil) {

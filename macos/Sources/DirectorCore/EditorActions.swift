@@ -304,6 +304,17 @@ extension Plan {
     }
   }
 
+  /// The inspector's typed timing for bar `s`: a new `start` moves it (keeping its length, so an
+  /// animation's beats go with it), a new `length` moves its end. Kept inside the recording and at
+  /// least `PlanCheck.shortestItem` long (or as long as it was, when shorter). Returns where it is now.
+  public mutating func setTiming(_ s: Selection, start: Double? = nil, length: Double? = nil) -> Selection? {
+    guard let (from, to) = timeRange(of: s) else { return nil }
+    let shortest = min(PlanCheck.shortestItem, to - from)
+    let len = min(max(length ?? (to - from), shortest), source.duration)
+    let begin = min(max(start ?? from, 0), source.duration - len)
+    return retime(s, start: begin, end: begin + len)
+  }
+
   /// Switches effect range `i` to another effect. Its settings belong to the old effect (the new one
   /// may not have them, and a plan with an unknown param doesn't load), so they're cleared.
   public mutating func switchEffect(ofRange i: Int, to name: String) {

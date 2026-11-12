@@ -44,6 +44,10 @@ public struct Animation: Codable, Equatable, Sendable {
   /// scaled by `w` and turned `rotation` degrees clockwise about the frame's center, which moves to
   /// `x`, `y`. Unset, it fills the frame. Placing it never re-renders the clip.
   public var place: Sticker?
+  /// How a sticker or overlay animation pops on and off the video, as on B-roll (default: a
+  /// sticker's stick-on and shrink-away, else the B-roll default). Never re-renders the clip.
+  public var enter: Motion?
+  public var exit: Motion?
 
   /// Over the video without covering or splitting it: an overlay or a sticker.
   public var floats: Bool { isOverlay || sticker != nil }
@@ -265,7 +269,7 @@ extension Plan {
       guard let dir, FileManager.default.fileExists(atPath: dir.appendingPathComponent(path).path) else { return nil }
       var ins = Insert(
         start: a.start, end: a.end, file: path, from: animationSeek(a), placement: a.sticker != nil ? "sticker" : a.isOverlay ? "overlay" : placement,
-        fit: "fill", note: a.note)
+        fit: "fill", enter: a.enter, exit: a.exit, note: a.note)
       if let s = a.sticker {
         (ins.x, ins.y, ins.w, ins.rotation) = (s.x, s.y, s.w ?? Animation.stickerWidth, s.rotation)
       } else if a.isOverlay, let p = a.place {
