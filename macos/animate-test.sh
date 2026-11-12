@@ -250,14 +250,15 @@ TEMPLATES.probe = function () {
   return () => {};
 };
 JS
-read -r PROBE PROBE_START < <(python3 - "$PROJECT/plan.json" <<'PY'
+# A heredoc inside < <(...) breaks under macOS /bin/bash 3.2 (CI), so go through a file.
+python3 - "$PROJECT/plan.json" >"$TMP/probe-index.txt" <<'PY'
 import json, sys
 plan = json.load(open(sys.argv[1]))
 plan["animations"].append({"start": 1, "end": 3, "template": "probe", "data": {}, "cues": {}})
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 print(len(plan["animations"]) - 1, 1)
 PY
-)
+read -r PROBE PROBE_START <"$TMP/probe-index.txt"
 "$DIRECTOR" animate-test "$PROJECT" "$PROBE" "$(python3 -c "print($PROBE_START + 0.5)")" "$TMP/probe.mp4" >"$TMP/probe.txt" 2>&1 \
   || { cat "$TMP/probe.txt" >&2; echo "FAIL: the probe template didn't render" >&2; exit 1; }
 ffmpeg -v error -i "$TMP/probe.mp4" -frames:v 1 -f rawvideo -pix_fmt rgb24 -y "$TMP/probe.rgb"
