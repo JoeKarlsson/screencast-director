@@ -101,7 +101,7 @@ public struct Animation: Codable, Equatable, Sendable {
   public static let maxSubframes = 10
   public static let shutter = 0.25
   /// The farthest apart, in output pixels, two snapshots of the same thing may land (3 px at 1080p
-  /// on a 4K frame). A slower drift, like the zine's scribbles, isn't blurred at all.
+  /// on a 4K frame). A slower drift, like a theme's background marks, isn't blurred at all.
   public static let subframeStep = 6.0
 
   /// Snapshots for a frame in which something moves `motion` pixels across the shutter: one when
@@ -207,6 +207,7 @@ public struct Animation: Codable, Equatable, Sendable {
     let script = dir.map { d in
       let folder = AnimationSources.videoFolder(d)
       return AnimationSources.digest(template, in: folder) + (lottieFile.map { AnimationSources.digest(of: folder.appendingPathComponent("lottie/\($0)")) } ?? "")
+        + ThemeSources(project: d).digest(look?.animationTheme)
     } ?? ""
     let key = renderKey(width: output.width, height: output.height, fps: output.fps, script: script, look: look, safeTop: safeTop)
     return ".animations/\(template)-\(key).\(isOverlay ? "mov" : "mp4")"

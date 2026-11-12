@@ -63,7 +63,7 @@ struct SharingSection: View {
 
   var body: some View {
     Section("Sharing") {
-      TextField("Endpoint", text: $sharing.endpoint, prompt: Text("http://192.168.0.202:9000"))
+      TextField("Endpoint", text: $sharing.endpoint, prompt: Text("http://minio.local:9000"))
       if sharing.insecure {
         Label("This endpoint isn't HTTPS: keys are signed, but uploads and links travel unencrypted. Fine on a home network, not on public Wi-Fi.",
           systemImage: "exclamationmark.triangle.fill")

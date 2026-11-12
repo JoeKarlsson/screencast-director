@@ -33,6 +33,7 @@ public enum Publish: Sendable {
     // Moments picked on the command line, else the ones saved in the plan, else the best faces.
     let faces = try await bestFaces(project: project, plan: plan, at: coverAt ?? plan.coverAt)
     let built = try await buildComposition(project: project, plan: plan)
+    let coverMarks = built.scene.coverMarks ? built.scene.marks : nil
     // One thumbnail per good face (vertical covers for a vertical video, the title beside the face
     // otherwise); without a camera, one per title moment (or the middle) over the screen.
     if !faces.isEmpty {
@@ -46,8 +47,8 @@ public enum Publish: Sendable {
         let made = vertical
           ? verticalThumbnail(
             plan: plan, person: person, faceX: f.faceX, faceY: f.faceY, faceWidth: f.faceWidth,
-            subject: subjects.isEmpty ? nil : subjects[i % subjects.count], title: title)
-          : landscapeThumbnail(plan: plan, person: person, faceX: f.faceX, title: title)
+            subject: subjects.isEmpty ? nil : subjects[i % subjects.count], title: title, marks: coverMarks)
+          : landscapeThumbnail(plan: plan, person: person, faceX: f.faceX, title: title, marks: coverMarks)
         guard let thumb = made else { continue }
         let u = out.appendingPathComponent("thumbnail-\(i + 1).png")
         try writePNG(thumb, to: u)

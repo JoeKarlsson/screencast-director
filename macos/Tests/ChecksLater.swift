@@ -146,20 +146,32 @@ func laterChecks() {
   expect(templateScripts.evaluateScript("[popScale(1.04, 1), popScale(1.06, 1), popScale(1.5, 1)].join()").toString() == "1,0,1",
     "terminal entrances flicker, then hold at full size")
   templateScripts.evaluateScript(#"THEME = """#)
-  // The zine theme's lines squiggle: they wave across the straight line between their ends many times,
-  // yet start and end on them, and a label at the middle sits on the bowed line.
+  // A squiggle (the note's underline) waves across the straight line between its ends many times,
+  // yet starts and ends on them, and a label at the middle sits on the bowed line.
   let squiggly = templateScripts.evaluateScript("""
-    (() => { THEME = "zine"; const c = handCurve([0, 0], [600, 0], .3, 2), p = c.d.slice(1).split(/ [QL]/).map(s => s.split(" ").pop().split(",").map(Number));
+    (() => { const c = squiggle([0, 0], [600, 0], .3, 2), p = c.d.slice(1).split(/ [QL]/).map(s => s.split(" ").pop().split(",").map(Number));
       const sides = p.slice(1, -1).map(q => q[1] - Math.sin(Math.PI * q[0] / 600) * -30 > 0);
       let crossings = 0; for (let i = 1; i < sides.length; i++) if (sides[i] !== sides[i - 1]) crossings++;
       const end = p[p.length - 1], mid = c.at(.5);
       return [crossings >= 8, p[0].join() === "0,0", end.join() === "600,0", Math.abs(mid[1] + 30) < 10].join(); })()
     """).toString()
-  expect(squiggly == "true,true,true,true", "zine lines wave about their bow, start and end on their ends, and put the midpoint on the bow (\(squiggly ?? "?"))")
-  // The background's site scribbles build and draw without a page to put them on.
-  expect(templateScripts.evaluateScript("buildZineMarks(); zineTick(2.5); redrawOffset(.5, 0, 1) === 0 && redrawOffset(0, 0, 1) === 1 && redrawOffset(.2, 2, 5) === 0").toBool(),
-    "a mark is hidden at its loop's start and drawn while it holds, one stroke after another")
-  templateScripts.evaluateScript(#"THEME = """#)
+  expect(squiggly == "true,true,true,true", "a squiggle waves about its bow, starts and ends on its ends, and puts the midpoint on the bow (\(squiggly ?? "?"))")
+  // A pack's theme: its hooks route the lines, take the highlight and run each frame, and the
+  // paper's come back when the theme is gone.
+  let hooked = templateScripts.evaluateScript("""
+    (() => { const seen = [];
+      THEMES.probe = { curve: (a, b) => ({ d: `M${a} L${b}`, at: u => a }), highlight: () => { seen.push("hl"); return true; }, tick: t => seen.push("tick") };
+      THEME = "probe"; HOOKS = THEMES.probe;
+      const routed = handCurve([0, 0], [10, 10], 0, 1).d;
+      const hl = { style: {}, parentElement: { classList: { toggle() {} } } };
+      setHL(hl, .5);
+      HOOKS.tick(1);
+      THEME = ""; HOOKS = {};
+      const paper = handCurve([0, 0], [10, 10], 0, 1).d;
+      return [routed === "M0,0 L10,10", seen.join() === "hl,tick", hl.style.transform === undefined, paper.startsWith("M") && paper.includes("C")].join(); })()
+    """).toString()
+  expect(hooked == "true,true,true,true", "a theme's hooks route lines, take the highlight and tick; without one the paper's lines return (\(hooked ?? "?"))")
+  templateScripts.evaluateScript(#"THEME = ""; HOOKS = {}"#)
   for t in templates {
     let data = String(decoding: (try? JSONEncoder().encode(t.data)) ?? Data("{}".utf8), as: UTF8.self)
     let cues = "{" + t.cues.map { "\"\($0.key)\": \($0.at)" }.joined(separator: ", ") + "}"

@@ -29,9 +29,9 @@
     "title": "One plugin for all of them",
     "highlight": "plugin",
     "center": { "logo": "OpenAI", "label": "your agent" },
-    "hub": { "logo": "CData", "label": "Connect AI" },
+    "hub": { "logo": "Snowflake", "label": "one hub" },
     "link": "1 plugin",
-    "apps": ["Salesforce", "Slack", "Jira", "Snowflake", "Zendesk", "HubSpot", "Stripe", "Shopify", "QuickBooks", "Xero", "Asana", "Google Ads"],
+    "apps": ["Salesforce", "Slack", "Jira", "Zendesk", "HubSpot", "Stripe", "Shopify", "QuickBooks", "Xero", "Asana", "Google Ads"],
     "more": "+ hundreds more",
     "moreApps": [],
     "costs": ["sign-in", "set of permissions", "log"]

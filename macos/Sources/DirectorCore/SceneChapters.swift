@@ -2,7 +2,7 @@ import CoreGraphics
 import CoreText
 import Foundation
 
-// Big type chapters (look.chapterStyle "big"), after joekarlsson.com's hero: a black block rises
+// Big type chapters (look.chapterStyle "big"), a poster headline: a black block rises
 // under the picture, the chapter's words fill it in huge type, its label sits on the block's edge
 // in a chip, and crayon rays and a coil draw in. The block drops away at the end.
 
@@ -41,13 +41,6 @@ extension Scene {
     return (W * 0.05, W * 0.9)
   }
 
-  /// The top of the block at `f` (top-left coordinates), for captions to stay above; nil without one.
-  func bigChapterTop(at f: Double, camBox: Box?) -> Double? {
-    guard let ch = bigChapter(at: f) else { return nil }
-    let block = bigChapterLayout(ch, camBox: camBox).block
-    return block.maxY - block.height * bigChapterRise(ch, at: f)
-  }
-
   /// The chapter's words, as big as `size` or shrunk so they fit the block: no taller than
   /// `maxHeight`, and the longest word on one line (a long word like "LANGUAGEBREAK" never wraps
   /// mid-word).
@@ -78,7 +71,7 @@ extension Scene {
     let blockH = block.height
     // It rises from its bottom edge, drawn only inside its own band.
     let top = block.maxY - blockH * rise
-    let accent = Scene.color(look.accent ?? "#FF4FD8")
+    let accent = Scene.color(look.accent ?? Look.defaultAccent)
     ctx.saveGState()
     ctx.clip(to: CGRect(x: 0, y: top, width: W, height: block.maxY - top))
     ctx.setFillColor(Scene.color(look.chipBackground ?? "#000000"))
@@ -104,13 +97,13 @@ extension Scene {
     // Rays over the end of the first line, a coil under the words.
     let raysW = min(W * 0.2, measured.height * 1.1)
     let raysRect = CGRect(x: min(left + measured.width - raysW * 0.2, area.minX + area.width - raysW), y: textTop - raysW * 0.55, width: raysW, height: raysW * 0.75)
-    let rays = Scribble.rays
+    let rays = marks["rays"]
     rays.draw(ctx, in: raysRect, color: accent, lineWidth: max(4 * u, 9 * raysW / rays.size.width),
       shares: rays.shares(min(1, max(0, (t - 0.4) / 0.35))), boil: boil)
     // The coil, flattened under the words' baseline, in the block's bottom margin.
     let coilW = measured.width * 1.02
     let coilRect = CGRect(x: midX - coilW / 2, y: textTop + measured.height * 0.82, width: coilW, height: measured.height * 0.4)
-    let coil = Scribble.coil
+    let coil = marks["coil"]
     coil.draw(ctx, in: coilRect, color: accent, lineWidth: min(measured.height * 0.06, max(4 * u, 8 * coilW / coil.size.width)),
       shares: coil.shares(min(1, max(0, (t - 0.5) / 0.7))), boil: boil)
 
@@ -127,7 +120,7 @@ extension Scene {
       let k = pop < 1 ? 0.6 + 0.5 * pop - 0.1 * pop * pop : 1
       ctx.scaleBy(x: k, y: k)
       ctx.translateBy(x: -rect.midX, y: -rect.midY)
-      ctx.setFillColor(Scene.color(look.titleBackground ?? (look.accent ?? "#FF4FD8")))
+      ctx.setFillColor(Scene.color(look.titleBackground ?? (look.accent ?? Look.defaultAccent)))
       ctx.addPath(CGPath(roundedRect: rect, cornerWidth: 14 * u, cornerHeight: 14 * u, transform: nil))
       ctx.fillPath()
       drawText(ctx, s, at: CGPoint(x: rect.minX + padX, y: rect.minY + padY), size: ls)

@@ -9,9 +9,20 @@ let cam, lines, LOGOS = {};
 let LOTTIE = null;
 // Floating over the video (config.overlay): templates place things where asked instead of framing them.
 let OVERLAY = false;
-// The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion;
-// "zine" is joekarlsson.com: black, hot pink, squiggly crayon lines and the site's scribbles drifting behind.
+// The look (config.theme): "" is the paper collage; "terminal" is a 90s screen with its own motion.
+// Any other theme comes from a pack: its stylesheet (config.themeCSS) and scripts, run after this file,
+// which register THEMES[name] with any of these hooks (HOOKS while it's the theme):
+//   setup({stage, k, config})      once the stage is sized, before the template builds (k: px per stage px)
+//   stroke(path, width) -> width   a new line's stroke
+//   curve(a, b, t, seed, bend, tangle) -> {d, at}   a line's hand-drawn route (a falsy return keeps the paper's)
+//   draw(path, curve, progress, opacity) -> bool     after a line is drawn; true hides the SVG path
+//   highlight(hl, p) -> bool       a heading's highlight at progress p; true skips the highlighter swipe
+//   beforePackets(t), tick(t)      each frame, before the packets and last
 let THEME = "";
+const THEMES = {};
+let HOOKS = {};
+// The hand-drawn marks (config.marks: the app's, or the theme's over them), {name: {viewBox, path}}.
+let SCRIBBLES = {};
 
 // --- motion -----------------------------------------------------------------
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -62,9 +73,7 @@ function path(width, color) {
   const p = document.createElementNS(NS, "path");
   const term = THEME === "terminal";
   p.setAttribute("fill", "none"); p.setAttribute("stroke", color);
-  p.setAttribute("stroke-width", term ? Math.min(width, 3) : THEME === "zine" ? width * 1.8 : width);
-  // Zine: drawn in crayon, the grainy, broken-edged stroke of the site's scribbles.
-  if (THEME === "zine") p.setAttribute("filter", "url(#crayon)");
+  p.setAttribute("stroke-width", term ? Math.min(width, 3) : HOOKS.stroke ? HOOKS.stroke(p, width) : width);
   p.setAttribute("stroke-linecap", term ? "square" : "round"); p.setAttribute("stroke-linejoin", term ? "miter" : "round");
   p.setAttribute("pathLength", "1");
   lines.appendChild(p); return p;
@@ -73,7 +82,8 @@ function bez(p0, p1, p2, p3, u) { const v = 1 - u; return [0, 1].map(i => v*v*v*
 // A hand-drawn curve from a to b, "boiling" six times a second; `tangle` throws the middle around.
 function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
   if (THEME === "terminal") return elbow(a, b, t, seed);
-  if (THEME === "zine") return squiggle(a, b, t, seed);
+  const themed = HOOKS.curve && HOOKS.curve(a, b, t, seed, bend, tangle);
+  if (themed) return themed;
   const r = rand(seed * 31 + Math.floor(t * 6));
   const j = () => (r() - .5) * 3.2;
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
@@ -82,8 +92,8 @@ function handCurve(a, b, t, seed, bend = 0, tangle = 0) {
   const c2 = [a[0] + dx * .66 + nx * bend + (r2() - .5) * k + j(), a[1] + dy * .66 + ny * bend + (r2() - .5) * k + j()];
   return { d: `M${a[0] + j()},${a[1] + j()} C${c1} ${c2} ${b[0] + j()},${b[1] + j()}`, at: u => bez(a, c1, c2, b, u) };
 }
-// A squiggly crayon line from a to b for the zine theme: a hand-wobbled wave (about 9 px high, a wave
-// every 55 px, flat at the ends) along a gentle bow, boiling six times a second like the site's marks.
+// A squiggly line from a to b: a hand-wobbled wave (about 9 px high, a wave every 55 px, flat at the
+// ends) along a gentle bow, boiling six times a second. The note's underline; themes may route lines with it.
 function squiggle(a, b, t = 0, seed = 1) {
   const r = rand(seed * 31 + Math.floor(t * 6));
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
@@ -130,76 +140,14 @@ function drawPath(p, curve, progress, opacity = 1) {
   p.setAttribute("d", curve.d); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1 - clamp(progress);
   p.style.opacity = progress <= 0 ? 0 : opacity;
   if (packetLayer && curve.at && !curve.still && progress >= 1 && opacity > .05) packetLines.push({ p, curve, opacity });
-  // Zine: p5.brush draws it instead (the path stays, hidden, for layout).
-  if (brushLines && curve.at) {
-    p.style.visibility = "hidden";
-    if (progress > 0 && opacity > 0) brushLines.queue.push({ p, curve, progress: clamp(progress), opacity });
-  }
+  // A theme can draw the line itself (the path stays, hidden, for layout).
+  if (HOOKS.draw && curve.at && HOOKS.draw(p, curve, progress, opacity)) p.style.visibility = "hidden";
 }
+// Puts a node just above the SVG lines (and above what a theme put there before), under every node
+// made after it.
+let lineTop = null;
+function aboveLines(node) { (lineTop || lines).after(node); lineTop = node; }
 
-// --- zine lines in p5.brush ------------------------------------------------------
-// The zine theme draws its lines with p5.brush's colored pencil (vendor/brush.js) for the grainy,
-// broken edge of real crayon: drawPath queues each line and seek draws them all on a canvas just
-// above the SVG lines, boiling six times a second like the SVG crayon did.
-const ZINE_BRUSH = { name: "cpencil", scale: 1.5 };
-let brushLines = null;
-function setupBrushLines(k) {
-  if (typeof brush === "undefined") throw new Error("the zine theme's lines need p5.brush (vendor/brush.js)");
-  // Drawn at twice the clip's resolution: p5.brush's stroke masks have no antialiasing, so at 1x its
-  // grain shows as pixel blocks.
-  const W = Math.round(STAGE.w * k), H = Math.round(STAGE.h * k), density = 2;
-  const gl = document.createElement("canvas");
-  gl.width = W * density; gl.height = H * density;
-  const glc = gl.getContext("webgl2", { alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: true });
-  if (!glc) throw new Error("the zine theme's lines need WebGL2");
-  brush.load(gl);
-  brush.scaleBrushes(ZINE_BRUSH.scale);
-  // Shown through a 2D canvas, which composites the transparent strokes over the stage.
-  const shown = document.createElement("canvas");
-  shown.width = W; shown.height = H;
-  shown.style.cssText = `position: absolute; left: 0; top: 0; width: ${STAGE.w}px; height: ${STAGE.h}px; pointer-events: none`;
-  lines.after(shown);
-  brushLines = { gl, glc, ctx: shown.getContext("2d"), k: k * density, W, H, queue: [], seeds: new Map() };
-}
-// A path's stroke color with its opacity, resolving var(--ink) and friends.
-function brushColor(p, opacity) {
-  const raw = p.getAttribute("stroke") || "var(--ink)";
-  const name = raw.match(/^var\((--[\w-]+)\)$/);
-  const css = name ? getComputedStyle(document.documentElement).getPropertyValue(name[1]).trim() : raw;
-  const probe = document.createElement("canvas").getContext("2d");
-  probe.fillStyle = css;
-  const hex = probe.fillStyle; // #rrggbb, or rgba() when it already has alpha
-  const [r, g, b] = hex.startsWith("#") ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : hex.match(/[\d.]+/g).slice(0, 3).map(Number);
-  return [r, g, b, clamp(opacity)];
-}
-function drawBrushLines(t) {
-  const L = brushLines;
-  brush.clear();
-  // brush.clear() leaves transparent white (1,1,1,0), which a premultiplied canvas shows as white.
-  L.glc.bindFramebuffer(L.glc.FRAMEBUFFER, null);
-  L.glc.clearColor(0, 0, 0, 0);
-  L.glc.clear(L.glc.COLOR_BUFFER_BIT);
-  brush.push();
-  // Points go in canvas pixels rather than through brush.scale, which would blow up the grain too.
-  brush.translate(-L.gl.width / 2, -L.gl.height / 2);
-  for (const line of L.queue) {
-    // Each path keeps its own texture, changing only on the boil.
-    if (!L.seeds.has(line.p)) L.seeds.set(line.p, L.seeds.size + 1);
-    const seed = L.seeds.get(line.p);
-    brush.seed(seed * 31 + Math.floor(t * 6));
-    brush.noiseSeed(seed);
-    const n = Math.max(2, Math.ceil(80 * line.progress));
-    const pts = Array.from({ length: n + 1 }, (_, j) => line.curve.at(j / n * line.progress).map(v => v * L.k));
-    brush.set(ZINE_BRUSH.name, brushColor(line.p, line.opacity), +line.p.getAttribute("stroke-width") * L.k / ZINE_BRUSH.scale / 1.1);
-    brush.spline(pts, 0);
-  }
-  brush.pop();
-  brush.render();
-  L.ctx.clearRect(0, 0, L.W, L.H);
-  L.ctx.imageSmoothingQuality = "high";
-  L.ctx.drawImage(L.gl, 0, 0, L.W, L.H);
-  L.queue = [];
-}
 // A heading with the `highlight` part swiped in highlighter.
 // --- flourishes ----------------------------------------------------------------
 // Moves from the explainers made with Claude (the "Claude Motion Tips" collection): headings revealed
@@ -244,9 +192,9 @@ function land(node, x, y, t, start, size = 1, rot = 0, opacity = 1) {
   // In the air its shadow falls wider and softer; it settles under the card as it lands.
   node.style.setProperty("--lift", u > 0 ? 1 - easeOut(u / .3) : 1);
 }
-// The site's burst scribble, in the accent, flaring behind a node as it lands and erasing.
+// The burst mark, in the accent, flaring behind a node as it lands and erasing.
 function burstMark(behind) {
-  if (THEME === "terminal" || typeof SCRIBBLES === "undefined") return null;
+  if (THEME === "terminal" || !SCRIBBLES.burstDense) return null;
   const m = SCRIBBLES.burstDense, svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", m.viewBox); svg.setAttribute("class", "abs burstmark");
   const g = document.createElementNS(NS, "g");
@@ -280,8 +228,8 @@ function setupPackets() {
   packetLayer = document.createElementNS(NS, "svg");
   packetLayer.setAttribute("class", "abs packets");
   packetLayer.setAttribute("width", STAGE.w); packetLayer.setAttribute("height", STAGE.h);
-  // Above the lines (and the zine's brush canvas), under every node made after it.
-  (brushLines ? lines.nextSibling : lines).after(packetLayer);
+  // Above the lines (and anything a theme drew there), under every node made after it.
+  (lineTop || lines).after(packetLayer);
 }
 function drawPackets(t) {
   const want = packetLines.length * 2;
@@ -345,8 +293,7 @@ function heading(text, highlight) {
 }
 function setHL(hl, p) {
   if (!hl) return;
-  // Zine: a heading's highlighted words turn pink (animation.html); nothing is drawn over them.
-  if (THEME === "zine") { hl.parentElement.classList.toggle("on", p > 0); return; }
+  if (HOOKS.highlight && HOOKS.highlight(hl, p)) return;
   // Terminal: inverse video that switches on, instead of a highlighter swipe.
   if (THEME === "terminal") { hl.parentElement.classList.toggle("on", p > 0); return; }
   hl.style.transform = `skewX(-8deg) scaleX(${easeOut(p)})`;
@@ -421,58 +368,6 @@ function terminalTick(t) {
     });
   });
 }
-// The zine theme's background: the site's scribbles (scribbles.js), dim, drifting behind the board. Each
-// draws in, holds and erases on its own slow loop (a mark of several strokes draws them one after
-// another, the site's redraw timing), bobs and turns a little, and boils between three wobble frames.
-const ZINE_MARKS = [
-  // name, x and y (fractions of the stage, below the heading), width (fraction of the short side), pink?
-  ["coil", .6, .24, .5, false], ["burstDense", .83, .66, .24, true], ["asterisk", .05, .8, .11, true],
-  ["tally", .02, .36, .21, false], ["oval", .5, .76, .38, false], ["cross", .86, .3, .17, true], ["hatch", .3, .9, .22, false],
-];
-let zineMarks = [];
-function buildZineMarks() {
-  const layer = document.getElementById("marks");
-  if (!layer || typeof SCRIBBLES === "undefined") return [];
-  const short = Math.min(STAGE.w, STAGE.h);
-  return ZINE_MARKS.map(([name, x, y, w, pink], k) => {
-    const m = SCRIBBLES[name], vb = m.viewBox.split(" ").map(Number);
-    const svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("viewBox", vb.join(" ")); svg.setAttribute("class", "mark");
-    const width = w * short;
-    svg.style.left = `${x * STAGE.w}px`; svg.style.top = `${y * STAGE.h}px`;
-    svg.style.width = `${width}px`; svg.style.height = `${width * vb[3] / vb[2]}px`;
-    const g = document.createElementNS(NS, "g");
-    g.setAttribute("stroke", pink ? "var(--accent)" : "#ECE6DA");
-    // About 9 px on the stage, whatever the mark's viewBox.
-    g.setAttribute("stroke-width", 9 * vb[2] / width);
-    svg.appendChild(g);
-    const strokes = m.path.split(/(?=M)/).map(d => d.trim()).filter(Boolean).map(d => {
-      const p = document.createElementNS(NS, "path");
-      p.setAttribute("d", d); p.setAttribute("pathLength", "1"); p.style.strokeDasharray = 1;
-      g.appendChild(p); return p;
-    });
-    layer.appendChild(svg);
-    return { svg, strokes, dur: 7 + k * 1.3, delay: k * .6 - 3, k };
-  });
-}
-// How much of a stroke is hidden at loop position u (0..1): 1 before it draws, 0 while it holds, and
-// 2 down to 1 as it erases from its start (the same spot in the 1-on 1-off dash as 0 to -1; macOS 26's
-// WebKit draws a negative offset back in). One stroke draws over the first 35% and erases after 85%; a
-// mark of several strokes draws each in 4.5% of the loop, one after another, and erases them in turn.
-function redrawOffset(u, i, count) {
-  if (count === 1) return u < .35 ? 1 - easeOut(u / .35) : u < .85 ? 0 : 2 - easeInOut((u - .85) / .15);
-  const s = i * .045;
-  return u < s ? 1 : u < s + .045 ? 1 - easeOut((u - s) / .045) : u < .8 + s * .3 ? 0 : 2 - clamp((u - .8 - s * .3) / .04);
-}
-function zineTick(t) {
-  zineMarks.forEach(({ svg, strokes, dur, delay, k }) => {
-    const u = (((t - delay) / dur) % 1 + 1) % 1;
-    strokes.forEach((p, i) => { p.style.strokeDashoffset = redrawOffset(u, i, strokes.length); });
-    const dx = 14 * Math.sin(t * .5 + k * 1.7), dy = 14 * Math.cos(t * .37 + k), rot = (k % 2 ? 2 : -2) * t;
-    svg.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
-    svg.style.filter = `url(#boil-${1 + Math.floor(t * 6 + k) % 3})`;
-  });
-}
 // A cue's time (seconds from the animation's start), or a fallback when the plan leaves it out.
 function cue(cues, name, fallback) { return typeof cues[name] === "number" ? cues[name] : fallback; }
 
@@ -502,7 +397,7 @@ function pinAnimations(t) {
 
 // --- entry points --------------------------------------------------------------
 // config: { template, data, cues, duration, width, height, fonts: [{family, url}], titleFont, bodyFont,
-//           accent, paper, ink, theme, safeTop, logos, overlay (true: a transparent page over the video), lottie }
+//           accent, paper, ink, theme, themeCSS, marks, safeTop, logos, overlay (true: a transparent page over the video), lottie }
 window.init = async function (config) {
   cam = document.getElementById("cam");
   lines = document.getElementById("lines");
@@ -511,6 +406,13 @@ window.init = async function (config) {
   const root = document.documentElement.style;
   THEME = config.theme || "";
   if (THEME) document.documentElement.classList.add(`theme-${THEME}`);
+  HOOKS = THEMES[THEME] || {};
+  SCRIBBLES = config.marks || {};
+  if (config.themeCSS) {
+    const style = document.createElement("style");
+    style.textContent = config.themeCSS;
+    document.head.appendChild(style);
+  }
   OVERLAY = config.overlay === true;
   // A sticker (config.sticker): the template builds #sticker, a card the page's width shown in a
   // sticker border over the video; the stage isn't shown.
@@ -534,20 +436,17 @@ window.init = async function (config) {
   stage.style.width = `${STAGE.w}px`;
   stage.style.height = `${STAGE.h}px`;
   stage.style.transform = `translate(0px, ${top}px) ` + stageTransform(config.width, config.height - top, STAGE);
-  if (THEME === "zine") {
-    zineMarks = buildZineMarks();
-    setupBrushLines(Math.min(config.width / STAGE.w, (config.height - top) / STAGE.h));
-  }
+  if (HOOKS.setup) HOOKS.setup({ stage, k: Math.min(config.width / STAGE.w, (config.height - top) / STAGE.h), config });
   if (THEME !== "terminal") setupPackets();
   const seekTemplate = make(config.data || {}, config.cues || {}, config.duration);
   window.seek = t => {
     pinAnimations(t);
     seekTemplate(t);
-    if (brushLines) drawBrushLines(t);
+    if (HOOKS.beforePackets) HOOKS.beforePackets(t);
     if (packetLayer) drawPackets(t);
     for (const c of document.querySelectorAll(".cursor")) c.style.visibility = Math.floor(t * 2) % 2 ? "hidden" : "visible";
     if (THEME === "terminal") terminalTick(t);
-    if (THEME === "zine") zineTick(t);
+    if (HOOKS.tick) HOOKS.tick(t);
   };
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);

@@ -56,15 +56,14 @@ public struct ProfileLibrary: Sendable {
     return FileManager.default.fileExists(atPath: file.path) ? try Profile.load(folder(name)) : nil
   }
 
-  /// Saves a video's current look and style as a profile (asset paths stay absolute).
-  public func save(from plan: Plan, as name: String, extras: Set<Profile.Extra>) throws {
+  /// Saves a video's current look and style as a profile. Its fonts, logos, LUT and music (paths
+  /// relative to `project`, or absolute) are copied into the profile's folder, so it travels.
+  public func save(from plan: Plan, project: URL, as name: String, extras: Set<Profile.Extra>) throws {
     let trimmed = name.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty, !trimmed.contains("/"), !trimmed.hasPrefix(".") else { throw DirectorError("\"\(name)\" can't be a profile name") }
     let dir = folder(trimmed)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    let enc = JSONEncoder()
-    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    try enc.encode(Profile.saved(from: plan, name: trimmed, extras: extras)).write(to: dir.appendingPathComponent("profile.json"))
+    try Profile.portable(Profile.saved(from: plan, name: trimmed, extras: extras), from: project, into: dir).write(to: dir)
   }
 }
 

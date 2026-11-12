@@ -162,6 +162,26 @@ expect_error "an unknown profile name lists the saved ones" "Snappy look" "$DIRE
 expect_error "profile-save refuses a name with a slash" "can't be a profile name" "$DIRECTOR" profile-save "$P" "a/b"
 cp "$TMP/draft.json" "$P/plan.json"
 
+# --- packs: export a profile, remove it, install it back; themes
+"$DIRECTOR" pack export "$TMP/Snappy.sdpack" --profile "Snappy look" >/dev/null
+check "pack export writes a .sdpack" test -s "$TMP/Snappy.sdpack"
+expect_error "pack export needs a profile" "at least one profile" "$DIRECTOR" pack export "$TMP/none.sdpack"
+rm -rf "$SD_SUPPORT_DIR/Profiles/Snappy look"
+check "pack install puts the profile back" grep -q "installed Snappy 1.0: 1 new" <<<"$("$DIRECTOR" pack install "$TMP/Snappy.sdpack")"
+check "pack list shows it" grep -q "^Snappy" <<<"$("$DIRECTOR" pack list)"
+check "the installed profile is listed" grep -q "Snappy look" <<<"$("$DIRECTOR" profiles)"
+echo '{"name": "Snappy look", "style": {"background": ["#000000"], "padding": 0, "radius": 1, "transition": 0.8}, "look": {}}' >"$SD_SUPPORT_DIR/Profiles/Snappy look/profile.json"
+expect_error "installing over a changed file asks for --replace" "--replace" "$DIRECTOR" pack install "$TMP/Snappy.sdpack"
+"$DIRECTOR" pack install "$TMP/Snappy.sdpack" --replace >/dev/null
+check "pack remove takes it away" grep -q "removed Snappy" <<<"$("$DIRECTOR" pack remove Snappy)"
+check "and it's gone" test ! -e "$SD_SUPPORT_DIR/Profiles/Snappy look/profile.json"
+expect_error "removing a pack that isn't installed says so" "no pack named" "$DIRECTOR" pack remove Snappy
+"$DIRECTOR" pack install "$TMP/Snappy.sdpack" >/dev/null
+check "themes lists paper and terminal" grep -q "^terminal" <<<"$("$DIRECTOR" themes)"
+plan_py "plan.setdefault('look', {})['animationTheme'] = 'nowhere'; json.dump(plan, open('$P/plan.json', 'w'))"
+expect_error "validate names a theme that isn't installed" "isn't installed" "$DIRECTOR" validate "$P"
+cp "$TMP/draft.json" "$P/plan.json"
+
 # --- the app's settings
 check "settings lists the app's settings" grep -q "^pauseLevel = normal" <<<"$("$DIRECTOR" settings)"
 "$DIRECTOR" settings set pauseLevel tight >/dev/null

@@ -126,6 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     guard let url = urls.first else { return }
     if url.scheme == AppURL.scheme {
       handle(url)
+    } else if url.pathExtension.lowercased() == "sdpack" {
+      // A pack someone sent, double-clicked: install it.
+      ProfileStore.shared.install(url)
     } else if FileManager.default.fileExists(atPath: url.appendingPathComponent("source.json").path) {
       library.refresh()
       library.selection = url.standardizedFileURL

@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 """Writes the Lottie overlays built into the app (Resources/animations/lottie/), all drawn here from
 code: hand-drawn marks (circle, underline, arrows, box, check, cross, burst), pop-ins (heart, star,
-!, ?), confetti and loops (sparkle, click, spinner, pulse). Hot pink with a black shadow or rim so
-they read over a busy screen; the lottie template's `color` swaps the pink for a profile's accent.
+!, ?), confetti and loops (sparkle, click, spinner, pulse). In the default accent (yellow) with a
+black shadow or rim so they read over a busy screen. `--color` draws a set in another color and `--out`
+writes it elsewhere, e.g. into a pack's Animations/lottie/ (`--prefix` names its files apart from these).
 
 Each file carries `meta.d` (what it's for, shown by `director lottie list` and the app's picker) and,
 when it plays once and holds its last frame, a top-level `"loop": false` the template reads.
 
-    python3 macos/make-lotties.py
+    python3 macos/make-lotties.py [--color "#RRGGBB"] [--out folder] [--prefix name-]
 """
+import argparse
 import json
 import math
 import os
 import random
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources/animations/lottie")
+ARGS = argparse.ArgumentParser(description="Write the built-in Lottie overlays.")
+ARGS.add_argument("--color", default="#FFE500", help="the marks' color (default: the app's accent)")
+ARGS.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources/animations/lottie"))
+ARGS.add_argument("--prefix", default="", help="put before each file name")
+OPTS = ARGS.parse_args()
+OUT = OPTS.out
 FPS = 30
-PINK = [1, 0.31, 0.85, 1]
+COLOR = [int(OPTS.color.lstrip("#")[i:i + 2], 16) / 255 for i in (0, 2, 4)] + [1]
+CORAL = [1, 0.45, 0.35, 1]
 INK = [0.07, 0.07, 0.07, 1]
-YELLOW = [1, 0.84, 0.2, 1]
 CYAN = [0.25, 0.8, 1, 1]
 WHITE = [1, 1, 1, 1]
 SHADOW = (5, 6)
@@ -28,9 +35,9 @@ EASE_OUT = (0.16, 1, 0.3, 1)
 EASE_IN_OUT = (0.45, 0, 0.25, 1)
 OVERSHOOT = (0.34, 1.56, 0.64, 1)
 LINEAR = (0, 0, 1, 1)
-# The site's draw-in curves (joekarlsson.com motion.css): a one-stroke scribble, and each stroke of a mark.
-PEN = (0.45, 0.55, 0.3, 1)
-STROKE = (0.3, 0.6, 0.4, 1)
+# Draw-in curves: a one-stroke mark, and each stroke of a mark of several.
+PEN = (0.4, 0, 0.2, 1)
+STROKE = (0.33, 0, 0.25, 1)
 
 
 def r(v):
@@ -115,7 +122,8 @@ def write(name, w, h, op, layers, about, loop=True):
            "meta": {"g": "Screencast Director make-lotties.py", "d": about}, "layers": layers}
     if not loop:
         doc["loop"] = False
-    with open(os.path.join(OUT, f"{name}.json"), "w") as f:
+    os.makedirs(OUT, exist_ok=True)
+    with open(os.path.join(OUT, f"{OPTS.prefix}{name}.json"), "w") as f:
         json.dump(doc, f, separators=(",", ":"))
 
 
@@ -144,14 +152,14 @@ def circle():
         a = math.radians(200 + k * 14.5)
         rx, ry = 225 + rng.uniform(-6, 6) - k * 0.6, 135 + rng.uniform(-5, 5) - k * 0.4
         pts.append((w / 2 + rx * math.cos(a), h / 2 + ry * math.sin(a)))
-    shapes = strokes([(path(pts), draw(0, 27))], PINK, 14)
+    shapes = strokes([(path(pts), draw(0, 27))], COLOR, 14)
     write("circle", w, h, 45, [layer("circle", shapes, 45, w, h)], "A hand-drawn oval that draws itself around something", loop=False)
 
 
 def underline():
     w, h = 620, 120
     pts = [(30, 70), (140, 62), (260, 66), (380, 58), (500, 60), (585, 46)]
-    shapes = strokes([(path(pts), draw(0, 15))], PINK, 16)
+    shapes = strokes([(path(pts), draw(0, 15))], COLOR, 16)
     write("underline", w, h, 30, [layer("underline", shapes, 30, w, h)], "A quick hand-drawn swoosh under a word", loop=False)
 
 
@@ -165,7 +173,7 @@ def box():
             f = k / 4
             pts.append((x0 + (x1 - x0) * f + rng.uniform(-3, 3), y0 + (y1 - y0) * f + rng.uniform(-3, 3)))
     pts.append(corners[-1])
-    shapes = strokes([(path(pts), draw(0, 33))], PINK, 12)
+    shapes = strokes([(path(pts), draw(0, 33))], COLOR, 12)
     write("box", w, h, 45, [layer("box", shapes, 45, w, h)], "A hand-drawn rectangle that draws itself around part of the screen", loop=False)
 
 
@@ -174,13 +182,13 @@ def arrow(name, deg):
     tip = (350, 206)
     shaft = rotated([(50, 260), (130, 215), (230, 200), (330, 205), tip], deg, 200, 200)
     head = rotated([(300, 160), tip, (304, 252)], deg, 200, 200)
-    shapes = strokes([(path(shaft), draw(0, 12, STROKE)), (path(head, smooth=False), draw(12, 9, STROKE))], PINK, 16)
+    shapes = strokes([(path(shaft), draw(0, 12, STROKE)), (path(head, smooth=False), draw(12, 9, STROKE))], COLOR, 16)
     write(name, w, h, 30, [layer(name, shapes, 30, w, h)], f"A hand-drawn arrow that draws itself, pointing {name.split('-')[1]}", loop=False)
 
 
 def check():
     w = h = 400
-    shapes = strokes([(path([(90, 215), (170, 295), (320, 105)], smooth=False), draw(0, 12))], PINK, 36)
+    shapes = strokes([(path([(90, 215), (170, 295), (320, 105)], smooth=False), draw(0, 12))], COLOR, 36)
     ks = {"s": keys((11, [100, 100, 100], EASE_OUT), (15, [114, 114, 100], EASE_IN_OUT), (21, [100, 100, 100]))}
     write("check", w, h, 30, [layer("check", shapes, 30, w, h, ks)], "A checkmark that draws itself and pops", loop=False)
 
@@ -188,7 +196,7 @@ def check():
 def cross():
     w = h = 400
     shapes = strokes([(path([(105, 105), (295, 295)], smooth=False), draw(0, 9, STROKE)),
-                      (path([(295, 105), (105, 295)], smooth=False), draw(9, 9, STROKE))], PINK, 36)
+                      (path([(295, 105), (105, 295)], smooth=False), draw(9, 9, STROKE))], COLOR, 36)
     ks = {"r": keys((17, -6, OVERSHOOT), (25, 0))}
     write("cross", w, h, 36, [layer("cross", shapes, 36, w, h, ks)], "An X that slashes itself on, for a wrong answer", loop=False)
 
@@ -201,7 +209,7 @@ def burst():
         r0, r1 = 92, (150 if k % 2 else 180)
         line = [(w / 2 + r0 * math.cos(a), h / 2 + r0 * math.sin(a)), (w / 2 + r1 * math.cos(a), h / 2 + r1 * math.sin(a))]
         shapes.append(group([path(line, smooth=False), trim(draw(k * 2, 8, STROKE)),
-                             stroke(PINK, 13)]))
+                             stroke(COLOR, 13)]))
     write("burst", w, h, 36, [layer("burst", shapes, 36, w, h)],
           "Emphasis rays drawn around a point one after another (the middle stays clear), a ta-da", loop=False)
 
@@ -218,7 +226,7 @@ def pop_layer(name, shapes, w, h, wiggle=True):
 def heart():
     w = h = 400
     pts = [(200, 330), (95, 235), (62, 150), (110, 85), (170, 90), (200, 130), (230, 90), (290, 85), (338, 150), (305, 235)]
-    write("heart", w, h, 36, [pop_layer("heart", outlined([path(pts, closed=True)], PINK, 14), w, h)], "A heart that springs on", loop=False)
+    write("heart", w, h, 36, [pop_layer("heart", outlined([path(pts, closed=True)], COLOR, 14), w, h)], "A heart that springs on", loop=False)
 
 
 def star():
@@ -229,21 +237,21 @@ def star():
         rad = 165 if k % 2 == 0 else 72
         pts.append((200 + rad * math.cos(a), 205 + rad * math.sin(a)))
     ks = {"s": pop(), "r": keys((0, -50, EASE_OUT), (18, 0))}
-    write("star", w, h, 36, [layer("star", outlined([path(pts, closed=True, smooth=False)], PINK, 14), 36, w, h, ks)],
+    write("star", w, h, 36, [layer("star", outlined([path(pts, closed=True, smooth=False)], COLOR, 14), 36, w, h, ks)],
           "A star that spins and springs on", loop=False)
 
 
 def exclaim():
     w, h = 240, 400
     bar = path([(85, 40), (155, 40), (138, 255), (102, 255)], closed=True, smooth=False)
-    write("exclaim", w, h, 36, [pop_layer("exclaim", outlined([bar, ellipse(120, 325, 72)], PINK, 14), w, h)],
+    write("exclaim", w, h, 36, [pop_layer("exclaim", outlined([bar, ellipse(120, 325, 72)], COLOR, 14), w, h)],
           "An exclamation mark that springs on and wobbles", loop=False)
 
 
 def question():
     w, h = 300, 400
     curve = path([(72, 120), (100, 62), (160, 45), (222, 78), (228, 140), (180, 185), (150, 225), (150, 260)])
-    shapes = [group([curve, stroke(PINK, 40)]), group([ellipse(150, 330, 56), fill(PINK)]),
+    shapes = [group([curve, stroke(COLOR, 40)]), group([ellipse(150, 330, 56), fill(COLOR)]),
               group([curve, stroke(INK, 62)]), group([ellipse(150, 330, 78), fill(INK)])]
     write("question", w, h, 36, [pop_layer("question", shapes, w, h)], "A question mark that springs on and wobbles", loop=False)
 
@@ -269,7 +277,7 @@ def confetti():
         ks = {"a": static([0, 0, 0]), "p": keys(*pos), "r": keys((0, 0, LINEAR), (op, spin)),
               "o": keys((0, 100, LINEAR), (op - 14, 100, LINEAR), (op, 0)),
               "s": keys((0, [0, 0, 100], EASE_OUT), (4, [100, 100, 100]))}
-        layers.append(layer(f"bit{i}", [group([shape, fill([PINK, YELLOW, CYAN, WHITE][i % 4]), stroke(INK, 3)])], op, w, h, ks, ind=i + 1))
+        layers.append(layer(f"bit{i}", [group([shape, fill([COLOR, CORAL, CYAN, WHITE][i % 4]), stroke(INK, 3)])], op, w, h, ks, ind=i + 1))
     write("confetti", w, h, op, layers, "A burst of confetti that flies up and falls away", loop=False)
 
 
@@ -287,18 +295,18 @@ def sparkle():
         ks = {"a": static([cx, cy, 0]), "p": static([cx, cy, 0]),
               "s": keys((start, [0, 0, 100], OVERSHOOT), (start + 6, [100, 100, 100], LINEAR), (start + 11, [100, 100, 100], EASE_IN_OUT), (start + 16, [0, 0, 100])),
               "r": keys((start, -20, LINEAR), (start + 16, 20))}
-        layers.append(layer(f"spark{i}", outlined([path(pts, closed=True, smooth=False)], PINK, 8), 48, w, h, ks, ind=i + 1))
+        layers.append(layer(f"spark{i}", outlined([path(pts, closed=True, smooth=False)], COLOR, 8), 48, w, h, ks, ind=i + 1))
     write("sparkle", w, h, 48, layers, "Three twinkling sparkles, on a loop")
 
 
 def click():
     w = h = 260
-    layers = [layer("dot", outlined([ellipse(w / 2, h / 2, 44)], PINK, 8), 24, w, h,
+    layers = [layer("dot", outlined([ellipse(w / 2, h / 2, 44)], COLOR, 8), 24, w, h,
                     {"s": keys((0, [70, 70, 100], OVERSHOOT), (6, [110, 110, 100], EASE_IN_OUT), (24, [70, 70, 100]))})]
     for i, delay in enumerate([0, 12]):
         size = keys((delay, [20, 20], EASE_OUT), (delay + 18, [220, 220]))
         ring = {"ty": "el", "p": static([w / 2, h / 2]), "s": size}
-        layers.append(layer(f"ring{i}", [group([ring, stroke(PINK, 9)]), group([ring, stroke(INK, 9)], (3, 4))], 24, w, h,
+        layers.append(layer(f"ring{i}", [group([ring, stroke(COLOR, 9)]), group([ring, stroke(INK, 9)], (3, 4))], 24, w, h,
                             {"o": keys((delay, 100, LINEAR), (delay + 18, 0))}, ind=i + 2))
     write("click", w, h, 24, layers, "Rings rippling out from a click, on a loop")
 
@@ -307,14 +315,14 @@ def spinner():
     w = h = 240
     ring = ellipse(w / 2, h / 2, 170)
     arc = keys((0, 8, EASE_IN_OUT), (15, 70, EASE_IN_OUT), (30, 8))
-    shapes = [group([ring, trim(arc), stroke(PINK, 22)]), group([ring, stroke(INK, 22, opacity=35)])]
+    shapes = [group([ring, trim(arc), stroke(COLOR, 22)]), group([ring, stroke(INK, 22, opacity=35)])]
     write("spinner", w, h, 30, [layer("spinner", shapes, 30, w, h, {"r": keys((0, 0, LINEAR), (30, 360))})], "A loading spinner, for a wait")
 
 
 def pulse():
     w = h = 400
     ks = {"s": keys((0, [20, 20, 100], EASE_IN_OUT), (30, [100, 100, 100], EASE_IN_OUT), (60, [20, 20, 100]))}
-    write("pulse", w, h, 60, [layer("pulse", outlined([ellipse(200, 200, 300)], PINK, 10), 60, w, h, ks)],
+    write("pulse", w, h, 60, [layer("pulse", outlined([ellipse(200, 200, 300)], COLOR, 10), 60, w, h, ks)],
           "A dot that grows and shrinks, on a loop")
 
 

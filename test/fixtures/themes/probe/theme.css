@@ -1,0 +1,5 @@
+/* animate-test.sh's probe theme: a black stage (the CSS applies), thick white lines (the stroke hook
+   runs), note text in capitals (the mark probe sees the theme's type). */
+html.theme-probe { --paper: #000000; --ink: #F0F0F0; }
+html.theme-probe #grain, html.theme-probe #vignette { display: none; }
+html.theme-probe .note .big, html.theme-probe .note .txt { text-transform: uppercase; }

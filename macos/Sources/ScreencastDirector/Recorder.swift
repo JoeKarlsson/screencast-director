@@ -257,7 +257,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamOutput, SCStreamDelega
     return dir
   }
 
-  /// If Followspot (Joe's teleprompter) is running, the script it has open is what was just read:
+  /// If the Followspot teleprompter is running, the script it has open is what was just read:
   /// save it as script.md so the edit can keep the best take of each line. Followspot links the
   /// open script at Application Support/Followspot/www/current.md.
   static func copyFollowspotScript(into dir: URL) {

@@ -25,6 +25,10 @@ let usage = """
     director profile  <dir> <name | profileDir>     apply a saved profile (by name) or a profile folder
     director profile-save <dir> <name> [--music] [--voice] [--camera]   save this video's look as a profile
     director profiles                               list saved profiles (* is the default for new recordings)
+    director pack     install <folder | file.sdpack> [--replace]   install a pack: profiles, themes, templates, Lotties, effects, sounds, music
+    director pack     export <out[.sdpack]> --profile <name>... [--work]   put profiles (with their files, effects and theme) in a pack
+    director pack     list | remove <name>          installed packs; remove one (files you changed since stay)
+    director themes   [dir]                         the animation themes a video can use (built in, installed, frozen into the video)
     director capture  <dir> <url> [--name <logo name>]   a website's logo into animations/logos/ (as a logo animations can use) and a screenshot into broll/
     director template <dir> freeze|update|save <name>   copy an animation template into the video, refresh it from the library, or save the video's copy to My Templates
     director lottie   <dir> list                    the Lottie animations the lottie template can play (this video's, the personal library's, built in)
@@ -65,7 +69,7 @@ func fail(_ msg: String) -> Never {
 
 let args = Array(CommandLine.arguments.dropFirst())
 // `profiles`, `settings` and `status` work on the app, not a project folder.
-guard let command = args.first, args.count >= 2 || ["profiles", "settings", "status"].contains(command) else { fail(usage) }
+guard let command = args.first, args.count >= 2 || ["profiles", "settings", "status", "themes"].contains(command) else { fail(usage) }
 let dir = URL(fileURLWithPath: args.count > 1 ? args[1] : ".").standardizedFileURL
 // The app's Claude box sets this to the project it's editing; every command stays inside it.
 if let only = ProcessInfo.processInfo.environment["SD_ONLY_PROJECT"], !PathSafety.url(dir, isInside: URL(fileURLWithPath: only)) {
@@ -112,7 +116,7 @@ func planFor(_ project: Project) throws -> Plan {
   if let clip = clipArg(plan) { return clipPlan(plan, clip, words: project.words, silences: project.silences) }
   return presetArg().map { $0.applied(to: plan) } ?? plan
 }
-let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow", "--source", "--name"]
+let flags: Set<String> = ["--preset", "--clip", "--title", "--from", "--to", "--width", "--fps", "--before", "--at", "--allow", "--source", "--name", "--profile"]
 func number(_ flag: String) -> Double? {
   args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil }
 }
@@ -247,13 +251,38 @@ do {
     let library = ProfileLibrary()
     for name in library.names() { print((name == ProfileLibrary.defaultName ? "* " : "  ") + name) }
     print("(in \(library.root.path))")
+  case "pack":
+    let words = positional.filter { !$0.hasPrefix("--") }
+    switch (words.count > 1 ? words[1] : "", words.count) {
+    case ("install", 3):
+      let (manifest, plan) = try Packs.install(URL(fileURLWithPath: words[2]), replace: args.contains("--replace"))
+      print("installed \(manifest.name)\(manifest.version.map { " \($0)" } ?? ""): \(plan.new.count) new, \(plan.same.count) already here, \(plan.conflicts.count) replaced")
+    case ("export", 3):
+      let profiles = args.indices.filter { args[$0] == "--profile" && $0 + 1 < args.count }.map { args[$0 + 1] }
+      let out = URL(fileURLWithPath: words[2])
+      try Packs.export(profiles: profiles, work: args.contains("--work"), to: out)
+      print("wrote \(out.path) with \(profiles.joined(separator: ", "))\(args.contains("--work") ? " and the work library" : "")")
+    case ("list", 2):
+      let packs = Packs.installed()
+      if packs.isEmpty { print("no packs installed") }
+      for p in packs { print("\(p.name)\(p.version.map { " \($0)" } ?? ""): \(p.files.count) files") }
+    case ("remove", 3):
+      let kept = try Packs.remove(words[2])
+      print("removed \(words[2])" + (kept.isEmpty ? "" : "; kept \(kept.count) file(s) you changed since: \(kept.joined(separator: ", "))"))
+    default:
+      fail(usage)
+    }
+  case "themes":
+    let themes = ThemeSources(project: args.count > 1 ? dir : nil)
+    for t in themes.available() { print("\(t.name.isEmpty ? "(paper)" : t.name)  \(t.title)") }
+    print("(installed themes are in \(themes.personal.path))")
   case "profile-save":
     let names = positional.filter { !$0.hasPrefix("--") }
     guard names.count == 3 else { fail(usage) }
     let plan = try Plan.load(try Project.load(dir).planURL)
     let extras = Set(Profile.Extra.allCases.filter { args.contains("--\($0)") })
     let library = ProfileLibrary()
-    try library.save(from: plan, as: names[2], extras: extras)
+    try library.save(from: plan, project: dir, as: names[2], extras: extras)
     print("saved the profile \(names[2]) to \(library.folder(names[2].trimmingCharacters(in: .whitespaces)).path)")
   case "capture":
     guard positional.count == 3, let url = URL(string: positional[2]), ["http", "https", "file"].contains(url.scheme ?? "") else { fail(usage) }

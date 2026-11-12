@@ -10,6 +10,7 @@ func fileAndFormatChecks() {
   exportQueueChecks()
   publishHelperChecks()
   agentInterfaceChecks()
+  shipsNoPersonalLookCheck()
   // A phone clip shot sideways stores its frames rotated, with the turn in its preferred transform.
   expect(videoOrientation(CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 2160, ty: 0)) == .right, "a portrait phone clip turns right")
   expect(videoOrientation(CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 3840)) == .left, "a clip turned the other way turns left")
@@ -17,6 +18,31 @@ func fileAndFormatChecks() {
   // 21.29 s is 638.7 frames, rounded to 639: a range past the end covers that last frame.
   let lastClip = mapSegments([Segment(start: 50.33, end: 71.62, speed: 1)], fps: 30)
   expect(srcRangeToOut(lastClip, 0, 74, fps: 30).first?.endF == 639, "a range to the end covers the last frame")
+}
+
+/// What the app ships stays neutral: one person's or company's look (a site's scribbles, its hot pink,
+/// a brand's logo or product) comes from a pack, never from Sources/ or Resources/.
+private func shipsNoPersonalLookCheck() {
+  let macos = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+  let pattern = #"zine|joekarlsson\.com|#?FF4FD8|cdata|connect ai|scribbles\.js|p5\.brush"#
+  guard let banned = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return expect(false, "the brand check's pattern compiles") }
+  var hits: [String] = []
+  var scanned = 0
+  for folder in ["Sources", "Resources"] {
+    let walker = FileManager.default.enumerator(at: macos.appendingPathComponent(folder), includingPropertiesForKeys: nil)
+    while let url = walker?.nextObject() as? URL {
+      // Minified vendor code is someone else's and can match by accident.
+      guard ["swift", "js", "html", "json", "md", "css", "plist"].contains(url.pathExtension), !url.path.contains("/vendor/") else { continue }
+      guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+      scanned += 1
+      for (i, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
+      where banned.firstMatch(in: String(line), range: NSRange(line.startIndex..., in: line)) != nil {
+        hits.append("\(url.path.replacingOccurrences(of: macos.path + "/", with: "")):\(i + 1)")
+      }
+    }
+  }
+  expect(scanned > 100, "the shipped sources are found for the brand check (\(scanned) files)")
+  expect(hits.isEmpty, "nothing personal or employer-specific ships in Sources/ or Resources/ (move it to a pack): \(hits.prefix(10).joined(separator: ", "))")
 }
 
 /// `director validate`: precise problems with JSON paths, harmless overruns as warnings.
@@ -178,11 +204,11 @@ private func agentInterfaceChecks() {
   var styled = plan
   styled.style.motion = "snappy"
   styled.music = Music(file: "/tmp/track.m4a")
-  try? library.save(from: styled, as: "Demo", extras: [])
+  try? library.save(from: styled, project: root, as: "Demo", extras: [])
   expect(library.names() == ["Demo", "Personal"], "a saved profile is listed (\(library.names()))")
   let loaded = try? library.load("Demo")
   expect(loaded?.style.motion == "snappy" && loaded?.music == nil, "a saved profile keeps the style and leaves out music not asked for")
-  expect((try? library.save(from: plan, as: "../escape", extras: [])) == nil, "a profile name can't leave the profiles folder")
+  expect((try? library.save(from: plan, project: root, as: "../escape", extras: [])) == nil, "a profile name can't leave the profiles folder")
   expect((try? library.load("Missing")) == nil, "loading a missing profile throws")
 }
 

@@ -62,7 +62,7 @@ public struct Plan: Codable, Equatable, Sendable {
     /// Cut the person out of the camera's background instead of showing the camera in a shape.
     public var cutout: Bool?
     /// The room behind the person: nil as recorded, "halftone" redrawn in the accent's halftone dots
-    /// on black (joekarlsson.com's photo treatment), the person kept in full color.
+    /// on black, the person kept in full color.
     public var room: String?
     /// A chalk crayon line traced around the person, wobbling like a hand-drawn line.
     public var outline: Bool?

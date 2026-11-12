@@ -4,6 +4,9 @@ import Foundation
 /// The branded look of a video: fonts, colors, frame and logo. Comes from a profile; nil fields
 /// fall back to the built-in look.
 public struct Look: Codable, Equatable, Sendable {
+  /// The accent a look without one gets.
+  public static let defaultAccent = "#FFE500"
+
   public struct Watermark: Codable, Equatable, Sendable {
     /// A PNG: absolute, or relative to the project (a profile's relative path resolves from its folder when applied).
     public var image: String
@@ -37,7 +40,7 @@ public struct Look: Codable, Equatable, Sendable {
   public var captionEmphasis: String?
   /// Vertical chapter chips list the earlier chapters under them, ticked, like a checklist.
   public var chapterChecklist: Bool?
-  /// How chapters show: nil is the chip (vertical) or the card; "big" is joekarlsson.com's hero, a
+  /// How chapters show: nil is the chip (vertical) or the card; "big" is a poster headline, a
   /// black block rising under the picture with the chapter in huge type and crayon marks drawing in.
   public var chapterStyle: String?
   public var titleText: String?
@@ -56,7 +59,7 @@ public struct Look: Codable, Equatable, Sendable {
   public var intro: Card?
   public var outro: Card?
   /// How animations look: nil is the paper collage; "terminal" is dark, with thin outlined cards and
-  /// no drop shadows; "zine" is black and hot pink, drawn in crayon.
+  /// no drop shadows; any other name is a theme a pack installed (`ThemeSources`).
   public var animationTheme: String?
 
   public init() {}

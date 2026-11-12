@@ -64,7 +64,7 @@ extension Scene {
       let fps = Double(plan.output.fps)
       src = Scene.styledRoom(
         src, mask: mask, halftoneCell: cam?.room == "halftone" ? shown.width / 70 : nil, outline: cam?.outline == true ? min(W, H) / 150 / k : nil,
-        ink: look.accent ?? "#FF4FD8", boil: Int(f / fps * 6))
+        ink: look.accent ?? Look.defaultAccent, boil: Int(f / fps * 6))
     }
     let cut = cutoutWeight(b)
     if cut > 0 {
@@ -185,7 +185,7 @@ extension Scene {
     }
   }
 
-  /// joekarlsson.com's halftone: dots on a 45-degree grid sized by brightness, in `ink`, over a
+  /// A halftone: dots on a 45-degree grid sized by brightness, in `ink`, over a
   /// half-strength duotone of the same ink, on black. `cell` is the dot spacing in pixels.
   static func halftone(_ img: CIImage, cell: Double, ink: String) -> CIImage {
     // Core Image works in linear light: the ink's sRGB values as multipliers would come out paler.

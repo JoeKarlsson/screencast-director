@@ -179,7 +179,15 @@ public enum PlanCheck {
     for (i, r) in plan.effectRangeList.enumerated() {
       do { _ = try Effects.load([r.use], sources: sources) } catch { out.append("effectRanges[\(i)]: \(error.localizedDescription)") }
     }
+    out += themeProblems(plan, project: project)
     return out
+  }
+
+  /// The animation theme: built in, or installed (or frozen into the video) and loading.
+  private static func themeProblems(_ plan: Plan, project: Project) -> [String] {
+    guard let theme = plan.look?.animationTheme, !ThemeSources.isBuiltIn(theme) else { return [] }
+    do { _ = try ThemeSources(project: project.dir).load(theme) } catch { return ["look.animationTheme: \(error.localizedDescription)"] }
+    return []
   }
 
   /// What the renderer reads as something else or the viewer can't take in: eases and presets it

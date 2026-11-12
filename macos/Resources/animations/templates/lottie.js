@@ -1,6 +1,6 @@
 // "lottie": a Lottie animation (an After Effects export as .json, e.g. from LottieFiles) played at a
 // spot in the frame, frame-exact: each seek shows the Lottie frame for that moment (lottie-web,
-// vendor/lottie_svg.min.js). Over the video with `overlay`, or on the paper. It boils like the site's scribbles.
+// vendor/lottie_svg.min.js). Over the video with `overlay`, or on the paper. It boils like a hand-drawn line.
 //
 // data: lottie (a file in the video's animations/lottie/ folder, e.g. "confetti.json"), x, y (its center
 //       in % of the frame; default 50, 50), width (% of the frame's width; default 40), speed (default 1),
@@ -26,7 +26,7 @@ TEMPLATES.lottie = function (data, cues, duration) {
     place(box, x, y, t >= start ? 1 : 0);
     const f = Math.max(0, (t - start) * fps * speed);
     anim.goToAndStop(loop ? f % frames : Math.min(f, frames - 1), true);
-    // Boils like the site's scribbles: three wobble frames, six times a second. No crayon: its holes
+    // Boils: three wobble frames, six times a second. No crayon: its holes
     // let the video through and wash the color out.
     svg.style.filter = `url(#boil-${1 + Math.floor(t * 6) % 3})`;
   };

@@ -15,7 +15,9 @@ extension InspectorView {
           Button(name) { project.applyProfile(name) }
         }
         Divider()
-        Button("Save This Look as a Profile…") { ProfileStore.shared.promptSave(from: plan) }
+        Button("Save This Look as a Profile…") { ProfileStore.shared.promptSave(from: plan, project: project.dir) }
+        Button("Export Profiles as a Pack…") { ProfileStore.shared.promptExport() }
+        Button("Install a Pack…") { ProfileStore.shared.promptInstall() }
         Button("Open Profiles Folder") { ProfileStore.shared.openFolder() }
       } label: {
         Label(plan.look?.name ?? "Built-in look", systemImage: "paintbrush")
@@ -98,13 +100,17 @@ extension InspectorView {
       )
       .help("How B-roll and animations without their own motion come and go")
       LabeledContent("Animations") {
-        ChoiceRow(
-          [("", "Paper", "Paper collage animations (changing the theme re-renders them)"),
-           ("terminal", "Terminal", "Terminal animations (changing the theme re-renders them)"),
-           ("zine", "Zine", "Zine animations (changing the theme re-renders them)")],
-          selection: lookValue(nil, \.animationTheme, ""))
+        ChoiceRow(animationThemeChoices(plan.look?.animationTheme), selection: lookValue(nil, \.animationTheme, ""))
       }
     }
+  }
+
+  /// Paper, terminal and the themes packs installed (or the video froze), and the video's own theme
+  /// marked when it isn't on this Mac.
+  func animationThemeChoices(_ current: String?) -> [(String, String, String)] {
+    var themes = ThemeSources(project: project.dir).available()
+    if let current, !current.isEmpty, !themes.contains(where: { $0.name == current }) { themes.append((current, "\(current) (not installed)")) }
+    return themes.map { ($0.name, $0.title, "\($0.title) animations (changing the theme re-renders them)") }
   }
 
   /// Social clips cut from this edit: each a range in its own format, exported from the Export menu.

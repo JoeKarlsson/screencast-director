@@ -2,8 +2,8 @@ import CoreImage
 import CoreVideo
 import Foundation
 
-// The Pink Scribble look: crayon marks from joekarlsson.com drawn natively, the halftone room and
-// big type chapters. Called from Checks.main; run with macos/test.sh.
+// Hand-drawn marks drawn natively (Scribble), the halftone room and big type chapters.
+// Called from Checks.main; run with macos/test.sh.
 
 func scribbleChecks() {
   // Paths: one polyline per M, curves flattened, pairs after an M read as lines.
@@ -11,8 +11,8 @@ func scribbleChecks() {
   expect(parsed.count == 2 && parsed[0].count == 14 && parsed[1].count == 2, "a path splits into its strokes, curves flattened (\(parsed.map(\.count)))")
   expect(parsed[0].last == CGPoint(x: 20, y: 10), "a curve ends on its end point")
   expect(Scribble.parse("M1,-2 L-3,4")[0] == [CGPoint(x: 1, y: -2), CGPoint(x: -3, y: 4)], "negative numbers parse, with or without a comma before them")
-  expect(!Scribble.coil.strokes.isEmpty && !Scribble.rays.strokes.isEmpty, "the site's coil and rays parse")
-  let coilXs = Scribble.coil.strokes.flatMap { $0 }.map(\.x)
+  expect(!MarkSet.builtIn["coil"].strokes.isEmpty && !MarkSet.builtIn["rays"].strokes.isEmpty, "the app's coil and rays parse")
+  let coilXs = MarkSet.builtIn["coil"].strokes.flatMap { $0 }.map(\.x)
   expect((coilXs.min() ?? -1) >= 0 && (coilXs.max() ?? 1e9) <= 900, "the coil stays in its 900-wide box")
 
   // Drawing in and erasing trim a stroke by length.
@@ -84,18 +84,17 @@ func scribbleChecks() {
   let pickedRooms = picked.inserts.sorted { $0.index < $1.index }.map { picked.brollRoom($0) ?? "-" }
   expect(pickedRooms == ["-", "halftone", "-"], "an image asked for halftone gets it, with or without the camera's (\(pickedRooms))")
 
-  // A zine-look cover gets the site's crayon marks; another look's doesn't.
+  // A cover gets marks when the theme asks for them (`marks`); otherwise none.
   let photoCtx = CGContext(data: nil, width: 640, height: 480, bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
     bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
   photoCtx.setFillColor(gray: 0.3, alpha: 1)
   photoCtx.fill(CGRect(x: 0, y: 0, width: 640, height: 480))
   var coverPlan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
   coverPlan.output = Plan.Output(width: 1080, height: 1920, fps: 30)
-  var zine = Look()
-  zine.animationTheme = "zine"
-  coverPlan.look = zine
-  let marked = Publish.verticalThumbnail(plan: coverPlan, person: photoCtx.makeImage()!, faceX: 0.5, title: "My Kindle is a home dashboard")!
-  coverPlan.look = Look()
+  var pinkLook = Look()
+  pinkLook.accent = "#FF4FD8"
+  coverPlan.look = pinkLook
+  let marked = Publish.verticalThumbnail(plan: coverPlan, person: photoCtx.makeImage()!, faceX: 0.5, title: "My Kindle is a home dashboard", marks: .builtIn)!
   let plainCover = Publish.verticalThumbnail(plan: coverPlan, person: photoCtx.makeImage()!, faceX: 0.5, title: "My Kindle is a home dashboard")!
   func brightTopCorner(_ img: CGImage) -> Int {
     // Pink in the top-right corner beside the title (white title letters reach in, so pink only).
@@ -104,7 +103,8 @@ func scribbleChecks() {
     for x in stride(from: 1080 * 0.8, to: 1080.0, by: 6) { for y in stride(from: 1920 * 0.8, to: 1920.0, by: 6) where { let p = pixel(c, x: x, y: y); return p[0] > 0.6 && p[1] < 0.45 }() { n += 1 } }
     return n
   }
-  expect(brightTopCorner(marked) > 10 && brightTopCorner(plainCover) == 0, "a zine cover has a pink burst by the title, others none (\(brightTopCorner(marked)), \(brightTopCorner(plainCover)))")
+  expect(brightTopCorner(marked) > 10 && brightTopCorner(plainCover) == 0,
+    "a cover with marks has a burst in the accent by the title, one without none (\(brightTopCorner(marked)), \(brightTopCorner(plainCover)))")
 
   // A profile carries the room and the outline to the video's camera.
   var withCamera = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
@@ -118,8 +118,7 @@ func scribbleChecks() {
   let saved = Profile.saved(from: withCamera, name: "Saved", extras: [.camera])
   expect(saved.camera?.room == "halftone" && saved.camera?.outline == true, "saving a video's camera as a profile keeps the room and the outline")
 
-  // Big type chapters: the black block rises over the bottom of the frame for the chapter, and
-  // captions move above it.
+  // Big type chapters: the black block rises over the bottom of the frame for the chapter.
   var plan = buildPlan(Project(dir: URL(fileURLWithPath: "/tmp"), source: src))
   plan.segments = [Segment(start: 0, end: 12, speed: 1)]
   plan.zooms = []
@@ -138,10 +137,16 @@ func scribbleChecks() {
   // Bottom-right corner, low in the block: clear of the words and marks (pixel() counts y from the bottom).
   expect(pixel(during, x: W * 0.97, y: H * 0.03).allSatisfy { $0 < 0.03 }, "the block is black over the bottom of the frame (\(pixel(during, x: W * 0.97, y: H * 0.03)))")
   expect(pixel(before, x: W * 0.97, y: H * 0.03).reduce(0, +) > 0.3, "before the chapter the frame shows there, not the block")
-  let top = scene.bigChapterTop(at: 75, camBox: nil) ?? 0
+  // The block's top edge at frame f, as drawBigChapter places it.
+  func blockTop(_ s: Scene, at f: Double) -> Double? {
+    guard let ch = s.bigChapter(at: f) else { return nil }
+    let block = s.bigChapterLayout(ch, camBox: nil).block
+    return block.maxY - block.height * s.bigChapterRise(ch, at: f)
+  }
+  let top = blockTop(scene, at: 75) ?? 0
   expect(top > H * 0.65 && top < H * 0.85, "the block is only as tall as its words, not a third of the frame (\(top))")
-  expect(scene.bigChapterTop(at: 15, camBox: nil) == nil, "no block outside the chapter")
-  let rising = scene.bigChapterTop(at: 33, camBox: nil) ?? 0
+  expect(blockTop(scene, at: 15) == nil, "no block outside the chapter")
+  let rising = blockTop(scene, at: 33) ?? 0
   expect(rising > top && rising < H, "it rises at the start (\(rising))")
   // Portrait split: the camera is a band across the bottom, and the block stands on its top edge,
   // off the face.
@@ -161,5 +166,5 @@ func scribbleChecks() {
   expect(oneLine.width <= W * 0.9 && abs(longSize.height - oneLine.height) < 1, "a long word shrinks to fit on one line instead of wrapping mid-word (\(oneLine), \(longSize))")
   var chip = plan
   chip.look?.chapterStyle = nil
-  expect(Scene(plan: chip, words: [], clicks: [], shortcuts: []).bigChapterTop(at: 75, camBox: nil) == nil, "the usual chapter style has no block")
+  expect(blockTop(Scene(plan: chip, words: [], clicks: [], shortcuts: []), at: 75) == nil, "the usual chapter style has no block")
 }

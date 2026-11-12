@@ -114,7 +114,8 @@ extension Publish {
   /// last line on the accent chip, and the camera frame filling the bottom.
   /// `faceX`/`faceY` are the face's center and `faceWidth` its width, fractions of the camera frame.
   public static func verticalThumbnail(
-    plan: Plan, person: CGImage, faceX: Double, faceY: Double = 0.4, faceWidth: Double? = nil, subject: CGImage? = nil, title: String
+    plan: Plan, person: CGImage, faceX: Double, faceY: Double = 0.4, faceWidth: Double? = nil, subject: CGImage? = nil, title: String,
+    marks: MarkSet? = nil
   ) -> CGImage? {
     let W = 1080.0, H = 1920.0
     guard let (ctx, look, bg) = coverCanvas(plan, width: W, height: H) else { return nil }
@@ -124,7 +125,7 @@ extension Publish {
       let face = drawFramed(ctx, plan: plan, person: person, faceX: faceX, faceY: faceY, faceWidth: faceWidth, in: CGRect(x: 0, y: 0, width: W, height: seam))
       drawFilled(ctx, subject, in: CGRect(x: 0, y: seam, width: W, height: H - seam))
       let bar = drawTitleBar(ctx, look: look, title: title, centerY: seam, width: W)
-      drawSplitMarks(ctx, look: look, size: CGSize(width: W, height: H), bar: bar, face: face)
+      drawSplitMarks(ctx, look: look, marks: marks, size: CGSize(width: W, height: H), bar: bar, face: face)
       return ctx.makeImage()
     }
     // The photo fills the bottom 52% (y-up drawing), its top edge fading into the background.
@@ -134,7 +135,7 @@ extension Publish {
     ctx.drawLinearGradient(fade, start: CGPoint(x: 0, y: photoH), end: CGPoint(x: 0, y: photoH - 200), options: [])
     // The title fills the dark area above, down to where the photo shows through its fade.
     let titled = drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: photoH - 60, width: W, height: H - photoH + 60), margin: 80)
-    drawCoverMarks(ctx, look: look, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top, photo: CGRect(x: 0, y: 0, width: W, height: photoH))
+    drawCoverMarks(ctx, look: look, marks: marks, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top, photo: CGRect(x: 0, y: 0, width: W, height: photoH))
     return ctx.makeImage()
   }
 
@@ -159,7 +160,7 @@ extension Publish {
     let gap = fit.size * 0.04, padY = fit.size * 0.12
     let textH = sizes.reduce(0) { $0 + $1.height } + gap * Double(texts.count - 1)
     let bar = CGRect(x: inset, y: centerY - (textH + 2 * padY) / 2, width: W - 2 * inset, height: textH + 2 * padY)
-    ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
+    ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? Look.defaultAccent))
     ctx.fill(CGRect(x: 0, y: bar.minY + bar.height * 0.1, width: W, height: max(6, W * 0.009)))
     ctx.fill(bar)
     var y = bar.maxY - padY
@@ -173,38 +174,40 @@ extension Publish {
     return bar
   }
 
-  /// joekarlsson.com's crayon marks on a split zine cover, all in the accent: an asterisk and a burst
-  /// in the subject's top corners, rays off the bar's top-right corner, a double underline and a coil
-  /// under it, and a small asterisk by the head. Rects are y up; nothing for other looks.
-  static func drawSplitMarks(_ ctx: CGContext, look: Look, size: CGSize, bar: CGRect, face: CGRect?) {
-    guard look.animationTheme == "zine" else { return }
+  /// The theme's marks on a split cover, all in the accent: an asterisk and a burst in the subject's top
+  /// corners, rays off the bar's top-right corner, a double underline and a coil under it, and a small
+  /// asterisk by the head. Rects are y up; nothing without `marks` (a theme with `coverMarks`).
+  static func drawSplitMarks(_ ctx: CGContext, look: Look, marks: MarkSet?, size: CGSize, bar: CGRect, face: CGRect?) {
+    guard let marks else { return }
     let W = size.width, H = size.height, side = min(W, H)
-    let pink = Scene.color(look.accent ?? "#FF4FD8"), line = side * 0.009
+    let accent = Scene.color(look.accent ?? Look.defaultAccent), line = side * 0.009
     ctx.saveGState()
     defer { ctx.restoreGState() }
     ctx.translateBy(x: 0, y: H)
     ctx.scaleBy(x: 1, y: -1)
     func down(_ r: CGRect) -> CGRect { CGRect(x: r.minX, y: H - r.maxY, width: r.width, height: r.height) }
-    func mark(_ s: Scribble, _ r: CGRect, width: Double = line) { s.draw(ctx, in: r, color: pink, lineWidth: width, shares: s.shares(1), boil: 0) }
+    func mark(_ name: String, _ r: CGRect, width: Double = line) { let s = marks[name]; s.draw(ctx, in: r, color: accent, lineWidth: width, shares: s.shares(1), boil: 0) }
     let b = down(bar)
-    mark(.asterisk, CGRect(x: W * 0.05, y: H * 0.085, width: side * 0.1, height: side * 0.1))
-    mark(.burst, CGRect(x: W - side * 0.26, y: H * 0.07, width: side * 0.2, height: side * 0.2), width: line * 0.85)
-    mark(.rays, CGRect(x: b.maxX - side * 0.12, y: b.minY - side * 0.12, width: side * 0.15, height: side * 0.11))
-    mark(.underline, CGRect(x: b.minX + W * 0.06, y: b.maxY + side * 0.015, width: W * 0.42, height: side * 0.02))
-    mark(.underline, CGRect(x: b.minX + W * 0.03, y: b.maxY + side * 0.045, width: W * 0.42, height: side * 0.02))
-    mark(.coil, CGRect(x: b.minX, y: b.maxY + side * 0.07, width: W * 0.24, height: W * 0.08), width: line * 0.85)
+    mark("asterisk", CGRect(x: W * 0.05, y: H * 0.085, width: side * 0.1, height: side * 0.1))
+    mark("burst", CGRect(x: W - side * 0.26, y: H * 0.07, width: side * 0.2, height: side * 0.2), width: line * 0.85)
+    mark("rays", CGRect(x: b.maxX - side * 0.12, y: b.minY - side * 0.12, width: side * 0.15, height: side * 0.11))
+    mark("underline", CGRect(x: b.minX + W * 0.06, y: b.maxY + side * 0.015, width: W * 0.42, height: side * 0.02))
+    mark("underline", CGRect(x: b.minX + W * 0.03, y: b.maxY + side * 0.045, width: W * 0.42, height: side * 0.02))
+    mark("coil", CGRect(x: b.minX, y: b.maxY + side * 0.07, width: W * 0.24, height: W * 0.08), width: line * 0.85)
     // By the top of the head, on the side with room, clear of the marks under the bar.
     if let face {
       let f = down(face), star = side * 0.07
       let x = f.maxX + star < W - side * 0.03 ? f.maxX : f.minX - star
       let y = f.minY - f.height * 0.6
-      if y > b.maxY + side * 0.17 { mark(.asterisk, CGRect(x: x, y: y, width: star, height: star), width: line * 0.8) }
+      if y > b.maxY + side * 0.17 { mark("asterisk", CGRect(x: x, y: y, width: star, height: star), width: line * 0.8) }
     }
   }
 
   /// A 1280x720 thumbnail for a landscape video: the title big on the look's dark color on the left,
   /// the last line on the accent chip, and the camera frame filling the right, framed on the face.
-  public static func landscapeThumbnail(plan: Plan, person: CGImage, faceX: Double, title: String) -> CGImage? {
+  public static func landscapeThumbnail(
+    plan: Plan, person: CGImage, faceX: Double, title: String, marks: MarkSet? = nil
+  ) -> CGImage? {
     let W = 1280.0, H = 720.0
     guard let (ctx, look, bg) = coverCanvas(plan, width: W, height: H) else { return nil }
     // The photo fills the right 58%, its left edge fading into the background.
@@ -213,35 +216,38 @@ extension Publish {
     let fade = CGGradient(colorsSpace: Scene.srgb, colors: [bg, bg.copy(alpha: 0)!] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(fade, start: CGPoint(x: photoX, y: 0), end: CGPoint(x: photoX + 160, y: 0), options: [])
     let titled = drawCoverTitle(ctx, look: look, title: title, in: CGRect(x: 0, y: 0, width: photoX + 40, height: H), margin: 48)
-    drawCoverMarks(ctx, look: look, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top, photo: CGRect(x: photoX, y: 0, width: W - photoX, height: H))
+    drawCoverMarks(
+      ctx, look: look, marks: marks, size: CGSize(width: W, height: H), chip: titled.chip, titleTop: titled.top,
+      photo: CGRect(x: photoX, y: 0, width: W - photoX, height: H))
     return ctx.makeImage()
   }
 
-  /// joekarlsson.com's crayon marks on a zine-look cover: rays bursting off the chip, an asterisk and
-  /// a burst in the black by the title, and a chalk coil along the photo's top edge.
-  /// Rects are y up, like the cover; nothing for other looks.
-  static func drawCoverMarks(_ ctx: CGContext, look: Look, size: CGSize, chip: CGRect, titleTop: Double, photo: CGRect) {
-    guard look.animationTheme == "zine", chip.width > 0 else { return }
+  /// The theme's marks on a cover: rays bursting off the chip, an asterisk and a burst in the dark by
+  /// the title, and a chalk coil along the photo's top edge. Rects are y up, like the cover; nothing
+  /// without `marks` (a theme with `coverMarks`).
+  static func drawCoverMarks(_ ctx: CGContext, look: Look, marks: MarkSet?, size: CGSize, chip: CGRect, titleTop: Double, photo: CGRect) {
+    guard let marks, chip.width > 0 else { return }
     let W = size.width, H = size.height, side = min(W, H)
-    let pink = Scene.color(look.accent ?? "#FF4FD8"), chalk = Scene.color("#ECE6DA")
+    let accent = Scene.color(look.accent ?? Look.defaultAccent), chalk = Scene.color("#ECE6DA")
     // Scribble draws in top-left coordinates: flip the cover for it, and each rect with it.
     ctx.saveGState()
     defer { ctx.restoreGState() }
     ctx.translateBy(x: 0, y: H)
     ctx.scaleBy(x: 1, y: -1)
     func down(_ r: CGRect) -> CGRect { CGRect(x: r.minX, y: H - r.maxY, width: r.width, height: r.height) }
-    func mark(_ s: Scribble, _ r: CGRect, _ color: CGColor, width: Double) {
+    func mark(_ name: String, _ r: CGRect, _ color: CGColor, width: Double) {
+      let s = marks[name]
       s.draw(ctx, in: down(r), color: color, lineWidth: width, shares: s.shares(1), boil: 0)
     }
     let raysW = chip.height * 1.2
-    mark(.rays, CGRect(x: chip.maxX - raysW * 0.05, y: chip.maxY - raysW * 0.4, width: raysW, height: raysW * 0.75), pink, width: side * 0.009)
+    mark("rays", CGRect(x: chip.maxX - raysW * 0.05, y: chip.maxY - raysW * 0.4, width: raysW, height: raysW * 0.75), accent, width: side * 0.009)
     let star = side * 0.08
-    mark(.asterisk, CGRect(x: W * 0.05, y: min(H - star * 1.1, titleTop - star * 0.6), width: star, height: star), pink, width: side * 0.007)
+    mark("asterisk", CGRect(x: W * 0.05, y: min(H - star * 1.1, titleTop - star * 0.6), width: star, height: star), accent, width: side * 0.007)
     let burst = side * 0.12
-    mark(.burst, CGRect(x: W - burst * 1.2, y: min(H - burst * 1.05, titleTop - burst * 0.15), width: burst, height: burst), pink, width: side * 0.005)
+    mark("burst", CGRect(x: W - burst * 1.2, y: min(H - burst * 1.05, titleTop - burst * 0.15), width: burst, height: burst), accent, width: side * 0.005)
     // A chalk coil along the photo's top edge, on the side away from the face.
     let coilW = photo.width * 0.32
-    mark(.coil, CGRect(x: photo.minX + photo.width * 0.03, y: photo.maxY - coilW * 0.42, width: coilW, height: coilW / 3), chalk, width: side * 0.006)
+    mark("coil", CGRect(x: photo.minX + photo.width * 0.03, y: photo.maxY - coilW * 0.42, width: coilW, height: coilW / 3), chalk, width: side * 0.006)
   }
 
   /// A cover's canvas filled with the look's dark color, and that color.
@@ -299,7 +305,7 @@ extension Publish {
     let w = img.extent.width, side = min(img.extent.width, img.extent.height)
     let styled = Scene.styledRoom(
       img, mask: mask, halftoneCell: cam?.room == "halftone" ? w / 70 : nil, outline: cam?.outline == true ? side / 150 : nil,
-      ink: plan.look?.accent ?? "#FF4FD8", boil: 0)
+      ink: plan.look?.accent ?? Look.defaultAccent, boil: 0)
     return CIContext().createCGImage(styled, from: img.extent) ?? photo
   }
 
@@ -333,7 +339,7 @@ extension Publish {
         y -= gap + chipPadY
         let r = CGRect(x: area.midX - m.width / 2 - chipPadX, y: y - m.height - chipPadY, width: m.width + 2 * chipPadX, height: m.height + 2 * chipPadY)
         chip = r
-        ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? "#FDAE84"))
+        ctx.setFillColor(Scene.color(look.titleBackground ?? look.accent ?? Look.defaultAccent))
         ctx.addPath(CGPath(roundedRect: r, cornerWidth: chipPadY * 1.4, cornerHeight: chipPadY * 1.4, transform: nil))
         ctx.fillPath()
       }

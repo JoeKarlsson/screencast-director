@@ -58,8 +58,6 @@ svg.drawn path { fill: none; stroke: var(--ink); stroke-width: 6; stroke-linecap
 .burstmark { width: 330px; height: 330px; margin: -165px 0 0 -165px; overflow: visible; pointer-events: none; }
 .burstmark g { fill: none; stroke: var(--accent); stroke-linecap: round; }
 svg.packets { overflow: visible; pointer-events: none; }
-html.theme-zine svg.drawn path, html.theme-zine .burstmark g { filter: url(#crayon); }
-html.theme-zine .sticker svg.drawn path, html.theme-zine .hub svg.drawn path, html.theme-zine .dot svg.drawn path { stroke: #000; }
 html.theme-terminal svg.drawn path { stroke: var(--accent); stroke-width: 4; stroke-linecap: square; stroke-linejoin: miter; }
 /* Terminal theme (look.animationTheme "terminal"): a 90s screen. DOS-style boxes with square corners
    and hard offset shadows, mono type with a faint phosphor glow, [ bracketed ] labels, inverse-video
@@ -91,34 +89,6 @@ html.theme-terminal .ringmark { mix-blend-mode: normal; border-radius: 0; border
 html.theme-terminal #grain { display: none; }
 html.theme-terminal #vignette { background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 2px, rgba(0,0,0,0) 2px 4px),
   radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); }
-/* Zine theme (look.animationTheme "zine"): joekarlsson.com. A black stage, Anton headings in capitals,
-   hot pink cards and dots with black type, paper-white stickers and tags like the site's nav, highlighted
-   words in pink, squiggly lines and rings drawn in the site's crayon (#crayon), and the site's scribbles
-   drifting dimly behind everything (#marks, drawn by zineTick). */
-html.theme-zine { --paper: #000000; --ink: #EDEDED; }
-html.theme-zine #grain, html.theme-zine #vignette { display: none; }
-html.theme-zine .head { font-size: 84px; text-transform: uppercase; letter-spacing: .01em; line-height: 1; }
-html.theme-zine .hl { display: none; }
-/* Only a heading's highlighted words turn pink; node labels stay paper white. */
-html.theme-zine .head .wrapt.on { color: var(--accent); }
-#marks { position: absolute; inset: 0; display: none; }
-html.theme-zine #marks { display: block; opacity: .16; }
-#marks .mark { position: absolute; overflow: visible; transform-origin: 50% 50%; }
-#marks g { fill: none; stroke-linecap: round; stroke-linejoin: round; filter: url(#crayon); }
-html.theme-zine .sticker, html.theme-zine .ghost { background: #EDEDED; border-radius: 22px; box-shadow: none; }
-html.theme-zine .sticker .word, html.theme-zine .ghost .word { color: #000; font-family: var(--title); font-weight: 400; text-transform: uppercase; }
-html.theme-zine .dot, html.theme-zine .icon { background: var(--accent); box-shadow: none; }
-html.theme-zine .dot img, html.theme-zine .hub img { filter: brightness(0); }
-html.theme-zine .dot .word { color: #000; text-transform: uppercase; }
-html.theme-zine .hub { background: var(--accent); border-radius: 18px; box-shadow: none; }
-html.theme-zine .hub div { color: #000; text-transform: uppercase; }
-html.theme-zine .icon svg { stroke: #000; }
-html.theme-zine .hand { font-size: 52px; text-transform: uppercase; }
-html.theme-zine .chip { background: none; box-shadow: none; padding: 0; }
-html.theme-zine .tag { background: #EDEDED; color: #000; font: 400 32px var(--title); text-transform: uppercase; border-radius: 12px; box-shadow: none; padding: 8px 18px; }
-html.theme-zine .tag::before { display: none; }
-html.theme-zine .num { color: var(--accent); }
-html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-radius: 47% 53% 44% 56% / 55% 45% 53% 47%; filter: url(#crayon); }
 /* Chart (templates/chart.js): bars, a line's dots, value labels, category labels under the baseline. */
 .bar { border-radius: 12px 12px 3px 3px; background: var(--ink); opacity: .88; }
 .bar.lit { background: var(--accent); box-shadow: inset 0 0 0 5px var(--ink); opacity: 1; }
@@ -126,7 +96,7 @@ html.theme-zine .ringmark { mix-blend-mode: normal; border-width: 8px; border-ra
 .pip.hot { background: var(--accent); box-shadow: 0 0 0 7px var(--paper), 0 0 0 11px var(--ink); }
 .label.cat { font-weight: 400; font-size: 30px; }
 html.theme-terminal .bar { border-radius: 0; }
-html.theme-terminal .bar.lit, html.theme-zine .bar.lit { box-shadow: none; }
+html.theme-terminal .bar.lit { box-shadow: none; }
 html.theme-terminal .pip { border-radius: 0; }
 .lottiebox svg { display: block; }
 /* Note (templates/note.js) and any sticker (config.sticker): a card the page's width, which the video
@@ -144,7 +114,6 @@ html:not(.sticker-page) .note { position: absolute; left: 50%; top: 50%; width: 
 .note .logo .word { font: 700 9vw var(--body); }
 .note.dark { background: #000; color: var(--accent); }
 .note.dark .small { color: #EDEDED; }
-html.theme-zine .note .big, html.theme-zine .note .txt { text-transform: uppercase; }
 .note svg.mark { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .note svg.mark path { fill: none; stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round; }
 .note.dark svg.mark path { stroke: #EDEDED; }
@@ -152,37 +121,27 @@ html:not(.sticker-page) .note .line { overflow: hidden; }
 /* Overlay (config.overlay): the graphics float over the video, so nothing is painted behind them,
    whatever the theme. Highlighters multiply onto the video instead of the paper. */
 html.overlay, html.overlay body, html.overlay #stage { background: transparent !important; }
-html.overlay #grain, html.overlay #vignette, html.overlay #marks { display: none !important; }
+html.overlay #grain, html.overlay #vignette { display: none !important; }
 /* Text that sits on the paper gets the paper behind it instead, so it reads over the video. */
-html.overlay .head, html.overlay .hand:not(.chip), html.overlay .row, html.overlay.theme-zine .chip {
+html.overlay .head, html.overlay .hand:not(.chip), html.overlay .row {
   background: var(--paper); padding: 4px 22px 10px; border-radius: 14px; }
 html.overlay.theme-terminal .head, html.overlay.theme-terminal .hand:not(.chip), html.overlay.theme-terminal .row { border-radius: 0; }
 </style>
 </head>
 <body>
 <div id="stage">
-  <div id="marks"></div>
   <div id="cam"><svg id="lines" width="1920" height="1080"></svg></div>
   <svg id="grain" width="2020" height="1180"><filter id="n"><feTurbulence id="turb" type="fractalNoise" baseFrequency=".85" numOctaves="3" seed="1"/>
     <feColorMatrix values="0 0 0 0 .55  0 0 0 0 .5  0 0 0 0 .42  0 0 0 -1.6 1.25"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
   <div id="vignette"></div>
-  <!-- The crayon texture of joekarlsson.com's scribbles (the zine theme): a grainy, broken edge. -->
-  <svg width="0" height="0" style="position: absolute"><filter id="crayon" x="-5%" y="-5%" width="110%" height="110%">
-    <feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="2" seed="3" result="n"/>
-    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" result="d"/>
-    <feTurbulence type="fractalNoise" baseFrequency="2.2" seed="8" result="g"/>
-    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 1.5" result="holes"/>
-    <feComposite in="d" in2="holes" operator="in"/></filter>
-    <!-- Three wobble frames the zine background's marks boil through, like the site's (#boil-N there). -->
+  <svg width="0" height="0" style="position: absolute">
+    <!-- Three wobble frames a hand-drawn piece boils through (lottie.js; themes may use them too). -->
     <filter id="boil-1" x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="turbulence" baseFrequency="0.02" seed="11" result="w"/><feDisplacementMap in="SourceGraphic" in2="w" scale="5"/></filter>
     <filter id="boil-2" x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="turbulence" baseFrequency="0.02" seed="22" result="w"/><feDisplacementMap in="SourceGraphic" in2="w" scale="5"/></filter>
     <filter id="boil-3" x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="turbulence" baseFrequency="0.02" seed="33" result="w"/><feDisplacementMap in="SourceGraphic" in2="w" scale="5"/></filter></svg>
 </div>
-<!-- p5.brush 3.0.0 (standalone, MIT, vendor/brush-LICENSE.md): pencil and charcoal strokes for the zine lines. -->
-<script src="vendor/brush.js"></script>
 <!-- lottie-web 5.12.2 (SVG build, MIT, vendor/lottie-LICENSE.md): the lottie template seeks it frame by frame. -->
 <script src="vendor/lottie_svg.min.js"></script>
-<script src="scribbles.js"></script>
 <script src="engine.js"></script>
 </body>
 </html>

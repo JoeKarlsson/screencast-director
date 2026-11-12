@@ -44,7 +44,7 @@ extension Scene {
     let k = shownWidth / src.extent.width
     return Scene.styledRoom(
       src, mask: mask, halftoneCell: src.extent.width / 70, outline: plan.camera?.outline == true ? min(W, H) / 150 / k : nil,
-      ink: look.accent ?? "#FF4FD8", boil: Int(Double(f) / Double(plan.output.fps) * 6))
+      ink: look.accent ?? Look.defaultAccent, boil: Int(Double(f) / Double(plan.output.fps) * 6))
   }
 
   /// B-roll showing at this frame: in the screen card (`full` false) or over the whole frame, or

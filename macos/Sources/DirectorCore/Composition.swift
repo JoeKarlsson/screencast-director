@@ -60,9 +60,10 @@ public func buildComposition(project: Project, plan: Plan) async throws -> Built
   if let camera = plan.camera, (loadedEffects + rangeEffects).contains(where: { $0.tracking && $0.layer == "camera" }) {
     tracking = try await Tracking.camera(project, video: camera.video)
   }
+  let theme = try ThemeSources(project: project.dir).forVideo(plan.look?.animationTheme)
   let scene = Scene(
     plan: plan, words: project.words, clicks: project.clicks, shortcuts: project.shortcuts, cursorPath: project.cursorPath,
-    dir: project.dir, effects: loadedEffects, rangeEffects: rangeEffects, tracking: tracking)
+    dir: project.dir, effects: loadedEffects, rangeEffects: rangeEffects, tracking: tracking, theme: theme)
   let fps = Int32(plan.output.fps)
   let comp = AVMutableComposition()
 

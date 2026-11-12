@@ -4,7 +4,7 @@ The `chart` and `stat` templates adapt the staging and timing of two HyperFrames
 `registry/components/chart-story` and `registry/blocks/mk-progress-stat`
 (https://github.com/heygen-com/hyperframes, commit 0b531bc, Copyright HeyGen, Apache License 2.0).
 Changes: rewritten from GSAP timelines into plain functions of time for this engine's `seek(t)`, drawn
-with this engine's springs, hand-drawn lines and themes (paper, zine, terminal), with new data fields.
+with this engine's springs, hand-drawn lines and themes (paper, terminal), with new data fields.
 No HyperFrames code, fonts or assets are included.
 
 The Apache License 2.0 follows.

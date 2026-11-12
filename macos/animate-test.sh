@@ -14,6 +14,9 @@ DIRECTOR="$PWD/.build/release/director"
 
 TMP="$(mktemp -d -t sd-animate)"
 trap 'rm -rf "$TMP"' EXIT
+# Its own support folder, so themes and templates installed on this Mac don't change the result.
+export SD_SUPPORT_DIR="$TMP/support"
+mkdir -p "$SD_SUPPORT_DIR"
 PROJECT="$TMP/fixture"
 "$ROOT/test/make-fixture.sh" "$PROJECT" >/dev/null
 "$DIRECTOR" plan "$PROJECT" >/dev/null
@@ -69,26 +72,46 @@ if spread < 10:
 print(f"ok: {sys.argv[2]} 3s, last frame drawn (spread {spread:.1f})")
 PY
 done
-# The zine theme draws its lines with p5.brush on a WebGL canvas: they must show, and the stage must
-# stay black (p5.brush clears to transparent white, which once turned the whole stage white).
-python3 - "$PROJECT/plan.json" <<'PY'
+# A pack's theme (test/fixtures/themes/probe, installed with `director pack install`): its CSS paints
+# the stage black and its stroke hook draws thick lines (a render later keeps a copy of it in the video).
+mkdir -p "$TMP/probe-pack/Animations/themes"
+cp -R "$ROOT/test/fixtures/themes/probe" "$TMP/probe-pack/Animations/themes/"
+echo '{"name": "Probe"}' >"$TMP/probe-pack/pack.json"
+"$DIRECTOR" pack install "$TMP/probe-pack" >/dev/null
+python3 - "$PROJECT/plan.json" probe <<'PY'
 import json, sys
 plan = json.load(open(sys.argv[1]))
-plan.setdefault("look", {})["animationTheme"] = "zine"
+plan.setdefault("look", {})["animationTheme"] = sys.argv[2]
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
 # The storyboard's index and start, whatever other templates sort before it.
 read -r SB SB_START < <(python3 -c "import json,sys; a=json.load(open(sys.argv[1]))['animations']; i=[x['template'] for x in a].index('storyboard'); print(i, a[i]['start'])" "$PROJECT/plan.json")
-"$DIRECTOR" animate-test "$PROJECT" "$SB" "$(python3 -c "print($SB_START + 2.8)")" "$TMP/zine.mp4" >/dev/null
-ffmpeg -v error -sseof -0.1 -i "$TMP/zine.mp4" -frames:v 1 -f rawvideo -pix_fmt gray -y "$TMP/zine.gray"
-python3 - "$TMP/zine.gray" <<'PY'
+"$DIRECTOR" animate-test "$PROJECT" "$SB" "$(python3 -c "print($SB_START + 2.8)")" "$TMP/probe.mp4" >/dev/null
+ffmpeg -v error -sseof -0.1 -i "$TMP/probe.mp4" -frames:v 1 -f rawvideo -pix_fmt gray -y "$TMP/probe.gray"
+python3 - "$TMP/probe.gray" <<'PY'
 import sys
 px = open(sys.argv[1], "rb").read()
 mean = sum(px) / len(px)
 lit = sum(1 for p in px if p > 120) / len(px)
-if mean > 60: sys.exit(f"FAIL: the zine stage isn't black (mean {mean:.0f})")
-if lit < 0.002: sys.exit(f"FAIL: the zine frame has no lines or cards drawn ({lit:.4f} lit)")
-print(f"ok: zine lines drawn in p5.brush on a black stage (mean {mean:.0f}, {lit:.3f} lit)")
+if mean > 60: sys.exit(f"FAIL: the probe theme's CSS didn't paint the stage black (mean {mean:.0f})")
+if lit < 0.002: sys.exit(f"FAIL: the probe theme's frame has no lines or cards drawn ({lit:.4f} lit)")
+print(f"ok: a pack theme's CSS and hooks apply (mean {mean:.0f}, {lit:.3f} lit)")
+PY
+# A theme that isn't installed stops the render with a message saying so.
+python3 - "$PROJECT/plan.json" nowhere <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan.setdefault("look", {})["animationTheme"] = sys.argv[2]
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+if "$DIRECTOR" animate-test "$PROJECT" "$SB" "$(python3 -c "print($SB_START + 1)")" "$TMP/nowhere.mp4" 2>"$TMP/err"; then echo "FAIL: a missing theme rendered" >&2; exit 1; fi
+grep -q "isn't installed" "$TMP/err" || { echo "FAIL: a missing theme said: $(cat "$TMP/err")" >&2; exit 1; }
+echo "ok: a theme that isn't installed is named"
+python3 - "$PROJECT/plan.json" probe <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan.setdefault("look", {})["animationTheme"] = sys.argv[2]
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
 
 # Two storyboard stickers parked on the same spot: the render's overlap probe names them.
@@ -195,7 +218,7 @@ if changed < 0.02: sys.exit(f"FAIL: the overlay drew almost nothing ({changed:.1
 print(f"ok: the overlay draws over {changed:.0%} of the frame and the video shows through at the corners")
 PY
 # A sticker's crayon mark never runs through its text: the note lays its lines out clear of the mark
-# (a squiggle under a long word, with a line under that, crossed it), in the zine theme too, and the
+# (a squiggle under a long word, with a line under that, crossed it), in a theme that sets note text in capitals too, and the
 # mark probe names a mark that does cross text, here a video's own template that strikes its line out.
 mkdir -p "$PROJECT/animations/templates"
 cat > "$PROJECT/animations/templates/crossed.js" <<'JS'
@@ -217,7 +240,7 @@ echo '{"name": "crossed", "title": "Crossed", "summary": "A mark through its tex
 python3 - "$PROJECT/plan.json" <<'PY'
 import json, sys
 plan = json.load(open(sys.argv[1]))
-plan["look"] = {"animationTheme": "zine"}
+plan["look"] = {"animationTheme": "probe"}
 sticker = {"x": 0.5, "y": 0.3, "w": 0.6}
 def note(start, data): return {"start": start, "end": start + 1, "template": "note", "sticker": sticker, "cues": {"mark": start + 0.2}, "data": data}
 plan["animations"] = [
@@ -229,6 +252,8 @@ plan["animations"] = [
 json.dump(plan, open(sys.argv[1], "w"), indent=2)
 PY
 "$DIRECTOR" animate "$PROJECT" > "$TMP/marks.log" 2>&1 || { cat "$TMP/marks.log" >&2; echo "FAIL: the mark stickers didn't render" >&2; exit 1; }
+[[ -f "$PROJECT/animations/themes/probe/theme.js" ]] || { echo "FAIL: the video didn't keep a copy of its theme when it rendered" >&2; exit 1; }
+echo "ok: the video keeps a copy of its theme in animations/themes/"
 grep -q 'the mark on "Big" crosses the text "struck out"' "$TMP/marks.log" \
   || { echo "FAIL: a mark through a sticker's text wasn't reported: $(cat "$TMP/marks.log")" >&2; exit 1; }
 if grep -q '(note).*crosses the text' "$TMP/marks.log"; then echo "FAIL: a note's mark crosses its text: $(cat "$TMP/marks.log")" >&2; exit 1; fi

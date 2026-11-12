@@ -5,7 +5,7 @@
 #   bin/director <command> <dir> ...   (bin/director with no arguments lists the commands)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# API keys (KLIPY_API_KEY) live in the repo's gitignored .env.local, never the Keychain.
+# API keys (KLIPY_API_KEY) can live in the repo's gitignored .env.local (the app's Settings keep theirs in the Keychain).
 if [ -f "$ROOT/.env.local" ]; then set -a; . "$ROOT/.env.local"; set +a; fi
 if ! log=$(swift build -c release --package-path "$ROOT/macos" --product director 2>&1); then
   echo "$log" >&2

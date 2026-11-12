@@ -76,6 +76,7 @@ struct AppCommands: Commands {
       Button("Record B-roll…") { library.current?.recordBroll() }
         .disabled(library.current?.hasPlan != true || recorder.isRecording)
       Button("Join Recordings…") { library.promptJoin() }
+      Button("Install Pack…") { ProfileStore.shared.promptInstall() }
       Button("Refresh Library") { library.refresh() }
     }
     CommandGroup(replacing: .undoRedo) {

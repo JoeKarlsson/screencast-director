@@ -37,11 +37,14 @@ func animationScripts(_ animations: URL) -> JSContext {
     """)
   let templateFiles = ((try? FileManager.default.contentsOfDirectory(atPath: animations.appendingPathComponent("templates").path)) ?? [])
     .filter { $0.hasSuffix(".js") }.sorted().map { "templates/" + $0 }
-  for file in ["scribbles.js", "engine.js"] + templateFiles {
+  for file in ["engine.js"] + templateFiles {
     let source = (try? String(contentsOf: animations.appendingPathComponent(file), encoding: .utf8)) ?? ""
     expect(!source.isEmpty, "\(file) loads")
     js.evaluateScript(source, withSourceURL: URL(string: file))
   }
+  // The marks the renderer hands the page (config.marks).
+  let marks = (try? JSONSerialization.data(withJSONObject: MarkSet.builtIn.json)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+  js.evaluateScript("SCRIBBLES = \(marks);")
   js.evaluateScript("""
     cam = fake(); lines = fake();
     var made = [];
@@ -425,10 +428,10 @@ struct Checks {
     cp.intro?.enabled = false
     expect(cardFrames(cp).intro == 0 && mapPlan(cp)[0].outStart == 0, "a switched-off intro takes no time")
     var look = Look()
-    look.intro = Card(title: "{title}", subtitle: "Joe Karlsson")
+    look.intro = Card(title: "{title}", subtitle: "Sam Rivera")
     var prof = buildPlan(p)
     Profile(name: "T", style: prof.style, look: look).apply(to: &prof, name: "Tour")
-    expect(prof.intro?.title == "Tour" && prof.intro?.subtitle == "Joe Karlsson" && prof.outro == nil, "profile fills the intro title")
+    expect(prof.intro?.title == "Tour" && prof.intro?.subtitle == "Sam Rivera" && prof.outro == nil, "profile fills the intro title")
 
     // Joined takes: no segment or zoom runs across the join.
     var jp = p
@@ -453,8 +456,8 @@ struct Checks {
       get.headers["authorization"]
         == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",  // swiftlint:disable:this line_length
       "S3 GET example Authorization header")
-    let s3c = S3.Config(endpoint: URL(string: "http://192.168.0.202:9000/")!, bucket: "videos", accessKey: "a", secretKey: "b")
-    expect(S3.objectURL(s3c, key: "my demo/clip 1.gif").absoluteString == "http://192.168.0.202:9000/videos/my%20demo/clip%201.gif", "object URL")
+    let s3c = S3.Config(endpoint: URL(string: "http://minio.local:9000/")!, bucket: "videos", accessKey: "a", secretKey: "b")
+    expect(S3.objectURL(s3c, key: "my demo/clip 1.gif").absoluteString == "http://minio.local:9000/videos/my%20demo/clip%201.gif", "object URL")
     expect(S3.key(for: URL(fileURLWithPath: "/x/out.MP4"), name: "2026-10-12 Demo: Take #2", date: Date(timeIntervalSince1970: 5),
       nonce: "0a1b2c3d") == "2026-10-12-demo-take-2-5-0a1b2c3d.mp4", "upload key")
     let k1 = S3.key(for: URL(fileURLWithPath: "/x/a.gif"), name: "a"), k2 = S3.key(for: URL(fileURLWithPath: "/x/a.gif"), name: "a")
@@ -486,8 +489,8 @@ struct Checks {
     // A saved profile's assets live in the user's library (the support folder), so Claude may apply one.
     let library = FileManager.default.temporaryDirectory.appendingPathComponent("sd-library-\(UUID().uuidString)")
     var profiled = prior
-    profiled.music = Music(file: library.appendingPathComponent("Profiles/CData/track.m4a").path)
-    profiled.look?.fontFiles = [library.appendingPathComponent("Profiles/CData/Brand.otf").path, "/tmp/evil.otf"]
+    profiled.music = Music(file: library.appendingPathComponent("Profiles/Work/track.m4a").path)
+    profiled.look?.fontFiles = [library.appendingPathComponent("Profiles/Work/Brand.otf").path, "/tmp/evil.otf"]
     let (withProfile, profileReverted) = PathSafety.sanitize(profiled, previous: prior, project: proj, library: library)
     expect(withProfile.music == profiled.music && withProfile.look?.fontFiles == [profiled.look!.fontFiles![0]],
       "a profile's library assets are kept, other paths still reverted (\(profileReverted))")
@@ -917,16 +920,16 @@ struct Checks {
     let guarded = paced.trimmed(to: Clip(name: "t", start: 0, end: 10, pace: .tight), words: gappy)
     expect(!guarded.segments.contains { $0.start > 1.6 && $0.start < 4.4 }, "a tight clip doesn't cut inside an animation")
     expect(paced.trimmed(to: Clip(name: "t", start: 0, end: 10), words: gappy).segments.count == 1, "no pace keeps the edit's pauses")
-    let clipDir = URL(fileURLWithPath: "/m/Connect AI and Dots")
-    expect(exportURL(dir: clipDir).lastPathComponent == "Connect AI and Dots.mp4", "exports are named after the project")
-    expect(exportURL(dir: clipDir, preset: ExportPreset.all.first { $0.id == "youtube-4k" }).lastPathComponent == "Connect AI and Dots (4K).mp4",
+    let clipDir = URL(fileURLWithPath: "/m/Plant Rack Demo")
+    expect(exportURL(dir: clipDir).lastPathComponent == "Plant Rack Demo.mp4", "exports are named after the project")
+    expect(exportURL(dir: clipDir, preset: ExportPreset.all.first { $0.id == "youtube-4k" }).lastPathComponent == "Plant Rack Demo (4K).mp4",
       "a preset export says its format")
-    expect(exportURL(dir: clipDir, clip: Clip(name: "Steps 1/3", start: 0, end: 1)).lastPathComponent == "Connect AI and Dots - Steps 1-3.mp4", "a clip export says its name")
+    expect(exportURL(dir: clipDir, clip: Clip(name: "Steps 1/3", start: 0, end: 1)).lastPathComponent == "Plant Rack Demo - Steps 1-3.mp4", "a clip export says its name")
     let tall = Plan.Output(width: 2160, height: 3840, fps: 30)
-    expect(exportURL(dir: clipDir, size: tall).lastPathComponent == "Connect AI and Dots 2160x3840.mp4", "an export ends in its resolution")
+    expect(exportURL(dir: clipDir, size: tall).lastPathComponent == "Plant Rack Demo 2160x3840.mp4", "an export ends in its resolution")
     expect(exportURL(dir: clipDir, clip: Clip(name: "Hook", start: 0, end: 1), size: Plan.Output(width: 1080, height: 1920,
-      fps: 30)).lastPathComponent == "Connect AI and Dots - Hook 1080x1920.mp4", "so does a clip's")
-    expect(isExportFile("Connect AI and Dots - Hook.mp4", project: "Connect AI and Dots") && isExportFile("out.mp4", project: "x") && !isExportFile("screen.mp4", project: "x"),
+      fps: 30)).lastPathComponent == "Plant Rack Demo - Hook 1080x1920.mp4", "so does a clip's")
+    expect(isExportFile("Plant Rack Demo - Hook.mp4", project: "Plant Rack Demo") && isExportFile("out.mp4", project: "x") && !isExportFile("screen.mp4", project: "x"),
       "exports are recognized, old and new names")
     let clipText = describe(p, clipped)
     expect(clipText.contains("\"Hook\" src 0:03.0-0:08.0") && clipText.contains("WARNING: entirely cut"), "describe lists clips and flags an empty one")
@@ -1267,6 +1270,7 @@ struct Checks {
     fileAndFormatChecks()
     sceneDrawingChecks()
     scribbleChecks()
+    packChecks()
     audioChecks()
     stockChecks()
     editorActionChecks()

@@ -24,6 +24,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 cp "$BIN/ScreencastDirector" "$BIN/director" "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/edit-prompt.md Resources/ScreencastDirector.icns "$APP/Contents/Resources/"
+# The license and the notices for what's bundled (whisper.cpp, lottie-web, the music and sounds, the logos).
+cp ../LICENSE ../THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
 # Animation templates, logos and the page `director animate` renders them with.
 cp -R Resources/animations "$APP/Contents/Resources/"
 # Built-in sound effects and music (CC0) with their manifests.

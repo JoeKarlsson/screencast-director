@@ -1,5 +1,5 @@
-// "note": a sticker over the video, the same as a meme sticker: a big word or number with the site's
-// crayon mark scribbled around it, a word beside it, a line under it and an optional logo above. Give
+// "note": a sticker over the video, the same as a meme sticker: a big word or number with a
+// hand-drawn mark (the look's marks) around it, a word beside it, a line under it and an optional logo above. Give
 // the animation `sticker` ({x, y, w}) in the plan: the video pops it on and off like every sticker,
 // and the mark draws itself on once it has landed.
 //

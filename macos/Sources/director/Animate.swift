@@ -165,13 +165,6 @@ enum Animate {
     }
   }
 
-  /// Where the templates live: next to the app's director binary when bundled, else in the source tree.
-  static var resources: URL {
-    let bundled = Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("../Resources/animations").standardizedFileURL
-    if FileManager.default.fileExists(atPath: bundled.appendingPathComponent("animation.html").path) { return bundled }
-    return URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources/animations").standardizedFileURL
-  }
-
   /// Renders each animation whose clip is missing (all of them with `force`) and deletes clips no
   /// animation uses any more. Returns how many it rendered.
   @MainActor
@@ -184,6 +177,7 @@ enum Animate {
     for name in Set(plan.animationList.compactMap(\.lottieFile)) where try sources.freezeLottie(name) {
       log("copied the Lottie file \(name) into animations/lottie/")
     }
+    if !plan.animationList.isEmpty, try ThemeSources(project: dir).freeze(plan.look?.animationTheme) { log("copied the animation theme into animations/themes/") }
     try PathSafety.ownedFolder(".animations", in: dir)
     if try plan.removeUnusedAnimationClips(dir: dir) == nil {
       log("plan.json doesn't load right now, so unused animation clips are kept")
@@ -407,8 +401,10 @@ enum Animate {
       } catch {
         throw DirectorError("the \(a.template) template (\(scriptURL.path)) has an error: \(error)")
       }
+      let theme = try ThemeSources(project: sources.project).load(plan.look?.animationTheme)
+      try await Animate.runThemeScripts(theme, in: web)
       do {
-        let config = try Animate.config(a, plan: plan, sources: sources, assets: assets)
+        let config = try Animate.config(a, plan: plan, sources: sources, assets: assets, theme: theme)
         _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
       } catch {
         throw DirectorError("the \(a.template) template didn't start: \(error)")
@@ -583,7 +579,7 @@ enum Animate {
   }
 
   /// What the page's init() gets: the template, its data and cues, and the plan's brand look.
-  static func config(_ a: Animation, plan: Plan, sources: AnimationSources, assets: Assets) throws -> [String: Any] {
+  static func config(_ a: Animation, plan: Plan, sources: AnimationSources, assets: Assets, theme: Theme? = nil) throws -> [String: Any] {
     let files = try sources.logos()
     let data = try JSONSerialization.jsonObject(with: JSONEncoder().encode(a.data), options: [.fragmentsAllowed])
     let logos = files.mapValues { assets.url(for: $0) }
@@ -595,7 +591,7 @@ enum Animate {
       "template": a.template, "data": data, "cues": a.localCues, "duration": a.end - a.start,
       "width": plan.animationOutput(a).width, "height": plan.animationOutput(a).height, "fonts": fonts, "logos": logos,
       // Only a real color reaches the page's CSS: "url(https://...)" would make the renderer fetch it.
-      "accent": look?.accent.flatMap { Look.isHexColor($0) ? $0 : nil } ?? "#FFE500",
+      "accent": look?.accent.flatMap { Look.isHexColor($0) ? $0 : nil } ?? Look.defaultAccent,
     ]
     if let f = look?.titleFont { config["titleFont"] = f }
     if let f = look?.captionFont { config["bodyFont"] = f }
@@ -603,6 +599,8 @@ enum Animate {
     if plan.animationSafeTop(a) > 0 { config["safeTop"] = plan.animationSafeTop(a) }
     if a.isOverlay { config["overlay"] = true }
     if a.sticker != nil { config["sticker"] = true }
+    config["marks"] = (theme?.marks ?? MarkSet([:])).json
+    if let css = theme?.css, !css.isEmpty { config["themeCSS"] = css }
     if let name = a.lottieFile {
       guard let url = sources.lottie(name) else {
         throw DirectorError("no Lottie file \"\(name)\" in the video's animations/lottie/ folder, the personal library or the app")
@@ -612,4 +610,26 @@ enum Animate {
     return config
   }
 
+}
+
+// Where the page's files are, and a pack's animation theme in the page.
+extension Animate {
+  /// Where the templates live: next to the app's director binary when bundled, else in the source tree.
+  static var resources: URL {
+    let bundled = Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("../Resources/animations").standardizedFileURL
+    if FileManager.default.fileExists(atPath: bundled.appendingPathComponent("animation.html").path) { return bundled }
+    return URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources/animations").standardizedFileURL
+  }
+
+  /// Runs the theme's scripts after the template and before init: they register THEMES[name].
+  @MainActor
+  static func runThemeScripts(_ theme: Theme?, in web: WKWebView) async throws {
+    for script in theme?.scripts ?? [] {
+      do {
+        _ = try await web.evaluateJavaScript(script.source + "\n;0")
+      } catch {
+        throw DirectorError("the \(theme?.name ?? "") theme's \(script.file) has an error: \(error)")
+      }
+    }
+  }
 }

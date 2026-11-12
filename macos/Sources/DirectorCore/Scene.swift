@@ -84,12 +84,18 @@ public final class Scene: @unchecked Sendable {
   let clickPoints: [(t: Double, x: Double, y: Double)]
   /// Source times the pointer actually moved, for fading the cursor out while it rests.
   let pointerMoves: [Double]
+  /// The hand-drawn marks (a big chapter's rays and coil): the animation theme's over the app's.
+  public let marks: MarkSet
+  /// The theme puts its marks on covers too.
+  public let coverMarks: Bool
 
   public init(
     plan: Plan, words: [Word], clicks: [InputEvent], shortcuts: [InputEvent], cursorPath: [InputEvent] = [], dir: URL? = nil,
-    effects: [LoadedEffect] = [], rangeEffects: [LoadedEffect] = [], tracking: Tracking? = nil
+    effects: [LoadedEffect] = [], rangeEffects: [LoadedEffect] = [], tracking: Tracking? = nil, theme: Theme? = nil
   ) {
     self.plan = plan
+    marks = theme?.marks.over(.builtIn) ?? .builtIn
+    coverMarks = theme?.manifest.coverMarks == true
     self.effects = effects
     self.rangeEffects = zip(plan.effectRangeList, rangeEffects).flatMap { r, effect in
       srcRangeToOut(mapPlan(plan), r.start, r.end, fps: plan.output.fps).map { (s: $0.startF, e: $0.endF, effect: effect) }
@@ -367,7 +373,7 @@ public final class Scene: @unchecked Sendable {
       // Portrait split: an accent seam where the screen's square meets the camera.
       if socialTop(plan) != nil, cb.y > 1 {
         let seam = (0.011 * W).rounded()
-        let color = CIColor(cgColor: Scene.color(look.accent ?? "#FFE500").copy(alpha: cb.opacity)!)
+        let color = CIColor(cgColor: Scene.color(look.accent ?? Look.defaultAccent).copy(alpha: cb.opacity)!)
         image = CIImage(color: color).cropped(to: CGRect(x: 0, y: H - cb.y - seam / 2, width: W, height: seam)).composited(over: image)
       }
     }

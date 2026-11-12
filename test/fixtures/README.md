@@ -21,3 +21,7 @@ Real whisper-cli output (`-ml 1 -sow -oj`, the flags `Analyzer.transcribe` uses,
 `say "Record the screen, then edit the video by changing a plan."` after 1.5 s of silence. Two hand edits:
 the model path is cut to its file name, and a `[BLANK_AUDIO]` item is added at the end so the conversion's
 skip rule is checked. `macos/media-test.sh` checks the conversion to transcript.json; no model runs in tests.
+
+## themes/probe
+
+A minimal animation theme for `macos/animate-test.sh`: its CSS paints the stage black, its stroke hook thickens the lines, and its marks replace the oval, so the test can see each piece of a pack theme apply.
