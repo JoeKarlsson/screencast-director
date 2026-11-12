@@ -102,14 +102,18 @@ extension InspectorView {
       LabeledContent("Animations") {
         ChoiceRow(animationThemeChoices(plan.look?.animationTheme), selection: lookValue(nil, \.animationTheme, ""))
       }
+      .onAppear { ProfileStore.shared.refresh() }
     }
   }
 
-  /// Paper, terminal and the themes packs installed (or the video froze), and the video's own theme
-  /// marked when it isn't on this Mac.
+  /// Paper, terminal and the themes packs installed (listed when the pane appears, not on every
+  /// redraw), and the video's own theme when it isn't one of them: kept in the video, or missing.
   func animationThemeChoices(_ current: String?) -> [(String, String, String)] {
-    var themes = ThemeSources(project: project.dir).available()
-    if let current, !current.isEmpty, !themes.contains(where: { $0.name == current }) { themes.append((current, "\(current) (not installed)")) }
+    var themes = ThemeSources.builtIn + ProfileStore.shared.themes
+    if let current, !current.isEmpty, !themes.contains(where: { $0.name == current }) {
+      let inVideo = ThemeSources(project: project.dir).folder(current) != nil
+      themes.append((current, "\(current) (\(inVideo ? "in this video" : "not installed"))"))
+    }
     return themes.map { ($0.name, $0.title, "\($0.title) animations (changing the theme re-renders them)") }
   }
 

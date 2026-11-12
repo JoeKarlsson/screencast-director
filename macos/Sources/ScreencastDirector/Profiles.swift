@@ -8,6 +8,8 @@ final class ProfileStore: ObservableObject {
 
   let library = ProfileLibrary()
   @Published private(set) var names: [String] = []
+  /// The animation themes packs installed (name, title), for the inspector's theme row.
+  @Published private(set) var themes: [(name: String, title: String)] = []
   @Published var defaultName: String {
     didSet { ProfileLibrary.defaultName = defaultName }
   }
@@ -20,6 +22,7 @@ final class ProfileStore: ObservableObject {
   /// Lists the profiles again and picks up a default set elsewhere (`director settings`).
   func refresh() {
     names = library.names()
+    themes = ThemeSources(project: nil).available().filter { !ThemeSources.isBuiltIn($0.name) }
     syncSetting(self, \.defaultName, ProfileLibrary.defaultName)
   }
 

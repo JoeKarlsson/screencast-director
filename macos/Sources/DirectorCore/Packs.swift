@@ -81,17 +81,19 @@ public enum Packs {
   /// Refuses a zip whose listing has an absolute path, a "..", a backslash or a symlink, or that
   /// unpacks to more than `maxBytes`.
   static func checkZip(_ url: URL) throws {
-    let listing = try run("/usr/bin/zipinfo", ["-l", url.path])
-    var total: Int64 = 0
-    for line in listing.split(separator: "\n").map(String.init) {
-      let cols = line.split(separator: " ", maxSplits: 9, omittingEmptySubsequences: true).map(String.init)
-      // "-rw-r--r--  3.0 unx  1234 tx  567 defN 24-Nov-12 12:00 path": entries start with a mode.
-      guard cols.count == 10, let mode = cols.first, mode.count == 10, "-dl".contains(mode.first!) else { continue }
-      let path = cols[9]
-      if mode.first == "l" { throw DirectorError("\(url.lastPathComponent) has a symlink (\(path)); packs can't") }
+    // Every entry's name, one a line, whatever system made the zip (`-l`'s columns differ: a zip made
+    // on Windows lists "-rw-a--" where a Mac's lists "-rw-r--r--").
+    for path in try run("/usr/bin/zipinfo", ["-1", url.path]).split(separator: "\n").map(String.init) {
       if path.hasPrefix("/") || path.contains("\\") || path.split(separator: "/").contains("..") {
         throw DirectorError("\(url.lastPathComponent) has a path that leaves the pack (\(path))")
       }
+    }
+    var total: Int64 = 0
+    for line in try run("/usr/bin/zipinfo", ["-l", url.path]).split(separator: "\n").map(String.init) {
+      // "-rw-r--r--  3.0 unx  1234 tx  567 defN 24-Nov-12 12:00 path": a mode, then the size.
+      let cols = line.split(separator: " ", maxSplits: 9, omittingEmptySubsequences: true).map(String.init)
+      guard cols.count == 10, let kind = cols[0].first, "-dl".contains(kind) else { continue }
+      if kind == "l" { throw DirectorError("\(url.lastPathComponent) has a symlink (\(cols[9])); packs can't") }
       total += Int64(cols[3]) ?? 0
     }
     if total > maxBytes { throw DirectorError("\(url.lastPathComponent) unpacks to \(total >> 20) MB, more than a pack may") }
@@ -140,12 +142,27 @@ public enum Packs {
     return out
   }
 
-  /// What installing the pack folder into `support` would copy, skip and replace.
+  /// What installing the pack folder into `support` would copy, skip and replace. Throws when a file
+  /// would land where you have a folder (or under a file of yours), or a profile names a file outside
+  /// its own folder.
   public static func plan(_ folder: URL, into support: URL) throws -> Plan {
     var plan = Plan()
+    let fm = FileManager.default
     for rel in try files(folder) {
       let dst = support.appendingPathComponent(rel)
-      if !FileManager.default.fileExists(atPath: dst.path) {
+      var isDir: ObjCBool = false
+      if fm.fileExists(atPath: dst.path, isDirectory: &isDir), isDir.boolValue {
+        throw DirectorError("the pack has a file \(rel), where you have a folder; installing it would replace that folder")
+      }
+      var up = URL(fileURLWithPath: rel).deletingLastPathComponent().relativePath
+      while up != "." && up != "/" && !up.isEmpty {
+        if fm.fileExists(atPath: support.appendingPathComponent(up).path, isDirectory: &isDir), !isDir.boolValue {
+          throw DirectorError("the pack puts \(rel) in a folder \(up), where you have a file")
+        }
+        up = (up as NSString).deletingLastPathComponent
+      }
+      if rel.hasPrefix("Profiles/"), rel.hasSuffix("/profile.json") { try checkProfileFiles(folder.appendingPathComponent(rel)) }
+      if !fm.fileExists(atPath: dst.path) {
         plan.new.append(rel)
       } else if (try? Data(contentsOf: dst)) == (try? Data(contentsOf: folder.appendingPathComponent(rel))) {
         plan.same.append(rel)
@@ -154,6 +171,22 @@ public enum Packs {
       }
     }
     return plan
+  }
+
+  /// A pack's profile may only name files in its own folder: a path someone else wrote could point a
+  /// font or a music file at anything on this Mac, and a video using the profile would read it.
+  static func checkProfileFiles(_ file: URL) throws {
+    let profile: Profile
+    do {
+      profile = try JSONDecoder().decode(Profile.self, from: Data(contentsOf: file))
+    } catch {
+      throw DirectorError("\(file.path) isn't a profile: \(error.localizedDescription)")
+    }
+    let l = profile.look
+    let paths = (l.fontFiles ?? []) + [l.watermark?.image, l.intro?.logo, l.outro?.logo, profile.music?.file, profile.camera?.grade?.lut].compactMap { $0 }
+    for path in paths where path.hasPrefix("/") || path.hasPrefix("~") || path.split(separator: "/").contains("..") {
+      throw DirectorError("the profile \"\(profile.name)\" in the pack names \(path), outside its folder; a pack's profile keeps its files beside it")
+    }
   }
 
   /// Installs a pack (folder or .sdpack) into `support`. Files already there unchanged are skipped;
@@ -173,14 +206,14 @@ public enum Packs {
         """)
     }
     let fm = FileManager.default
+    // The record lists what this pack put here: files it copied now or on an earlier install. A file
+    // you already had, byte for byte, stays yours, so removing the pack leaves it.
     var record = (try? loadRecord(manifest.name, in: support))?.files ?? [:]
-    for rel in plan.new + plan.conflicts + plan.same {
+    for rel in plan.new + plan.conflicts {
       let src = folder.appendingPathComponent(rel), dst = support.appendingPathComponent(rel)
-      if !plan.same.contains(rel) {
-        try fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
-        try fm.copyItem(at: src, to: dst)
-      }
+      try fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+      if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
+      try fm.copyItem(at: src, to: dst)
       record[rel] = try hash(dst)
     }
     try fm.createDirectory(at: recordsFolder(support), withIntermediateDirectories: true)
@@ -207,14 +240,15 @@ public enum Packs {
       .compactMap { try? JSONDecoder().decode(Record.self, from: Data(contentsOf: dir.appendingPathComponent($0))) }
   }
 
-  /// Removes an installed pack's files, except ones changed since it put them there (returned), and
-  /// folders it leaves empty.
+  /// Removes an installed pack's files, except ones changed since it put them there (returned) and
+  /// ones another installed pack also put there, and folders it leaves empty.
   @discardableResult
   public static func remove(_ name: String, from support: URL = AppPreferences.supportFolder) throws -> [String] {
     let record = try loadRecord(name, in: support)
+    let others = Set(installed(in: support).filter { $0.name != record.name }.flatMap(\.files.keys))
     let fm = FileManager.default
     var kept: [String] = []
-    for (rel, sha) in record.files.sorted(by: { $0.key < $1.key }) {
+    for (rel, sha) in record.files.sorted(by: { $0.key < $1.key }) where !others.contains(rel) {
       guard roots.contains(String(rel.split(separator: "/").first ?? "")), !rel.split(separator: "/").contains("..") else { continue }
       let file = support.appendingPathComponent(rel)
       guard fm.fileExists(atPath: file.path) else { continue }

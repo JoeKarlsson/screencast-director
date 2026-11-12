@@ -17,11 +17,11 @@ func packChecks() {
     do { try body(); return nil } catch { return error.localizedDescription }
   }
 
+  let style = ##""style": {"background": ["#000000"], "padding": 0, "radius": 4, "transition": 0.8}"##
   // A pack with a profile (its font beside it), a theme, an effect and a README.
   let pack = tmp.appendingPathComponent("My Look")
   write(##"{"name": "My Look", "version": "1.0"}"##, "pack.json", in: pack)
   write("read me", "README.md", in: pack)
-  let style = ##""style": {"background": ["#000000"], "padding": 0, "radius": 4, "transition": 0.8}"##
   write(##"{"name": "Mine", \##(style), "look": {"fontFiles": ["fonts/A.ttf"], "animationTheme": "mine"}}"##, "Profiles/Mine/profile.json", in: pack)
   write("font", "Profiles/Mine/fonts/A.ttf", in: pack)
   write(##"{"title": "Mine", "css": "theme.css", "scripts": ["theme.js"], "marks": "marks.json", "coverMarks": true}"##, "Animations/themes/mine/theme.json", in: pack)
@@ -75,6 +75,38 @@ func packChecks() {
   try? zip.run()
   zip.waitUntilExit()
   expect(throwsMessage { try Packs.install(slipZip, into: support) }?.contains("leaves the pack") == true, "a zip with a ../ path is refused")
+  // The same from a zip made on Windows, whose listing has other columns.
+  let fatZip = tmp.appendingPathComponent("fat.sdpack")
+  let py = Process()
+  py.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+  py.arguments = ["-c", """
+    import sys, zipfile
+    z = zipfile.ZipFile(sys.argv[1], "w")
+    i = zipfile.ZipInfo("../evil.txt"); i.create_system = 0
+    z.writestr(i, "x"); z.close()
+    """, fatZip.path]
+  try? py.run()
+  py.waitUntilExit()
+  expect(throwsMessage { try Packs.install(fatZip, into: support) }?.contains("leaves the pack") == true, "so is one made on Windows")
+
+  // A pack's file where you have a folder, or under a file of yours, is refused, not replaced.
+  let clash = tmp.appendingPathComponent("clash")
+  write(##"{"name": "Clash"}"##, "pack.json", in: clash)
+  write("one file", "Sounds/Meme", in: clash)
+  write("mine", "Sounds/Meme/oof.wav", in: support)
+  expect(throwsMessage { try Packs.install(clash, into: support, replace: true) }?.contains("where you have a folder") == true
+    && read("Sounds/Meme/oof.wav", in: support) == "mine", "a file where you have a folder is refused, even with replace, and your folder stays")
+  let under = tmp.appendingPathComponent("under")
+  write(##"{"name": "Under"}"##, "pack.json", in: under)
+  write("x", "Music/track/a.m4a", in: under)
+  write("my track", "Music/track", in: support)
+  expect(throwsMessage { try Packs.install(under, into: support) }?.contains("where you have a file") == true, "so is a file under one of your files")
+
+  // A pack's profile can't name files outside its folder.
+  let reach = tmp.appendingPathComponent("reach")
+  write(##"{"name": "Reach"}"##, "pack.json", in: reach)
+  write(##"{"name": "Reach", \##(style), "look": {}, "music": {"file": "/Users/someone/private.m4a"}}"##, "Profiles/Reach/profile.json", in: reach)
+  expect(throwsMessage { try Packs.install(reach, into: support) }?.contains("outside its folder") == true, "a pack's profile naming a file elsewhere is refused")
 
   // Themes: found in the support folder, frozen into a video, hashed the same before and after.
   let project = tmp.appendingPathComponent("video")
@@ -112,6 +144,31 @@ func packChecks() {
   write(##"{"oval": {"viewBox": "0 0 0 10", "path": "M0,0 L1,1"}}"##, "bad/marks.json", in: tmp)
   expect(throwsMessage { _ = try MarkSet.load(tmp.appendingPathComponent("bad/marks.json")) }?.contains("\"oval\"") == true, "a bad mark is named")
 
+  // A file you already had, byte for byte, isn't the pack's: removing the pack leaves it.
+  let mineAlready = tmp.appendingPathComponent("already")
+  write(##"{"name": "Already"}"##, "pack.json", in: mineAlready)
+  write("same bytes", "Sounds/ui/click.wav", in: mineAlready)
+  write("only in the pack", "Sounds/ui/new.wav", in: mineAlready)
+  write("same bytes", "Sounds/ui/click.wav", in: support)
+  _ = try? Packs.install(mineAlready, into: support)
+  expect(Packs.installed(in: support).first { $0.name == "Already" }?.files.keys.sorted() == ["Sounds/ui/new.wav"], "a pack records only the files it copied")
+  _ = try? Packs.remove("Already", from: support)
+  expect(read("Sounds/ui/click.wav", in: support) == "same bytes", "removing a pack leaves a file you had before it")
+  expect(read("Sounds/ui/new.wav", in: support) == nil, "and takes the file it brought")
+  // Two packs that both brought a file: removing one leaves it for the other.
+  let sharing = tmp.appendingPathComponent("sharing")
+  write(##"{"name": "Sharing"}"##, "pack.json", in: sharing)
+  write("only in the pack", "Sounds/ui/new.wav", in: sharing)
+  _ = try? Packs.install(mineAlready, into: support)
+  try? fm.removeItem(at: support.appendingPathComponent("Sounds/ui/new.wav"))
+  _ = try? Packs.install(sharing, into: support)
+  let recorders = Packs.installed(in: support).filter { $0.files["Sounds/ui/new.wav"] != nil }.map(\.name)
+  expect(recorders == ["Already", "Sharing"], "both packs record the file they brought (\(recorders))")
+  _ = try? Packs.remove("Already", from: support)
+  expect(read("Sounds/ui/new.wav", in: support) == "only in the pack", "removing one pack leaves a file the other also brought")
+  _ = try? Packs.remove("Sharing", from: support)
+  expect(read("Sounds/ui/new.wav", in: support) == nil, "and removing the other then takes it")
+
   // Remove takes away what it installed, except files changed since.
   write("changed by me", "Profiles/Mine/fonts/A.ttf", in: support)
   let kept = (try? Packs.remove("My Look", from: support)) ?? []
@@ -125,7 +182,9 @@ func packChecks() {
   let herePack = tmp.appendingPathComponent("Here Pack")
   _ = try? Packs.export(profiles: ["Here"], work: false, to: herePack, from: support)
   let here = try? JSONDecoder().decode(Profile.self, from: Data(contentsOf: herePack.appendingPathComponent("Profiles/Here/profile.json")))
-  expect(here?.look.fontFiles == ["fonts/B.ttf"] && read("Profiles/Here/profile.json", in: herePack) == read("Profiles/Here/profile.json", in: support) && (try? fm.contentsOfDirectory(atPath: herePack.appendingPathComponent("Profiles/Here/fonts").path)) == ["B.ttf"],
+  let sameJSON = read("Profiles/Here/profile.json", in: herePack) == read("Profiles/Here/profile.json", in: support)
+  let fonts = try? fm.contentsOfDirectory(atPath: herePack.appendingPathComponent("Profiles/Here/fonts").path)
+  expect(here?.look.fontFiles == ["fonts/B.ttf"] && sameJSON && fonts == ["B.ttf"],
     "a profile whose files are already beside it exports as it is, nothing copied twice (\(here?.look.fontFiles ?? []))")
   let elsewhere = tmp.appendingPathComponent("elsewhere")
   write("lut", "grade.cube", in: elsewhere)
