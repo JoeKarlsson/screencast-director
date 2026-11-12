@@ -22,7 +22,7 @@ You need a Mac with Apple silicon and macOS 15 or later.
 
 1. Download the latest zip from [GitHub Releases](https://github.com/JoeKarlsson/screencast-director/releases).
 2. Unzip it and drag **Screencast Director** to Applications.
-3. Open it. The first launch is blocked, because the build isn't notarized by Apple yet. Go to **System Settings > Privacy & Security**, scroll down and click **Open Anyway** (or right-click the app, choose **Open**, then **Open** again). You only do this once.
+3. Open it. macOS blocks the first launch, because the build isn't notarized by Apple yet: click **Done**, then go to **System Settings > Privacy & Security**, scroll down to the message about Screencast Director and click **Open Anyway**, then confirm. You only do this once.
 
 On first launch, **Getting Started** shows which permissions are missing
 (Screen & System Audio Recording, Microphone, Input Monitoring, optionally
