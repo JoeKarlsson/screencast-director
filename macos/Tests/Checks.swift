@@ -729,6 +729,14 @@ struct Checks {
     expect((try? smooth.frameRate()) == 30, "a template's manifest can ask for 30 fps")
     smooth.fps = 0
     expect((try? smooth.frameRate()) == nil, "a frame rate of 0 is refused")
+    // A template's manifest can describe its kinds of step, which the inspector builds its step editor from.
+    let stepped = try? JSONDecoder().decode(AnimationTemplate.self, from: Data(#"""
+      {"name": "s", "title": "S", "summary": "", "length": 4, "cues": [], "data": {}, "fields": [{"key": "steps", "label": "Steps", "type": "steps",
+        "steps": [{"do": "focus", "label": "Push In", "fields": [{"key": "zoom", "label": "Zoom", "type": "number", "value": 1.6}]}]}]}
+      """#.utf8))
+    expect(stepped?.fields.first?.steps?.first?.fields.first?.value == .number(1.6), "a manifest's step kinds and their starting values load")
+    expect(AnimationTemplate.all(in: bundledTemplates).first { $0.name == "storyboard" }?.fields.first { $0.type == "steps" }?.steps == nil,
+      "the storyboard keeps its own step editor")
     try? FileManager.default.removeItem(at: lottieRoot)
     // Text contrast: WCAG ratios, and the backdrop is what's around the text, even when its glyphs fill its box.
     expect(abs(TextContrast.ratio([0, 0, 0], [1, 1, 1]) - 21) < 0.01 && abs(TextContrast.ratio([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]) - 1) < 0.01, "contrast runs 1:1 to 21:1")

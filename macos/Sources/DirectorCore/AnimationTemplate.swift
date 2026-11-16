@@ -12,6 +12,24 @@ public struct AnimationTemplate: Codable, Equatable, Sendable {
     /// Most entries a list (or the largest number) takes.
     public var max: Int?
     public var help: String?
+    /// A "steps" field's kinds of step, which the inspector builds its step editor from. Unset is the
+    /// storyboard's own editor.
+    public var steps: [StepKind]?
+  }
+  /// One kind of step (its `do`): the menu's name for it and the fields a step of it has.
+  public struct StepKind: Codable, Equatable, Sendable {
+    public var `do`: String
+    public var label: String
+    public var fields: [StepField]
+  }
+  public struct StepField: Codable, Equatable, Sendable {
+    public var key: String
+    public var label: String
+    /// text (a "\n" breaks a line) | number | logo
+    public var type: String
+    /// What a new step of this kind starts with.
+    public var value: JSONValue?
+    public var help: String?
   }
   public struct Cue: Codable, Equatable, Sendable {
     public var key: String

@@ -76,7 +76,7 @@ struct AnimationEditor: View {
           }
           if let steps = template.fields.first(where: { $0.type == "steps" }) {
             InspectorSection("Steps", detail: "Each step happens on a word. Play or scrub to it and press ⊙ to set the step there.") {
-              stepsEditor(steps.key, a)
+              stepsEditor(steps, a)
             }
           } else {
             InspectorSection("Beats", detail: "Play or scrub to the word, then press ⊙ to set the beat there. Click a beat to jump to it.") {
@@ -339,7 +339,7 @@ struct AnimationEditor: View {
     project.editAnimation(i) { $0.cues = ($0.cues ?? [:]).merging([key: (t * 100).rounded() / 100]) { $1 } }
   }
 
-  // MARK: Steps (storyboard)
+  // MARK: Steps
 
   static let stepKinds: [(name: String, label: String)] = [
     ("show", "Show"), ("connect", "Connect"), ("note", "Note"), ("count", "Count"), ("highlight", "Highlight"),
@@ -362,16 +362,19 @@ struct AnimationEditor: View {
     setSteps(key, list, coalesce: coalesce)
   }
 
-  private func stepsEditor(_ key: String, _ a: DirectorCore.Animation) -> some View {
-    let list = steps(key)
+  /// The steps list. A template whose manifest lists its kinds of step (`Field.steps`) gets them and
+  /// their fields; otherwise it's the storyboard's.
+  private func stepsEditor(_ field: AnimationTemplate.Field, _ a: DirectorCore.Animation) -> some View {
+    let key = field.key, list = steps(key)
     let ids = list.filter { $0["do"]?.string == "show" }.compactMap { $0["id"]?.string }
+    let kinds = field.steps?.map { (name: $0.do, label: $0.label) } ?? Self.stepKinds
     return VStack(alignment: .leading, spacing: 10) {
       ForEach(Array(list.enumerated()), id: \.offset) { k, step in
-        stepCard(key, k, step, count: list.count, ids: ids, a)
+        stepCard(key, k, step, count: list.count, ids: ids, kinds: kinds, schema: field.steps, a)
       }
       Menu {
-        ForEach(Self.stepKinds, id: \.name) { kind in
-          Button(kind.label) { addStep(key, kind.name, ids: ids) }
+        ForEach(kinds, id: \.name) { kind in
+          Button(kind.label) { addStep(key, kind.name, ids: ids, starting: field.steps?.first { $0.do == kind.name }?.fields ?? []) }
         }
       } label: {
         Label("Add Step at the Playhead", systemImage: "plus")
@@ -379,7 +382,10 @@ struct AnimationEditor: View {
     }
   }
 
-  private func stepCard(_ key: String, _ k: Int, _ step: [String: JSONValue], count: Int, ids: [String], _ a: DirectorCore.Animation) -> some View {
+  private func stepCard(
+    _ key: String, _ k: Int, _ step: [String: JSONValue], count: Int, ids: [String], kinds: [(name: String, label: String)],
+    schema: [AnimationTemplate.StepKind]?, _ a: DirectorCore.Animation
+  ) -> some View {
     let kind = step["do"]?.string ?? "show"
     let cueKey = step["cue"]?.string ?? ""
     return VStack(alignment: .leading, spacing: 6) {
@@ -388,7 +394,7 @@ struct AnimationEditor: View {
         Picker(
           "Step", selection: Binding(get: { kind }, set: { v in editStep(key, k) { $0["do"] = .string(v) } })
         ) {
-          ForEach(Self.stepKinds, id: \.name) { Text($0.label).tag($0.name) }
+          ForEach(kinds, id: \.name) { Text($0.label).tag($0.name) }
         }
         .labelsHidden()
         Spacer(minLength: 0)
@@ -398,7 +404,11 @@ struct AnimationEditor: View {
       }
       .buttonStyle(.borderless)
       if !cueKey.isEmpty { beatRow(cueKey, "On", a) }
-      stepFields(key, k, kind, step, ids: ids)
+      if let schema {
+        ForEach(schema.first { $0.do == kind }?.fields ?? [], id: \.key) { f in schemaField(key, k, f) }
+      } else {
+        stepFields(key, k, kind, step, ids: ids)
+      }
     }
     .padding(8)
     .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
@@ -436,6 +446,12 @@ struct AnimationEditor: View {
     }
   }
 
+  private func stepNumber(_ key: String, _ k: Int, _ field: String) -> Binding<Double?> {
+    Binding(
+      get: { steps(key).indices.contains(k) ? steps(key)[k][field]?.number : nil },
+      set: { v in editStep(key, k, coalesce: "step\(i)-\(k)-\(field)") { $0[field] = v.map { .number($0) } } })
+  }
+
   private func stepString(_ key: String, _ k: Int, _ field: String, fallback: String) -> Binding<String> {
     Binding(
       get: {
@@ -453,6 +469,20 @@ struct AnimationEditor: View {
           if field == "value", let n = Double(v) { step[field] = .number(n) } else { step[field] = v.isEmpty ? nil : .string(v) }
         }
       })
+  }
+
+  /// One field of a step whose template's manifest describes it.
+  @ViewBuilder
+  private func schemaField(_ key: String, _ k: Int, _ f: AnimationTemplate.StepField) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      switch f.type {
+      case "logo": logoPicker(f.label, stepString(key, k, f.key, fallback: ""))
+      // Committed on Return or leaving the field, so a decimal point isn't lost mid-typing.
+      case "number": LabeledContent(f.label) { TextField(f.label, value: stepNumber(key, k, f.key), format: .number).labelsHidden() }
+      default: LabeledContent(f.label) { TextField(f.label, text: stepString(key, k, f.key, fallback: ""), axis: .vertical).labelsHidden() }
+      }
+      if let help = f.help { Text(help).font(.caption).foregroundStyle(.secondary) }
+    }
   }
 
   private func stepText(_ key: String, _ k: Int, _ field: String, _ label: String) -> some View {
@@ -488,7 +518,7 @@ struct AnimationEditor: View {
     }
   }
 
-  private func addStep(_ key: String, _ kind: String, ids: [String]) {
+  private func addStep(_ key: String, _ kind: String, ids: [String], starting: [AnimationTemplate.StepField]) {
     let used = Set(item?.cues?.keys.map { $0 } ?? [])
     var n = steps(key).count + 1
     while used.contains("s\(n)") { n += 1 }
@@ -508,6 +538,7 @@ struct AnimationEditor: View {
       step["value"] = .number(1)
     default: break
     }
+    for f in starting { if let v = f.value { step[f.key] = v } }
     let t = min(max(project.playheadSrc, item?.start ?? 0), item?.end ?? .infinity)
     project.editAnimation(i) { a in
       var list: [JSONValue] = []

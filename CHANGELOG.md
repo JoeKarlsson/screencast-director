@@ -8,6 +8,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd new <name> [--length 30] [--size 1920x1080]` starts a project with no recording: a blank screen of that length, so a film can be built from animations alone.
 
 ### Editor
+- A template can describe its own kinds of step in its manifest (`steps` on its steps field: each step's name, label, fields and starting values), and the animation inspector builds the step list from it: pick a step, fill in labeled fields, add one at the playhead. The storyboard keeps its own editor. Number fields commit on Return, so a decimal point isn't lost while typing.
 - An animation template can ask for a smoother frame rate: `"fps": 30` in its manifest renders its clips at 30 frames a second instead of the hand-drawn 12, so a camera gliding across a product screen doesn't judder.
 - Fixed: an animation with a large image (a product screenshot) could render a frame with the image missing while the camera zoomed.
 - `director animate` no longer warns that a fast whip "pops for one frame": at 30 fps a whip crosses a whole check tile in a frame, which looked like a flash. A real one-frame flash is still caught.
