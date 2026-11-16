@@ -86,8 +86,9 @@ cmd_new() {
       *) die "unknown option $1" ;;
     esac
   done
-  [[ "$length" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk "BEGIN { exit !($length > 0 && $length <= 3600) }" \
-    || die "--length takes seconds, more than 0 and at most 3600, like 30"
+  if ! [[ "$length" =~ ^[0-9]+(\.[0-9]+)?$ ]] || ! awk "BEGIN { exit !($length > 0 && $length <= 3600) }"; then
+    die "--length takes seconds, more than 0 and at most 3600, like 30"
+  fi
   [[ "$size" =~ ^([0-9]+)x([0-9]+)$ ]] || die "--size takes WIDTHxHEIGHT, like 1920x1080"
   local w=${BASH_REMATCH[1]} h=${BASH_REMATCH[2]}
   (( w >= 16 && h >= 16 && w <= 7680 && h <= 7680 && w % 2 == 0 && h % 2 == 0 )) || die "--size takes even sizes from 16 to 7680, like 1920x1080"
