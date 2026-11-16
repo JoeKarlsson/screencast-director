@@ -510,6 +510,9 @@ window.init = async function (config) {
     if (THEME === "terminal") terminalTick(t);
     if (HOOKS.tick) HOOKS.tick(t);
   };
+  // Decoded while painting: WebKit otherwise re-decodes an image in the background whenever its drawn
+  // size changes (a camera push), and a snapshot taken meanwhile leaves the image out.
+  for (const i of document.images) i.decoding = "sync";
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);
   return true;

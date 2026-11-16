@@ -7,11 +7,14 @@ import WebKit
 
 /// Renders the plan's animations to their cached clips with an offscreen WKWebView: the bundled
 /// Resources/animations page is driven frame by frame (init once, then seek(t)) and each snapshot is
-/// written to an H.264 clip. Graphics step at 12 fps, the handmade Vox look, each frame an average of
-/// snapshots for motion blur (`Animation.subframeCount`). Runs on the main actor and
+/// written to an H.264 clip. Graphics step at 12 fps, the handmade Vox look, unless the template's
+/// manifest asks for another rate (`fps`), each frame an average of snapshots for motion blur (`Animation.subframeCount`). Runs on the main actor and
 /// awaits WebKit, so the main queue stays free to deliver its callbacks.
 enum Animate {
-  static let fps = 12
+  /// The frame rate animation `a`'s clip steps at: its template manifest's `fps`, else 12.
+  static func fps(_ a: Animation, sources: AnimationSources) throws -> Int {
+    try sources.template(a.template)?.template.frameRate() ?? AnimationTemplate.handDrawnFps
+  }
 
   /// Defines motionProbe(): each element's on-screen box, in pixels. Two probes a moment apart tell
   /// how far anything moved. Fades and lines drawing on don't count: blending two snapshots already
@@ -133,7 +136,7 @@ enum Animate {
   /// One line per pair of pieces that overlapped (or piece in the caption band, or text hard to read),
   /// from the rows each probed frame returned (`step` seconds apart), with when it started (source
   /// seconds) and for how long. Text counts only once it stays hard to read for two probes running.
-  static func overlapWarnings(_ a: Animation, index: Int, frames: [(t: Double, rows: [[Any]])], step: Double = 1 / Double(fps)) -> [String] {
+  static func overlapWarnings(_ a: Animation, index: Int, frames: [(t: Double, rows: [[Any]])], step: Double) -> [String] {
     var found: [(kind: String, p: String, q: String, start: Double, end: Double, share: Double)] = []
     for (t, rows) in frames {
       for row in rows {
@@ -196,7 +199,8 @@ enum Animate {
       let started = Date()
       let (pops, overlaps) = try await page.render(a, index: i, plan: plan, sources: sources, to: dir.appendingPathComponent(path))
       log(String(format: "animation #%d (%@): %@ in %.1fs", i, a.template, path, Date().timeIntervalSince(started)))
-      for f in pops { log(popWarning(index: i, a, frame: f)) }
+      let rate = try fps(a, sources: sources)
+      for f in pops { log(popWarning(index: i, a, frame: f, fps: rate)) }
       for w in overlaps { log(w) }
     }
     return todo.count
@@ -214,13 +218,15 @@ enum Animate {
       throw DirectorError("animation #\(index) plays from \(fmtTime(a.start)) to \(fmtTime(a.end)) (source), so \(fmtTime(at)) isn't in it")
     }
     let page = Page(plan, a)
+    let sources = AnimationSources(project: dir, builtIn: resources)
+    let rate = try fps(a, sources: sources)
     var frames: [(image: CGImage, label: String)] = []
     let (pops, overlaps) = try await page.render(
-      a, index: index, plan: plan, sources: AnimationSources(project: dir, builtIn: resources), to: out, from: at - a.start, length: length
+      a, index: index, plan: plan, sources: sources, to: out, from: at - a.start, length: length
     ) { f, image in
-      frames.append((image, String(format: "src %.2f  f%d", a.start + Double(f) / Double(fps), f)))
+      frames.append((image, String(format: "src %.2f  f%d", a.start + Double(f) / Double(rate), f)))
     }
-    for line in pops.map({ popWarning(index: index, a, frame: $0) }) + overlaps { FileHandle.standardError.write(Data((line + "\n").utf8)) }
+    for line in pops.map({ popWarning(index: index, a, frame: $0, fps: rate) }) + overlaps { FileHandle.standardError.write(Data((line + "\n").utf8)) }
     let sheet = out.deletingPathExtension().appendingPathExtension("png")
     try Publish.writePNG(try ContactSheet.draw(frames), to: sheet)
     return sheet
@@ -280,7 +286,7 @@ enum Animate {
   }
 
   /// "WARNING: animation #0 (storyboard) pops for one frame at src 0:12.3 (frame 41) ..."
-  static func popWarning(index: Int, _ a: Animation, frame: Int) -> String {
+  static func popWarning(index: Int, _ a: Animation, frame: Int, fps: Int) -> String {
     "WARNING: animation #\(index) (\(a.template)) pops for one frame at src \(fmtTime(a.start + Double(frame) / Double(fps))) (frame \(frame)): "
       + "something shows for a single frame and is gone the next; look with animate-test"
   }
@@ -297,23 +303,25 @@ enum Animate {
     let folder = try PathSafety.ownedFolder(".checks", in: dir)
     let size = plan.animationOutput(list[index])
     let columns = ContactSheet.layout(frameWidth: size.width, frameHeight: size.height).columns
-    let frameCount = Int((list[index].end - list[index].start) * Double(fps))
-    // The same frames for every version: spread over the animation, the last one near its end.
-    let picks = Set((1...columns).map { frameCount * $0 / columns - ($0 == columns ? 2 : 0) })
     let sources = AnimationSources(project: dir, builtIn: resources)
     var cells: [(image: CGImage, label: String)] = []
     for (k, a) in versions.enumerated() {
+      // The same moments for every version (versions may step at different rates): spread over the
+      // animation, the last one near its end.
+      let rate = try fps(a, sources: sources)
+      let frameCount = Int((list[index].end - list[index].start) * Double(rate))
+      let picks = Set((1...columns).map { frameCount * $0 / columns - ($0 == columns ? 2 : 0) })
       let out = folder.appendingPathComponent("animation-\(index)-v\(k).mp4")
       var row: [(image: CGImage, label: String)] = []
       let (pops, overlaps) = try await Page(plan, a).render(
         a, index: index, plan: plan, sources: sources, to: out
       ) { f, image in
         if picks.contains(f) {
-          row.append((image, String(format: "v%d %@%@  src %.1f", k, a.template, k == 0 ? " (in use)" : "", a.start + Double(f) / Double(fps))))
+          row.append((image, String(format: "v%d %@%@  src %.1f", k, a.template, k == 0 ? " (in use)" : "", a.start + Double(f) / Double(rate))))
         }
       }
       log("v\(k) \(a.template)\(a.note.map { ": \($0)" } ?? ""): \(out.path)")
-      for line in pops.map({ "v\(k): " + popWarning(index: index, a, frame: $0) }) + overlaps { log(line) }
+      for line in pops.map({ "v\(k): " + popWarning(index: index, a, frame: $0, fps: rate) }) + overlaps { log(line) }
       cells += row
     }
     let sheet = folder.appendingPathComponent("animation-\(index)-variants.png")
@@ -440,6 +448,7 @@ enum Animate {
       onFrame: ((Int, CGImage) throws -> Void)? = nil
     ) async throws -> (pops: [Int], overlaps: [String]) {
       try await load(a, plan: plan, sources: sources)
+      let fps = try fps(a, sources: sources)
 
       // One temp file per process: the app and the CLI can render the same clip at once (same
       // contents, since the name is a hash of them), and each moves its own into place.
@@ -473,9 +482,9 @@ enum Animate {
       writer.startSession(atSourceTime: .zero)
 
       let duration = a.end - a.start
-      let frames = max(1, Int((duration * Double(Animate.fps)).rounded()))
-      let first = min(frames - 1, Int((from * Double(Animate.fps)).rounded()))
-      let last = length.map { min(frames, first + max(1, Int(($0 * Double(Animate.fps)).rounded()))) } ?? frames
+      let frames = max(1, Int((duration * Double(fps)).rounded()))
+      let first = min(frames - 1, Int((from * Double(fps)).rounded()))
+      let last = length.map { min(frames, first + max(1, Int(($0 * Double(fps)).rounded()))) } ?? frames
       let bytes = width * height * 4
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
@@ -494,10 +503,10 @@ enum Animate {
       }
       for f in first..<last {
         // Motion blur: how far things move across the shutter decides how many snapshots to average.
-        let span = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 2)
+        let span = Animation.subframeTimes(frame: f, fps: fps, duration: duration, count: 2)
         let before = try await seek(span[0], probe: true), after = try await seek(span[1], probe: true)
         let motion = before.count == after.count ? zip(before, after).map { abs($0 - $1) }.max() ?? 0 : .infinity
-        let times = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: Animation.subframeCount(motion: motion))
+        let times = Animation.subframeTimes(frame: f, fps: fps, duration: duration, count: Animation.subframeCount(motion: motion))
         for i in sum.indices { sum[i] = 0 }
         for t in times {
           _ = try await seek(t)
@@ -509,13 +518,13 @@ enum Animate {
         tiles.append(Animation.popTiles(bgra: pixels, width: width, height: height))
         if let onFrame { try onFrame(f, try image(pixels)) }
         // Overlaps on every frame, mid-move included: a piece flying through a label is as wrong as one parked on it.
-        let at = Animation.subframeTimes(frame: f, fps: Animate.fps, duration: duration, count: 1)[0]
+        let at = Animation.subframeTimes(frame: f, fps: fps, duration: duration, count: 1)[0]
         if let rows = try await web.evaluateJavaScript("seek(\(at)); overlapProbe(\(band.top), \(band.bottom), \(a.isOverlay)).concat(markProbe())") as? [[Any]], !rows.isEmpty {
-          overlaps.append((Double(f) / Double(Animate.fps), rows))
+          overlaps.append((Double(f) / Double(fps), rows))
         }
         if f % Animate.textProbeEvery == 0, let rows = try await web.evaluateJavaScript("textProbe()") as? [[Any]] {
           let found = TextContrast.rows(rows, bgra: pixels, width: width, height: height)
-          if !found.isEmpty { faint.append((Double(f) / Double(Animate.fps), found)) }
+          if !found.isEmpty { faint.append((Double(f) / Double(fps), found)) }
         }
         while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
         guard let pool = adaptor.pixelBufferPool else { throw DirectorError("no pixel buffer pool") }
@@ -523,18 +532,18 @@ enum Animate {
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
         guard let buffer else { throw DirectorError("no pixel buffer") }
         copy(pixels, into: buffer)
-        adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f - first), timescale: CMTimeScale(Animate.fps)))
+        adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f - first), timescale: CMTimeScale(fps)))
       }
       input.markAsFinished()
-      writer.endSession(atSourceTime: CMTime(value: CMTimeValue(last - first), timescale: CMTimeScale(Animate.fps)))
+      writer.endSession(atSourceTime: CMTime(value: CMTimeValue(last - first), timescale: CMTimeScale(fps)))
       await writer.finishWriting()
       guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
       return (
         Animation.pops(tiles).map { $0 + first },
-        Animate.overlapWarnings(a, index: index, frames: overlaps)
-          + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(Animate.fps))
+        Animate.overlapWarnings(a, index: index, frames: overlaps, step: 1 / Double(fps))
+          + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(fps))
       )
     }
 

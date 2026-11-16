@@ -722,6 +722,13 @@ struct Checks {
     let bundledTemplates = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Resources/animations/templates")
     expect(AnimationTemplate.all(in: bundledTemplates).first { $0.name == "lottie" }?.make(start: 0, end: 2).overlay == true,
       "a new Lottie animation floats over the video")
+    // A template's frame rate: 12 (hand-drawn) unless its manifest asks; a rate past 1 to 60 is refused.
+    var smooth = AnimationTemplate.all(in: bundledTemplates).first { $0.name == "lottie" }!
+    expect((try? smooth.frameRate()) == 12, "a template that doesn't ask steps at 12 fps")
+    smooth.fps = 30
+    expect((try? smooth.frameRate()) == 30, "a template's manifest can ask for 30 fps")
+    smooth.fps = 0
+    expect((try? smooth.frameRate()) == nil, "a frame rate of 0 is refused")
     try? FileManager.default.removeItem(at: lottieRoot)
     // Text contrast: WCAG ratios, and the backdrop is what's around the text, even when its glyphs fill its box.
     expect(abs(TextContrast.ratio([0, 0, 0], [1, 1, 1]) - 21) < 0.01 && abs(TextContrast.ratio([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]) - 1) < 0.01, "contrast runs 1:1 to 21:1")

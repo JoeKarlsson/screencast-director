@@ -30,6 +30,19 @@ public struct AnimationTemplate: Codable, Equatable, Sendable {
   public var data: JSONValue
   /// A new one floats over the video (`Animation.overlay`) instead of filling the frame.
   public var overlay: Bool?
+  /// Frames a second its clips step at (1 to 60). Unset is 12, the hand-drawn look; a template whose
+  /// camera glides across a screen asks for 30, since big smooth moves judder at 12.
+  public var fps: Int?
+
+  /// The hand-drawn look's rate, for a template that doesn't ask for one.
+  public static let handDrawnFps = 12
+
+  /// The rate its clips step at: `fps`, else 12.
+  public func frameRate() throws -> Int {
+    guard let fps else { return Self.handDrawnFps }
+    guard (1...60).contains(fps) else { throw DirectorError("the \(name) template asks for \(fps) fps; use 1 to 60") }
+    return fps
+  }
 
   /// Every template in `dir` (Resources/animations/templates), by title.
   public static func all(in dir: URL) -> [AnimationTemplate] { load(in: dir).templates }
