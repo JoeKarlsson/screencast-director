@@ -6,6 +6,7 @@
 # it first when its sources changed (`swift build -c release --package-path macos --product director`).
 #
 #   sd import <name> <video> [--camera <file> [--camera-offset <sec>]]
+#   sd new <name> [--length 30] [--size 1920x1080]   a project with no recording, for a film made of animations
 #   sd analyze <name>             transcribe (Whisper) and measure screen motion
 #   sd plan <name> [--force]      write a first-draft plan.json (the planner alone)
 #   sd draft <name> [--force]     the app's first draft: plan plus your default profile and settings
@@ -73,6 +74,35 @@ cmd_import() {
   echo "Imported to $dir (no input events, so zooms come from Claude, not clicks)."
 }
 
+# A project with no recording: a silent, blank screen.mp4 `length` seconds long and a plan that shows
+# it full frame, so a film can be built from animations alone (add them to plan.json, then render).
+cmd_new() {
+  local name=${1:-}; shift || die "usage: sd new <name> [--length 30] [--size 1920x1080]"
+  local length=30 size=1920x1080
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --length) length=${2:-}; shift 2 || die "--length takes seconds" ;;
+      --size) size=${2:-}; shift 2 || die "--size takes WIDTHxHEIGHT" ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  [[ "$length" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk "BEGIN { exit !($length > 0 && $length <= 3600) }" \
+    || die "--length takes seconds, more than 0 and at most 3600, like 30"
+  [[ "$size" =~ ^([0-9]+)x([0-9]+)$ ]] || die "--size takes WIDTHxHEIGHT, like 1920x1080"
+  local w=${BASH_REMATCH[1]} h=${BASH_REMATCH[2]}
+  (( w >= 16 && h >= 16 && w <= 7680 && h <= 7680 && w % 2 == 0 && h % 2 == 0 )) || die "--size takes even sizes from 16 to 7680, like 1920x1080"
+  local dir; dir=$(project_dir "$name")
+  [ -e "$dir" ] && die "$dir already exists"
+  mkdir -p "$dir"
+  ffmpeg -v error -f lavfi -i "color=c=white:s=${w}x${h}:r=30:d=$length" -f lavfi -i "anullsrc=r=48000:cl=stereo" \
+    -t "$length" -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "$dir/screen.mp4" || { rm -rf "$dir"; die "ffmpeg couldn't make the blank video"; }
+  write_source "$dir" screen.mp4
+  local d; d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dir/screen.mp4")
+  printf '{\n  "version": 1,\n  "source": { "video": "screen.mp4", "width": %s, "height": %s, "duration": %s },\n  "output": { "width": %s, "height": %s, "fps": 30 },\n  "style": { "background": ["#FFFFFF"], "padding": 0, "radius": 0, "transition": 0 },\n  "defaultLayout": "screen",\n  "segments": [{ "start": 0, "end": %s, "speed": 1 }],\n  "animations": []\n}\n' \
+    "$w" "$h" "$d" "$w" "$h" "$d" > "$dir/plan.json"
+  echo "Made $dir: ${length}s of blank screen. Add animations to its plan.json, then sd render $name."
+}
+
 # analyze, plan, describe, render: director's command on the named project, with any further arguments.
 cmd_director() {
   local command=$1 dir; dir=$(project_dir "${2:-}"); need_project "$dir"
@@ -88,7 +118,7 @@ cmd_auto() {
 
 cmd=${1:-help}; shift || true
 case $cmd in
-  import|auto) "cmd_$cmd" "$@" ;;
+  import|new|auto) "cmd_$cmd" "$@" ;;
   analyze|plan|draft|describe|render) cmd_director "$cmd" "$@" ;;
-  *) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

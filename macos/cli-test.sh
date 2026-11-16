@@ -380,6 +380,14 @@ expect_error "sd without a project name says so" "missing project name" "$SD" pl
 expect_error "sd import rejects an unknown option" "unknown option --loud" "$SD" import other "$P/screen.mp4" --loud
 expect_error "sd plan on an unanalyzed recording says to analyze first" "sd analyze" "$SD" plan cam
 check "a refused plan writes nothing" test ! -e "$SD_PROJECTS/cam/plan.json"
+"$SD" new film --length 4 --size 640x360 >/dev/null
+check "sd new makes a blank project of the asked length and size that validates" python3 -c "
+import json, sys; s = json.load(open('$SD_PROJECTS/film/source.json')); p = json.load(open('$SD_PROJECTS/film/plan.json'))
+sys.exit(0 if s['width'] == 640 and s['height'] == 360 and abs(s['duration'] - 4) < 0.1 and p['output']['width'] == 640 and p['animations'] == [] else 1)"
+check "sd new's plan is valid" "$DIRECTOR" validate "$SD_PROJECTS/film"
+expect_error "sd new won't overwrite a project" "already exists" "$SD" new film
+expect_error "sd new refuses a length of 0" "--length takes seconds" "$SD" new other --length 0
+expect_error "sd new refuses an odd size" "even sizes" "$SD" new other --size 641x360
 
 # --- a recording's input events, placed on the video's clock by source.json's captureStart (the
 # host time of the first frame, which the app's recorder writes).

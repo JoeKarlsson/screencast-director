@@ -4,6 +4,9 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Command line
+- `sd new <name> [--length 30] [--size 1920x1080]` starts a project with no recording: a blank screen of that length, so a film can be built from animations alone.
+
 ### Editor
 - An animation template can ask for a smoother frame rate: `"fps": 30` in its manifest renders its clips at 30 frames a second instead of the hand-drawn 12, so a camera gliding across a product screen doesn't judder.
 - Fixed: an animation with a large image (a product screenshot) could render a frame with the image missing while the camera zoomed.
