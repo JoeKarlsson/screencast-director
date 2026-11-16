@@ -8,7 +8,8 @@ import WebKit
 /// Renders the plan's animations to their cached clips with an offscreen WKWebView: the bundled
 /// Resources/animations page is driven frame by frame (init once, then seek(t)) and each snapshot is
 /// written to an H.264 clip. Graphics step at 12 fps, the handmade Vox look, unless the template's
-/// manifest asks for another rate (`fps`), each frame an average of snapshots for motion blur (`Animation.subframeCount`). Runs on the main actor and
+/// manifest asks for another rate (`fps`), each frame an average of snapshots for motion blur
+/// (`Animation.subframeCount`). Runs on the main actor and
 /// awaits WebKit, so the main queue stays free to deliver its callbacks.
 enum Animate {
   /// The frame rate animation `a`'s clip steps at: its template manifest's `fps`, else 12.
