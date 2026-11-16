@@ -174,13 +174,23 @@ public struct Animation: Codable, Equatable, Sendable {
     return sums.indices.map { Double(sums[$0]) / Double(max(1, counts[$0 / 3])) / 255 }
   }
 
-  /// Indices of the frames (each `popTiles` of one frame) where some tile pops.
-  public static func pops(_ frames: [[Double]]) -> [Int] {
+  /// True when the fastest piece of a frame, moving `motion` px across the shutter (the motion probe's
+  /// span), crosses half a `popTiles` tile or more in a frame: a whip. (Pieces coming or going, an
+  /// infinite `motion`, aren't a whip: that's what a pop is.)
+  public static func whips(motion: Double, width: Int, height: Int) -> Bool {
+    motion.isFinite && motion / shutter >= Double(max(1, min(width, height) / popTilesPerShortSide)) / 2
+  }
+
+  /// Indices of the frames (each `popTiles` of one frame) where some tile pops. Frames `whipping`
+  /// marks (`whips`) don't count: at 30 fps a whip's band of color sits in each tile it crosses for
+  /// one frame, which looks the same as a pop to tiles but is motion.
+  public static func pops(_ frames: [[Double]], whipping: [Bool]) -> [Int] {
     guard frames.count > 2 else { return [] }
     func diff(_ a: [Double], _ b: [Double], _ tile: Int) -> Double {
       (0..<3).map { abs(a[tile * 3 + $0] - b[tile * 3 + $0]) }.max()!
     }
     return (1..<(frames.count - 1)).filter { i in
+      if i < whipping.count && whipping[i] { return false }
       let (before, now, after) = (frames[i - 1], frames[i], frames[i + 1])
       guard before.count == now.count, now.count == after.count else { return false }
       return (0..<(now.count / 3)).contains { tile in

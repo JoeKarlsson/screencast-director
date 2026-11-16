@@ -32,11 +32,20 @@ func contactSheetChecks() {
   }
   expect(frame(square: nil).count == 7 * 4 * 3, "a 960x540 frame splits into 7x4 tiles (\(frame(square: nil).count / 3))")
   let still = frame(square: nil)
-  expect(Animation.pops([still, frame(square: (20, 20)), still, still]) == [1], "a square shown for one frame pops")
-  expect(Animation.pops([still, frame(square: (20, 20)), frame(square: (20, 20)), still]).isEmpty, "a square shown for two frames doesn't")
-  expect(Animation.pops([still, still, frame(square: (20, 20)), frame(square: (20, 20))]).isEmpty, "a square that appears and stays doesn't")
+  expect(Animation.pops([still, frame(square: (20, 20)), still, still], whipping: []) == [1], "a square shown for one frame pops")
+  expect(Animation.pops([still, frame(square: (20, 20)), frame(square: (20, 20)), still], whipping: []).isEmpty, "a square shown for two frames doesn't")
+  expect(Animation.pops([still, still, frame(square: (20, 20)), frame(square: (20, 20))], whipping: []).isEmpty, "a square that appears and stays doesn't")
   let moving = (0..<12).map { frame(square: (20 + $0 * 25, 20)) }
-  expect(Animation.pops(moving).isEmpty, "a square moving across tiles doesn't (\(Animation.pops(moving)))")
+  expect(Animation.pops(moving, whipping: []).isEmpty, "a square moving across tiles doesn't (\(Animation.pops(moving, whipping: [])))")
+  // Fast motion at 30 fps: a square crossing a whole tile each frame (a whip) is in each tile for one
+  // frame, but it arrives from one neighbor and leaves to the other, so it's moving, not popping.
+  let whip = (0..<6).map { frame(square: (20 + $0 * 135, 20)) }
+  expect(Animation.pops(whip, whipping: Array(repeating: true, count: 6)).isEmpty, "a square crossing a tile a frame in a whip doesn't pop")
+  expect(Animation.pops(whip, whipping: []) == [1, 2, 3, 4], "the same jumps outside a whip do")
+  // 135 px tiles: crossing 80 px a frame (20 px across a quarter-frame shutter) is a whip, 40 px isn't,
+  // and something appearing (infinite motion) never is.
+  expect(Animation.whips(motion: 20, width: 960, height: 540) && !Animation.whips(motion: 10, width: 960, height: 540)
+    && !Animation.whips(motion: .infinity, width: 960, height: 540), "a whip crosses half a tile a frame")
 
   // Beats: the first and last frames, after a cut, after a zoom lands, after each animation cue,
   // nothing for an item that's cut, and beats close together share one frame.

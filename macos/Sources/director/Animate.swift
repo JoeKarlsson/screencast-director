@@ -489,7 +489,7 @@ enum Animate {
       let bytes = width * height * 4
       var sum = [UInt32](repeating: 0, count: bytes)
       var pixels = [UInt8](repeating: 0, count: bytes)
-      var tiles: [[Double]] = []
+      var tiles: [[Double]] = [], whipping: [Bool] = []
       let band = plan.captionBand(a) ?? (0, 0)
       var overlaps: [(t: Double, rows: [[Any]])] = [], faint: [(t: Double, rows: [[Any]])] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
@@ -517,6 +517,7 @@ enum Animate {
         let count = UInt32(times.count)
         for i in pixels.indices { pixels[i] = UInt8((sum[i] + count / 2) / count) }
         tiles.append(Animation.popTiles(bgra: pixels, width: width, height: height))
+        whipping.append(Animation.whips(motion: motion, width: width, height: height))
         if let onFrame { try onFrame(f, try image(pixels)) }
         // Overlaps on every frame, mid-move included: a piece flying through a label is as wrong as one parked on it.
         let at = Animation.subframeTimes(frame: f, fps: fps, duration: duration, count: 1)[0]
@@ -542,7 +543,7 @@ enum Animate {
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
       return (
-        Animation.pops(tiles).map { $0 + first },
+        Animation.pops(tiles, whipping: whipping).map { $0 + first },
         Animate.overlapWarnings(a, index: index, frames: overlaps, step: 1 / Double(fps))
           + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(fps))
       )
