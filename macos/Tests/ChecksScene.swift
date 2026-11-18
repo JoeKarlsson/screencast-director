@@ -370,6 +370,17 @@ func sceneDrawingChecks() {
   }
   let embedCounts = [wordPixels(30), wordPixels(90), wordPixels(150)]
   expect(embedCounts[0] == 0 && embedCounts[1] > 20 && embedCounts[2] == 0, "an embed's word shows over the camera for its span only (\(embedCounts))")
+  // Not in the bubble: an embed is for the full camera.
+  embedded.defaultLayout = .pip
+  let bubble = layoutBoxes(.pip, plan: embedded).cam
+  let bubbleImg = render(embedded, frame: 90, camera: green)
+  var noEmbed = embedded
+  noEmbed.captions.embeds = nil
+  let bubblePlain = render(noEmbed, frame: 90, camera: green)
+  let inBubbleWord = stride(from: bubble.x, to: bubble.x + bubble.w, by: 6).filter { x in
+    stride(from: bubble.y, to: bubble.y + bubble.h, by: 6).contains { !near(at(bubbleImg, x, $0), at(bubblePlain, x, $0), 0.02) }
+  }.count
+  expect(inBubbleWord == 0, "an embed doesn't draw in the camera bubble (\(inBubbleWord) columns)")
   // A punch-in with a framing point cuts to that side of the camera (in file coordinates, so mirrored too).
   talking.camera?.mirror = nil
   talking.camera?.punchIns = [PunchIn(start: 2, end: 4, scale: 2)]

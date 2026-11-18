@@ -82,8 +82,8 @@ extension Scene {
       return moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
     }
     var placed = place(src)
-    // An embed: the word goes between the room and the person, so the speaker stands in front of it.
-    if cut == 0, let e = embeds.last(where: { f >= $0.s && f < $0.e }), let word = embedWord(e.text, frame: f - e.s, length: e.e - e.s, box: r) {
+    // An embed, over the full camera only: the word goes between the room and the person, so the speaker stands in front of it.
+    if cut == 0, b.h >= layoutBoxes(.camera, plan: plan).cam.h - 1, let e = embeds.last(where: { f >= $0.s && f < $0.e }), let word = embedWord(e.text, frame: f - e.s, length: e.e - e.s, box: r) {
       placed = place(Scene.personCutout(src)).composited(over: word.composited(over: placed))
     }
     return masked(placed, r, radius: b.r, opacity: b.opacity)
