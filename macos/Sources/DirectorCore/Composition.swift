@@ -164,6 +164,7 @@ public func buildComposition(project: Project, plan: Plan, live: LiveFrames? = n
 
   let total = CMTime(value: CMTimeValue(scene.frameCount), timescale: fps)
   let music = try await addMusic(plan, project: project, scene: scene, voiceLevels: voiceLevels, total: total, to: comp)
+  if let w = music.warning { warnings.append(w) }
 
   let effects = try await addSoundEffects(plan, project: project, scene: scene, total: total, to: comp)
 
@@ -336,8 +337,8 @@ func videoOrientation(_ t: CGAffineTransform) -> CGImagePropertyOrientation? {
 /// the asset, which must outlive the composition's inserts (nil for both without music).
 private func addMusic(
   _ plan: Plan, project: Project, scene: Scene, voiceLevels: [(Double, Double)], total: CMTime, to comp: AVMutableComposition
-) async throws -> (params: AVMutableAudioMixInputParameters?, asset: AVURLAsset?) {
-  guard let music = plan.music else { return (nil, nil) }
+) async throws -> (params: AVMutableAudioMixInputParameters?, asset: AVURLAsset?, warning: String?) {
+  guard let music = plan.music else { return (nil, nil, nil) }
   // A library track the plan names (music/<file>) is copied into the project the first time.
   try AudioLibrary(.music, for: plan).freezeMissing([music.file], project: project.dir)
   let asset = AVURLAsset(url: resolvePath(music.file, in: project.dir))
@@ -352,12 +353,20 @@ private func addMusic(
   }
   let params = AVMutableAudioMixInputParameters(track: track)
   let speech = MusicDuck.speech(levels: voiceLevels, mapped: scene.mapped, fps: scene.fps)
-  MusicDuck.apply(music, to: params, speech: speech, off: MusicDuck.offSpans(music, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+  // A carve that can't be measured falls back to the usual, deeper duck, and says so.
+  var ducked = music
+  var warning: String?
   if music.carve == true, !voiceLevels.isEmpty {
-    let bands = try await MusicCarve.bands(project, video: plan.source.video, levels: voiceLevels)
-    params.audioTapProcessor = try MusicCarve.tap(bands: bands, speech: speech, frames: scene.frameCount, fps: scene.fps)
+    do {
+      let bands = try await MusicCarve.bands(project, video: plan.source.video, levels: voiceLevels)
+      params.audioTapProcessor = try MusicCarve.tap(bands: bands, speech: speech, frames: scene.frameCount, fps: scene.fps)
+    } catch {
+      ducked.carve = nil
+      warning = "The music carve didn't work, so the music ducks under the voice as usual: \(error.localizedDescription)"
+    }
   }
-  return (params, asset)
+  MusicDuck.apply(ducked, to: params, speech: speech, off: MusicDuck.offSpans(music, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+  return (params, asset, warning)
 }
 
 /// Sound effects: one shared track, each effect at its mapped output time and real speed, not

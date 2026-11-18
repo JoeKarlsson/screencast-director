@@ -99,7 +99,9 @@ public enum MusicCarve: Sendable {
     let depth: [Float]
     let fps: Double
     var filters: [WarmVoice.Biquad] = []
-    var applied: Float = -1
+    /// Each band's filter at each hundredth of its cut, built in `prepare`, so the audio thread only copies numbers.
+    var steps: [[WarmVoice.Biquad]] = []
+    var applied = -1
     var isFloat = true
     var sampleRate = 48000.0
     var channels = 1
@@ -109,14 +111,21 @@ public enum MusicCarve: Sendable {
       self.fps = fps
     }
     func depth(at t: Double) -> Float { depth.isEmpty ? 0 : depth[min(depth.count - 1, max(0, Int(t * fps)))] }
-    /// Sets the filters to `share` of their cut, keeping their state so nothing clicks.
+    /// Builds the filters and their steps for the stream's rate and channels (off the audio thread).
+    func prepare() {
+      steps = (0...100).map { s in bands.map { WarmVoice.Biquad.peak($0.hz, gainDB: $0.gainDB * Double(s) / 100, q: $0.q, rate: sampleRate, channels: channels) } }
+      filters = steps[0]
+      applied = 0
+    }
+    /// Sets the filters to `share` of their cut, keeping their state so nothing clicks. Copies
+    /// coefficients only: nothing is allocated on the audio thread.
     func set(_ share: Float) {
-      guard abs(share - applied) > 0.01 else { return }
-      applied = share
-      filters = bands.enumerated().map { i, b in
-        var f = WarmVoice.Biquad.peak(b.hz, gainDB: b.gainDB * Double(share), q: b.q, rate: sampleRate, channels: channels)
-        if i < filters.count { (f.z1, f.z2) = (filters[i].z1, filters[i].z2) }
-        return f
+      let step = min(100, max(0, Int((share * 100).rounded())))
+      guard step != applied, !steps.isEmpty else { return }
+      applied = step
+      for i in filters.indices {
+        let c = steps[step][i]
+        (filters[i].b0, filters[i].b1, filters[i].b2, filters[i].a1, filters[i].a2) = (c.b0, c.b1, c.b2, c.a1, c.a2)
       }
     }
   }
@@ -135,9 +144,7 @@ public enum MusicCarve: Sendable {
         b.isFloat = format.pointee.mFormatFlags & kAudioFormatFlagIsFloat != 0 && format.pointee.mBitsPerChannel == 32
         b.sampleRate = format.pointee.mSampleRate
         b.channels = max(1, Int(format.pointee.mChannelsPerFrame))
-        b.applied = -1
-        b.filters = []
-        b.set(0)
+        b.prepare()
       },
       unprepare: nil,
       process: { tap, frames, _, bufferList, framesOut, flagsOut in

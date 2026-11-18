@@ -189,6 +189,21 @@ struct Media {
     expect(cleaned.warnings.count == 1 && cleaned.warnings[0].contains("Clean up voice"), "a failed voice cleanup is a warning (\(cleaned.warnings))")
     expect(cleaned.asset.tracks(withMediaType: .audio).count == 1, "and the original voice still plays")
     try FileManager.default.removeItem(at: dir.appendingPathComponent(VoiceCleanup.fileName))
+    // A music carve that can't be measured ducks the music as usual and says so (a folder in the
+    // band cache's place again).
+    let bedFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+    let bed = AVAudioPCMBuffer(pcmFormat: bedFormat, frameCapacity: 44100)!
+    bed.frameLength = 44100
+    for i in 0..<44100 { bed.floatChannelData![0][i] = Float(sin(Double(i) * 2 * .pi * 220 / 44100) * 0.3) }
+    try AVAudioFile(forWriting: dir.appendingPathComponent("bed.caf"), settings: bedFormat.settings).write(from: bed)
+    let bands = dir.appendingPathComponent(".render/carve-bands.json")
+    try FileManager.default.createDirectory(at: bands, withIntermediateDirectories: true)
+    var carvePlan = buildPlan(loaded)
+    carvePlan.music = Music(file: "bed.caf", carve: true)
+    let carved = try await buildComposition(project: loaded, plan: carvePlan)
+    expect(carved.warnings.contains { $0.contains("music carve") }, "a failed music carve is a warning (\(carved.warnings))")
+    expect(carved.audioMix.inputParameters.allSatisfy { $0.audioTapProcessor == nil }, "and the music plays without it")
+    try FileManager.default.removeItem(at: bands)
     // Voice effects play on their own track: the echo from 0.2 s with its tail running on until the
     // chipmunk at 2.2 s cuts it off; the slow-mo gets a varispeed track of its own.
     var fxPlan = buildPlan(loaded)
