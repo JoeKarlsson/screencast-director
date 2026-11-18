@@ -124,6 +124,9 @@ private func musicCarveChecks() {
   expect(bands.allSatisfy { $0.gainDB <= -3 && $0.gainDB >= -6 }, "each cut is 3 to 6 dB (\(bands.map(\.gainDB)))")
   expect(MusicDuck.duckDB(Music(file: "m", carve: true)) == -10 && MusicDuck.duckDB(Music(file: "m")) == -18
     && MusicDuck.duckDB(Music(file: "m", duckDB: -4, carve: true)) == -4, "carving ducks the whole track less unless duckDB is set")
+  let d = MusicCarve.depth(speech: [(1, 2), (5, 6)], frames: 70, fps: 10)
+  expect(d[9] == 0 && d[10] == 1 && d[20] == 1 && abs(d[21] - 0.6) < 1e-5 && d[23] == 0 && d[55] == 1 && d.count == 70,
+    "the carve's depth is full while talking and releases over 0.25 s after (\(d[9]), \(d[21]), \(d[23]))")
 
   let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-carve-\(UUID().uuidString)")
   try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

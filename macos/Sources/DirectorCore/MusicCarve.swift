@@ -80,11 +80,18 @@ public enum MusicCarve: Sendable {
   /// How deep the cut is at each output frame (0 none, 1 full), following `speech` (output seconds,
   /// `MusicDuck.speech`).
   static func depth(speech: [(Double, Double)], frames: Int, fps: Int) -> [Float] {
-    (0..<frames).map { f in
-      let t = Double(f) / Double(fps)
-      let shares = speech.map { a, b in t < a - attack ? 0 : t < a ? 1 - (a - t) / attack : t <= b ? 1 : t < b + release ? 1 - (t - b) / release : 0 }
-      return Float(shares.max() ?? 0)
+    var out = [Float](repeating: 0, count: max(0, frames))
+    let rate = Double(fps)
+    // Each span only touches its own frames, from the attack before it to the release after.
+    for (a, b) in speech {
+      let first = max(0, Int(((a - attack) * rate).rounded(.up))), last = min(frames - 1, Int(((b + release) * rate).rounded(.down)))
+      guard first <= last else { continue }
+      for f in first...last {
+        let t = Double(f) / rate
+        out[f] = max(out[f], Float(t < a ? 1 - (a - t) / attack : t <= b ? 1 : 1 - (t - b) / release))
+      }
     }
+    return out
   }
 
   final class Box {

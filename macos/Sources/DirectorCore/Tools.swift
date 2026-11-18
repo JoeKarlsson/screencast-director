@@ -61,6 +61,8 @@ public func analyze(_ dir: URL, log: @escaping (String) -> Void = { _ in }) asyn
   }
   // Loudness feeds pause trimming, normalizing and word-timing refinement; measure it fresh now.
   try? FileManager.default.removeItem(at: dir.appendingPathComponent("loudness.json"))
+  // The music carve's voice bands come from the same audio.
+  try? FileManager.default.removeItem(at: dir.appendingPathComponent(".render/carve-bands.json"))
   if hasAudio { _ = try await Analyzer.loudness(Project(dir: dir, source: source), video: source.video) }
   log("Measuring screen motion...")
   let motion = try await Analyzer.measureMotion(video)
