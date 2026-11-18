@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # UI smoke test: builds dist/Screencast Director.app, launches that copy on a synthetic project in a
 # temp folder, and drives it through System Events: the editor opens, pressing a timeline bar
-# selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, dragging
-# the last clip to the front reorders it, Publish hides the camera cover picker without a camera, and the
+# selects it, the inspector shows the clip, S changes its speed in plan.json, ⌘Z undoes it, moving
+# the last clip first reorders it, Publish hides the camera cover picker without a camera, and the
 # Audio tab's sound and music pickers add a library sound and set a library track, and the speaker
 # button under the preview mutes and unmutes it.
 #
@@ -174,24 +174,16 @@ front
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
 [[ "$(segments)" == "$original" ]] || fail "⌘Z didn't restore plan.json after the Claude box step"
 
-# 4c. Dragging the last clip's bar to the front of the timeline makes it play first (a cold open),
-# and ⌘Z puts it back. The drag is a real mouse drag: the bar's own gesture is what's tested.
+# 4c. Moving the last clip to the front makes it play first (a cold open), and ⌘Z puts it back.
+# Through the inspector's Order buttons by Accessibility, so the test never moves the real pointer
+# (a posted mouse drag did, and missed whenever the pointer was in use).
 first_start() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["segments"][0]["start"])' "$PROJECT/plan.json"; }
-geom="$(ax "set p to position of button $clip_bar of $TIMELINE
-    set s to size of button $clip_bar of $TIMELINE
-    set minX to item 1 of p
-    set ps to position of every button of $TIMELINE
-    repeat with i from 1 to count of ps
-      set q to item i of ps
-      if item 2 of q = item 2 of p and item 1 of q < minX then set minX to item 1 of q
-    end repeat
-    return ((item 1 of p) as text) & \" \" & ((item 2 of p) as text) & \" \" & ((item 1 of s) as text) & \" \" & ((item 2 of s) as text) & \" \" & (minX as text)")"
-read -r bx by bw bh minx <<<"$geom"
-front
-[[ "$("$AXPRESS" "$PID" drag $((bx + bw / 2)) $((by + bh / 2)) $((minx + 3)) $((by + bh / 2)))" == dragged ]] || fail "couldn't drag the clip"
+ax "perform action \"AXPress\" of button $clip_bar of $TIMELINE" >/dev/null
+sleep 0.6
+[[ "$("$AXPRESS" "$PID" help "Play this clip first")" == pressed ]] || fail "no First button in the clip's Order section"
 for _ in $(seq 1 20); do [[ "$(first_start)" == 10.5 ]] && break; sleep 0.2; done
-[[ "$(first_start)" == 10.5 ]] || fail "dragging the 10.5 s clip to the front didn't make it play first (first clip starts at $(first_start))"
-echo "ok: dragging the last clip to the front made it play first"
+[[ "$(first_start)" == 10.5 ]] || fail "moving the 10.5 s clip first didn't make it play first (first clip starts at $(first_start))"
+echo "ok: moving the last clip first made it play first"
 front
 "$AXPRESS" "$PID" key 6 cmd >/dev/null # ⌘Z
 for _ in $(seq 1 20); do [[ "$(segments)" == "$original" ]] && break; sleep 0.2; done
@@ -241,7 +233,7 @@ for _ in $(seq 1 20); do [[ "$(gain)" != "$before_gain" ]] && break; sleep 0.2; 
 [[ "$(gain)" != "$before_gain" ]] || fail "the volume slider didn't change the sound's level (gainDB $(gain))"
 echo "ok: the volume slider set the sound to $(gain) dB"
 front
-ax 'key code 51' >/dev/null # ⌫
+"$AXPRESS" "$PID" key 51 >/dev/null # ⌫
 for _ in $(seq 1 20); do [[ -z "$(sounds)" ]] && break; sleep 0.2; done
 [[ -z "$(sounds)" ]] || fail "⌫ didn't remove the selected sound (sfx: $(sounds))"
 echo "ok: ⌫ removed the sound"
@@ -274,7 +266,7 @@ echo "ok: the music picker set Advertime as the music and copied it into the pro
 ask() {
   [[ "$("$AXPRESS" "$PID" focus-field "Ask *")" == focused ]] || fail "no Claude box to type in"
   front
-  ax "keystroke \"$1\"" >/dev/null
+  "$AXPRESS" "$PID" type "$1" >/dev/null
   [[ "$("$AXPRESS" "$PID" description "Ask *")" == pressed ]] || fail "no send button in the Claude box"
 }
 last_reply() { python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); print(a[-1]["reply"] if a else "")' "$PROJECT/.history/asks.json" 2>/dev/null || true; }
@@ -291,8 +283,11 @@ checkpoint_segments() { python3 -c 'import json,sys; print(json.dumps(json.load(
 saved="$(checkpoint_segments)" || fail "no rewind point saved for the ask"
 python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); p["segments"][-1]["speed"]=2; json.dump(p,open(sys.argv[1],"w"),indent=2)' "$PROJECT/plan.json"
 [[ "$(segments)" != "$saved" ]] || fail "changing plan.json after the ask didn't change it"
+# The app reads plan.json once a second: give it time to pick up that edit, then wait for the ↺.
 sleep 1.5
-[[ "$(press_help "Rewind to before this ask")" == pressed ]] || fail "no rewind button beside the finished ask"
+rewound=""
+for i in $(seq 1 50); do rewound="$(press_help "Rewind to before this ask")"; [[ "$rewound" == pressed ]] && break; sleep 0.2; done
+[[ "$rewound" == pressed ]] || fail "no rewind button beside the finished ask within 10 s"
 for _ in $(seq 1 25); do [[ "$(ax 'exists sheet 1 of window 1')" == true ]] && break; sleep 0.2; done
 ax 'click button "Rewind" of sheet 1 of window 1' >/dev/null || fail "no Rewind button in the confirmation sheet"
 for _ in $(seq 1 25); do [[ "$(segments)" == "$saved" ]] && break; sleep 0.2; done
@@ -359,7 +354,7 @@ for _ in $(seq 1 150); do [[ -s "$TMP/claude.pid" ]] && break; sleep 0.2; done
 claude_pid="$(cat "$TMP/claude.pid" 2>/dev/null)" || fail "the stand-in Claude never started"
 kill -0 "$claude_pid" 2>/dev/null || fail "the stand-in Claude isn't running"
 front
-ax 'key code 12 using command down' >/dev/null # ⌘Q
+"$AXPRESS" "$PID" key 12 cmd >/dev/null # ⌘Q
 for _ in $(seq 1 50); do kill -0 "$PID" 2>/dev/null || break; sleep 0.1; done
 kill -0 "$PID" 2>/dev/null && fail "test instance didn't quit on ⌘Q"
 PID=""

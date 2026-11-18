@@ -21,7 +21,7 @@ let args = CommandLine.arguments
 func usage() -> Never {
   FileHandle.standardError.write(
     Data(
-      "usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | drag <x1> <y1> <x2> <y2> | window-id | focused | key <code> [cmd]\n"
+      "usage: axpress <pid> help|description <text> | focus-field|field-value <placeholder> | click-title | window-id | focused | key <code> [cmd] | type <text>\n"
         .utf8))
   exit(2)
 }
@@ -103,22 +103,18 @@ case "click-title":
     usleep(50_000)
   }
   print("clicked")
-case "drag":
-  guard args.count == 7, let x1 = Double(args[3]), let y1 = Double(args[4]), let x2 = Double(args[5]), let y2 = Double(args[6])
-  else { usage() }
-  func post(_ type: CGEventType, _ x: Double, _ y: Double) {
-    CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)?
-      .post(tap: .cghidEventTap)
+case "type":
+  // Text to this process, like `key`: each character as a key-down carrying it.
+  guard args.count == 4 else { usage() }
+  let source = CGEventSource(stateID: .privateState)
+  for unit in Array(args[3].utf16) {
+    let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
+    var u = unit
+    event?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &u)
+    event?.postToPid(pid)
     usleep(30_000)
   }
-  post(.leftMouseDown, x1, y1)
-  for i in 1...20 {
-    let f = Double(i) / 20
-    post(.leftMouseDragged, x1 + (x2 - x1) * f, y1 + (y2 - y1) * f)
-  }
-  usleep(200_000)
-  post(.leftMouseUp, x2, y2)
-  print("dragged")
+  print("typed")
 case "key":
   // Straight to this process, not to whatever app is in front (System Events' `key code` goes to
   // the frontmost app, and with the installed copy open that's a race). `cmd` holds ⌘ (⌘Z).
