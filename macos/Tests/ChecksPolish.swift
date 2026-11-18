@@ -360,8 +360,9 @@ func templateLintChecks() {
     /* so is
        requestAnimationFrame(x) here */
     const url = "https://example.com"; const ok = seed(3);
+    ctx.font = "600 34px Menlo, monospace";
     """
   let found = TemplateLint.problems(bad)
   for line in [1, 2, 3, 4, 5, 6] { expect(found.contains { $0.hasPrefix("line \(line):") }, "lint flags line \(line) (\(found))") }
-  expect(found.count == 6, "comments and a URL's // aren't flagged (\(found))")
+  expect(found.count == 6, "comments, a URL's // and a font list ending in a generic family aren't flagged (\(found))")
 }

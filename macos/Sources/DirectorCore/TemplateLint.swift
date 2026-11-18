@@ -26,6 +26,8 @@ public enum TemplateLint {
       let code = stripComments(raw, inBlock: &inBlock)
       for rule in rules {
         guard let r = code.range(of: rule.pattern, options: .regularExpression) else { continue }
+        // A font list ending in a generic family (Menlo, monospace) always renders something fitting.
+        if rule.problem.hasPrefix("names a font"), code[r.lowerBound...].range(of: #"\b(monospace|sans-serif|serif|system-ui|cursive)\b"#, options: .regularExpression) != nil { continue }
         out.append("line \(n + 1): `\(code[r].trimmingCharacters(in: .whitespaces))` \(rule.problem)")
       }
     }
