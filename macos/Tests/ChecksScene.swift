@@ -358,6 +358,10 @@ func sceneDrawingChecks() {
   talking.camera?.mirror = true
   let leftMirrored = at(render(talking, frame: 90, camera: redBlue), 200, 540)
   expect(near(leftPlain, [0.9, 0.1, 0.1]) && near(leftMirrored, [0.1, 0.1, 0.9]), "mirror flips the camera (\(leftPlain) -> \(leftMirrored))")
+  // A Punch In pushes one way through the cut: its scale only grows, and the new shot starts small.
+  let punch = stride(from: -1.0, through: 1.0, by: 0.05).map { Scene.punchScale($0) }
+  expect(zip(punch, punch.dropFirst()).allSatisfy { $0.1 >= $0.0 || $0.0 > 1.06 } && Scene.punchScale(0) < 0.94
+    && abs(Scene.punchScale(-1) - 1) < 1e-9 && abs(Scene.punchScale(1) - 1) < 1e-9, "a punch-in grows through the cut and ends at full size (\(punch))")
   // An embed draws its word across the top of the full camera for its span only (no one in this
   // camera, so nothing stands in front of it).
   var embedded = talking

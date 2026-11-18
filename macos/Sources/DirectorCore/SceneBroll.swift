@@ -187,6 +187,13 @@ extension Scene {
     return out
   }
 
+  /// A Punch In's scale `d` of the way through it (-1 to 1, the cut at 0): up to 7% bigger, speeding
+  /// into the cut, then from 7% small growing back to full size, slowing to rest. It only ever grows.
+  static func punchScale(_ d: Double) -> Double {
+    let x = 1 - min(1, abs(d))
+    return d < 0 ? 1 + 0.07 * x * x : 1 - 0.07 * x * x
+  }
+
   /// Styled cuts: blur, dip to the background, flash, punch in or whip pan, peaking on the cut.
   func cutTransition(_ image: CIImage, frame f: Double) -> CIImage {
     let half = Double(plan.output.fps) * 0.22
@@ -205,9 +212,18 @@ extension Scene {
     case "flash":
       return CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: 0.85 * peak)).cropped(to: frame).composited(over: image)
     case "punch":
-      let k = 1 + 0.07 * peak
-      return image.transformed(by: CGAffineTransform(translationX: -W / 2, y: -H / 2).concatenating(CGAffineTransform(scaleX: k, y: k))
-        .concatenating(CGAffineTransform(translationX: W / 2, y: H / 2))).cropped(to: frame)
+      // One push in through the cut: the outgoing shot speeds up as it grows into the cut, and the
+      // incoming one starts a little small and keeps growing, slowing to rest, with a blurred copy of
+      // itself filling the edges meanwhile (the shot's outer edge trimmed, so a border along the frame's
+      // edge doesn't show as a box). Growing then shrinking back reads as a bounce.
+      let k = Scene.punchScale(d)
+      let scale = CGAffineTransform(translationX: -W / 2, y: -H / 2).concatenating(CGAffineTransform(scaleX: k, y: k))
+        .concatenating(CGAffineTransform(translationX: W / 2, y: H / 2))
+      let pushed = image.transformed(by: scale)
+      guard k < 1 else { return pushed.cropped(to: frame) }
+      let edge = 0.015 * min(W, H)
+      let trimmed = pushed.cropped(to: frame.applying(scale).insetBy(dx: edge, dy: edge))
+      return trimmed.composited(over: trimmed.clampedToExtent().applyingGaussianBlur(sigma: 40 * u)).cropped(to: frame)
     case "whip":
       // Out to the left before the cut, in from the right after it.
       let shift = (d < 0 ? -1.0 : 1.0) * W * 0.18 * peak

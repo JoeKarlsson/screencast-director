@@ -4,6 +4,9 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Transitions
+- The Punch In transition pushes one way through the cut: it grows into the cut, and the next shot starts a little small and keeps growing, instead of growing and then shrinking back.
+
 ### Captions
 - Caption embeds (`captions.embeds`): on a peak beat, one big word pops up behind you over the full camera, your cutout in front of it, alongside the normal caption line.
 
