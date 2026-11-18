@@ -62,6 +62,14 @@ func animationScripts(_ animations: URL) -> JSContext {
 @main
 struct Checks {
   static func main() {
+    runChecks()
+    print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
+    exit(failures == 0 ? 0 : 1)
+  }
+
+  /// Every check. Its own function so the temp folders its `defer`s remove are gone before `exit`,
+  /// which skips any `defer` still pending.
+  static func runChecks() {
     let fps = 30
     let segs = [Segment(start: 0, end: 2, speed: 1), Segment(start: 5, end: 11, speed: 3), Segment(start: 12, end: 13, speed: 1)]
     let m = mapSegments(segs, fps: fps)
@@ -1363,8 +1371,5 @@ struct Checks {
     cameraFormatChecks()
     contactSheetChecks()
     secretChecks()
-
-    print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
-    exit(failures == 0 ? 0 : 1)
   }
 }

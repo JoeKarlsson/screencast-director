@@ -117,7 +117,14 @@ struct Media {
   static func main() async {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("sd-media-\(getpid())")
     try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
+    await runChecks(root)
+    // exit skips pending defers, so remove the folder first.
+    try? FileManager.default.removeItem(at: root)
+    print(failures == 0 ? "media checks passed" : "\(failures) media check(s) failed")
+    exit(failures == 0 ? 0 : 1)
+  }
+
+  static func runChecks(_ root: URL) async {
     do {
       try await analysis(root)
       try await analyzeAndScreenText(root)
@@ -131,8 +138,6 @@ struct Media {
     } catch {
       expect(false, "media checks threw: \(error)")
     }
-    print(failures == 0 ? "media checks passed" : "\(failures) media check(s) failed")
-    exit(failures == 0 ? 0 : 1)
   }
 
   /// Motion, audio extraction, loudness and silences.
