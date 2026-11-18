@@ -135,6 +135,24 @@ func polishChecks() {
   whip.zooms = [Zoom(start: 2, end: 6, x: 0.9, y: 0.1, scale: 2.5, seconds: 0.25), Zoom(start: 6, end: 8, x: 0.1, y: 0.9, scale: 2.5, seconds: 0.25)]
   let whipNotes = Polish.notes(project, whip)
   expect(whipNotes.contains { $0.text.contains("screens/s") } && whipNotes.contains { $0.text.contains("octaves/s") }, "quarter-second moves are too fast (\(whipNotes.map(\.text)))")
+
+  // Four kinds of transition is a sampler; three repeated is fine.
+  var sampler = plan
+  let styledAt = [4: "whip", 8: "blur", 12: "dip", 16: "flash"]
+  sampler.segments = (0..<17).map { i in Segment(start: Double(i) * 3, end: Double(i) * 3 + 2.5, speed: 1, transition: styledAt[i]) }
+  let kindNotes = Polish.transitions(Scene(plan: sampler, words: [], clicks: [], shortcuts: []), sampler)
+  expect(kindNotes.contains { $0.text.contains("4 kinds of transition") }, "four kinds of transition is flagged (\(kindNotes.map(\.text)))")
+  sampler.segments[16].transition = "whip"
+  expect(!Polish.transitions(Scene(plan: sampler, words: [], clicks: [], shortcuts: []), sampler).contains { $0.text.contains("kinds of transition") }, "three kinds is fine")
+
+  // A zoom that goes in and straight back out with no hold bounces; one that holds between doesn't.
+  var bounce = plan
+  bounce.segments = [Segment(start: 0, end: 10, speed: 1), Segment(start: 12, end: 20, speed: 1)]
+  bounce.zooms = [Zoom(start: 9.8, end: 12, x: 0.5, y: 0.5, scale: 2)]
+  let bounceNotes = Polish.notes(project, bounce)
+  expect(bounceNotes.contains { $0.text.contains("zooms in and straight back out") }, "a zoom in and straight out (\(bounceNotes.map(\.text)))")
+  bounce.zooms = [Zoom(start: 7, end: 12, x: 0.5, y: 0.5, scale: 2)]
+  expect(!Polish.notes(project, bounce).contains { $0.text.contains("straight back") }, "a zoom that holds isn't a bounce")
 }
 
 /// `director scan`'s hitches and black frames, and review's camera frame-rate note.
@@ -318,4 +336,32 @@ func retentionChecks() {
   expect(
     Retention.notes(project(300, words: prompt), good).contains { $0.kind == "hook" && $0.text.hasPrefix("clip \"Best bit\":") },
     "a vertical clip with no hook title is flagged by name")
+}
+
+/// `director animate`'s template lint: the built-in templates and engine.js draw from t alone, and
+/// each hazard is caught in code but not in a comment.
+func templateLintChecks() {
+  let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Resources/animations")
+  let files = ((try? FileManager.default.contentsOfDirectory(at: dir.appendingPathComponent("templates"), includingPropertiesForKeys: nil)) ?? [])
+    .filter { $0.pathExtension == "js" } + [dir.appendingPathComponent("engine.js")]
+  expect(files.count > 5, "found the built-in templates")
+  for f in files {
+    let problems = TemplateLint.problems((try? String(contentsOf: f, encoding: .utf8)) ?? "")
+    expect(problems.isEmpty, "\(f.lastPathComponent) draws from t alone (\(problems))")
+  }
+  let bad = """
+    const jitter = Math.random() * 4;
+    setTimeout(() => go(), 300);
+    const now = Date.now();
+    el.style.transition = "opacity .3s";
+    box.style.cssText = "transition: transform 0.4s ease";
+    head.style.fontFamily = "'Comic Sans MS'";
+    // Math.random() and setTimeout() in a comment are fine
+    /* so is
+       requestAnimationFrame(x) here */
+    const url = "https://example.com"; const ok = seed(3);
+    """
+  let found = TemplateLint.problems(bad)
+  for line in [1, 2, 3, 4, 5, 6] { expect(found.contains { $0.hasPrefix("line \(line):") }, "lint flags line \(line) (\(found))") }
+  expect(found.count == 6, "comments and a URL's // aren't flagged (\(found))")
 }

@@ -188,6 +188,10 @@ enum Animate {
     }
     let todo = force ? plan.animationList.enumerated().map { ($0, $1, $1.clipPath(in: plan, dir: dir)) } : plan.animationsToRender(dir: dir)
     guard !todo.isEmpty else { return 0 }
+    for name in Set(todo.map(\.1.template)).sorted() {
+      guard let url = sources.script(name) else { continue }
+      for p in TemplateLint.problems(try String(contentsOf: url, encoding: .utf8)) { log("WARNING: template \(name) \(p)") }
+    }
     var page: Page?
     for (i, a, path) in todo {
       // One page while the size and transparency stay the same: each holds a window and a WebKit process.

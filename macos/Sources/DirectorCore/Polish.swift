@@ -35,6 +35,9 @@ public enum Polish {
   /// Hard cuts are the norm (over 90% of cuts in measured pro edits): more than this share with a
   /// styled transition reads as a template.
   public static let maxTransitionShare = 0.25
+  /// Two or three kinds of transition, repeated, read as the video's own grammar; more reads as a
+  /// sampler (HyperFrames' motion doctrine).
+  public static let maxTransitionKinds = 3
 
   /// Every polish note for a plan, in output order. `cameraFPS` is the camera file's frame rate
   /// (`cameraFrameRate`), when known.
@@ -69,18 +72,20 @@ public enum Polish {
 
   // MARK: Camera
 
-  /// The camera's speed at each output frame: pan in screens a second, zoom in octaves a second.
-  static func cameraSpeeds(_ scene: Scene) -> [(pan: Double, zoom: Double, dx: Double, dy: Double)] {
+  /// The camera's speed at each output frame: pan in screens a second, zoom in octaves a second
+  /// (`dz` signed: above 0 zooming in).
+  static func cameraSpeeds(_ scene: Scene) -> [(pan: Double, zoom: Double, dx: Double, dy: Double, dz: Double)] {
     let fps = Double(scene.fps)
     let base = scene.cameraBase
-    var out: [(pan: Double, zoom: Double, dx: Double, dy: Double)] = [(0, 0, 0, 0)]
+    var out: [(pan: Double, zoom: Double, dx: Double, dy: Double, dz: Double)] = [(0, 0, 0, 0, 0)]
     guard scene.frameCount > 1 else { return out }
     var prev = scene.cameraState(0, base: base)
     for f in 1..<scene.frameCount {
       let c = scene.cameraState(f, base: base)
       // Pan measured in visible widths: at 2x, a quarter of the recording is half a screen.
       let dx = (c.x - prev.x) * c.scale * fps, dy = (c.y - prev.y) * c.scale * fps
-      out.append(((dx * dx + dy * dy).squareRoot(), abs(log2(c.scale / prev.scale)) * fps, dx, dy))
+      let dz = log2(c.scale / prev.scale) * fps
+      out.append(((dx * dx + dy * dy).squareRoot(), abs(dz), dx, dy, dz))
       prev = c
     }
     return out
@@ -170,6 +175,15 @@ public enum Polish {
           break
         }
       }
+      // The same for zoom: in and straight back out (or out and in) with no hold between reads as the
+      // camera bouncing back. Both halves have to be real moves, so a spring's small overshoot doesn't count.
+      let zoomIn = speeds[r.a...r.b].map(\.dz).max() ?? 0, zoomOut = -(speeds[r.a...r.b].map(\.dz).min() ?? 0)
+      if min(zoomIn, zoomOut) > max(0.5, 0.3 * peakZoom) {
+        out.append(
+          PolishNote(
+            kind: "camera", outSeconds: at,
+            text: "camera zooms \(zoomIn > zoomOut ? "in and straight back out" : "out and straight back in") at out \(fmtTime(at)) without holding: hold the framing a second or more between the two zooms, or drop one"))
+      }
     }
     return out
   }
@@ -197,7 +211,7 @@ public enum Polish {
     return out
   }
 
-  /// Styled transitions on too many cuts, or the same one twice in a row.
+  /// Styled transitions on too many cuts, too many kinds of them, or the same one twice in a row.
   static func transitions(_ scene: Scene, _ plan: Plan) -> [PolishNote] {
     let fps = Double(scene.fps)
     // Cuts: every clip after the first that doesn't continue straight from the one before.
@@ -209,6 +223,13 @@ public enum Polish {
         PolishNote(
           kind: "transitions", outSeconds: Double(scene.mapped[styled[0]].outStart) / fps,
           text: "\(styled.count) of \(cuts.count) cuts have a styled transition; keep them for section changes and let the rest be hard cuts"))
+    }
+    let kinds = styled.compactMap { scene.mapped[$0].transition }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+    if kinds.count > maxTransitionKinds {
+      out.append(
+        PolishNote(
+          kind: "transitions", outSeconds: Double(scene.mapped[styled[0]].outStart) / fps,
+          text: "\(kinds.count) kinds of transition (\(kinds.joined(separator: ", "))); pick two or three and repeat them, so they read as this video's grammar rather than a sampler"))
     }
     for (a, b) in zip(styled, styled.dropFirst()) where cuts.firstIndex(of: b) == cuts.firstIndex(of: a).map({ $0 + 1 }) {
       let t = scene.mapped[b].transition ?? ""

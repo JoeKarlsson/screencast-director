@@ -5,6 +5,8 @@ Each release lists what changed for people using the app or the CLI. The version
 ## Unreleased
 
 ### Command line
+- `director review` flags a zoom that goes in and straight back out with no hold (it already caught a pan doubling back), and more than three kinds of transition in one video, which reads as a sampler rather than the video's own style.
+- `director animate` warns about a template that won't render the same every time: `Math.random()`, the wall clock, timers, CSS transitions, or a font named directly instead of the look's.
 - `sd new <name> [--length 30] [--size 1920x1080]` starts a project with no recording: a blank screen of that length, so a film can be built from animations alone.
 
 ### Editor

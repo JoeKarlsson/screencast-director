@@ -1346,6 +1346,7 @@ struct Checks {
     planFileChecks()
     planCheckExtraChecks()
     polishChecks()
+    templateLintChecks()
     retentionChecks()
     faceCoverChecks()
     scanPolishChecks()
