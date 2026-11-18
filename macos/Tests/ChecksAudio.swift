@@ -122,8 +122,9 @@ private func musicCarveChecks() {
   let bands = MusicCarve.bands(freqs: freqs, power: power)
   expect(bands.map(\.hz) == [250, 1600, 2500], "the carve picks the bands the voice fills (\(bands.map(\.hz)))")
   expect(bands.allSatisfy { $0.gainDB <= -3 && $0.gainDB >= -6 }, "each cut is 3 to 6 dB (\(bands.map(\.gainDB)))")
-  expect(MusicDuck.duckDB(Music(file: "m", carve: true)) == -10 && MusicDuck.duckDB(Music(file: "m")) == -18
+  expect(MusicDuck.duckDB(Music(file: "m", carve: true)) == -10 && MusicDuck.duckDB(Music(file: "m", carve: nil)) == -18
     && MusicDuck.duckDB(Music(file: "m", duckDB: -4, carve: true)) == -4, "carving ducks the whole track less unless duckDB is set")
+  expect(Music(file: "m").carve == true, "new music carves room for the voice")
   let d = MusicCarve.depth(speech: [(1, 2), (5, 6)], frames: 70, fps: 10)
   expect(d[9] == 0 && d[10] == 1 && d[20] == 1 && abs(d[21] - 0.6) < 1e-5 && d[23] == 0 && d[55] == 1 && d.count == 70,
     "the carve's depth is full while talking and releases over 0.25 s after (\(d[9]), \(d[21]), \(d[23]))")
@@ -254,7 +255,7 @@ private func musicDuckChecks() {
 
   // Talking from 5 to 8 s of a 20 s video: a 0.15 s ramp in, duck 0.3 s ahead of the voice, back up
   // over 0.6 s, and a 0.15 s ramp out. No long fades: they read as the video trailing off.
-  let talk = ramps(Music(file: "m.m4a"), speech: [(5, 8)], total: 20)
+  let talk = ramps(Music(file: "m.m4a", carve: nil), speech: [(5, 8)], total: 20)
   expect(near(volumeRamp(talk, at: 0.05), (0, up, 0, 0.15)), "music starts with a 0.15 s ramp (\(String(describing: volumeRamp(talk, at: 0.05))))")
   expect(near(volumeRamp(talk, at: 4.8), (up, down, 4.7, 5)), "music ducks 18 dB in the 0.3 s before the voice (\(String(describing: volumeRamp(talk, at: 4.8))))")
   expect(near(volumeRamp(talk, at: 8.3), (down, up, 8, 8.6)), "music comes back up over 0.6 s after the voice (\(String(describing: volumeRamp(talk, at: 8.3))))")
@@ -263,12 +264,12 @@ private func musicDuckChecks() {
   expect(near(volumeRamp(talk, at: 6.5), (down, up, 8, 8.6)), "the music holds ducked while the voice talks")
 
   // Talking from the start: ramp in to the ducked level, not up and straight back down.
-  let early = ramps(Music(file: "m.m4a"), speech: [(0.2, 3)], total: 10)
+  let early = ramps(Music(file: "m.m4a", carve: nil), speech: [(0.2, 3)], total: 10)
   expect(near(volumeRamp(early, at: 0.05), (0, down, 0, 0.15)), "talking at the start ramps in to the ducked level (\(String(describing: volumeRamp(early, at: 0.05))))")
   expect(near(volumeRamp(early, at: 3.3), (down, up, 3, 3.6)), "and comes up after the first line")
 
   // Still talking at the end: the ramp out starts from the ducked level, with no swell before it.
-  let late = ramps(Music(file: "m.m4a"), speech: [(5, 19.8)], total: 20)
+  let late = ramps(Music(file: "m.m4a", carve: nil), speech: [(5, 19.8)], total: 20)
   expect(near(volumeRamp(late, at: 19.9), (down, 0, 19.85, 20)), "talking into the end stops from the ducked level (\(String(describing: volumeRamp(late, at: 19.9))))")
   expect(!(1..<39).contains { volumeRamp(late, at: Double($0) * 0.5).map { $0.1 == up && $0.2 > 4 } ?? false }, "the music never comes back up before the end")
 

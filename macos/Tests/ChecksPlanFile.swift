@@ -43,7 +43,7 @@ func planFileChecks() {
 
   // music.off is optional: an older music object loads without it and saves without the key.
   let oldMusic = try? JSONDecoder().decode(Music.self, from: Data(#"{"file": "music/bed.m4a", "volumeDB": -16}"#.utf8))
-  expect(oldMusic == Music(file: "music/bed.m4a", volumeDB: -16), "music without off loads with no off ranges")
+  expect(oldMusic == Music(file: "music/bed.m4a", volumeDB: -16, carve: nil), "music without off loads with no off ranges, and keeps plain ducking")
   expect(oldMusic.flatMap { try? enc.encode($0) }.map { String(decoding: $0, as: UTF8.self).contains("off") } == false, "and saves without an off key")
   let offMusic = try? JSONDecoder().decode(Music.self, from: Data(#"{"file": "m.m4a", "off": [{"start": 12.5, "end": 40, "note": "terminal"}]}"#.utf8))
   expect(offMusic?.off == [MusicOff(start: 12.5, end: 40, note: "terminal")], "music.off loads its ranges")

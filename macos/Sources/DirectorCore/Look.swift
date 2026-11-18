@@ -226,7 +226,8 @@ public struct Profile: Codable, Equatable, Sendable {
       plan.captions.maxWords = captions.maxWords
       if let style = captions.style { plan.captions.style = style }
     }
-    if let music { plan.music = Music(file: music.file, volumeDB: music.volumeDB, duckDB: music.duckDB, off: plan.music?.off, carve: plan.music?.carve) }
+    if let music { plan.music = Music(file: music.file, volumeDB: music.volumeDB, duckDB: music.duckDB, off: plan.music?.off,
+      carve: plan.music == nil ? music.carve ?? true : plan.music?.carve) }
     if let audio {
       var a = plan.audioSettings
       if let v = audio.normalize { a.normalize = v }

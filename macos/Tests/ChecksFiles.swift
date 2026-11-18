@@ -379,6 +379,17 @@ private func projectFileChecks() {
   } catch {
     expect(false, "profile load: \(error)")
   }
+  // A profile's music carves in a plan that had none (a profile saved before carving had no "carve"),
+  // and leaves an existing track's choice alone.
+  var oldProfile = profile
+  oldProfile.music?.carve = nil
+  var noMusic = plan
+  noMusic.music = nil
+  oldProfile.apply(to: &noMusic)
+  var plainTrack = plan
+  plainTrack.music = Music(file: "music/old.m4a", carve: nil)
+  oldProfile.apply(to: &plainTrack)
+  expect(noMusic.music?.carve == true && plainTrack.music?.carve == nil, "a profile's music carves when it's new to the plan, and keeps a track's own choice")
   // A card written by hand without "enabled" shows; only "enabled": false switches it off.
   let handCard = try? JSONDecoder().decode(Card.self, from: Data(#"{"title":"Hi"}"#.utf8))
   let offCard = try? JSONDecoder().decode(Card.self, from: Data(#"{"title":"Hi","enabled":false}"#.utf8))
