@@ -60,7 +60,8 @@ Apply the user's instructions first. If the project's `script.md` has an `## Edi
 
 What gives an edit away as made by a template, and what a pro editor does instead. `director review`'s POLISH lines measure most of it.
 
-- **Hard cuts.** Over 90% of cuts in professional edits are plain cuts. A styled transition marks a section change; on every cut it's a template.
+- **Hard cuts.** Over 90% of cuts in professional edits are plain cuts. A styled transition marks a section change; on every cut it's a template. Use two or three kinds of transition in a video at most and repeat them, so each kind means something.
+- **Moves keep their direction.** A whip always runs left, the video's main direction; a zoom or punch-in right after a cut shouldn't fight the move before it (a pull-back answered by a push-in reads as a stutter). Read the `animate` skill's "Motion between beats" for the full rules.
 - **The camera is still when something happens.** A zoom settles before the click it shows and holds through it, then leaves after the screen has changed. Start a zoom 0.5 s or more before its first click and end it 0.3 s or more after its last.
 - **One thing draws the eye at a time.** Titles, boxes and stickers arrive on their own words, not on the same frame. Use the quietest emphasis that works: a highlight before a box, a box before a title, a title before an animation. Never two loud ones together.
 - **Text lands with its word.** A title or label appears on the word it names, or a frame or two before, never after. Text that just repeats what's said adds nothing: a title names what the viewer gets.

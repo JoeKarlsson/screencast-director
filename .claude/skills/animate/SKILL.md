@@ -47,6 +47,24 @@ How a hand-made build reads, and how a template gives itself away:
 - **Land just before the word.** A piece should be on screen a frame or two (about 0.07 s) before its word, and its whole entrance done before the next cue.
 - **Hold the finished picture** for 1.2 s or more before the animation ends, so the viewer can take it in.
 - **Keep overshoot for the moment that matters.** The engine's pop-ins already spring; don't add bounce on top of it, and don't make every piece the loudest thing on screen.
+- **Pause before the payoff.** Leave 0.3 to 0.75 s between the action and its result (the last connection drawing, then the total counting up): a build that jumps straight from cause to result loses the beat.
+
+## Motion between beats
+
+Rules for how pieces and boards move, adapted from HyperFrames' motion doctrine. They apply to storyboard `clear` steps, the camera, and any template you write.
+
+- **How a board leaves decides how the next one enters.** Same axis, same direction, the cut landing while both are still moving. Never mirror it: a board that shrinks away is answered by one that is already big and settling, not one growing from a dot (the most common miss, since growing from small is the default pop-in).
+- **One main direction per video.** Ordinary "next" moves all go the same way (left, by default). Other directions mean something: up is a conclusion rising, pushing in is going deeper into the same idea, pulling back is something bigger arriving. Don't alternate directions between consecutive moves without a visible cause (a click, an impact) or a new section.
+- **Something causes each move.** A packet arrives, then the node lights; a connection lands, then the label appears. Start the reaction on the frame the cause lands, not a few frames later. Big pieces recover slower than small ones.
+- **Every second performs.** Once a build is done and held (1.2 s or more), the next thing on screen should be new information: another piece, the camera traveling to a subject, a count ticking. The boil, grain and shimmer are texture and stay (the look must feel alive); a slow float, drift or pulse added to fill time is not, so add a beat to the narration's story instead, or end the animation.
+- **Timings.** One entrance takes 0.8 s at most; a longer build is several pieces, not one slow one. Exits run about three quarters of the entrance's time. Pieces of the same kind share one ease and duration. No bounce or elastic eases; a small overshoot on an entrance is fine.
+
+When you write a template that moves a group or swaps one board for another:
+
+- **Swap boards mid-motion** (HyperFrames' cut-the-curve): the outgoing board accelerates about 12% of the frame's width toward the main direction (230 design px; never fully off screen) over 0.2 to 0.4 s, fading out over the first two thirds of that; the incoming one starts the same distance behind, already moving and partly visible, and decelerates in the same time or a little longer. Use the two halves of one curve (a hard ease-in out, the matching ease-out in) so the speed is the same either side of the cut. `spring` and `easeOut` from the kit work for the incoming half.
+- **Slide a group to make room in three phases**: a slow ramp (about 10% of the distance in 20% of the time), a fast linear burst (65% in 18%), then a long settle (25% in 62%). A single ease-in-out stops with a smack. Reveal the new piece during the burst.
+- **A cascade of words or pieces** comes from one direction, each starting before the last has settled, with the gaps shrinking and the heaviest piece traveling furthest. At the hand-drawn 12 fps a piece needs at least 2 frames (0.17 s) to read as moving, so cascade at 12 fps in pairs or set the template's `fps` to 30.
+- **Blur at a swap**: the renderer's motion blur covers ordinary moves. If a swap needs a blur to hide it, blur the whole board (about 10 px for text, 18 to 20 px for a full-frame picture), never the pieces one by one, and swap at the peak.
 
 ## 4. Add it, render, check
 
