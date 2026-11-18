@@ -48,6 +48,11 @@ public enum MusicDuck: Sendable {
     return merged
   }
 
+  /// How far `music` drops under the voice: its `duckDB`, else less when it's carved.
+  public static func duckDB(_ music: Music) -> Double {
+    music.duckDB ?? (music.carve == true ? MusicCarve.duckDB : defaultDuckDB)
+  }
+
   static func gain(_ db: Double) -> Float { Float(pow(10, db / 20)) }
 
   /// Output-time spans with the music off: `music.off` (source seconds) mapped through the edit, cut
@@ -88,7 +93,7 @@ public enum MusicDuck: Sendable {
     _ music: Music, to p: AVMutableAudioMixInputParameters, speech: [(Double, Double)], off: [(Double, Double)] = [], total: Double
   ) {
     let up = gain(music.volumeDB ?? defaultVolumeDB)
-    let down = gain((music.volumeDB ?? defaultVolumeDB) + (music.duckDB ?? defaultDuckDB))
+    let down = gain((music.volumeDB ?? defaultVolumeDB) + duckDB(music))
     func t(_ s: Double) -> CMTime { CMTime(seconds: max(0, s), preferredTimescale: 60000) }
     // The ducked level as points; a ramp runs between each pair that differ.
     var points: [(Double, Float)] = []

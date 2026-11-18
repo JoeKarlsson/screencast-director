@@ -61,6 +61,8 @@ open "screencastdirector://record/stop"
 director status --wait ready          # prints the project folder, drafted and named
 ```
 
+`director beats <dir>` prints the plan's music's tempo and each beat in output seconds (the track loops from the start of the video, so its beats repeat; beats in `music.off` are left out), or why there's no steady beat. Use it to land pop-ins and cuts on the beat, mostly in a film with no speech to cue on (`sd new`).
+
 The app picks up `director settings set` the next time it comes to the front. Rendering from the CLI while the app has the same video open is safe: each render writes its own temporary file.
 
 ## Importing a recording

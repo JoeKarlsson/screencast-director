@@ -37,8 +37,8 @@ extension InspectorView {
         }
         slider("Volume", bind("musicVolume", { $0.music?.volumeDB ?? MusicDuck.defaultVolumeDB }, { $0.music?.volumeDB = $1.rounded() }), -40...0, String(format: "%.0f dB",
           music.volumeDB ?? MusicDuck.defaultVolumeDB))
-        slider("Under voice", bind("musicDuck", { $0.music?.duckDB ?? MusicDuck.defaultDuckDB }, { $0.music?.duckDB = $1.rounded() }), -40...0, String(format: "%.0f dB",
-          music.duckDB ?? MusicDuck.defaultDuckDB))
+        slider("Under voice", bind("musicDuck", { $0.music.map(MusicDuck.duckDB) ?? MusicDuck.defaultDuckDB }, { $0.music?.duckDB = $1.rounded() }), -40...0, String(format: "%.0f dB",
+          MusicDuck.duckDB(music)))
       }
       // One row: the library (most picks) and a file of your own.
       HStack(spacing: 8) {

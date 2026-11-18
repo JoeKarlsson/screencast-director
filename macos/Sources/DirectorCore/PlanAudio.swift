@@ -29,11 +29,15 @@ public struct Music: Codable, Equatable, Sendable {
   public var duckDB: Double?
   /// Stretches with no music (source seconds), e.g. while code or terminal output is on screen.
   public var off: [MusicOff]?
-  public init(file: String, volumeDB: Double? = nil, duckDB: Double? = nil, off: [MusicOff]? = nil) {
+  /// Dip the music in the bands the voice uses while it talks (`MusicCarve`), and duck the whole track
+  /// less (`MusicCarve.duckDB` unless `duckDB` is set).
+  public var carve: Bool?
+  public init(file: String, volumeDB: Double? = nil, duckDB: Double? = nil, off: [MusicOff]? = nil, carve: Bool? = nil) {
     self.file = file
     self.volumeDB = volumeDB
     self.duckDB = duckDB
     self.off = off
+    self.carve = carve
   }
 }
 

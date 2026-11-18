@@ -351,8 +351,12 @@ private func addMusic(
     at = CMTimeAdd(at, range.duration)
   }
   let params = AVMutableAudioMixInputParameters(track: track)
-  MusicDuck.apply(music, to: params, speech: MusicDuck.speech(levels: voiceLevels, mapped: scene.mapped, fps: scene.fps),
-    off: MusicDuck.offSpans(music, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+  let speech = MusicDuck.speech(levels: voiceLevels, mapped: scene.mapped, fps: scene.fps)
+  MusicDuck.apply(music, to: params, speech: speech, off: MusicDuck.offSpans(music, mapped: scene.mapped, fps: scene.fps), total: total.seconds)
+  if music.carve == true, !voiceLevels.isEmpty {
+    let bands = try await MusicCarve.bands(project, video: plan.source.video, levels: voiceLevels)
+    params.audioTapProcessor = try MusicCarve.tap(bands: bands, speech: speech, frames: scene.frameCount, fps: scene.fps)
+  }
   return (params, asset)
 }
 

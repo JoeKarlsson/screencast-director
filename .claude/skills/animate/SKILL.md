@@ -38,7 +38,7 @@ Logos come from each folder's `logos/logos.json` (display name → file in that 
 
 ## 3. Cue the beats to words
 
-`cues` maps each beat (or storyboard step's `cue`) to a source time, usually the start of the word that names it. Give a beat a few tenths of a second before the word if it should be on screen as the word lands.
+`cues` maps each beat (or storyboard step's `cue`) to a source time, usually the start of the word that names it. Give a beat a few tenths of a second before the word if it should be on screen as the word lands. In a film with no speech to cue on (`sd new`), cue pop-ins on the music: `bin/director beats <dir>` prints its beats in output seconds (with no intro card or cuts, also source seconds).
 
 How a hand-made build reads, and how a template gives itself away:
 

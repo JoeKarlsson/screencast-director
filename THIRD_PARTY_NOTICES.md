@@ -8,7 +8,7 @@ Screencast Director is MIT licensed (see [LICENSE](LICENSE)). It ships with, or 
 |---|---|---|---|---|
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) | Speech to text, on your Mac. `macos/build-whisper.sh` builds `whisper-cli` from that repo to bundle it; without it the app uses Homebrew's. | MIT | The ggml authors | [LICENSE](https://github.com/ggml-org/whisper.cpp/blob/master/LICENSE) |
 | [lottie-web](https://github.com/airbnb/lottie-web) 5.12.2 | Playing Lottie animations (`lottie_svg.min.js`, the SVG-only build) | MIT | 2015 Bodymovin | [lottie-LICENSE.md](macos/Resources/animations/vendor/lottie-LICENSE.md) |
-| [HyperFrames](https://github.com/heygen-com/hyperframes) | The `chart` template's staging and timing are adapted from HyperFrames catalog entries. No HyperFrames code, fonts or assets are included. | Apache-2.0 | HeyGen | [hyperframes-NOTICE.md](macos/Resources/animations/vendor/hyperframes-NOTICE.md) |
+| [HyperFrames](https://github.com/heygen-com/hyperframes) | The `chart` template's staging and timing are adapted from HyperFrames catalog entries (no HyperFrames code, fonts or assets). The music carve and beat tracker (`MusicCarve.swift`, `Beats.swift`) are ported from its audio code. | Apache-2.0 | HeyGen | [hyperframes-NOTICE.md](macos/Resources/animations/vendor/hyperframes-NOTICE.md) |
 
 ## Music
 

@@ -134,6 +134,7 @@ check "pauses tight is saved in the plan" plan_py "sys.exit(0 if plan.get('pause
 check "pauses tight still cuts the silence" plan_py "sys.exit(0 if not any(s['start'] <= 5.5 < s['end'] for s in plan['segments']) else 1)"
 check "the loudness it measured is cached" test -f "$P/loudness.json"
 expect_error "an unknown pause level prints usage" "usage:" "$DIRECTOR" pauses "$P" loose
+expect_error "beats without music says so" "no music in the plan" "$DIRECTOR" beats "$P"
 cp "$TMP/draft.json" "$P/plan.json"
 
 # --- profile

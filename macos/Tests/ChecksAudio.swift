@@ -110,6 +110,71 @@ func audioChecks() {
   gainTapChecks()
   voiceCleanupChecks()
   voiceEffectChecks()
+  musicCarveChecks()
+  beatChecks()
+}
+
+/// Music carve: which bands the voice claims, and the tap dipping only those, only while it talks.
+private func musicCarveChecks() {
+  // A voice spectrum with its energy at 250 Hz and 1600-2500 Hz, flat and quiet elsewhere.
+  let freqs = (0..<2049).map { Double($0) * 16000 / 4096 }
+  let power = freqs.map { f -> Double in (230...270).contains(f) || (1450...2800).contains(f) ? 1 : 1e-4 }
+  let bands = MusicCarve.bands(freqs: freqs, power: power)
+  expect(bands.map(\.hz) == [250, 1600, 2500], "the carve picks the bands the voice fills (\(bands.map(\.hz)))")
+  expect(bands.allSatisfy { $0.gainDB <= -3 && $0.gainDB >= -6 }, "each cut is 3 to 6 dB (\(bands.map(\.gainDB)))")
+  expect(MusicDuck.duckDB(Music(file: "m", carve: true)) == -10 && MusicDuck.duckDB(Music(file: "m")) == -18
+    && MusicDuck.duckDB(Music(file: "m", duckDB: -4, carve: true)) == -4, "carving ducks the whole track less unless duckDB is set")
+
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sd-carve-\(UUID().uuidString)")
+  try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: dir) }
+  do {
+    // The voice talks for the first second only; a 1600 Hz tone dips there, a 100 Hz one doesn't.
+    let cut = [MusicCarve.Band(hz: 1600, gainDB: -6, q: 1.4)]
+    let tap = { try MusicCarve.tap(bands: cut, speech: [(0, 1)], frames: 60, fps: 30) }
+    let mid = dir.appendingPathComponent("mid.caf"), low = dir.appendingPathComponent("low.caf")
+    try writeTone(mid, seconds: 2, sine(1600, db: -20))
+    try writeTone(low, seconds: 2, sine(100, db: -20))
+    let midDry = try readThroughTap(mid, nil), midCarved = try readThroughTap(mid, try tap())
+    let talking = rmsDB(midCarved, 4800, 43000) - rmsDB(midDry, 4800, 43000)
+    let after = rmsDB(midCarved, 72000, 96000) - rmsDB(midDry, 72000, 96000)
+    expect(abs(talking + 6) < 0.5, "a voice band dips 6 dB while the voice talks (\(talking))")
+    expect(abs(after) < 0.3, "and comes back once it stops (\(after))")
+    let lowDry = try readThroughTap(low, nil), lowCarved = try readThroughTap(low, try tap())
+    let untouched = rmsDB(lowCarved, 4800, 43000) - rmsDB(lowDry, 4800, 43000)
+    expect(abs(untouched) < 0.5, "music outside the voice's bands keeps its level (\(untouched))")
+  } catch {
+    expect(false, "music carve: \(error)")
+  }
+}
+
+/// Beat tracking on a synthetic click track, and beats placed in the output.
+private func beatChecks() {
+  // 20 s of 120 BPM clicks at 16 kHz: a 20 ms decaying burst every 0.5 s, from 0.25 s.
+  let rate = 16000.0
+  var clicks = [Float](repeating: 0, count: Int(20 * rate))
+  var seed: UInt32 = 1
+  for k in 0..<40 {
+    let at = Int((0.25 + Double(k) * 0.5) * rate)
+    for i in 0..<320 where at + i < clicks.count {
+      seed = seed &* 1_664_525 &+ 1_013_904_223
+      clicks[at + i] = (Float(seed >> 8) / Float(1 << 24) - 0.5) * exp(-Float(i) / 60)
+    }
+  }
+  do {
+    let found = try Beats.track(clicks, rate: rate)
+    let offBeat = found.times.map { t in abs((t - 0.25).remainder(dividingBy: 0.5)) }.max() ?? 1
+    expect(found.reason == nil && found.times.count >= 30, "a steady click track has beats (\(found.times.count), \(found.reason ?? ""))")
+    expect(offBeat < 1.0 / 30, "every beat lands within a frame of a click (worst \(offBeat) s)")
+    expect(found.bpm.map { abs($0 - 120) < 1 } == true, "the tempo is 120 BPM (\(found.bpm ?? 0))")
+    let silent = try Beats.track([Float](repeating: 0, count: Int(20 * rate)), rate: rate)
+    expect(silent.times.isEmpty && silent.reason != nil, "silence has no beat, and says why")
+  } catch {
+    expect(false, "beats: \(error)")
+  }
+  // A 4 s track looped over a 10 s video: its beats repeat each pass; music.off and the end drop theirs.
+  let placed = Beats.output([1, 3], trackLength: 4, total: 10, off: [(4.5, 5.5)])
+  expect(placed == [1, 3, 7, 9], "beats repeat as the track loops, skipping music.off (\(placed))")
 }
 
 /// Voice effects: where each plays, the voice's gaps around them, and every preset's output.

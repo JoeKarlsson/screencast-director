@@ -5,7 +5,14 @@ The `chart` and `stat` templates adapt the staging and timing of two HyperFrames
 (https://github.com/heygen-com/hyperframes, commit 0b531bc, Copyright HeyGen, Apache License 2.0).
 Changes: rewritten from GSAP timelines into plain functions of time for this engine's `seek(t)`, drawn
 with this engine's springs, hand-drawn lines and themes (paper, terminal), with new data fields.
-No HyperFrames code, fonts or assets are included.
+No HyperFrames code, fonts or assets are included in the templates.
+
+The music carve (`macos/Sources/DirectorCore/MusicCarve.swift`) and beat tracker
+(`macos/Sources/DirectorCore/Beats.swift`, with `AudioSpectrum.swift`) are ported from HyperFrames'
+`packages/core/src/audioCarve.ts` and `audioRhythm.ts` (commit a1ee400, Copyright HeyGen, Apache
+License 2.0). Changes: translated from TypeScript to Swift with Accelerate's DFT; the carve uses one
+fixed strength (HyperFrames' default) and follows the talking with a single depth instead of
+automation lanes; the beat tracker analyzes 16 kHz mono and leaves out downbeats and chroma.
 
 The Apache License 2.0 follows.
 

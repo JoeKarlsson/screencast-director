@@ -20,6 +20,7 @@ let usage = """
     director animate-choose <dir> <index> <k>       play alternate k of animation #index, keeping the one it replaces as an alternate
     director review   <dir> [--retention]           what each zoom shows, cut edges inside words, polish and retention notes (--retention: only the retention notes, fast)
     director faces    <dir>                         where the face is under each sticker and title, how much they cover, and a clear spot
+    director beats    <dir>                         the music's tempo and beat times in output seconds (looped, music.off left out)
     director render   <dir> [out.mp4] [--preset id | --clip name | --clips]   default: <dir>/<project name>.mp4
     director still    <dir> <frame> <out.png> [--preset id | --clip name]
     director contact-sheet <dir> <out.png> [--preset id | --clip name]   a labeled frame at each cut, item and animation beat (out-2.png... for long edits)
@@ -442,6 +443,24 @@ do {
     let samples = try await FaceCover.check(project, plan)
     if samples.isEmpty { print("No stickers or titles over the video.") }
     for s in samples { print((s.covers ? "COVERS FACE: " : "") + FaceCover.describe(s, plan)) }
+  case "beats":
+    let project = try Project.load(dir)
+    let plan = try Plan.load(project.planURL)
+    guard let music = plan.music else { fail("no music in the plan") }
+    try AudioLibrary(.music, for: plan).freezeMissing([music.file], project: project.dir)
+    let scratch = try PathSafety.ownedFolder(".render", in: project.dir)
+    let samples = try await AudioSpectrum.samples16k(resolvePath(music.file, in: project.dir), scratch: scratch)
+    let found = try Beats.track(samples, rate: AudioSpectrum.rate)
+    let fps = plan.output.fps
+    let times = Beats.output(
+      found.times, trackLength: Double(samples.count) / AudioSpectrum.rate, total: Double(planFrames(plan)) / Double(fps),
+      off: MusicDuck.offSpans(music, mapped: mapPlan(plan), fps: fps))
+    if let reason = found.reason {
+      print("\(music.file): \(reason) (confidence \(found.confidence))")
+    } else {
+      print("\(music.file): \(found.bpm.map { "\($0) BPM" } ?? "?"), confidence \(found.confidence), \(times.count) beats in the video (output seconds)")
+      print(times.map { String(format: "%.2f", $0) }.joined(separator: " "))
+    }
   case "animate":
     let project = try Project.load(dir)
     let plan = try planFor(project)

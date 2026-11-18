@@ -8,6 +8,10 @@ Each release lists what changed for people using the app or the CLI. The version
 - `director review` flags a zoom that goes in and straight back out with no hold (it already caught a pan doubling back), and more than three kinds of transition in one video, which reads as a sampler rather than the video's own style.
 - `director animate` warns about a template that won't render the same every time: `Math.random()`, the wall clock, timers, CSS transitions, or a font named directly instead of the look's.
 - `sd new <name> [--length 30] [--size 1920x1080]` starts a project with no recording: a blank screen of that length, so a film can be built from animations alone.
+- `director beats <dir>` finds the music's tempo and beats, in seconds of the finished video (the track loops; beats under `music.off` are left out), so pop-ins and cuts can land on the beat in a film with no speech to time them to.
+
+### Sound and music
+- Music can make room for your voice instead of only dropping under it: with `"carve": true` on the plan's music, it dips up to 6 dB in the three frequency bands your voice uses most, only while you talk, and the whole track ducks -10 dB instead of -18 (unless you set `duckDB`). The bands are measured once from your speech.
 
 ### Editor
 - A template can describe its own kinds of step in its manifest (`steps` on its steps field: each step's name, label, fields and starting values), and the animation inspector builds the step list from it: pick a step, fill in labeled fields, add one at the playhead. The storyboard keeps its own editor. Number fields commit on Return, so a decimal point isn't lost while typing.
