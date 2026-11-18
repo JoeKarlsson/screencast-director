@@ -4,6 +4,9 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Captions
+- Caption embeds (`captions.embeds`): on a peak beat, one big word pops up behind you over the full camera, your cutout in front of it, alongside the normal caption line.
+
 ### Command line
 - `director review` flags a zoom that goes in and straight back out with no hold (it already caught a pan doubling back), and more than three kinds of transition in one video, which reads as a sampler rather than the video's own style.
 - `director animate` warns about a template that won't render the same every time: `Math.random()`, the wall clock, timers, CSS transitions, or a font named directly instead of the look's.

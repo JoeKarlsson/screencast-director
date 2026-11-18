@@ -124,6 +124,15 @@ public struct Plan: Codable, Equatable, Sendable {
     /// Words or phrases ("home lab") drawn bigger in the look's `captionEmphasis` color wherever
     /// they're said. Case and punctuation don't matter.
     public var emphasis: [String]?
+    /// Peak words shown big behind the speaker (the camera's person cutout in front of them), over
+    /// the full camera, alongside the caption line. Source seconds.
+    public var embeds: [Embed]?
+
+    public struct Embed: Codable, Equatable, Sendable {
+      public var start: Double
+      public var end: Double
+      public var text: String
+    }
 
     /// Bold and social captions: big words, a few at a time, with an optional box behind them.
     public var isBold: Bool { style == "bold" || style == "social" }

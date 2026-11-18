@@ -358,6 +358,18 @@ func sceneDrawingChecks() {
   talking.camera?.mirror = true
   let leftMirrored = at(render(talking, frame: 90, camera: redBlue), 200, 540)
   expect(near(leftPlain, [0.9, 0.1, 0.1]) && near(leftMirrored, [0.1, 0.1, 0.9]), "mirror flips the camera (\(leftPlain) -> \(leftMirrored))")
+  // An embed draws its word across the top of the full camera for its span only (no one in this
+  // camera, so nothing stands in front of it).
+  var embedded = talking
+  embedded.camera?.mirror = nil
+  embedded.captions.embeds = [Plan.Captions.Embed(start: 2, end: 4, text: "hello")]
+  func wordPixels(_ frame: Int) -> Int {
+    let img = render(embedded, frame: frame, camera: green)
+    return stride(from: 200.0, through: 1720, by: 40).flatMap { x in stride(from: 100.0, through: 300, by: 20).map { (x, $0) } }
+      .filter { !near(at(img, $0.0, $0.1), [0.2, 0.7, 0.3], 0.1) }.count
+  }
+  let embedCounts = [wordPixels(30), wordPixels(90), wordPixels(150)]
+  expect(embedCounts[0] == 0 && embedCounts[1] > 20 && embedCounts[2] == 0, "an embed's word shows over the camera for its span only (\(embedCounts))")
   // A punch-in with a framing point cuts to that side of the camera (in file coordinates, so mirrored too).
   talking.camera?.mirror = nil
   talking.camera?.punchIns = [PunchIn(start: 2, end: 4, scale: 2)]

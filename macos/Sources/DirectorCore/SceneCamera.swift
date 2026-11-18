@@ -71,15 +71,57 @@ extension Scene {
       let person = Scene.personCutout(src)
       src = cut < 1 ? src.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: person, kCIInputTimeKey: cut]) : person
     }
-    var moved = Scene.scaled(src.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
-    // A camera blown up a lot (1080p filling a vertical 4K frame is about 3.5x) gets a little
-    // crispness back: a moderate sharpen of brightness only, so no color halos. It can't add detail
-    // the camera never recorded; recording the camera at 4K is what fixes that.
-    if k > 1.5 {
-      moved = moved.applyingFilter("CISharpenLuminance", parameters: [kCIInputSharpnessKey: 0.6, kCIInputRadiusKey: 2.0]).cropped(to: moved.extent)
+    func place(_ img: CIImage) -> CIImage {
+      var moved = Scene.scaled(img.transformed(by: CGAffineTransform(translationX: -src.extent.minX, y: -src.extent.minY)), by: k)
+      // A camera blown up a lot (1080p filling a vertical 4K frame is about 3.5x) gets a little
+      // crispness back: a moderate sharpen of brightness only, so no color halos. It can't add detail
+      // the camera never recorded; recording the camera at 4K is what fixes that.
+      if k > 1.5 {
+        moved = moved.applyingFilter("CISharpenLuminance", parameters: [kCIInputSharpnessKey: 0.6, kCIInputRadiusKey: 2.0]).cropped(to: moved.extent)
+      }
+      return moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
     }
-    let placed = moved.transformed(by: CGAffineTransform(translationX: tx, y: ty))
+    var placed = place(src)
+    // An embed: the word goes between the room and the person, so the speaker stands in front of it.
+    if cut == 0, let e = embeds.last(where: { f >= $0.s && f < $0.e }), let word = embedWord(e.text, frame: f - e.s, length: e.e - e.s, box: r) {
+      placed = place(Scene.personCutout(src)).composited(over: word.composited(over: placed))
+    }
     return masked(placed, r, radius: b.r, opacity: b.opacity)
+  }
+
+  /// An embed's word (Core Image coordinates) across the top of the camera box `r`, below a vertical
+  /// video's top bars: the title font in the emphasis color with a hard ink drop, popping in over
+  /// 0.2 s and fading out over the last 0.15 s. `f` is frames since it started, of `length`.
+  func embedWord(_ text: String, frame f: Double, length: Double, box r: CGRect) -> CIImage? {
+    let pose = Motion.pose(
+      frame: f, start: 0, end: length, fps: plan.output.fps, enter: Motion(preset: "pop", seconds: 0.2, ease: "spring"),
+      exit: Motion(preset: "fade", seconds: 0.15, ease: "ease-in"), style: motion)
+    let pop = pose.scale, alpha = pose.opacity
+    guard alpha > 0, pop > 0.01 else { return nil }
+    let maxW = r.width * 0.92
+    let s = NSMutableAttributedString(attributedString: Scene.text(
+      text.uppercased(), size: r.width * 0.22, weight: .heavy, font: look.titleFont, color: look.captionEmphasis ?? look.accent ?? Look.defaultAccent))
+    Scene.shrinkToFitWords(s, [NSRange(location: 0, length: s.length)], maxWidth: maxW)
+    let size = Scene.measure(s, maxWidth: maxW)
+    let drop = (0.0075 * W).rounded()
+    let w = Int(ceil(size.width)), h = Int(ceil(size.height + drop))
+    guard w > 0, h > 0,
+      let ctx = CGContext(
+        data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: Scene.srgb,
+        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return nil }
+    ctx.translateBy(x: 0, y: Double(h))
+    ctx.scaleBy(x: 1, y: -1)
+    ctx.setShadow(offset: CGSize(width: 0, height: -drop), blur: 0, color: Scene.color("#15151C"))
+    pill(ctx, s, centerX: Double(w) / 2, top: 0, padX: 0, padY: 0, radius: 0, fill: CGColor(gray: 0, alpha: 0), maxWidth: maxW)
+    guard let cg = ctx.makeImage() else { return nil }
+    // Top-left coordinates: 9% down the box, and never under a vertical video's top bars.
+    let top = max(H - r.maxY + r.height * 0.09, SafeArea.rect(plan)?.minY ?? 0)
+    let center = CGPoint(x: r.midX, y: H - top - Double(h) / 2)
+    return CIImage(cgImage: cg)
+      .transformed(by: CGAffineTransform(translationX: -Double(w) / 2, y: -Double(h) / 2).scaledBy(x: pop, y: pop))
+      .transformed(by: CGAffineTransform(translationX: center.x, y: center.y))
+      .applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: alpha)])
   }
 
   /// Where the camera picture goes and how far it's zoomed, for a camera box at an output frame.

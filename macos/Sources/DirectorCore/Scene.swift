@@ -17,6 +17,7 @@ public final class Scene: @unchecked Sendable {
   let chips: [(f: Double, label: String)]
   let callouts: [(s: Double, e: Double, c: Callout)]
   let annotations: [(s: Double, e: Double, a: Annotation)]
+  let embeds: [(s: Double, e: Double, text: String)]
   /// Camera punch-ins in output frames.
   let punchIns: [(s: Double, e: Double, scale: Double, x: Double?, y: Double?)]
   /// B-roll in output frames, with its index in plan.inserts and then the rendered animations (the
@@ -159,6 +160,7 @@ public final class Scene: @unchecked Sendable {
       return (s, run.endF, c)
     }
     annotations = (plan.annotations ?? []).flatMap { a in srcRangeToOut(m, a.start, a.end, fps: fps).map { ($0.startF, $0.endF, a) } }
+    embeds = (plan.captions.embeds ?? []).flatMap { e in srcRangeToOut(m, e.start, e.end, fps: fps).map { ($0.startF, $0.endF, e.text) } }
     // A punch-in within a second of its clip's cut runs to the cut: otherwise the wide shot shows for
     // a sliver between the punch and the cut, which pops.
     punchIns = (plan.camera?.punchIns ?? []).flatMap { p in
