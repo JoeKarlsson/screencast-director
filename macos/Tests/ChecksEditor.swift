@@ -14,6 +14,16 @@ func editorActionChecks() {
   base.callouts = [Callout(start: 2, end: 4, text: "Hi")]
   base.markers = [Marker(t: 4, label: "setup"), Marker(t: 12)]
   base.sfx = [SoundEffect(t: 6, file: "sfx/pop.m4a")]
+
+  // Embed from the transcript: the longest word said in the range, punctuation trimmed, for 1.5 s
+  // from when it's said, inside the recording; nothing when no word is said there.
+  var embedPlan = base
+  let said = [Word(text: "ended", start: 4, end: 4.3), Word(text: "designing,", start: 4.4, end: 5), Word(text: "it", start: 19.2, end: 19.4)]
+  let first = embedPlan.addEmbed(words: said, range: 3.9..<5.1)
+  let lateEmbed = embedPlan.addEmbed(words: said, range: 19..<19.5)
+  let noEmbed = embedPlan.addEmbed(words: said, range: 8..<9)
+  expect(first == Plan.Captions.Embed(start: 4.4, end: 5.9, text: "designing") && lateEmbed?.end == 20 && noEmbed == nil && embedPlan.captions.embeds?.count == 2,
+    "the transcript's Embed picks the headline word and keeps it in the recording (\(String(describing: embedPlan.captions.embeds)))")
   base.normalize()
 
   // Clicking: a plain click selects one item; ⇧/⌘-click adds or takes out; taking out the

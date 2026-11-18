@@ -391,6 +391,19 @@ extension InspectorView {
           .labelsHidden().fixedSize()
       }
     }
+    if let embeds = plan.captions.embeds, !embeds.isEmpty {
+      LabeledContent("Embeds") {
+        FlowLayout(spacing: 6, lineSpacing: 6) {
+          ForEach(Array(embeds.enumerated()), id: \.offset) { i, e in
+            Button { project.apply { $0.captions.embeds?.remove(at: i); if $0.captions.embeds?.isEmpty == true { $0.captions.embeds = nil } } } label: {
+              Label("\(e.text) \(fmtTime(e.start))", systemImage: "xmark.circle")
+            }
+            .controlSize(.small)
+            .help("Remove this embed. Add one by selecting words in the transcript and pressing Embed.")
+          }
+        }
+      }
+    }
     if bold {
       toggle("Box behind the words", "A box in the box color, for words over a busy picture.",
         bind("capBox", { $0.captions.box == true }, { $0.captions.box = $1 ? true : nil }))

@@ -132,6 +132,11 @@ public struct Plan: Codable, Equatable, Sendable {
       public var start: Double
       public var end: Double
       public var text: String
+      public init(start: Double, end: Double, text: String) {
+        self.start = start
+        self.end = end
+        self.text = text
+      }
     }
 
     /// Bold and social captions: big words, a few at a time, with an optional box behind them.

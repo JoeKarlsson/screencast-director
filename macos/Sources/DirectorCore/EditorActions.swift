@@ -70,6 +70,18 @@ public struct TimelineSelection: Equatable, Sendable {
 }
 
 extension Plan {
+  /// Embeds the headline word of what's said in `range` (the longest word, punctuation trimmed): from
+  /// when it's said, for 1.5 s, inside the recording. Nil when nothing is said there.
+  @discardableResult
+  public mutating func addEmbed(words: [Word], range: Range<Double>) -> Captions.Embed? {
+    let said = words.filter { $0.start < range.upperBound && $0.end > range.lowerBound }
+      .map { ($0, $0.text.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))) }
+    guard let (word, text) = said.max(by: { $0.1.count < $1.1.count }), !text.isEmpty else { return nil }
+    let embed = Captions.Embed(start: word.start, end: min(source.duration, word.start + 1.5), text: text)
+    captions.embeds = (captions.embeds ?? []) + [embed]
+    return embed
+  }
+
   /// Whether a selection still points at something in this plan.
   public func has(_ s: Selection) -> Bool {
     switch s {

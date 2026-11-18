@@ -17,9 +17,10 @@ Each release lists what changed for people using the app or the CLI. The version
 - `director beats <dir>` finds the music's tempo and beats, in seconds of the finished video (the track loops; beats under `music.off` are left out), so pop-ins and cuts can land on the beat in a film with no speech to time them to.
 
 ### Sound and music
-- Music makes room for your voice instead of only dropping under it: music you add from now on (in the app, or from a profile) has `"carve": true`, and existing projects keep their mix. With it, the music dips up to 6 dB in the three frequency bands your voice uses most, only while you talk, and the whole track ducks -10 dB instead of -18 (unless you set `duckDB`). The bands are measured once from your speech.
+- Music makes room for your voice instead of only dropping under it: music you add from now on (in the app, or from a profile) has `"carve": true`, and existing projects keep their mix. With it, the music dips up to 6 dB in the three frequency bands your voice uses most, only while you talk, and the whole track ducks -10 dB instead of -18 (unless you set `duckDB`). The bands are measured once from your speech. If they can't be measured, the music ducks as usual and the render says so, instead of failing.
 
 ### Editor
+- Caption embeds from the transcript: select words and press Embed to show the key word big behind you on the full camera. The Captions section lists them; click one to remove it.
 - A template can describe its own kinds of step in its manifest (`steps` on its steps field: each step's name, label, fields and starting values), and the animation inspector builds the step list from it: pick a step, fill in labeled fields, add one at the playhead. The storyboard keeps its own editor. Number fields commit on Return, so a decimal point isn't lost while typing.
 - An animation template can ask for a smoother frame rate: `"fps": 30` in its manifest renders its clips at 30 frames a second instead of the hand-drawn 12, so a camera gliding across a product screen doesn't judder.
 - Fixed: an animation with a large image (a product screenshot) could render a frame with the image missing while the camera zoomed.

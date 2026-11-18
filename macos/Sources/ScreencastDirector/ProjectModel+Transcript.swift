@@ -85,6 +85,14 @@ extension ProjectModel {
     doneWithRange()
   }
 
+  /// The headline word of the range as a caption embed, behind the speaker on the full camera.
+  func embedOverRange() {
+    guard let r = actionRange else { return }
+    let words = self.words
+    apply { $0.addEmbed(words: words, range: r) }
+    doneWithRange()
+  }
+
   /// An annotation over the range, around a click in it (else the last one).
   func annotateRange(_ kind: String) {
     guard let r = actionRange else { return }

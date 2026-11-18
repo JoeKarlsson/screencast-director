@@ -148,6 +148,10 @@ struct TranscriptView: View {
           }
           Button { project.zoomOverRange() } label: { Label("Zoom", systemImage: "plus.magnifyingglass") }
             .help("Zoom in while these words are said, toward where you clicked")
+          if project.plan?.camera != nil {
+            Button { project.embedOverRange() } label: { Label("Embed", systemImage: "person.crop.rectangle.stack") }
+              .help("Show the key word big behind you on the full camera (one per sentence at most)")
+          }
           Menu {
             ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
               Button { project.titleOverRange(style: c.name) } label: { Label(c.label, systemImage: c.icon) }
