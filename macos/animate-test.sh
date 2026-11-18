@@ -129,6 +129,25 @@ PY
 grep -q '^WARNING: .* overlap ' "$TMP/overlap.txt" || { echo "FAIL: two stickers on one spot weren't reported: $(cat "$TMP/overlap.txt")" >&2; exit 1; }
 echo "ok: the overlap probe reports two pieces on one spot ($(grep -m1 '^WARNING:.* overlap ' "$TMP/overlap.txt" | cut -c1-120))"
 
+# A look font that won't load is named, not silently replaced by the system font.
+mkdir -p "$PROJECT/fonts"
+echo "not a font" >"$PROJECT/fonts/Broken.otf"
+python3 - "$PROJECT/plan.json" '["fonts/Broken.otf"]' <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan.setdefault("look", {})["fontFiles"] = json.loads(sys.argv[2])
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+"$DIRECTOR" animate-test "$PROJECT" "$SB" "$(python3 -c "print($SB_START + 1)")" "$TMP/font.mp4" >"$TMP/font.txt" 2>&1
+grep -q "^WARNING: .*font Broken" "$TMP/font.txt" || { echo "FAIL: a font that didn't load wasn't reported: $(cat "$TMP/font.txt")" >&2; exit 1; }
+echo "ok: a font that won't load is named ($(grep -m1 'font Broken' "$TMP/font.txt" | cut -c1-120))"
+python3 - "$PROJECT/plan.json" '[]' <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan.setdefault("look", {})["fontFiles"] = json.loads(sys.argv[2])
+json.dump(plan, open(sys.argv[1], "w"), indent=2)
+PY
+
 # A one-second test of the first animation: a 1 s clip and a sheet of its 12 frames.
 "$DIRECTOR" animate-test "$PROJECT" 0 1.5 "$TMP/test.mp4" >/dev/null
 length=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$TMP/test.mp4")

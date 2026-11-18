@@ -452,7 +452,9 @@ enum Animate {
       _ a: Animation, index: Int, plan: Plan, sources: AnimationSources, to out: URL, from: Double = 0, length: Double? = nil,
       onFrame: ((Int, CGImage) throws -> Void)? = nil
     ) async throws -> (pops: [Int], overlaps: [String]) {
-      try await load(a, plan: plan, sources: sources)
+      let fonts = try await load(a, plan: plan, sources: sources).map {
+        "WARNING: animation #\(index) (\(a.template)): font \($0); the system font stands in, so fix or remove it in the look's fontFiles"
+      }
       let fps = try fps(a, sources: sources)
 
       // One temp file per process: the app and the CLI can render the same clip at once (same
@@ -548,14 +550,15 @@ enum Animate {
       try FileManager.default.moveItem(at: tmp, to: out)
       return (
         Animation.pops(tiles, whipping: whipping).map { $0 + first },
-        Animate.overlapWarnings(a, index: index, frames: overlaps, step: 1 / Double(fps))
+        fonts + Animate.overlapWarnings(a, index: index, frames: overlaps, step: 1 / Double(fps))
           + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(fps))
       )
     }
 
     /// Loads the page and starts animation `a` on it (`init`), ready to `seek`. A sticker's page
-    /// height becomes its content's.
-    func load(_ a: Animation, plan: Plan, sources: AnimationSources) async throws {
+    /// height becomes its content's. Returns the look's fonts that didn't load ("family: why").
+    @discardableResult
+    func load(_ a: Animation, plan: Plan, sources: AnimationSources) async throws -> [String] {
       // A fresh page per animation, so one template's nodes never leak into the next. The template may
       // have come with a video someone sent, so the page reads only the app's animation folder and
       // has no network; logos and fonts come through `assets`.
@@ -573,9 +576,10 @@ enum Animate {
       }
       let theme = try ThemeSources(project: sources.project).load(plan.look?.animationTheme)
       try await Animate.runThemeScripts(theme, in: web)
+      var fontProblems: [String] = []
       do {
         let config = try Animate.config(a, plan: plan, sources: sources, assets: assets, theme: theme)
-        _ = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page)
+        fontProblems = try await web.callAsyncJavaScript("return await init(config)", arguments: ["config": config], contentWorld: .page) as? [String] ?? []
       } catch {
         throw DirectorError("the \(a.template) template didn't start: \(error)")
       }
@@ -587,6 +591,7 @@ enum Animate {
         }
         height = min(width * 2, Int((h / 2).rounded(.up)) * 2)
       }
+      return fontProblems
     }
 
     /// Loads `url` (a web page, or a local file with read access to `readAccess`, default its folder)

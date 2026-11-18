@@ -479,8 +479,10 @@ window.init = async function (config) {
   if (config.accent) root.setProperty("--accent", config.accent);
   if (config.paper) root.setProperty("--paper", config.paper);
   if (config.ink) root.setProperty("--ink", config.ink);
+  // A font that won't load leaves the system font in its place; the renderer warns about each one.
+  const fontProblems = [];
   for (const f of config.fonts || []) {
-    try { document.fonts.add(await new FontFace(f.family, `url("${f.url}")`).load()); } catch (e) { /* the system font stands in */ }
+    try { document.fonts.add(await new FontFace(f.family, `url("${f.url}")`).load()); } catch (e) { fontProblems.push(`${f.family} didn't load (${String(e.message || e).trim()})`); }
   }
   if (config.titleFont) root.setProperty("--title", `"${config.titleFont}", Georgia, serif`);
   if (config.bodyFont) root.setProperty("--body", `"${config.bodyFont}", "Helvetica Neue", sans-serif`);
@@ -515,5 +517,5 @@ window.init = async function (config) {
   for (const i of document.images) i.decoding = "sync";
   await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
   window.seek(0);
-  return true;
+  return fontProblems;
 };
