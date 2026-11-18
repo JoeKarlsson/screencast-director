@@ -66,6 +66,10 @@ private func readThroughTap(_ url: URL, _ tap: MTAudioProcessingTap?) throws -> 
     chunk.withUnsafeMutableBytes { _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: bytes, destination: $0.baseAddress!) }
     samples += chunk
   }
+  // A read that fails part way ends the loop like a finished one; say why instead of measuring silence.
+  guard reader.status == .completed else {
+    throw reader.error ?? NSError(domain: "checks", code: 2, userInfo: [NSLocalizedDescriptionKey: "reader stopped with status \(reader.status.rawValue)"])
+  }
   return samples
 }
 
