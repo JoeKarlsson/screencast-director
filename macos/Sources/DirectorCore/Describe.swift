@@ -225,8 +225,8 @@ private struct Describer: Sendable {
       for (i, a) in list.enumerated() {
         out.append(
           line(
-            "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : a.isSticker ? "sticker" : a.isOverlay ? "overlay" : "in the screen")",
-            a.fit == "fit" ? "fit" : "", [a.topText, a.bottomText].compactMap { $0 }.map { "\"\($0)\"" }.joined(separator: " / "), a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
+            "  #\(i) src \(fmtTime(a.start))-\(fmtTime(a.end)) \(a.file) \(a.isFull ? "full frame" : a.isSticker ? "sticker" : a.isOverlay ? "overlay" : a.isReplace ? "in place of the live picture" : "in the screen")",
+            a.fit == "fit" ? "fit" : "", a.volume.map { $0 > 0 ? "volume \($0.formatted())" : "" } ?? "", [a.topText, a.bottomText].compactMap { $0 }.map { "\"\($0)\"" }.joined(separator: " / "), a.from.map { "from \($0.formatted()) s" } ?? "", a.note ?? ""))
       }
     }
     if !plan.animationList.isEmpty {

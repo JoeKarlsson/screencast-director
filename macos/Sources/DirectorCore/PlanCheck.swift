@@ -234,6 +234,10 @@ public enum PlanCheck {
       if b.isReplace, b.recordingSource(in: plan) == nil {
         out.append("inserts[\(i)].placement is replace, which only shows the recording's own video (\(plan.source.video)\(plan.camera.map { " or \($0.video)" } ?? "")), not \(b.file)")
       }
+      if b.recordingSource(in: plan) != nil, b.from == nil {
+        out.append("inserts[\(i)].from is missing: say which moment of the recording to show (0 for its start)")
+      }
+      if b.isReplace, b.enter != nil || b.exit != nil { out.append("inserts[\(i)] is placed replace, which cuts in and out; enter and exit do nothing") }
       if let v = b.volume, !Insert.volumes.contains(v) { out.append("inserts[\(i)].volume is \(fmt(v)); it runs from 0 (muted) to 2") }
       if b.volume ?? 0 > 0, b.isImage { out.append("inserts[\(i)].volume is set on a picture, which has no sound") }
       unit("inserts[\(i)].x", b.x)

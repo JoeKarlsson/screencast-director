@@ -65,10 +65,14 @@ func planCheckExtraChecks() {
     Insert(start: 1, end: 3, file: "screen.mp4", from: 12, placement: "replace"), Insert(start: 4, end: 6, file: "broll/a.mp4", placement: "replace"),
   ]
   swapped.inserts?[0].volume = 3
+  swapped.inserts?.append(Insert(start: 7, end: 9, file: "screen.mp4", placement: "replace", enter: Motion(preset: "fade")))
   let swapProblems = PlanCheck.check(swapped, project: project, templates: nil).problems
   expect(!swapProblems.contains { $0.hasPrefix("inserts[0].placement") }, "replace with the recording's own video is fine (\(swapProblems))")
   expect(swapProblems.contains { $0.hasPrefix("inserts[1].placement is replace") }, "replace with another file is a problem")
   expect(swapProblems.contains { $0.hasPrefix("inserts[0].volume is 3") }, "a B-roll volume past 2 is a problem")
+  expect(swapProblems.contains { $0.hasPrefix("inserts[2].from is missing") }, "the recording as B-roll without a moment is a problem")
+  expect(swapProblems.contains { $0.hasPrefix("inserts[2] is placed replace") }, "enter or exit on a replace insert is a problem")
+  expect(describe(project, swapped).contains("in place of the live picture"), "describe says a replace insert stands in for the live picture")
   expect(has("camera.punchIns[0].x is 1.5"), "a punch-in framed off the camera is a problem")
   expect(has("markers[0].t is 31"), "a marker after the end is a problem")
   expect(has("captions.style is \"comic\""), "an unknown caption style is a problem")
