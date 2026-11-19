@@ -707,9 +707,17 @@ do {
     case "sounds", "images":
       let media: Openverse.Media = positional[2] == "sounds" ? .sounds : .images
       let query = rest.joined(separator: " ")
-      var items = try await Openverse.search(media, query: query, allowCredit: args.contains("--credit-ok"))
-      if media == .images {
-        do { items += try await ArtInstitute.search(query) } catch { FileHandle.standardError.write(Data("skipped aic: \(error.localizedDescription)\n".utf8)) }
+      let openverse = { try await Openverse.search(media, query: query, allowCredit: args.contains("--credit-ok")) }
+      var items: [Openverse.Item] = []
+      if media == .sounds {
+        items = try await openverse()
+      } else {
+        // Pictures have two libraries: one failing is reported and the other still lists.
+        var problems: [String] = []
+        do { items = try await openverse() } catch { problems.append("openverse: \(error.localizedDescription)") }
+        do { items += try await ArtInstitute.search(query) } catch { problems.append("aic: \(error.localizedDescription)") }
+        for p in problems { FileHandle.standardError.write(Data("skipped \(p)\n".utf8)) }
+        if items.isEmpty && !problems.isEmpty { exit(1) }
       }
       for item in items {
         let size = media == .sounds ? String(format: "%.1f s", Double(item.duration ?? 0) / 1000) : "\(item.width ?? 0)x\(item.height ?? 0)"

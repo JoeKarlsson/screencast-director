@@ -177,19 +177,24 @@ public enum Stock {
   static func svsPageURL(_ id: Int) -> URL { URL(string: "https://svs.gsfc.nasa.gov/api/\(id)/")! }
 
   /// The search lists pages, not files, and many pages hold only stills: each page is read (all at
-  /// once) for its movie, and pages without one are left out. Results keep the search's order.
+  /// once) for its movie, and pages without one are left out. Results keep the search's order; when
+  /// every page fails to load, the first error is thrown so the search reports it.
   static func svsSearch(_ query: String) async throws -> [Item] {
-    struct Result: Decodable { var id: Int }
-    struct Root: Decodable { var results: [Result] }
+    struct Hit: Decodable { var id: Int }
+    struct Root: Decodable { var results: [Hit] }
     let ids = try JSONDecoder().decode(Root.self, from: try await get(svsSearchURL(query))).results.map(\.id)
-    return await withTaskGroup(of: (Int, Item?).self) { group in
+    let pages = await withTaskGroup(of: (Int, Result<Item?, Error>).self) { group in
       for (n, id) in ids.enumerated() {
-        group.addTask { (n, try? svsItem(await get(svsPageURL(id)))) }
+        group.addTask {
+          do { return (n, .success(try svsItem(await get(svsPageURL(id))))) } catch { return (n, .failure(error)) }
+        }
       }
-      var found: [(Int, Item)] = []
-      for await (n, item) in group { if let item { found.append((n, item)) } }
-      return found.sorted { $0.0 < $1.0 }.map(\.1)
+      var pages: [(Int, Result<Item?, Error>)] = []
+      for await page in group { pages.append(page) }
+      return pages.sorted { $0.0 < $1.0 }.map(\.1)
     }
+    if !pages.isEmpty, pages.allSatisfy({ if case .failure = $0 { true } else { false } }), case .failure(let error) = pages[0] { throw error }
+    return pages.compactMap { try? $0.get() ?? nil }
   }
 
   /// One SVS page as an item, nil when it has no movie AVFoundation plays. SVS work is public domain
@@ -214,10 +219,8 @@ public enum Stock {
   static func svsMovie(_ movies: [(file: String, width: Int, height: Int)]) -> Int? {
     let playable = movies.indices.filter { ["mp4", "m4v", "mov"].contains((movies[$0].file as NSString).pathExtension.lowercased()) }
     let pixels = { (i: Int) in movies[i].width * movies[i].height }
-    if let best = playable.filter({ pixels($0) <= 1920 * 1080 }).max(by: { pixels($0) < pixels($1) || (pixels($0) == pixels($1) && $0 > $1) }) {
-      return best
-    }
-    return playable.min(by: { pixels($0) < pixels($1) || (pixels($0) == pixels($1) && $0 < $1) })
+    // max(by:) and min(by:) keep the first of equals.
+    return playable.filter { pixels($0) <= 1920 * 1080 }.max { pixels($0) < pixels($1) } ?? playable.min { pixels($0) < pixels($1) }
   }
 
   // MARK: Wikimedia Commons
