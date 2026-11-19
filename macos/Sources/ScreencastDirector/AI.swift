@@ -144,8 +144,9 @@ enum APIEditor {
     highlight | blur (hides secrets).
     - `enter`/`exit`: {preset, seconds?, ease?}; presets fade, fade-up, slide-up, slide-down, slide-left, slide-right, pop, zoom, blur, wipe, words, typewriter, none. Omit to \
     use the motion style.
-    - `inserts` (optional, B-roll): {start, end, file, from?, placement?, fit?, enter?, exit?}; file is a picture or clip already in the project (broll/), never invent one; \
-    placement screen | full; fit fill | fit.
+    - `inserts` (optional, B-roll): {start, end, file, from?, placement?, fit?, volume?, enter?, exit?}; file is a picture or clip already in the project (broll/), \
+    or the recording's own video to show another moment of it (from is then a moment of the recording), never invent one; placement screen | full, \
+    or replace (the recording's own video only: shown in place of the live screen or camera, for a J or L cut); fit fill | fit; volume 0 (muted, default) to 2.
     - Sounds: a file in the project (sfx/) or one from the sound library the timeline lists, written \"sfx/<file>\" (it's copied in on its own); never invent one. Keep them \
     sparse: each lands on something that visibly appears. Attach one to what it belongs to so it moves with it: `sound` {file, gainDB?} on a callout or annotation plays at its \
     start; an animation's `sounds` {cueName: {file, gainDB?}} plays on that beat (\"start\" for the animation's start). `sfx` (optional): {t, file, gainDB?, note?} is a \

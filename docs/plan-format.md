@@ -20,6 +20,8 @@ Each project folder holds the recording and a `plan.json` that describes the edi
 - `effects`: shader plugins drawn on the screen, camera or whole frame, like `[{ "name": "analog", "params": { "bloom": 2 } }]`. See [effects.md](effects.md).
 - `intro` / `outro` (macOS app only): `{ "enabled": true, "title": "...", "subtitle": "...", "duration": 2.5 }` adds a full-frame card before or after the video. A card is shown unless `"enabled": false`. Source times don't change; the output starts after the intro.
 
+- `inserts` (B-roll) can show another moment of the recording itself: set `file` to the recording's `source.video` or `camera.video` and `from` to the moment, in recording seconds (the camera's offset is applied for you). The camera keeps its grade, LUT and mirroring. With `placement: "replace"` it takes the place of the live screen or camera, keeping that card's layout and framing, so the voice carries on while the picture shows another take (a J or L cut, or a cover over a jump cut). `volume` (0 to 2, default 0) plays a clip's own sound, or for the recording the voice at that moment.
+
 The full schema is in `macos/Sources/DirectorCore/Plan.swift` (the plan itself), `PlanItems.swift` (zooms, punch-ins, layouts, titles, B-roll, markers, annotations), `PlanAudio.swift`, `VoiceEffects.swift`, `Look.swift`, `Effects.swift`, `Animation.swift` and `Clips.swift`.
 
 ## Project folder

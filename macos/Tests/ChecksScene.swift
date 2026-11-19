@@ -57,6 +57,21 @@ func sceneDrawingChecks() {
   func onScreen(_ fx: Double, _ fy: Double) -> (x: Double, y: Double) { (map.tx + map.k * fx * 1920, map.ty + map.k * fy * 1080) }
   let plain = render(base, frame: 90)
   expect(near(at(plain, 960, 540), gray, 0.02), "the plain screen card shows the screen (\(at(plain, 960, 540)))")
+  // Another moment of the recording placed "replace" stands in for the live screen, in its card, and
+  // cuts back when it ends; a camera one leaves the screen alone.
+  let otherMoment = CIImage(color: CIColor(red: 1, green: 0, blue: 0)).cropped(to: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  var swapped = base
+  swapped.inserts = [Insert(start: 2, end: 4, file: "screen.mp4", from: 9, placement: "replace")]
+  let swapScene = Scene(plan: swapped, words: [], clicks: [], shortcuts: [])
+  let swappedIn = swapScene.render(frame: 90, screen: screen, camera: nil, insertFrames: [0: otherMoment])
+  expect(near(at(swappedIn, 960, 540), [1, 0, 0], 0.02), "a replace insert shows in the screen card (\(at(swappedIn, 960, 540)))")
+  expect(near(at(swappedIn, 20, 20), at(plain, 20, 20), 0.02), "the card keeps its place: the background around it is unchanged")
+  let after = swapScene.render(frame: 150, screen: screen, camera: nil, insertFrames: [0: otherMoment])
+  expect(near(at(after, 960, 540), gray, 0.02), "after the replace insert ends the live screen is back")
+  swapped.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  swapped.inserts = [Insert(start: 2, end: 4, file: "camera.mp4", from: 9, placement: "replace")]
+  let camSwap = Scene(plan: swapped, words: [], clicks: [], shortcuts: []).render(frame: 90, screen: screen, camera: nil, insertFrames: [0: otherMoment])
+  expect(near(at(camSwap, 960, 540), gray, 0.02), "a camera replace insert doesn't touch the screen")
 
   // Captions: a dark pill near the bottom with the words in white; none before the words are said.
   var captioned = base

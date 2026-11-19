@@ -17,7 +17,15 @@ extension Scene {
   /// Whether a full-frame insert fully covers the screen at this frame (so screen marks stay hidden).
   /// Whether B-roll in the screen card (a portrait animation, say) fully covers it at this frame.
   func cardCovers(_ f: Double) -> Bool {
-    inserts.contains { !$0.a.isFull && !$0.a.isOverlay && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
+    inserts.contains { !$0.a.isFull && !$0.a.isOverlay && !$0.a.isReplace && f >= $0.s && f < $0.e && insertPose($0, frame: f).opacity >= 0.99 }
+  }
+
+  /// The frame of a "replace" insert showing another moment of the recording's screen or camera at
+  /// this frame (the last listed wins), to draw in place of the live one. It cuts in and out.
+  func replacement(_ source: Insert.RecordingSource, frame f: Int, insertFrames: [Int: CIImage]) -> CIImage? {
+    let at = Double(f)
+    return inserts.last { $0.a.isReplace && at >= $0.s && at < $0.e && $0.a.shows(source, in: plan) }
+      .flatMap { insertFrames[$0.index] }
   }
 
   func fullFrameCovers(_ f: Double) -> Bool {
@@ -49,7 +57,7 @@ extension Scene {
   /// with `overlay` the see-through clips floating over everything.
   func broll(_ image: CIImage, frame f: Double, full: Bool, overlay: Bool = false, box b: Box, frames: [Int: CIImage]) -> CIImage {
     var out = image
-    for ins in inserts where ins.a.isOverlay == overlay && (overlay || ins.a.isFull == full) && f >= ins.s && f < ins.e {
+    for ins in inserts where !ins.a.isReplace && ins.a.isOverlay == overlay && (overlay || ins.a.isFull == full) && f >= ins.s && f < ins.e {
       guard var src = liveAnimations[ins.index].flatMap({ live?.image($0) }) ?? insertImages[ins.index] ?? frames[ins.index] else { continue }
       let pose = insertPose(ins, frame: f)
       guard pose.visible else { continue }
@@ -57,6 +65,7 @@ extension Scene {
         out = sticker(src, ins.a, pose: pose).composited(over: out)
         continue
       }
+      if ins.a.recordingSource(in: plan) == .camera { src = cameraLook(src) }
       if brollRoom(ins) == "halftone" {
         src = styledBroll(src, ins, frame: Int(f), shownWidth: full ? W : b.w)
       }

@@ -60,6 +60,15 @@ func planCheckExtraChecks() {
   expect(has("callouts[1].text is empty"), "an empty title is a problem")
   expect(has("callouts[1].exit.preset is \"spin\""), "an unknown exit preset is a problem")
   expect(has("inserts[0].placement is \"corner\""), "an unknown B-roll placement is a problem")
+  var swapped = plan
+  swapped.inserts = [
+    Insert(start: 1, end: 3, file: "screen.mp4", from: 12, placement: "replace"), Insert(start: 4, end: 6, file: "broll/a.mp4", placement: "replace"),
+  ]
+  swapped.inserts?[0].volume = 3
+  let swapProblems = PlanCheck.check(swapped, project: project, templates: nil).problems
+  expect(!swapProblems.contains { $0.hasPrefix("inserts[0].placement") }, "replace with the recording's own video is fine (\(swapProblems))")
+  expect(swapProblems.contains { $0.hasPrefix("inserts[1].placement is replace") }, "replace with another file is a problem")
+  expect(swapProblems.contains { $0.hasPrefix("inserts[0].volume is 3") }, "a B-roll volume past 2 is a problem")
   expect(has("camera.punchIns[0].x is 1.5"), "a punch-in framed off the camera is a problem")
   expect(has("markers[0].t is 31"), "a marker after the end is a problem")
   expect(has("captions.style is \"comic\""), "an unknown caption style is a problem")

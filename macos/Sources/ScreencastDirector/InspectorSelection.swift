@@ -328,18 +328,25 @@ extension InspectorView {
     let c = plan.insertList[i]
     itemHeader("B-roll", "photo.on.rectangle", Theme.broll, range(c.start, c.end))
     timingSection(.insert(i), c.start, c.end)
-    InspectorSection((c.file as NSString).lastPathComponent, detail: c.isImage ? "A picture." : "A clip, played at real time and muted.") {
+    let recording = c.recordingSource(in: plan) != nil
+    let detail = c.isImage ? "A picture." : recording ? "Another moment of your recording, played at real time." : "A clip, played at real time."
+    InspectorSection((c.file as NSString).lastPathComponent, detail: detail) {
       ChoiceRow(
         [
           (String?.none, "Screen", "In the screen card"), (String?.some("full"), "Full", "Over the whole frame, under captions"),
           (String?.some("sticker"), "Sticker", "A pop-up in a white border over the video"),
           (String?.some("overlay"), "Overlay", "Floats over everything, for a clip or picture with transparency"),
-        ], selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement))
+        ] + (recording ? [(String?.some("replace"), "Replace", "In place of the live camera or screen, same framing")] : []),
+        selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement))
       ChoiceRow([(String?.none, "Fill"), (String?.some("fit"), "Show all")], selection: bindItem("insertFit\(i)", \.insertList, i, \.fit))
       if !c.isImage {
         slider(
           "Start at",
-          bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 }, 0...30, "\((c.from ?? 0).formatted()) s")
+          bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 },
+          0...(recording ? max(1, plan.source.duration) : 30), "\((c.from ?? 0).formatted()) s")
+        slider(
+          "Volume", bindItem("insertVolume\(i)", \.insertList, i, \.volume, or: 0) { $0 < 0.01 ? 0 : ($0 * 100).rounded() / 100 }, Insert.volumes,
+          (c.volume ?? 0) > 0 ? "\(Int(((c.volume ?? 0) * 100).rounded()))%" : "Muted")
       }
     }
     if c.isSticker {

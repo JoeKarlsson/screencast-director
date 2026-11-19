@@ -20,6 +20,10 @@ Each release lists what changed for people using the app or the CLI. The version
 - `sd new <name> [--length 30] [--size 1920x1080]` starts a project with no recording: a blank screen of that length, so a film can be built from animations alone.
 - `director beats <dir>` finds the music's tempo and beats, in seconds of the finished video (the track loops; beats under `music.off` are left out), so pop-ins and cuts can land on the beat in a film with no speech to time them to.
 
+### B-roll
+- B-roll can be another moment of your own recording: set an insert's `file` to the recording's screen or camera video and `from` to the moment. The camera keeps its grade, LUT and mirroring, and stays in sync with your voice. Place it like any B-roll (full frame, picture-in-picture as an overlay), or with `placement: "replace"` in place of the live camera or screen, same layout and framing, for J and L cuts: your voice carries on while the picture shows another take.
+- B-roll clips can play their own sound: `volume` (0 to 2) on a clip, or the Volume slider in its inspector. For a moment of your recording it's your voice from that moment. Clips stay muted by default.
+
 ### Sound and music
 - Music makes room for your voice instead of only dropping under it: music you add from now on (in the app, or from a profile) has `"carve": true`, and existing projects keep their mix. With it, the music dips up to 6 dB in the three frequency bands your voice uses most, only while you talk, and the whole track ducks -10 dB instead of -18 (unless you set `duckDB`). The bands are measured once from your speech. If they can't be measured, the music ducks as usual and the render says so, instead of failing.
 

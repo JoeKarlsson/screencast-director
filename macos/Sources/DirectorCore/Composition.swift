@@ -160,7 +160,7 @@ public func buildComposition(project: Project, plan: Plan, live: LiveFrames? = n
 
   let handleTrack = try await crossfadeHandles(scene, screen: srcVideo, screenDuration: screenDuration, to: comp)
 
-  let broll = try await addBroll(scene, project: project, to: comp)
+  let broll = try await addBroll(scene, project: project, voice: srcAudio, voiceTap: voiceTap, to: comp)
 
   let total = CMTime(value: CMTimeValue(scene.frameCount), timescale: fps)
   let music = try await addMusic(plan, project: project, scene: scene, voiceLevels: voiceLevels, total: total, to: comp)
@@ -196,7 +196,7 @@ public func buildComposition(project: Project, plan: Plan, live: LiveFrames? = n
   vc.instructions = [instruction]
 
   let mix = AVMutableAudioMix()
-  mix.inputParameters = [audioParams, music.params, effects.params].compactMap { $0 } + voiceFX.params
+  mix.inputParameters = [audioParams, music.params, effects.params].compactMap { $0 } + voiceFX.params + broll.audio
   // swiftlint:disable force_cast
   return BuiltComposition(
     asset: comp.copy() as! AVComposition, videoComposition: vc.copy() as! AVVideoComposition, audioMix: mix.copy() as! AVAudioMix,
@@ -278,18 +278,24 @@ private func levelingCurve(_ levels: [(Double, Double)], _ scene: Scene) -> [Dou
   }
 }
 
-/// B-roll clips: one track each, playing at real time from `from`, muted. Pictures are drawn by the
-/// scene and need no track. Returns each clip's track by its index (the compositor's key), the tracks
-/// and sources to pad to the end, the orientation that turns each rotated clip upright, and the assets,
-/// which must outlive the composition's inserts.
-private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableComposition) async throws -> (
+/// B-roll clips: one track each, playing at real time from `from`. Pictures are drawn by the scene
+/// and need no track. The recording's own camera starts at `from` plus the camera's offset, so it
+/// matches the voice at `from`. A clip with a `volume` gets an audio track too: its own sound, or for
+/// the recording's own video the voice (`voice`, with the voice's processing). Returns each clip's
+/// track by its index (the compositor's key), the tracks and sources to pad to the end, the
+/// orientation that turns each rotated clip upright, the audio mix parameters, and the assets, which
+/// must outlive the composition's inserts.
+private func addBroll(
+  _ scene: Scene, project: Project, voice: AVAssetTrack?, voiceTap: () throws -> MTAudioProcessingTap?, to comp: AVMutableComposition
+) async throws -> (
   tracks: [Int: CMPersistentTrackID], orientations: [Int: CGImagePropertyOrientation],
-  fills: [(AVMutableCompositionTrack, AVAssetTrack)], assets: [AVURLAsset]
+  fills: [(AVMutableCompositionTrack, AVAssetTrack)], audio: [AVMutableAudioMixInputParameters], assets: [AVURLAsset]
 ) {
   let fps = Int32(scene.fps)
   var tracks: [Int: CMPersistentTrackID] = [:]
   var orientations: [Int: CGImagePropertyOrientation] = [:]
   var fills: [(AVMutableCompositionTrack, AVAssetTrack)] = []
+  var audio: [AVMutableAudioMixInputParameters] = []
   var assets: [AVURLAsset] = []
   for ins in scene.inserts where !ins.a.isImage {
     guard let url = Scene.fileURL(ins.a.file, dir: project.dir), FileManager.default.fileExists(atPath: url.path) else {
@@ -301,7 +307,9 @@ private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableCompos
     guard let src = try await asset.loadTracks(withMediaType: .video).first else { throw CompositionError.noVideo(ins.a.file) }
     let dur = try await asset.load(.duration)
     assets.append(asset)
-    let from = min(ins.a.from ?? 0, max(0, dur.seconds - 0.1))
+    let recording = ins.a.recordingSource(in: scene.plan)
+    let shift: Double = recording == .camera && !ins.a.shows(.screen, in: scene.plan) ? scene.plan.camera?.offset ?? 0 : 0
+    let from = min(max(0, (ins.a.from ?? 0) + shift), max(0, dur.seconds - 0.1))
     let length = min((ins.e - ins.s) / Double(fps), dur.seconds - from)
     guard length > 0.05, let track = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
     let at = CMTime(value: CMTimeValue(ins.s), timescale: fps)
@@ -318,8 +326,27 @@ private func addBroll(_ scene: Scene, project: Project, to comp: AVMutableCompos
     tracks[ins.index] = track.trackID
     if let orientation = videoOrientation(try await src.load(.preferredTransform)) { orientations[ins.index] = orientation }
     fills.append((track, src))
+    if let volume = ins.a.volume, volume > 0 {
+      let sound: AVAssetTrack?
+      if recording != nil { sound = voice } else { sound = try await asset.loadTracks(withMediaType: .audio).first }
+      guard let sound else { throw CompositionError.noAudio(ins.a.file) }
+      let soundFrom = recording != nil ? max(0, ins.a.from ?? 0) : from
+      let soundEnd = try await sound.load(.timeRange).end.seconds
+      let soundLength = min(length, soundEnd - soundFrom)
+      guard soundLength > 0.05, let soundTrack = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+        continue
+      }
+      try await insert(soundTrack, CMTimeRange(start: t(soundFrom), duration: t(soundLength)), of: sound, at: at, "B-roll sound")
+      let params = AVMutableAudioMixInputParameters(track: soundTrack)
+      if recording != nil { params.audioTapProcessor = try voiceTap() }
+      params.setVolume(Float(volume), at: .zero)
+      // Silent after the clip, so the end padding can't be heard.
+      params.setVolume(0, at: soundTrack.timeRange.end)
+      audio.append(params)
+      fills.append((soundTrack, sound))
+    }
   }
-  return (tracks, orientations, fills, assets)
+  return (tracks, orientations, fills, audio, assets)
 }
 
 /// The orientation that turns a clip's stored frames upright, from its track's preferred transform

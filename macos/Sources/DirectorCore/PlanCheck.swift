@@ -230,7 +230,12 @@ public enum PlanCheck {
       short("annotations[\(i)]", a.start, a.end)
     }
     for (i, b) in plan.insertList.enumerated() {
-      oneOf("inserts[\(i)].placement", b.placement, ["screen", "full", "overlay", "sticker"])
+      oneOf("inserts[\(i)].placement", b.placement, ["screen", "full", "overlay", "sticker", "replace"])
+      if b.isReplace, b.recordingSource(in: plan) == nil {
+        out.append("inserts[\(i)].placement is replace, which only shows the recording's own video (\(plan.source.video)\(plan.camera.map { " or \($0.video)" } ?? "")), not \(b.file)")
+      }
+      if let v = b.volume, !Insert.volumes.contains(v) { out.append("inserts[\(i)].volume is \(fmt(v)); it runs from 0 (muted) to 2") }
+      if b.volume ?? 0 > 0, b.isImage { out.append("inserts[\(i)].volume is set on a picture, which has no sound") }
       unit("inserts[\(i)].x", b.x)
       unit("inserts[\(i)].y", b.y)
       if let w = b.w, !(0.05...1).contains(w) { out.append("inserts[\(i)].w is \(fmt(w)); a sticker's width is a fraction of the frame from 0.05 to 1") }

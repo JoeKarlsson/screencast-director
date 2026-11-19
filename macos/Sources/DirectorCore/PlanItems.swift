@@ -107,16 +107,25 @@ public struct Callout: Codable, Equatable, Sendable {
 }
 
 /// B-roll: a video clip or picture shown over part of the recording, inside the screen card or
-/// over the whole frame. Times are source seconds of the main recording, as everywhere.
+/// over the whole frame. Times are source seconds of the main recording, as everywhere. Its file can
+/// be the recording's own screen or camera video, to show another moment of it (`recordingSource`).
 public struct Insert: Codable, Equatable, Sendable {
   public var start: Double
   public var end: Double
-  /// A file in the project folder (the app copies picked files into broll/).
+  /// A file in the project folder (the app copies picked files into broll/), or the recording's own
+  /// `source.video` or `camera.video`.
   public var file: String
-  /// Seconds into a video file to start from (default 0). Clips play at real time and muted.
+  /// Seconds into a video file to start from (default 0). Clips play at real time. For the
+  /// recording's own video it's a moment of the recording, on the same clock as `start` (the
+  /// camera's offset is applied), so its picture and voice stay in sync.
   public var from: Double?
   /// "screen" (in the screen card, the default) or "full" (the whole frame, under captions).
+  /// "replace", for the recording's own video only: shown in place of the live screen or camera,
+  /// keeping that card's layout, framing and look, so only the moment changes (a J or L cut).
   public var placement: String?
+  /// How loud the clip's own sound plays: 0 (the default) mutes it, 1 as recorded. For the
+  /// recording's own video it's the voice at that moment, over whatever the edit plays there.
+  public var volume: Double?
   /// "fill" (crop to fill, the default) or "fit" (show it all).
   public var fit: String?
   public var enter: Motion?
@@ -162,7 +171,26 @@ public struct Insert: Codable, Equatable, Sendable {
   public var isOverlay: Bool { placement == "overlay" || isSticker }
   /// A small clip or picture (a reaction GIF) in a white sticker border over the video, at `x`, `y`.
   public var isSticker: Bool { placement == "sticker" }
+  /// Shown in place of the live screen or camera rather than over it.
+  public var isReplace: Bool { placement == "replace" }
   public static let stickerTilt = -4.0
+  public static let volumes = 0.0...2.0
+
+  public enum RecordingSource: Sendable { case screen, camera }
+  /// Which of the recording's own videos this shows, if its file is one of them: the camera when
+  /// the camera and screen are one file (a phone video), since it's shown as the camera.
+  public func recordingSource(in plan: Plan) -> RecordingSource? {
+    if let cam = plan.camera, file == cam.video { return .camera }
+    return file == plan.source.video ? .screen : nil
+  }
+
+  /// Whether this shows the recording's screen or camera video (both when they're one file).
+  public func shows(_ source: RecordingSource, in plan: Plan) -> Bool {
+    switch source {
+    case .screen: return file == plan.source.video
+    case .camera: return plan.camera.map { file == $0.video } ?? false
+    }
+  }
 }
 
 /// A named point on the timeline (source seconds): a note to yourself or the AI ("intro ends").

@@ -32,16 +32,20 @@ extension Scene {
     return out.cropped(to: img.extent)
   }
 
+  /// The camera's grade, LUT and mirroring: how its picture looks anywhere it's shown.
+  func cameraLook(_ src0: CIImage) -> CIImage {
+    let src = Scene.graded(src0, plan.camera?.grade, lut: cameraLUT)
+    guard plan.camera?.mirror == true else { return src }
+    // x -> minX + maxX - x: flipped in place, same extent.
+    let e = src.extent
+    return src.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: e.minX + e.maxX, ty: 0))
+  }
+
   func cameraCard(_ src0: CIImage, box b: Box, frame f: Double) -> CIImage {
-    var src = Scene.graded(src0, plan.camera?.grade, lut: cameraLUT)
+    var src = cameraLook(src0)
     let cw = src.extent.width, ch = src.extent.height
     let cam = plan.camera
     let mirrored = cam?.mirror == true
-    if mirrored {
-      // x -> minX + maxX - x: flipped in place, same extent.
-      let e = src.extent
-      src = src.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: e.minX + e.maxX, ty: 0))
-    }
     let (r, zoom) = cameraFraming(b, frame: f, cameraWidth: cw, cameraHeight: ch)
     let k = max(r.width / cw, r.height / ch) * zoom
     // Keep the framing point centered, clamped so the camera image always covers the box.

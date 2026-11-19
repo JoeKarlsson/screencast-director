@@ -334,8 +334,11 @@ public final class Scene: @unchecked Sendable {
   }
 
   public func render(
-    frame f: Int, screen screenA: CIImage?, camera: CIImage?, handle: CIImage? = nil, insertFrames: [Int: CIImage] = [:]
+    frame f: Int, screen liveScreen: CIImage?, camera liveCamera: CIImage?, handle: CIImage? = nil, insertFrames: [Int: CIImage] = [:]
   ) -> CIImage {
+    // B-roll of another moment of the recording, placed "replace", stands in for the live frame.
+    let screenA = replacement(.screen, frame: f, insertFrames: insertFrames) ?? liveScreen
+    let camera = liveCamera != nil ? replacement(.camera, frame: f, insertFrames: insertFrames) ?? liveCamera : nil
     // Inside a crossfade, dissolve the screen toward the other clip before laying out the frame.
     var screen = screenA
     if let a = screenA, let b = handle, let mix = crossfadeMix(fades, frame: f), mix > 0.001 {

@@ -254,6 +254,50 @@ struct Playback {
       expect(false, "repeat composition: \(error)")
     }
 
+    // The recording's own camera as B-roll starts at `from` on the recording's clock, so the camera's
+    // offset is added; asking for its sound when the recording has none fails, naming the file.
+    do {
+      let project = try Project.load(dir)
+      let cameraFile = dir.appendingPathComponent("camera.mp4")
+      try? FileManager.default.removeItem(at: cameraFile)
+      try FileManager.default.copyItem(at: dir.appendingPathComponent("screen.mp4"), to: cameraFile)
+      var plan = built.scene.plan
+      plan.intro = nil
+      plan.outro = nil
+      plan.sfx = nil
+      plan.callouts = []
+      plan.segments = [Segment(start: 0, end: 4, speed: 1)]
+      plan.camera = Plan.Camera(video: "camera.mp4", offset: 0.25)
+      plan.inserts = [Insert(start: 0.5, end: 1.5, file: "camera.mp4", from: 2, placement: "replace")]
+      let swapped = try composition(project, plan)
+      let video = swapped.asset.tracks(withMediaType: .video)
+      let starts = video.last!.segments.filter { !$0.isEmpty }.map(\.timeMapping.source.start.seconds)
+      expect(abs((starts.first ?? 0) - 2.25) < 0.01, "the camera B-roll plays from 2 s plus the 0.25 s offset (\(starts))")
+      expect(swapped.asset.tracks.allSatisfy { $0.timeRange.end == swapped.asset.duration }, "the camera B-roll track ends with the video")
+      plan.inserts?[0].volume = 1
+      do {
+        _ = try composition(project, plan)
+        expect(false, "a B-roll volume on a silent recording fails the composition")
+      } catch {
+        expect("\(error.localizedDescription)".contains("camera.mp4"), "the silent clip is named (\(error.localizedDescription))")
+      }
+      // A clip with sound and a volume gets its own audio track, ending with the video.
+      let voiced = dir.appendingPathComponent("voiced.mov")
+      try writeVideoWithSound(video: dir.appendingPathComponent("screen.mp4"), sound: dir.appendingPathComponent("beep.caf"), to: voiced)
+      plan.camera = nil
+      plan.inserts = [Insert(start: 0.5, end: 1.5, file: "voiced.mov", placement: "full")]
+      plan.inserts?[0].volume = 0.5
+      let loud = try composition(project, plan)
+      let sound = loud.asset.tracks(withMediaType: .audio)
+      expect(sound.count == 1, "a B-roll clip with a volume gets an audio track (\(sound.count))")
+      expect(sound.first?.segments.first { !$0.isEmpty }.map { abs($0.timeMapping.target.start.seconds - 0.5) < 0.01 } == true, "its sound starts with the clip")
+      expect(loud.asset.tracks.allSatisfy { $0.timeRange.end == loud.asset.duration }, "the B-roll sound track ends with the video")
+      plan.inserts?[0].volume = nil
+      expect(try composition(project, plan).asset.tracks(withMediaType: .audio).isEmpty, "without a volume B-roll stays muted")
+    } catch {
+      expect(false, "recording B-roll compositions: \(error)")
+    }
+
     // A B-roll file or music track that's missing fails the build with its name, instead of
     // quietly leaving it out of the video.
     do {
@@ -279,6 +323,30 @@ struct Playback {
     }
     print("playback checks passed")
   }
+}
+
+/// Writes `video` with `sound` under it as one .mov (a B-roll clip that has its own sound).
+func writeVideoWithSound(video: URL, sound: URL, to url: URL) throws {
+  try? FileManager.default.removeItem(at: url)
+  let box = ResultBox<Bool>()
+  let sem = DispatchSemaphore(value: 0)
+  Task.detached {
+    do {
+      let comp = AVMutableComposition()
+      let v = AVURLAsset(url: video), a = AVURLAsset(url: sound)
+      let vt = try await v.loadTracks(withMediaType: .video).first!, at = try await a.loadTracks(withMediaType: .audio).first!
+      try comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        .insertTimeRange(try await vt.load(.timeRange), of: vt, at: .zero)
+      try comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        .insertTimeRange(try await at.load(.timeRange), of: at, at: .zero)
+      let session = AVAssetExportSession(asset: comp, presetName: AVAssetExportPresetPassthrough)!
+      try await session.export(to: url, as: .mov)
+      box.value = true
+    } catch { box.error = error }
+    sem.signal()
+  }
+  while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+  if let e = box.error { throw e }
 }
 
 /// Builds a composition off the main thread, running the main run loop while it works (AVFoundation
