@@ -51,9 +51,9 @@ let usage = """
     director repeat   <dir> <start> <end> [--before <t>]   play a source-time range again first (or before t), keeping it in its place too
     director publish  <dir> [--title "..."] [--preset id] [--at s1,s2]   captions.srt, chapters, transcript, thumbnails (covers from those source seconds)
     director join     <out> <dir1> <dir2> ...       join takes into a new project with a fresh draft plan
-    director stock    <dir> sounds|images <query> [--credit-ok]   search Openverse (CC0 and public domain; --credit-ok adds CC BY)
+    director stock    <dir> sounds|images <query> [--credit-ok]   search Openverse (CC0 and public domain; --credit-ok adds CC BY), pictures also the Art Institute of Chicago
     director stock    <dir> get-sound|get-image <id>...   a sound into My Sounds/Openverse, a picture into broll/
-    director stock    <dir> videos <query> [--credit-ok] [--source nasa,commons,archive]   video B-roll
+    director stock    <dir> videos <query> [--credit-ok] [--source nasa,svs,commons,archive]   video B-roll
     director stock    <dir> gifs <query> [--credit-ok]   GIFs: Openverse, plus KLIPY reaction GIFs in a personal video (KLIPY_API_KEY)
     director stock    <dir> get-video|get-gif <id>...   into broll/ as an MP4 (GIFs loop), logged in broll/stock-licenses.csv
     director upload   <file>                        S3-compatible PUT; prints the public URL (the app's Settings > Sharing, or S3_* env vars)
@@ -706,7 +706,12 @@ do {
       }
     case "sounds", "images":
       let media: Openverse.Media = positional[2] == "sounds" ? .sounds : .images
-      for item in try await Openverse.search(media, query: rest.joined(separator: " "), allowCredit: args.contains("--credit-ok")) {
+      let query = rest.joined(separator: " ")
+      var items = try await Openverse.search(media, query: query, allowCredit: args.contains("--credit-ok"))
+      if media == .images {
+        do { items += try await ArtInstitute.search(query) } catch { FileHandle.standardError.write(Data("skipped aic: \(error.localizedDescription)\n".utf8)) }
+      }
+      for item in items {
         let size = media == .sounds ? String(format: "%.1f s", Double(item.duration ?? 0) / 1000) : "\(item.width ?? 0)x\(item.height ?? 0)"
         print("\(item.id)  \(item.title ?? "")  [\(size), \(item.license.uppercased()), \(item.creator ?? "unknown") on \(item.source ?? "?")]")
         print("    \(item.url)")
@@ -715,7 +720,7 @@ do {
       let media: Openverse.Media = positional[2] == "get-sound" ? .sounds : .images
       if media == .images { _ = try Project.load(dir) }
       for id in rest {
-        let item = try await Openverse.item(media, id: id)
+        let item = media == .images && id.hasPrefix("aic:") ? try await ArtInstitute.item(id) : try await Openverse.item(media, id: id)
         print(media == .sounds ? try await Openverse.addSound(item) : try await Openverse.addImage(item, project: dir))
         if item.needsCredit { print("    credit in the description: \(item.attribution ?? "")") }
       }

@@ -60,6 +60,31 @@ func stockChecks() {
     expect(klipy.map(\.file) == ["https://k/h.mp4", "https://k/m.gif"] && klipy.first?.id == "klipy:hello-hi-662", "KLIPY: the MP4 over the GIF, the biggest size offered (\(klipy))")
     let flat = try Stock.klipyItems(data(#"{"result":true,"data":[{"slug":"s","file":{"sm":{"gif":{"url":"https://k/s.gif"}}}}]}"#))
     expect(flat.count == 1, "KLIPY: an items answer with the list right under data")
+
+    let svs = try Stock.svsItem(data(#"""
+      {"id":5622,"title":"Wind","media_groups":[{"items":[{"instance":{"url":"http://svs/a.jpg","filename":"a.jpg","media_type":"Image","width":1024,"height":576}},
+        {"instance":{"url":"http://svs/w_2160p30.mp4","filename":"w_2160p30.mp4","media_type":"Movie","width":3840,"height":2160}},
+        {"instance":{"url":"http://svs/w_720p30.mp4","filename":"w_720p30.mp4","media_type":"Movie","width":1280,"height":720}},
+        {"instance":{"url":"http://svs/w_1080p30.webm","filename":"w_1080p30.webm","media_type":"Movie","width":1920,"height":1080}},
+        {"instance":{"url":"http://svs/w_1080p30.mp4","filename":"w_1080p30.mp4","media_type":"Movie","width":1920,"height":1080}}]}]}
+      """#))
+    expect(svs?.id == "svs:5622" && svs?.file == "https://svs/w_1080p30.mp4", "SVS: the biggest playable movie up to 1080p, over https (\(String(describing: svs?.file)))")
+    expect(Stock.svsMovie([("a.mp4", 3840, 2160), ("b.mov", 7680, 4320)]) == 0, "SVS: with only 4K and up, the smallest")
+    expect(try Stock.svsItem(data(#"{"id":1,"title":"Stills","media_groups":[]}"#)) == nil, "SVS: a page with no movie is left out")
+
+    let aic = try ArtInstitute.items(data(#"""
+      {"data":[{"_score":80,"id":1,"title":"Big","artist_title":"A","image_id":"i1","is_public_domain":true,"thumbnail":{"width":6000,"height":3000}},
+        {"_score":70,"id":2,"title":"Mid","image_id":"i2","is_public_domain":true,"thumbnail":{"width":1229,"height":2250}},
+        {"_score":60,"id":3,"title":"Small","image_id":"i3","is_public_domain":true,"thumbnail":{"width":557,"height":768}},
+        {"_score":50,"id":4,"title":"Modern","image_id":"i4","is_public_domain":false,"thumbnail":{"width":2000,"height":2000}},
+        {"_score":40,"id":5,"title":"No image","is_public_domain":true},
+        {"_score":5,"id":6,"title":"Padding","image_id":"i6","is_public_domain":true,"thumbnail":{"width":2000,"height":2000}}]}
+      """#))
+    expect(aic.map(\.id) == ["aic:1", "aic:2", "aic:3"], "AIC: only public domain with an image, and no low-score padding (\(aic.map(\.id)))")
+    expect(aic.map(\.width) == [1686, 843, 557] && aic.first?.height == 843 && aic.allSatisfy { !$0.needsCredit },
+      "AIC: 1686 or 843 wide, smaller ones at their own size, no credit (\(aic.map(\.width)))")
+    let one = try ArtInstitute.items(data(#"{"data":{"id":9,"title":"One","image_id":"i9","is_public_domain":true,"thumbnail":{"width":900,"height":900}}}"#))
+    expect(one.first?.url == "https://www.artic.edu/iiif/2/i9/full/843,/0/default.jpg", "AIC: a single artwork answer (\(one))")
     do {
       _ = try Stock.klipyItems(data(#"{"result":false,"errors":{"message":["The provided API key is invalid."]}}"#))
       expect(false, "KLIPY: a refused key throws")

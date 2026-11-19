@@ -4,7 +4,8 @@ import Foundation
 /// (GIFs and WebM/Ogg clips are converted, since B-roll plays through AVFoundation), each logged with
 /// its license in broll/stock-licenses.csv.
 ///
-/// Video: NASA (public domain), Wikimedia Commons (CC0 and public domain; CC BY with `allowCredit`; never share-alike or NC) and the
+/// Video: NASA (public domain), NASA's Scientific Visualization Studio (public domain unless a page
+/// says otherwise), Wikimedia Commons (CC0 and public domain; CC BY with `allowCredit`; never share-alike or NC) and the
 /// Internet Archive's Prelinger collection (public domain vintage film; other Archive uploads
 /// declare their own licenses, which are often wrong).
 /// GIFs: Openverse (CC0 and public domain, as for pictures) everywhere, plus KLIPY (reaction GIFs,
@@ -12,10 +13,10 @@ import Foundation
 /// its API terms forbid keeping copies of its GIFs.
 public enum Stock {
   public enum Source: String, CaseIterable, Sendable {
-    case nasa, commons, archive, klipy, openverse
+    case nasa, svs, commons, archive, klipy, openverse
   }
 
-  public static let videoSources: [Source] = [.nasa, .commons, .archive]
+  public static let videoSources: [Source] = [.nasa, .svs, .commons, .archive]
 
   /// The GIF libraries a video may use: no KLIPY in a work video.
   public static func gifSources(work: Bool) -> [Source] { work ? [.openverse] : [.klipy, .openverse] }
@@ -74,6 +75,8 @@ public enum Stock {
     switch source {
     case .nasa:
       return try nasaItems(await get(nasaSearchURL(query)))
+    case .svs:
+      return try await svsSearch(query)
     case .commons:
       return try commonsItems(await get(commonsSearchURL(query)), allowCredit: allowCredit)
     case .archive:
@@ -98,6 +101,9 @@ public enum Stock {
       var c = URLComponents(string: "https://images-api.nasa.gov/search")!
       c.queryItems = [URLQueryItem(name: "nasa_id", value: sid), URLQueryItem(name: "media_type", value: "video")]
       found = try nasaItems(await get(c.url!))
+    case .svs:
+      guard let page = Int(sid) else { throw DirectorError("\"\(id)\" isn't an SVS id; they look like svs:5681") }
+      found = try svsItem(await get(svsPageURL(page))).map { [$0] } ?? []
     case .commons:
       var c = URLComponents(string: "https://commons.wikimedia.org/w/api.php")!
       c.queryItems = commonsInfoQuery + [URLQueryItem(name: "titles", value: sid)]
@@ -158,6 +164,60 @@ public enum Stock {
       if let f = mp4s.first(where: { $0.hasSuffix(suffix) }) { return f }
     }
     return mp4s.first
+  }
+
+  // MARK: NASA Scientific Visualization Studio
+
+  static func svsSearchURL(_ query: String) -> URL {
+    var c = URLComponents(string: "https://svs.gsfc.nasa.gov/api/search/")!
+    c.queryItems = [URLQueryItem(name: "search", value: query), URLQueryItem(name: "limit", value: "12")]
+    return c.url!
+  }
+
+  static func svsPageURL(_ id: Int) -> URL { URL(string: "https://svs.gsfc.nasa.gov/api/\(id)/")! }
+
+  /// The search lists pages, not files, and many pages hold only stills: each page is read (all at
+  /// once) for its movie, and pages without one are left out. Results keep the search's order.
+  static func svsSearch(_ query: String) async throws -> [Item] {
+    struct Result: Decodable { var id: Int }
+    struct Root: Decodable { var results: [Result] }
+    let ids = try JSONDecoder().decode(Root.self, from: try await get(svsSearchURL(query))).results.map(\.id)
+    return await withTaskGroup(of: (Int, Item?).self) { group in
+      for (n, id) in ids.enumerated() {
+        group.addTask { (n, try? svsItem(await get(svsPageURL(id)))) }
+      }
+      var found: [(Int, Item)] = []
+      for await (n, item) in group { if let item { found.append((n, item)) } }
+      return found.sorted { $0.0 < $1.0 }.map(\.1)
+    }
+  }
+
+  /// One SVS page as an item, nil when it has no movie AVFoundation plays. SVS work is public domain
+  /// unless the page says otherwise; the music some pages carry is licensed, but B-roll plays muted.
+  static func svsItem(_ data: Data) throws -> Item? {
+    struct Media: Decodable { var url: String; var filename: String; var media_type: String; var width: Int?; var height: Int? }
+    struct Entry: Decodable { var instance: Media? }
+    struct Group: Decodable { var items: [Entry] }
+    struct Page: Decodable { var id: Int; var title: String; var media_groups: [Group]? }
+    let page = try JSONDecoder().decode(Page.self, from: data)
+    let movies = (page.media_groups ?? []).flatMap { $0.items.compactMap(\.instance) }.filter { $0.media_type == "Movie" }
+    guard let pick = svsMovie(movies.map { ($0.filename, $0.width ?? 0, $0.height ?? 0) }) else { return nil }
+    let movie = movies[pick]
+    return Item(
+      id: "svs:\(page.id)", title: page.title, creator: "NASA's Scientific Visualization Studio",
+      license: "NASA SVS (public domain unless its page says otherwise)", needsCredit: false, page: "https://svs.gsfc.nasa.gov/\(page.id)/",
+      file: movie.url.replacingOccurrences(of: "http://", with: "https://"), width: movie.width, height: movie.height)
+  }
+
+  /// Which movie to take: the biggest MP4, M4V or MOV up to 1080p (a 4K master runs to hundreds of
+  /// MB), else the smallest one. Ties go to the page's first.
+  static func svsMovie(_ movies: [(file: String, width: Int, height: Int)]) -> Int? {
+    let playable = movies.indices.filter { ["mp4", "m4v", "mov"].contains((movies[$0].file as NSString).pathExtension.lowercased()) }
+    let pixels = { (i: Int) in movies[i].width * movies[i].height }
+    if let best = playable.filter({ pixels($0) <= 1920 * 1080 }).max(by: { pixels($0) < pixels($1) || (pixels($0) == pixels($1) && $0 > $1) }) {
+      return best
+    }
+    return playable.min(by: { pixels($0) < pixels($1) || (pixels($0) == pixels($1) && $0 < $1) })
   }
 
   // MARK: Wikimedia Commons

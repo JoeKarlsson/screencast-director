@@ -4,6 +4,10 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Stock
+- `director stock videos` also searches NASA's Scientific Visualization Studio (`--source svs`): animations of Earth, the sun, the Moon and space, public domain, downloaded at up to 1080p.
+- `director stock images` also searches the Art Institute of Chicago's public-domain collection (CC0); `get-image aic:<id>` saves one into broll/.
+
 ### Transitions
 - The Punch In transition pushes one way through the cut: it grows into the cut, and the next shot starts a little small and keeps growing, instead of growing and then shrinking back.
 
