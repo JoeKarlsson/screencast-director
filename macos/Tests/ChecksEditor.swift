@@ -24,6 +24,20 @@ func editorActionChecks() {
   let noEmbed = embedPlan.addEmbed(words: said, range: 8..<9)
   expect(first == Plan.Captions.Embed(start: 4.4, end: 5.9, text: "designing") && lateEmbed?.end == 20 && noEmbed == nil && embedPlan.captions.embeds?.count == 2,
     "the transcript's Embed picks the headline word and keeps it in the recording (\(String(describing: embedPlan.captions.embeds)))")
+  // Use as B-roll: the selected moment as a replace insert of the camera (the screen without one),
+  // on the words themselves, at least a second long and inside the recording.
+  var momentPlan = base
+  let shown = momentPlan.addMoment(range: 4.4..<5)
+  expect(momentPlan.insertList[shown] == {
+    var i = Insert(start: 4.4, end: 5.4, file: "screen.mp4", from: 4.4, placement: "replace")
+    i.note = "another moment of the recording"
+    return i
+  }(), "Use as B-roll shows the screen at the words, a second long (\(momentPlan.insertList[shown]))")
+  momentPlan.camera = Plan.Camera(video: "camera.mp4", offset: 0)
+  let lateMoment = momentPlan.addMoment(range: 19.6..<19.9)
+  expect(momentPlan.insertList[lateMoment].file == "camera.mp4" && momentPlan.insertList[lateMoment].from == 19.6 && momentPlan.insertList[lateMoment].end == 20,
+    "with a camera it shows the camera, kept inside the recording (\(momentPlan.insertList[lateMoment]))")
+  expect(momentPlan.hasSeparateCamera && !base.hasSeparateCamera, "a separate camera file can be picked; a phone video's can't")
   base.normalize()
 
   // Clicking: a plain click selects one item; ⇧/⌘-click adds or takes out; taking out the

@@ -19,6 +19,13 @@ extension ProjectModel {
     if let i = self.plan?.effectRangeList.firstIndex(of: r) { select(.effectRange(i), adding: false) }
   }
 
+  /// B-roll of the recording shows the moment under the playhead from now on.
+  func showMomentAtPlayhead(_ i: Int) {
+    let t = playheadSrc
+    apply { if $0.insertList.indices.contains(i) { $0.insertList[i].from = t } }
+    status = "This B-roll shows the moment at \(fmtTime(t)). Move the playhead to where it plays to see it."
+  }
+
   // MARK: Markers
 
   /// M: a marker at the playhead.

@@ -82,6 +82,22 @@ extension Plan {
     return embed
   }
 
+  /// The moment `range` of the recording as B-roll: the camera (else the screen) in place of the
+  /// live picture, showing from the range's start, on the range itself and at least
+  /// `PlanCheck.shortestItem` long. It changes nothing until it's moved elsewhere. Returns its index.
+  @discardableResult
+  public mutating func addMoment(range: Range<Double>) -> Int {
+    let length = min(source.duration, max(range.upperBound - range.lowerBound, PlanCheck.shortestItem))
+    let start = min(max(0, range.lowerBound), source.duration - length)
+    var ins = Insert(start: start, end: start + length, file: camera?.video ?? source.video, from: range.lowerBound, placement: "replace")
+    ins.note = "another moment of the recording"
+    insertList.append(ins)
+    return insertList.count - 1
+  }
+
+  /// Whether this plan's screen and camera are separate files, so a moment can show either.
+  public var hasSeparateCamera: Bool { camera.map { $0.video != source.video } ?? false }
+
   /// Whether a selection still points at something in this plan.
   public func has(_ s: Selection) -> Bool {
     switch s {

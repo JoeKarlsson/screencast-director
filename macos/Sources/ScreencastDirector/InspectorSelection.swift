@@ -339,11 +339,21 @@ extension InspectorView {
         ] + (recording ? [(String?.some("replace"), "Replace", "In place of the live camera or screen, same framing")] : []),
         selection: bindItem("insertWhere\(i)", \.insertList, i, \.placement))
       ChoiceRow([(String?.none, "Fill"), (String?.some("fit"), "Show all")], selection: bindItem("insertFit\(i)", \.insertList, i, \.fit))
-      if !c.isImage {
+      if recording {
+        if plan.hasSeparateCamera, let camera = plan.camera {
+          ChoiceRow([(plan.source.video, "Screen"), (camera.video, "Camera")], selection: bindItem("insertFile\(i)", \.insertList, i, \.file))
+        }
+        LabeledContent("Shows") {
+          Text(fmtTime(c.from ?? 0)).monospacedDigit().foregroundStyle(.secondary)
+          Button("Moment at Playhead") { project.showMomentAtPlayhead(i) }
+            .help("Show the moment of the recording under the playhead")
+        }
+      } else if !c.isImage {
         slider(
           "Start at",
-          bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 },
-          0...(recording ? max(1, plan.source.duration) : 30), "\((c.from ?? 0).formatted()) s")
+          bindItem("insertFrom\(i)", \.insertList, i, \.from, or: 0) { ($0 * 10).rounded() / 10 }, 0...30, "\((c.from ?? 0).formatted()) s")
+      }
+      if !c.isImage {
         slider(
           "Volume", bindItem("insertVolume\(i)", \.insertList, i, \.volume, or: 0) { $0 < 0.01 ? 0 : ($0 * 100).rounded() / 100 }, Insert.volumes,
           (c.volume ?? 0) > 0 ? "\(Int(((c.volume ?? 0) * 100).rounded()))%" : "Muted")

@@ -152,6 +152,8 @@ struct TranscriptView: View {
             Button { project.embedOverRange() } label: { Label("Embed", systemImage: "person.crop.rectangle.stack") }
               .help("Show the key word big behind you on the full camera (one per sentence at most)")
           }
+          Button { project.momentOverRange() } label: { Label("Use as B-roll", systemImage: "film.stack") }
+            .help("Make B-roll of this moment, then drag it where it should show (a J or L cut, or to cover a jump cut)")
           Menu {
             ForEach(ChoiceTiles.calloutStyles, id: \.name) { c in
               Button { project.titleOverRange(style: c.name) } label: { Label(c.label, systemImage: c.icon) }

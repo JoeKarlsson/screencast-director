@@ -22,6 +22,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### B-roll
 - B-roll can be another moment of your own recording: set an insert's `file` to the recording's screen or camera video and `from` to the moment. The camera keeps its grade, LUT and mirroring, and stays in sync with your voice. Place it like any B-roll (full frame, picture-in-picture as an overlay), or with `placement: "replace"` in place of the live camera or screen, same layout and framing, for J and L cuts: your voice carries on while the picture shows another take.
+- In the app: select words in the transcript and press Use as B-roll to make B-roll of that moment, then drag it where it should show. Its inspector shows which moment it plays, with Moment at Playhead to pick another, and Screen or Camera when they're separate files.
 - B-roll clips can play their own sound: `volume` (0 to 2) on a clip, or the Volume slider in its inspector. For a moment of your recording it's your voice from that moment. Clips stay muted by default.
 
 ### Sound and music

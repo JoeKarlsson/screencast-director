@@ -93,6 +93,16 @@ extension ProjectModel {
     doneWithRange()
   }
 
+  /// The selected moment as B-roll of the recording, selected, to drag where it should show.
+  func momentOverRange() {
+    guard let r = actionRange else { return }
+    var index = 0
+    apply { index = $0.addMoment(range: r) }
+    select(.insert(index), adding: false)
+    doneWithRange()
+    status = "Drag the new B-roll to where this moment should show."
+  }
+
   /// An annotation over the range, around a click in it (else the last one).
   func annotateRange(_ kind: String) {
     guard let r = actionRange else { return }
