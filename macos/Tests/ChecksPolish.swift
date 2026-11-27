@@ -6,6 +6,19 @@ import Foundation
 // Checks.main; run with macos/test.sh.
 
 func polishChecks() {
+  // Text inside an animation must stay up its reading time in one unbroken stretch: a piece that
+  // leaves early, or blinks out and back, is short; one held to the end of the clip is fine.
+  let probes: [(t: Double, names: [String])] = [
+    (0, ["Hooks stop Claude", "Held 1"]), (0.5, ["Held 2", "Blinks", "Near"]), (1, ["Held 3", "Near"]),
+    (1.5, ["Held 4", "Blinks"]), (2, ["Held 5"]), (2.5, ["Held 6"]), (3, ["Held 7", "Last"]),
+  ]
+  let unread = PopUp.animationTextTooShort(probes, step: 0.5, duration: 3.4)
+  expect(unread.map(\.name) == ["Hooks stop Claude", "Blinks", "Last"], "short animation text: \(unread.map(\.name))")
+  expect(unread.first.map { abs($0.seconds - 0.5) < 1e-9 && abs($0.needed - 1.5) < 1e-9 } == true, "a 3-word piece seen once needs 1.5 s (\(unread))")
+  expect(unread.first { $0.name == "Blinks" }.map { abs($0.seconds - 0.5) < 1e-9 } == true, "a piece that blinks out counts its longest stretch, not its total")
+  expect(!unread.contains { $0.name.hasPrefix("Held") }, "a counter ticking up is one piece that stays")
+  expect(!unread.contains { $0.name == "Near" }, "a piece within one probe of its reading time isn't flagged: the probe can't tell")
+  expect(unread.first { $0.name == "Last" }.map { abs($0.seconds - 0.4) < 1e-9 } == true, "a piece at the end runs to the clip's end, not past it")
   // A cut pause keeps a breath after a sentence, a longer landing after a long one, and only the
   // usual edges mid-sentence.
   let pauseProject = Project(

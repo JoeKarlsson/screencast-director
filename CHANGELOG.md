@@ -4,6 +4,9 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ## Unreleased
 
+### Animations
+- `director animate` warns about text inside an animation that leaves before it can be read: each piece must stay on screen in one stretch for 0.3 s a word plus 0.5 s, and at least 1.5 s, the same bar as annotation labels. A counter ticking up counts as one piece.
+
 ### Stock
 - `director stock videos` also searches NASA's Scientific Visualization Studio (`--source svs`): animations of Earth, the sun, the Moon and space, public domain, downloaded at up to 1080p.
 - `director stock images` also searches the Art Institute of Chicago's public-domain collection (CC0); `get-image aic:<id>` saves one into broll/.

@@ -194,13 +194,10 @@ public enum Polish {
   /// WARNINGs (`PopUp.tooShort`).
   static func reading(_ scene: Scene, _ plan: Plan) -> [PolishNote] {
     let fps = Double(scene.fps)
-    func need(_ text: String) -> Double {
-      max(minReadSeconds, Double(PopUp.words(text)) * PopUp.secondsPerWord + PopUp.extraSeconds)
-    }
     var out: [PolishNote] = []
     for a in scene.annotations {
       guard let text = a.a.text, !text.isEmpty else { continue }
-      let seconds = (a.e - a.s) / fps, needed = need(text)
+      let seconds = (a.e - a.s) / fps, needed = PopUp.readSeconds(for: text)
       if seconds < needed {
         out.append(
           PolishNote(

@@ -20,6 +20,40 @@ public enum PopUp {
 
   static func words(_ text: String) -> Int { text.split(whereSeparator: \.isWhitespace).count }
 
+  /// How long a label showing `text` needs on screen: a word's reading time plus finding it, and
+  /// never under `Polish.minReadSeconds`.
+  public static func readSeconds(for text: String) -> Double {
+    max(Polish.minReadSeconds, Double(words(text)) * secondsPerWord + extraSeconds)
+  }
+
+  /// Text inside an animation that leaves before it can be read (after Lemo-Opuscar's readcheck,
+  /// MIT). `probes` are the text pieces on screen, sampled `step` seconds apart from the start of a
+  /// clip `duration` seconds long; each piece's longest unbroken stretch must last `readSeconds`.
+  /// A counter ticking ("45h", "46h") is one piece: digits don't change which piece it is.
+  /// Returns each short piece with when it first appears, its longest stretch and what it needs.
+  public static func animationTextTooShort(_ probes: [(t: Double, names: [String])], step: Double, duration: Double)
+    -> [(name: String, at: Double, seconds: Double, needed: Double)]
+  {
+    var first: [String: Double] = [:], runStart: [String: Double] = [:], longest: [String: Double] = [:]
+    var previous: Set<String> = [], shown: [String: String] = [:]
+    for (t, names) in probes {
+      let keyed = Dictionary(names.map { ($0.replacingOccurrences(of: "[0-9]+", with: "#", options: .regularExpression), $0) }) { a, _ in a }
+      shown.merge(keyed) { a, _ in a }
+      let now = Set(keyed.keys)
+      for name in now where !previous.contains(name) {
+        runStart[name] = t
+        if first[name] == nil { first[name] = t }
+      }
+      for name in now { longest[name] = max(longest[name] ?? 0, min(duration, t + step) - runStart[name]!) }
+      previous = now
+    }
+    return first.keys.sorted { (first[$0]!, $0) < (first[$1]!, $1) }.compactMap { name in
+      let needed = readSeconds(for: name), seconds = longest[name]!
+      // Probes `step` apart can undercount a stretch by up to one step: only flag a sure miss
+      return seconds + step + 1e-9 < needed ? (shown[name]!, first[name]!, seconds, needed) : nil
+    }
+  }
+
   /// Animation data fields that hold the words it shows (a note's big word, the text beside it and
   /// the line under it; a title's heading and subtitle).
   static let animationTextKeys = ["title", "heading", "big", "text", "small", "subtitle", "label", "name"]

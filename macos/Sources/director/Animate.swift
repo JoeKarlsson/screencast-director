@@ -498,6 +498,7 @@ enum Animate {
       var tiles: [[Double]] = [], whipping: [Bool] = []
       let band = plan.captionBand(a) ?? (0, 0)
       var overlaps: [(t: Double, rows: [[Any]])] = [], faint: [(t: Double, rows: [[Any]])] = []
+      var texts: [(t: Double, names: [String])] = []
       func seek(_ t: Double, probe: Bool = false) async throws -> [Double] {
         let result: Any?
         do {
@@ -531,6 +532,7 @@ enum Animate {
           overlaps.append((Double(f) / Double(fps), rows))
         }
         if f % Animate.textProbeEvery == 0, let rows = try await web.evaluateJavaScript("textProbe()") as? [[Any]] {
+          texts.append((Double(f) / Double(fps), rows.compactMap { $0.first as? String }))
           let found = TextContrast.rows(rows, bgra: pixels, width: width, height: height)
           if !found.isEmpty { faint.append((Double(f) / Double(fps), found)) }
         }
@@ -548,10 +550,16 @@ enum Animate {
       guard writer.status == .completed else { throw writer.error ?? DirectorError("writing \(out.lastPathComponent) failed") }
       try? FileManager.default.removeItem(at: out)
       try FileManager.default.moveItem(at: tmp, to: out)
+      // Only a whole render knows how long each piece stays: a test slice cuts them short.
+      let unread = first == 0 && last == frames
+        ? PopUp.animationTextTooShort(texts, step: Double(Animate.textProbeEvery) / Double(fps), duration: duration).map {
+          String(format: "WARNING: animation #%d (%@): text \"%@\" is on screen %.2f s from src %.2f; it needs %.2f s to read; hold it longer or cut its words",
+            index, a.template, $0.name, $0.seconds, a.start + $0.at, $0.needed)
+        } : []
       return (
         Animation.pops(tiles, whipping: whipping).map { $0 + first },
         fonts + Animate.overlapWarnings(a, index: index, frames: overlaps, step: 1 / Double(fps))
-          + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(fps))
+          + Animate.overlapWarnings(a, index: index, frames: faint, step: Double(Animate.textProbeEvery) / Double(fps)) + unread
       )
     }
 
