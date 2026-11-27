@@ -46,6 +46,14 @@ final class SetupModel: ObservableObject {
       }
     }
 
+    let tools = Tools.setupChecks(whisperCLI: Tools.whisperCLI, model: Tools.model, ffmpeg: Tools.ffmpeg).map { check in
+      Item(
+        id: check.id, title: check.title, detail: check.detail, ok: check.ok, required: true, fixLabel: "Copy Command",
+        fix: {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(check.command, forType: .string)
+        })
+    }
     items = [
       Item(
         id: "screen", title: "Screen Recording", detail: "To record your display.", ok: screen, required: true,
@@ -66,20 +74,11 @@ final class SetupModel: ObservableObject {
       Item(
         id: "camera", title: "Camera", detail: "Only for the camera bubble and split screen.", ok: cam == .authorized, required: false,
         fixLabel: cam == .notDetermined ? "Allow…" : "Open Settings", fix: request(.video, cam, pane: "Privacy_Camera")),
+    ] + tools + [
       Item(
         id: "claude", title: "Claude Code", detail: claude?.path ?? "For \"Ask Claude\". Install from claude.com/claude-code.",
         ok: claude != nil, required: false, fixLabel: "Open Website",
         fix: { NSWorkspace.shared.open(URL(string: "https://claude.com/claude-code")!) }),
     ]
-    // Whisper and ffmpeg go just before Claude Code, the last row.
-    let tools = Tools.setupChecks(whisperCLI: Tools.whisperCLI, model: Tools.model, ffmpeg: Tools.ffmpeg).map { check in
-      Item(
-        id: check.id, title: check.title, detail: check.detail, ok: check.ok, required: true, fixLabel: "Copy Command",
-        fix: {
-          NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(check.command, forType: .string)
-        })
-    }
-    items.insert(contentsOf: tools, at: items.count - 1)
   }
 }
