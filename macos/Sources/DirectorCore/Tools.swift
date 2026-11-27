@@ -20,9 +20,43 @@ public enum Tools: Sendable {
     return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
   }
 
-  /// Homebrew's ffmpeg, which turns GIFs and WebM stock clips into MP4 B-roll.
+  /// Homebrew's ffmpeg, which masters every export's loudness (ExportLoudness) and turns GIFs and
+  /// WebM stock clips into MP4 B-roll.
   public static var ffmpeg: URL? {
     ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].map(URL.init(fileURLWithPath:)).first { FileManager.default.isExecutableFile(atPath: $0.path) }
+  }
+
+  /// One command-line tool Setup checks for. `command` is what Copy Command copies when it's missing.
+  public struct Check: Sendable {
+    public let id: String
+    public let title: String
+    public let detail: String
+    public let ok: Bool
+    public let command: String
+  }
+
+  /// Setup's tool rows, all required: Whisper (whisper-cli and a model) and ffmpeg.
+  public static func setupChecks(whisperCLI: URL?, model: URL?, ffmpeg: URL?) -> [Check] {
+    let installWhisper = "brew install whisper-cpp"
+    let modelPath = modelsDir.appendingPathComponent("ggml-large-v3-turbo.bin").path
+    let downloadModel = "curl -L --create-dirs -o '\(modelPath)' https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
+    let installFFmpeg = "brew install ffmpeg"
+    let whisperDetail: String
+    if let whisperCLI, let model {
+      whisperDetail = "\(model.lastPathComponent) via \(whisperCLI.path)"
+    } else if whisperCLI == nil {
+      whisperDetail = "Install whisper.cpp: \(installWhisper)"
+    } else {
+      whisperDetail = "No Whisper model found. Copy the command and run it in Terminal to download one (1.6 GB)."
+    }
+    return [
+      Check(
+        id: "whisper", title: "Transcription (Whisper)", detail: whisperDetail, ok: whisperCLI != nil && model != nil,
+        command: whisperCLI == nil ? installWhisper : downloadModel),
+      Check(
+        id: "ffmpeg", title: "ffmpeg", detail: ffmpeg?.path ?? "Masters each export's loudness. Install it: \(installFFmpeg)",
+        ok: ffmpeg != nil, command: installFFmpeg),
+    ]
   }
 
   /// Best installed model, most accurate first.

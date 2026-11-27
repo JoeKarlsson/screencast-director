@@ -3,7 +3,7 @@ import AppKit
 import DirectorCore
 import SwiftUI
 
-/// What the app needs, checked live: permissions, Whisper, Claude Code.
+/// What the app needs, checked live: permissions, Whisper, ffmpeg, Claude Code.
 final class SetupModel: ObservableObject {
   struct Item: Identifiable {
     let id: String
@@ -34,8 +34,6 @@ final class SetupModel: ObservableObject {
     let mic = AVCaptureDevice.authorizationStatus(for: .audio)
     let cam = AVCaptureDevice.authorizationStatus(for: .video)
     let input = CGPreflightListenEventAccess()
-    let whisper = Tools.whisperCLI
-    let model = Tools.model
     let claude = Claude.executable
 
     func request(_ type: AVMediaType, _ status: AVAuthorizationStatus, pane: String) -> () -> Void {
@@ -47,10 +45,6 @@ final class SetupModel: ObservableObject {
         }
       }
     }
-
-    let installWhisper = "brew install whisper-cpp"
-    let modelPath = Tools.modelsDir.appendingPathComponent("ggml-large-v3-turbo.bin").path
-    let downloadModel = "curl -L --create-dirs -o '\(modelPath)' https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
 
     items = [
       Item(
@@ -73,19 +67,19 @@ final class SetupModel: ObservableObject {
         id: "camera", title: "Camera", detail: "Only for the camera bubble and split screen.", ok: cam == .authorized, required: false,
         fixLabel: cam == .notDetermined ? "Allow…" : "Open Settings", fix: request(.video, cam, pane: "Privacy_Camera")),
       Item(
-        id: "whisper", title: "Transcription (Whisper)",
-        detail: whisper != nil && model != nil
-          ? "\(model!.lastPathComponent) via \(whisper!.path)"
-          : (whisper == nil ? "Install whisper.cpp: \(installWhisper)" : "No Whisper model found. Copy the command and run it in Terminal to download one (1.6 GB)."),
-        ok: whisper != nil && model != nil, required: true, fixLabel: "Copy Command",
-        fix: {
-          NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(whisper == nil ? installWhisper : downloadModel, forType: .string)
-        }),
-      Item(
         id: "claude", title: "Claude Code", detail: claude?.path ?? "For \"Ask Claude\". Install from claude.com/claude-code.",
         ok: claude != nil, required: false, fixLabel: "Open Website",
         fix: { NSWorkspace.shared.open(URL(string: "https://claude.com/claude-code")!) }),
     ]
+    // Whisper and ffmpeg go just before Claude Code, the last row.
+    let tools = Tools.setupChecks(whisperCLI: Tools.whisperCLI, model: Tools.model, ffmpeg: Tools.ffmpeg).map { check in
+      Item(
+        id: check.id, title: check.title, detail: check.detail, ok: check.ok, required: true, fixLabel: "Copy Command",
+        fix: {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(check.command, forType: .string)
+        })
+    }
+    items.insert(contentsOf: tools, at: items.count - 1)
   }
 }

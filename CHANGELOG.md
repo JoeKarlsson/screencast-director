@@ -29,6 +29,7 @@ Each release lists what changed for people using the app or the CLI. The version
 - B-roll clips can play their own sound: `volume` (0 to 2) on a clip, or the Volume slider in its inspector. For a moment of your recording it's your voice from that moment. Clips stay muted by default.
 
 ### Sound and music
+- Setup checks for ffmpeg alongside Whisper and counts it as required, with Copy Command for `brew install ffmpeg`, since mastering each export's loudness needs it. An export made without it still goes out unmastered, with a warning.
 - Music makes room for your voice instead of only dropping under it: music you add from now on (in the app, or from a profile) has `"carve": true`, and existing projects keep their mix. With it, the music dips up to 6 dB in the three frequency bands your voice uses most, only while you talk, and the whole track ducks -10 dB instead of -18 (unless you set `duckDB`). The bands are measured once from your speech. If they can't be measured, the music ducks as usual and the render says so, instead of failing.
 - Every export's sound is mastered to streaming loudness: -14 LUFS, with the true peak at or under -1 dBTP, so each video plays at the same level as the last. Only the sound is re-encoded; the picture is copied as it is. `director render` prints the loudness before and after. Silent sound is left alone, and a video that still misses the target says so. Needs ffmpeg (`brew install ffmpeg`); without it the export goes out unmastered, with a warning.
 

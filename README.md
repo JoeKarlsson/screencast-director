@@ -27,7 +27,8 @@ You need a Mac with Apple silicon and macOS 15 or later.
 On first launch, **Getting Started** shows which permissions are missing
 (Screen & System Audio Recording, Microphone, Input Monitoring, optionally
 Camera) and gives you the command to download a Whisper model. If it says
-whisper-cli is missing, run `brew install whisper-cpp`.
+whisper-cli or ffmpeg is missing, run `brew install whisper-cpp ffmpeg`
+(ffmpeg masters each export's loudness).
 
 AI edits are optional. The Claude box uses [Claude Code](https://claude.com/claude-code)
 (your Claude login, no key) if it's installed, or the Anthropic API or any
@@ -65,10 +66,10 @@ Installing a pack never runs anything. See [docs/packs.md](docs/packs.md) for th
 
 ## Build from source
 
-Apple silicon, macOS 15+, the Xcode Command Line Tools, and whisper.cpp.
+Apple silicon, macOS 15+, the Xcode Command Line Tools, whisper.cpp and ffmpeg.
 
 ```sh
-brew install whisper-cpp        # or bundle your own: macos/build-whisper.sh (needs cmake)
+brew install whisper-cpp ffmpeg # or bundle your own whisper-cli: macos/build-whisper.sh (needs cmake)
 git clone https://github.com/JoeKarlsson/screencast-director.git
 cd screencast-director
 macos/build.sh --install        # builds /Applications/Screencast Director.app

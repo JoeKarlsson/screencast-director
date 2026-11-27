@@ -7,7 +7,7 @@
 Download the zip from [GitHub Releases](https://github.com/JoeKarlsson/screencast-director/releases) and drag the app to Applications (the [README](../README.md#install) covers the first-launch warning). To build it yourself:
 
 ```sh
-brew install whisper-cpp        # or bundle your own: macos/build-whisper.sh (needs cmake)
+brew install whisper-cpp ffmpeg # or bundle your own whisper-cli: macos/build-whisper.sh (needs cmake)
 macos/build.sh --install        # builds /Applications/Screencast Director.app
 ```
 

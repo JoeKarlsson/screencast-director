@@ -11,6 +11,7 @@ func fileAndFormatChecks() {
   publishHelperChecks()
   agentInterfaceChecks()
   shipsNoPersonalLookCheck()
+  setupToolChecks()
   // A phone clip shot sideways stores its frames rotated, with the turn in its preferred transform.
   expect(videoOrientation(CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 2160, ty: 0)) == .right, "a portrait phone clip turns right")
   expect(videoOrientation(CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 3840)) == .left, "a clip turned the other way turns left")
@@ -18,6 +19,22 @@ func fileAndFormatChecks() {
   // 21.29 s is 638.7 frames, rounded to 639: a range past the end covers that last frame.
   let lastClip = mapSegments([Segment(start: 50.33, end: 71.62, speed: 1)], fps: 30)
   expect(srcRangeToOut(lastClip, 0, 74, fps: 30).first?.endF == 639, "a range to the end covers the last frame")
+}
+
+/// Setup's tool rows are all required, so any one not ok keeps Setup unfinished: ffmpeg missing
+/// means exports go out unmastered (ExportLoudness), so it holds Setup open like Whisper does.
+private func setupToolChecks() {
+  let bin = URL(fileURLWithPath: "/opt/homebrew/bin")
+  let cli = bin.appendingPathComponent("whisper-cli"), model = URL(fileURLWithPath: "/m/ggml-large-v3-turbo.bin")
+  let ffmpeg = bin.appendingPathComponent("ffmpeg")
+  let all = Tools.setupChecks(whisperCLI: cli, model: model, ffmpeg: ffmpeg)
+  expect(all.allSatisfy(\.ok), "with every tool found, Setup's tool rows are done")
+  let noFFmpeg = Tools.setupChecks(whisperCLI: cli, model: model, ffmpeg: nil)
+  let row = noFFmpeg.first { $0.id == "ffmpeg" }
+  expect(row?.ok == false && row?.command == "brew install ffmpeg", "missing ffmpeg is a row to fix, copying brew install ffmpeg")
+  expect(!noFFmpeg.allSatisfy(\.ok), "missing ffmpeg means Setup isn't complete")
+  let noWhisper = Tools.setupChecks(whisperCLI: nil, model: model, ffmpeg: ffmpeg)
+  expect(noWhisper.first { $0.id == "whisper" }?.command == "brew install whisper-cpp", "missing whisper-cli copies its install")
 }
 
 /// What the app ships stays neutral: one person's or company's look (a site's scribbles, its hot pink,
