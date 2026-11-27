@@ -30,6 +30,7 @@ Each release lists what changed for people using the app or the CLI. The version
 
 ### Sound and music
 - Music makes room for your voice instead of only dropping under it: music you add from now on (in the app, or from a profile) has `"carve": true`, and existing projects keep their mix. With it, the music dips up to 6 dB in the three frequency bands your voice uses most, only while you talk, and the whole track ducks -10 dB instead of -18 (unless you set `duckDB`). The bands are measured once from your speech. If they can't be measured, the music ducks as usual and the render says so, instead of failing.
+- Every export's sound is mastered to streaming loudness: -14 LUFS, with the true peak at or under -1 dBTP, so each video plays at the same level as the last. Only the sound is re-encoded; the picture is copied as it is. `director render` prints the loudness before and after. Silent sound is left alone, and a video that still misses the target says so. Needs ffmpeg (`brew install ffmpeg`); without it the export goes out unmastered, with a warning.
 
 ### Editor
 - Caption embeds from the transcript: select words and press Embed to show the key word big behind you on the full camera. The Captions section lists them; click one to remove it.

@@ -488,10 +488,12 @@ do {
       let built = try await buildComposition(project: project, plan: job.plan)
       printWarnings(built)
       let started = Date()
-      try await export(built, to: job.out) { p in
+      let sound = try await export(built, to: job.out) { p in
         FileHandle.standardError.write(Data("\(Int(p * 100))%\n".utf8))
       }
       print(String(format: "Rendered %@ in %.1fs", job.out.path, Date().timeIntervalSince(started)))
+      if let summary = sound.summary { print(summary) }
+      for w in sound.warnings { FileHandle.standardError.write(Data("warning: \(w)\n".utf8)) }
       // A clip goes out on its own, so its captions file goes beside it (for platforms that take one).
       if job.clip {
         let srt = job.out.deletingPathExtension().appendingPathExtension("srt")

@@ -82,7 +82,9 @@ struct ExportJobRow: View {
       switch job.state {
       case .queued: Text("Waiting").font(.caption).foregroundStyle(.secondary)
       case .running: ProgressView(value: job.progress)
-      case .done: Text("Done: \(job.url.lastPathComponent)").font(.caption).foregroundStyle(.secondary)
+      case .done:
+        Text("Done: \(job.url.lastPathComponent)").font(.caption).foregroundStyle(.secondary)
+        ForEach(job.warnings, id: \.self) { Text($0).font(.caption).foregroundStyle(Theme.error) }
       case .failed(let why): Text("Failed: \(why)").font(.caption).foregroundStyle(Theme.error)
       case .cancelled: Text("Cancelled").font(.caption).foregroundStyle(.secondary)
       }

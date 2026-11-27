@@ -132,6 +132,7 @@ struct Media {
       try await join(root)
       try await gifAndPublish(root)
       try await exportQueue(root)
+      try await loudnessMaster(root)
       try await shortShots(root)
       try await faces(root)
       try await transcription(root)
@@ -471,6 +472,54 @@ struct Media {
     expect(stamp?.plan == plan, "the export carries the plan it rendered (\(String(describing: stamp?.plan.segments)))")
     expect(stamp.map { abs($0.exported.timeIntervalSinceNow) < 120 && !$0.app.isEmpty } == true, "and when and by what (\(String(describing: stamp?.app)))")
     expect(try await Provenance.read(dir.appendingPathComponent("screen.mp4")) == nil, "a video from elsewhere has no stamp")
+  }
+
+  /// Every export's sound is mastered to -14 LUFS, true peak at or under -1 dBTP: a quiet tone with
+  /// one full-scale click (gain up, the click limited) and a loud tone (gain down). Measured here
+  /// with loudnorm's JSON, not the ebur128 reading the master itself uses. Silence is left alone.
+  static func loudnessMaster(_ root: URL) async throws {
+    let cases: [(name: String, tone: [(Double, Double, Double)])] = [
+      ("quiet", [(0, 1.995, 0.05), (1.995, 2.0, 1.0), (2.0, 4, 0.05)]),
+      ("loud", [(0, 4, 0.99)]),
+      ("silent", [(0, 4, 0)]),
+    ]
+    for c in cases {
+      let dir = try folder(root, "master-\(c.name)")
+      let video = dir.appendingPathComponent("screen.mp4")
+      try await barVideo(to: video, seconds: 4)
+      try addTone(video, parts: c.tone, seconds: 4)
+      try writeSource(dir, width: 640, height: 360, duration: 4)
+      var plan = buildPlan(try Project.load(dir))
+      plan.intro = nil
+      plan.outro = nil
+      plan.segments = [Segment(start: 0, end: 4, speed: 1)]
+      plan.output = Plan.Output(width: 640, height: 360, fps: 30)
+      let out = dir.appendingPathComponent("out.mp4")
+      let report = try await export(try await buildComposition(project: try Project.load(dir), plan: plan), to: out)
+      let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasPrefix(".out.") }
+      expect(leftovers.isEmpty, "\(c.name): no temporary files left beside the export (\(leftovers))")
+      expect(try await Provenance.read(out)?.plan == plan, "\(c.name): the mastered export keeps its provenance stamp")
+      let length = try await AVURLAsset(url: out).loadTracks(withMediaType: .video).first?.load(.timeRange).duration.seconds ?? 0
+      expect(abs(length - 4) < 0.05, "\(c.name): the picture keeps its length (\(length))")
+      if c.name == "silent" {
+        expect(report.after == nil && report.warnings.contains { $0.contains("silent") }, "silent sound isn't mastered, with a warning (\(report.warnings))")
+        continue
+      }
+      let p = Process()
+      p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+      p.arguments = ["ffmpeg", "-hide_banner", "-nostats", "-i", out.path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"]
+      let pipe = Pipe()
+      p.standardError = pipe
+      try p.run()
+      let log = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+      p.waitUntilExit()
+      let json = log.range(of: "{", options: .backwards).flatMap { open in log.range(of: "}", options: .backwards).map { String(log[open.lowerBound..<$0.upperBound]) } } ?? "{}"
+      let measured = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String] ?? [:]
+      let i = measured["input_i"].flatMap(Double.init) ?? 0, tp = measured["input_tp"].flatMap(Double.init) ?? 99
+      expect(abs(i + 14) <= 1, "\(c.name): the export measures -14 ±1 LUFS (\(i); \(report.summary ?? "no summary"))")
+      expect(tp <= -1, "\(c.name): its true peak is at or under -1 dBTP (\(tp))")
+      expect(report.warnings.isEmpty, "\(c.name): mastering hit its targets without warnings (\(report.warnings))")
+    }
   }
 
   /// A file in test/fixtures (see its README). media-test.sh runs from macos/.

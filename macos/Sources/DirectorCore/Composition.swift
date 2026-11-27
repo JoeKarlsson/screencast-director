@@ -484,10 +484,15 @@ private func addVoiceEffects(
   return (tracks.values.map(\.params), tracks.values.map { ($0.track, $0.src) }, assets)
 }
 
-/// Renders the plan to an MP4. `progress` gets 0...1.
-public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws {
+/// Renders the plan to an MP4 with its sound mastered (ExportLoudness). `progress` gets 0...1.
+/// The video is written beside `url` under a temporary name and moved there when finished, so a
+/// failed or cancelled export leaves no partial file and keeps the one already there.
+@discardableResult
+public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws -> ExportLoudness.Report {
   try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-  try? FileManager.default.removeItem(at: url)
+  let rendering = url.deletingLastPathComponent().appendingPathComponent(".\(url.deletingPathExtension().lastPathComponent).rendering.mp4")
+  try? FileManager.default.removeItem(at: rendering)
+  defer { try? FileManager.default.removeItem(at: rendering) }
   // AVAssetExportSession isn't marked Sendable, but cancelExport is meant to be called from anywhere.
   guard let made = AVAssetExportSession(asset: built.asset, presetName: AVAssetExportPresetHighestQuality) else {
     throw DirectorError("Can't create an export session.")
@@ -498,21 +503,20 @@ public func export(_ built: BuiltComposition, to url: URL, progress: (@Sendable 
   session.metadata = [try Provenance(app: Provenance.appVersion, exported: Date(), plan: built.scene.plan).metadataItem()]
   let watcher = Task {
     for await state in session.states(updateInterval: 0.5) {
-      if case .exporting(let p) = state { progress?(p.fractionCompleted) }
+      if case .exporting(let p) = state { progress?(0.8 * p.fractionCompleted) }
     }
   }
   defer { watcher.cancel() }
   // Cancelling the calling task stops the export and removes the partial file.
   try await withTaskCancellationHandler {
-    try await session.export(to: url, as: .mp4)
+    try await session.export(to: rendering, as: .mp4)
   } onCancel: {
     session.cancelExport()
   }
-  if Task.isCancelled {
-    try? FileManager.default.removeItem(at: url)
-    throw CancellationError()
-  }
+  try Task.checkCancellation()
+  let report = try await ExportLoudness.normalize(rendering, to: url) { progress?(0.8 + 0.2 * $0) }
   progress?(1)
+  return report
 }
 
 /// One output frame, rendered through the same compositor as preview and export.

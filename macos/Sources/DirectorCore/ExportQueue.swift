@@ -20,6 +20,8 @@ public final class ExportQueue: ObservableObject {
     let plan: Plan
     @Published public internal(set) var progress = 0.0
     @Published public internal(set) var state = State.queued
+    /// What mastering the sound warned about (silent, no ffmpeg, peak still over), shown with Done.
+    @Published public internal(set) var warnings: [String] = []
 
     init(projectDir: URL, plan: Plan, label: String, url: URL) {
       self.projectDir = projectDir
@@ -78,9 +80,10 @@ public final class ExportQueue: ObservableObject {
       do {
         let project = try Project.load(job.projectDir)
         let built = try await buildComposition(project: project, plan: job.plan)
-        try await export(built, to: job.url) { p in
+        let sound = try await export(built, to: job.url) { p in
           Task { @MainActor in job.progress = p }
         }
+        job.warnings = sound.warnings
         job.state = .done
         job.progress = 1
         onFinished?(job)
